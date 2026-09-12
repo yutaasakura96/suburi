@@ -1,0 +1,44 @@
+# dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# next
+.next/
+out/
+build/
+next-env.d.ts
+
+# secrets — never committed. .env.example carries names only, never values.
+.env
+.env.local
+.env*.local
+.env.development
+.env.production
+
+# test and coverage
+coverage/
+playwright-report/
+test-results/
+blob-report/
+.playwright/
+
+# vercel / typescript
+.vercel
+*.tsbuildinfo
+
+# os and editor
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# local database and object storage
+/docker/pgdata/
+/minio-data/
+
+# never commit real user material — see docs/11-testing-plan.md §8
+/private/
+*.cv.local.*

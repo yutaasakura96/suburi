@@ -1,0 +1,54 @@
+{
+  "pages": [
+    { "id": "page-1", "name": "Screens" },
+    { "id": "page-2", "name": "Directions" }
+  ],
+  "artboards": [
+    { "file": "Main.dc.html", "page": "page-1", "x": 0, "y": 0, "w": 1280, "h": 1500, "title": "Home + Round feedback" },
+    { "file": "RoundSetup.dc.html", "page": "page-1", "x": 1400, "y": 0, "w": 1280, "h": 800, "title": "Round setup" },
+    { "file": "RecordIdle.dc.html", "page": "page-1", "x": 2800, "y": 0, "w": 1280, "h": 760, "title": "Question — asked" },
+    { "file": "RecordActive.dc.html", "page": "page-1", "x": 4200, "y": 0, "w": 1280, "h": 760, "title": "Question — recording" },
+    { "file": "RecordTranscript.dc.html", "page": "page-1", "x": 5600, "y": 0, "w": 1280, "h": 760, "title": "Question — transcript back" },
+    { "file": "TranscriptCorrection.dc.html", "page": "page-1", "x": 0, "y": 1700, "w": 1280, "h": 1000, "title": "Transcript correction — edit it", "is_interactive": true },
+    { "file": "FeltPressure.dc.html", "page": "page-1", "x": 1400, "y": 1700, "w": 1280, "h": 860, "title": "Felt pressure — pick one", "is_interactive": true },
+    { "file": "Progress.dc.html", "page": "page-1", "x": 2800, "y": 1700, "w": 1280, "h": 1060, "title": "Progress" },
+    { "file": "History.dc.html", "page": "page-1", "x": 4200, "y": 1700, "w": 1280, "h": 900, "title": "History" },
+    { "file": "DirectionA.dc.html", "page": "page-2", "x": 0, "y": 0, "w": 1280, "h": 1500, "title": "A — Paper record" },
+    { "file": "DirectionC.dc.html", "page": "page-2", "x": 1400, "y": 0, "w": 1280, "h": 1340, "title": "C — Ledger" }
+  ],
+  "annotations": [
+    {
+      "id": "brief",
+      "page": "page-1",
+      "x": 0,
+      "y": -900,
+      "w": 620,
+      "text": "Suburi — the screen set, in Direction B (Instrument).\n\nHome and Round feedback are on the first artboard; then Round setup, the three Question + record frames, Transcript correction, Felt pressure, Progress and History.\n\nOnly two artboards have working controls, deliberately. Artboards share no state, so a walk-the-flow click-through is not buildable on this canvas at all — interactivity can only live inside one screen. It is spent where the design question IS state: Transcript correction (does the rewrite figure read as an accusation while you edit?) and Felt pressure (does picking 1–5 feel like scoring yourself?). Try both.\n\nQuestion + record is three static frames rather than one clickable screen, so the screen specification can be written per state instead of hiding one behind a click.\n\nThe three exploration directions are on page 2."
+    },
+    {
+      "id": "note-b",
+      "page": "page-1",
+      "x": 700,
+      "y": -900,
+      "w": 620,
+      "text": "B — INSTRUMENT.  Cool near-white, IBM Plex Sans JP + Plex Mono, hairline rules. Each dimension is a single marker on a 5-tick scale — a position, not a quantity — with the numeral small and to the side.\n\nWhy: the marker-on-a-scale is the only one of the three that is structurally incapable of reading as an amount, which is what 'no composite score' actually demands. Closest to the brief's 'measurement tool, not a coach'.\n\nIt generalises: the same mark becomes the dot plot on Progress with no reinvention, so feedback and progress are one visual idea rather than two.\n\nTradeoff: the most engineering to build well (tick alignment across 7 rows), and light-grey precision can tip into cold."
+    },
+    {
+      "id": "note-a",
+      "page": "page-2",
+      "x": 0,
+      "y": -560,
+      "w": 600,
+      "text": "A — PAPER RECORD.  Warm cream, Shippori Mincho B1 + Zen Kaku Gothic New. The round reads as a printed assessment sheet; scores are filled squares on a 5-box form, each with a one-line reason beside it.\n\nWhy: mincho carries authority without any coaching tone, and Japanese is the native case rather than a translation. One answer at a time, nothing to sum.\n\nRejected: filled-through squares read as quantity, so seven stacked rows invite the glance-sum the PRD forbids. Its per-dimension prose reasons also introduced a parallel commentary stream the PRD does not have."
+    },
+    {
+      "id": "note-c",
+      "page": "page-2",
+      "x": 1400,
+      "y": -560,
+      "w": 600,
+      "text": "C — LEDGER.  Dark, BIZ UDPGothic + Inconsolata, one 5×7 matrix — every answer, every dimension, follow-ups indented, all on one surface with no scrolling.\n\nWhy: the only direction where a whole round is legible at a glance, and where a weak dimension across several answers is visible without hunting.\n\nRejected as the system: a matrix invites the eye to sum a row, and the sketch had to print 合計・平均は出しません on screen — a layout admitting its own problem.\n\nKept for one screen: the History artboard on page 1 borrows this matrix, in B's light vocabulary and without the disclaimer. Months later, comparing across answers is the task, and the eye-summing risk is lower once you are not sitting in the aftermath of the round."
+    }
+  ],
+  "launch": { "view": "canvas", "page": "page-1" }
+}

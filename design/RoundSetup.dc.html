@@ -1,0 +1,139 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+JP:wght@400;500;600&display=swap">
+  <style>
+    body { margin: 0; }
+    a { color: oklch(0.52 0.09 230); } a:hover { color: oklch(0.42 0.09 230); }
+  </style>
+</helmet>
+
+<div style="width: 1280px; height: 800px; box-sizing: border-box; background: oklch(0.975 0.002 250); font-family: 'IBM Plex Sans JP', 'Hiragino Sans', system-ui, sans-serif; color: oklch(0.28 0.008 250); display: flex; flex-direction: column; gap: 14px; padding: 40px 44px;">
+
+  <div style="background: #fff; border: 1px solid oklch(0.88 0.004 250); display: flex; flex-direction: column;">
+
+    <div style="display: flex; align-items: center; justify-content: space-between; padding: 20px 32px; border-bottom: 1px solid oklch(0.88 0.004 250);">
+      <div style="display: flex; align-items: baseline; gap: 14px;">
+        <span style="font-size: 21px; font-weight: 600; letter-spacing: 0.06em;">素振り</span>
+        <span style="font-family: 'IBM Plex Mono', 'IBM Plex Sans JP', ui-monospace, monospace; font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: oklch(0.62 0.008 250);">Suburi</span>
+      </div>
+      <div style="display: flex; gap: 28px; font-size: 13px; color: oklch(0.48 0.008 250);">
+        <span style="color: oklch(0.28 0.008 250); border-bottom: 2px solid oklch(0.55 0.09 230); padding-bottom: 2px;">Home</span>
+        <span>Progress</span>
+        <span>History</span>
+        <span>CV</span>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));">
+
+      <div style="grid-column: span 2; padding: 28px 32px 32px; display: flex; flex-direction: column; gap: 26px; border-right: 1px solid oklch(0.88 0.004 250);">
+
+        <div style="display: flex; flex-direction: column; gap: 13px;">
+          <span style="font-family: 'IBM Plex Mono', 'IBM Plex Sans JP', ui-monospace, monospace; font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: oklch(0.62 0.008 250);">Round type</span>
+          <div style="display: flex; gap: 28px;">
+            <span style="font-size: 15px; font-weight: 500; padding-bottom: 7px; border-bottom: 2px solid oklch(0.55 0.09 230);">行動面接</span>
+            <span style="font-size: 15px; color: oklch(0.52 0.008 250); padding-bottom: 7px; border-bottom: 2px solid oklch(0.92 0.004 250);">技術面接</span>
+            <span style="font-size: 15px; color: oklch(0.52 0.008 250); padding-bottom: 7px; border-bottom: 2px solid oklch(0.92 0.004 250);">HR</span>
+            <span style="font-size: 15px; color: oklch(0.52 0.008 250); padding-bottom: 7px; border-bottom: 2px solid oklch(0.92 0.004 250);">CEO・最終</span>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 40px;">
+          <div style="display: flex; flex-direction: column; gap: 13px;">
+            <span style="font-family: 'IBM Plex Mono', 'IBM Plex Sans JP', ui-monospace, monospace; font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: oklch(0.62 0.008 250);">Language</span>
+            <div style="display: flex; gap: 28px;">
+              <span style="font-size: 15px; font-weight: 500; padding-bottom: 7px; border-bottom: 2px solid oklch(0.55 0.09 230);">日本語</span>
+              <span style="font-size: 15px; color: oklch(0.52 0.008 250); padding-bottom: 7px; border-bottom: 2px solid oklch(0.92 0.004 250);">English</span>
+            </div>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 13px;">
+            <span style="font-family: 'IBM Plex Mono', 'IBM Plex Sans JP', ui-monospace, monospace; font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: oklch(0.62 0.008 250);">Length</span>
+            <div style="display: flex; gap: 28px;">
+              <span style="font-size: 15px; color: oklch(0.52 0.008 250); padding-bottom: 7px; border-bottom: 2px solid oklch(0.92 0.004 250);">3問</span>
+              <span style="font-size: 15px; font-weight: 500; padding-bottom: 7px; border-bottom: 2px solid oklch(0.55 0.09 230);">5問</span>
+              <span style="font-size: 15px; color: oklch(0.52 0.008 250); padding-bottom: 7px; border-bottom: 2px solid oklch(0.92 0.004 250);">7問</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 13px;">
+          <span style="font-family: 'IBM Plex Mono', 'IBM Plex Sans JP', ui-monospace, monospace; font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: oklch(0.62 0.008 250);">Mode</span>
+          <div style="display: flex; gap: 28px;">
+            <span style="font-size: 15px; font-weight: 500; padding-bottom: 7px; border-bottom: 2px solid oklch(0.55 0.09 230);">実戦</span>
+            <span style="font-size: 15px; color: oklch(0.52 0.008 250); padding-bottom: 7px; border-bottom: 2px solid oklch(0.92 0.004 250);">練習</span>
+          </div>
+          <div style="display: flex; gap: 22px; font-size: 12px; line-height: 1.7; color: oklch(0.56 0.008 250);">
+            <span style="color: oklch(0.40 0.008 250);">実戦 — 一発勝負。1回答 最長4分。講評はラウンド終了後にまとめて出します。</span>
+            <span>練習 — 録り直し可。時間制限なし。回答ごとに講評。</span>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 13px;">
+          <div style="display: flex; align-items: baseline; justify-content: space-between;">
+            <span style="font-family: 'IBM Plex Mono', 'IBM Plex Sans JP', ui-monospace, monospace; font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: oklch(0.62 0.008 250);">Role context</span>
+            <span style="font-size: 12px; color: oklch(0.62 0.008 250);">必須。3つは対等です。</span>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px;">
+            <div style="display: flex; flex-direction: column; gap: 7px; padding-bottom: 11px; border-bottom: 2px solid oklch(0.55 0.09 230);">
+              <span style="font-size: 14px; font-weight: 500;">求人票・メモ</span>
+              <span style="font-size: 12px; line-height: 1.7; color: oklch(0.52 0.008 250);">Mercari_SRE_2026.pdf</span>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 7px; padding-bottom: 11px; border-bottom: 2px solid oklch(0.92 0.004 250);">
+              <span style="font-size: 14px; color: oklch(0.52 0.008 250);">AIに調べさせる</span>
+              <span style="font-size: 12px; line-height: 1.7; color: oklch(0.62 0.008 250);">調査済み・開始前に編集できます</span>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 7px; padding-bottom: 11px; border-bottom: 2px solid oklch(0.92 0.004 250);">
+              <span style="font-size: 14px; color: oklch(0.52 0.008 250);">一般練習</span>
+              <span style="font-size: 12px; line-height: 1.7; color: oklch(0.62 0.008 250);">進捗では別に集計します</span>
+            </div>
+          </div>
+          <div style="display: flex; gap: 10px; font-size: 12px; line-height: 1.7; color: oklch(0.40 0.008 250);">
+            <span style="width: 3px; background: oklch(0.72 0.07 230); flex-shrink: 0;"></span>
+            <span>求人票とAI調査の両方があります。ファイルを優先して使います。</span>
+          </div>
+        </div>
+
+      </div>
+
+      <div style="padding: 28px 32px 32px; display: flex; flex-direction: column; gap: 22px;">
+
+        <div style="display: flex; flex-direction: column; gap: 11px;">
+          <span style="font-family: 'IBM Plex Mono', 'IBM Plex Sans JP', ui-monospace, monospace; font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: oklch(0.62 0.008 250);">Why these defaults</span>
+          <div style="font-size: 13px; line-height: 1.75; color: oklch(0.40 0.008 250);">行動面接・日本語は18日空いています。既定値はそこから決めました。</div>
+          <div style="font-size: 12px; color: oklch(0.62 0.008 250);">提案です。4つとも変えられます。</div>
+        </div>
+
+        <div style="height: 1px; background: oklch(0.92 0.004 250);"></div>
+
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <span style="font-family: 'IBM Plex Mono', 'IBM Plex Sans JP', ui-monospace, monospace; font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: oklch(0.62 0.008 250);">Scored against</span>
+          <div style="display: flex; align-items: baseline; justify-content: space-between;">
+            <span style="font-size: 13px;">職務経歴書 v3</span>
+            <span style="font-family: 'IBM Plex Mono', 'IBM Plex Sans JP', ui-monospace, monospace; font-size: 12px; color: oklch(0.62 0.008 250);">2026-08-30</span>
+          </div>
+        </div>
+
+        <div style="flex-grow: 1;"></div>
+
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          <div style="background: oklch(0.28 0.008 250); color: #fff; height: 48px; display: flex; align-items: center; justify-content: center; font-size: 14px; letter-spacing: 0.04em;">このラウンドを始める</div>
+          <div style="font-family: 'IBM Plex Mono', 'IBM Plex Sans JP', ui-monospace, monospace; font-size: 11px; line-height: 1.9; color: oklch(0.68 0.008 250);">5問＋深掘り5問・最長 約40分<br>評価基準 v1.2・出題 v1.0</div>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

@@ -1,0 +1,149 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+JP:wght@400;500;600&display=swap">
+  <style>
+    body { margin: 0; }
+    a { color: oklch(0.52 0.09 230); } a:hover { color: oklch(0.42 0.09 230); }
+  </style>
+</helmet>
+
+<div style="width: 1280px; height: 1000px; box-sizing: border-box; background: oklch(0.975 0.002 250); font-family: 'IBM Plex Sans JP', 'Hiragino Sans', system-ui, sans-serif; color: oklch(0.28 0.008 250); display: flex; flex-direction: column; gap: 14px; padding: 40px 44px;">
+
+  <div style="background: #fff; border: 1px solid oklch(0.88 0.004 250); display: flex; flex-direction: column; flex-grow: 1;">
+
+    <div style="display: flex; align-items: baseline; justify-content: space-between; padding: 20px 32px; border-bottom: 1px solid oklch(0.88 0.004 250);">
+      <div style="display: flex; align-items: baseline; gap: 14px;">
+        <span style="font-size: 17px; font-weight: 600;">行動面接</span>
+        <span style="font-size: 13px; color: oklch(0.48 0.008 250);">日本語・実戦・5問</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 20px;">
+        <span style="display: flex; align-items: center; gap: 7px;">
+          <span style="width: 26px; height: 2px; background: oklch(0.55 0.09 230);"></span>
+          <span style="width: 26px; height: 2px; background: oklch(0.92 0.004 250);"></span>
+          <span style="width: 26px; height: 2px; background: oklch(0.92 0.004 250);"></span>
+          <span style="width: 26px; height: 2px; background: oklch(0.92 0.004 250);"></span>
+          <span style="width: 26px; height: 2px; background: oklch(0.92 0.004 250);"></span>
+        </span>
+        <span style="font-family: 'IBM Plex Mono', 'IBM Plex Sans JP', ui-monospace, monospace; font-size: 11px; letter-spacing: 0.08em; color: oklch(0.62 0.008 250);">第1問 / 5問</span>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); flex-grow: 1;">
+
+      <div style="grid-column: span 2; padding: 26px 32px 30px; display: flex; flex-direction: column; gap: 20px; border-right: 1px solid oklch(0.88 0.004 250);">
+
+        <div style="font-size: 14px; line-height: 1.85; color: oklch(0.52 0.008 250);">これまでのキャリアで最も困難だった状況と、その対応を教えてください。</div>
+
+        <div style="height: 1px; background: oklch(0.94 0.004 250);"></div>
+
+        <div style="display: flex; align-items: baseline; justify-content: space-between;">
+          <span style="font-family: 'IBM Plex Mono', 'IBM Plex Sans JP', ui-monospace, monospace; font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: oklch(0.62 0.008 250);">Your answer — edit freely</span>
+          <span style="font-family: 'IBM Plex Mono', 'IBM Plex Sans JP', ui-monospace, monospace; font-size: 12px; color: oklch(0.62 0.008 250);">{{charLabel}}</span>
+        </div>
+
+        <textarea value="{{text}}" onChange="{{edit}}" style="width: 100%; box-sizing: border-box; height: 300px; resize: none; border: 1px solid oklch(0.88 0.004 250); background: #fff; padding: 16px 18px; font-family: 'IBM Plex Sans JP', 'Hiragino Sans', system-ui, sans-serif; font-size: 15px; line-height: 1.95; color: oklch(0.28 0.008 250); outline: none;"></textarea>
+
+        <div style="display: flex; flex-direction: column; gap: 11px;">
+          <span style="font-family: 'IBM Plex Mono', 'IBM Plex Sans JP', ui-monospace, monospace; font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: oklch(0.62 0.008 250);">Raw — kept, never replaced</span>
+          <div style="border-left: 2px solid oklch(0.92 0.004 250); padding-left: 16px; font-size: 13px; line-height: 1.9; color: oklch(0.62 0.008 250);">{{raw}}</div>
+        </div>
+
+      </div>
+
+      <div style="padding: 26px 32px 30px; display: flex; flex-direction: column; gap: 20px;">
+
+        <span style="font-family: 'IBM Plex Mono', 'IBM Plex Sans JP', ui-monospace, monospace; font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: oklch(0.62 0.008 250);">Rewrite</span>
+
+        <div style="display: flex; align-items: baseline; gap: 10px;">
+          <span style="font-family: 'IBM Plex Mono', 'IBM Plex Sans JP', ui-monospace, monospace; font-size: 34px; font-weight: 500; letter-spacing: 0.01em;">{{pctLabel}}</span>
+          <span style="font-size: 12px; color: oklch(0.56 0.008 250);">の文字が、未修正の文字起こしから変わりました</span>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 7px;">
+          <div style="position: relative; height: 14px; width: 100%;">
+            <span style="position: absolute; left: 0; right: 0; top: 6px; height: 1px; background: oklch(0.90 0.004 250);"></span>
+            <span style="position: absolute; top: 0; left: {{pct}}%; width: 1px; height: 14px; background: oklch(0.55 0.09 230); transform: translateX(-0.5px);"></span>
+          </div>
+          <div style="display: flex; justify-content: space-between; font-family: 'IBM Plex Mono', 'IBM Plex Sans JP', ui-monospace, monospace; font-size: 10px; color: oklch(0.68 0.008 250);">
+            <span>0%</span>
+            <span>100%</span>
+          </div>
+        </div>
+
+        <div style="height: 1px; background: oklch(0.92 0.004 250);"></div>
+
+        <div style="display: flex; flex-direction: column; gap: 12px; font-size: 12px; line-height: 1.8; color: oklch(0.48 0.008 250);">
+          <span>記録するだけです。誤認識と言い直しの区別はしません。</span>
+          <span>評価にも進捗にも使いません。あとで認識精度を見直すために残します。</span>
+        </div>
+
+        <div style="flex-grow: 1;"></div>
+
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          <div style="background: oklch(0.28 0.008 250); color: #fff; height: 48px; display: flex; align-items: center; justify-content: center; font-size: 14px; letter-spacing: 0.04em;">この回答を送る</div>
+          <div style="font-size: 12px; line-height: 1.7; color: oklch(0.56 0.008 250);">送ると、いま直した文から深掘りが1問つくられます。</div>
+          <div style="font-family: 'IBM Plex Mono', 'IBM Plex Sans JP', ui-monospace, monospace; font-size: 10px; line-height: 1.9; color: oklch(0.68 0.008 250); border-top: 1px solid oklch(0.92 0.004 250); padding-top: 12px;">3:12・約250字/分<br>出題 v1.0・職務経歴書 v3</div>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{"$preview":{"width":1280,"height":1000}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.raw = 'はい、えーと、一番困難だったのは、2024年の決済期版の以降プロジェクトです。市販機の途中で、ベンダーの撤退が決まって、残り二ヶ月で、えー、代替の選定から実装まで、やらないといけない状況になりました。チームは私を入れて四人で、正直、間に合わないっていう空気でした。まず私がやったのは、要件を必須と後回しに分けることで、あの、必須だけに絞ったら、実装量が六割くらいになりました。そのうえで、代替のベンダー三社に、二週間で検証環境を出してもらえるかを聞いて、出せたのは一社だけだったので、そこに決めました。えーと、社内の説得が一番大変で、法務とセキュリティのレビューを、通常は一ヶ月かけるところを、二週間でお願いすることになって、そこは、あの、私が毎日進捗を出して、リスクを一覧にして、どれを受け入れるかを決めてもらう形にしました。結果として、リリースは予定より一週間遅れましたが、障害はゼロで、切り替えは完了しました。あ、あと、補足になるんですけど、そのときに作った、リスクの一覧表は、いまも部署で使われていて、これは、その、副次的な成果かなと思っています。それから、チームのメンバーが一人、途中で体調を崩してしまって、二週間ほど抜けることになったんですが、そこは、あの、作業の分担を週ごとに見直す形にして、特定の人に集中しないようにしました。いま思うと、そこで一度スケジュールを引き直して、関係者に説明し直したのが、結果的には良かったと思います。あとは、そうですね、ベンダーとの契約の部分は、私の専門ではなかったので、調達の担当の方に早めに入ってもらって、そこは任せる、という判断をしました。全部を自分でやろうとしていたら、たぶん間に合わなかったと思います。振り返ると、最初の一週間で、やらないことを決めきったのが一番大きかったと思っていて、そこは、次に似た状況になっても、同じようにやると思います。';
+    this.state = { text: this.raw };
+  }
+
+  common(a, b) {
+    var n = a.length, m = b.length;
+    if (n === 0 || m === 0) return 0;
+    var prev = new Array(m + 1).fill(0);
+    var cur = new Array(m + 1).fill(0);
+    for (var i = 1; i <= n; i++) {
+      cur[0] = 0;
+      for (var j = 1; j <= m; j++) {
+        cur[j] = a.charAt(i - 1) === b.charAt(j - 1)
+          ? prev[j - 1] + 1
+          : Math.max(prev[j], cur[j - 1]);
+      }
+      var swap = prev; prev = cur; cur = swap;
+    }
+    return prev[m];
+  }
+
+  renderVals() {
+    var self = this;
+    var text = this.state.text;
+    var denom = Math.max(this.raw.length, text.length) || 1;
+    var pct = Math.round((1 - this.common(this.raw, text) / denom) * 100);
+    var clamped = Math.max(0, Math.min(100, pct));
+    return {
+      text: text,
+      raw: this.raw,
+      edit: function (e) {
+        var v = (e && e.target && typeof e.target.value === 'string') ? e.target.value : '';
+        self.setState({ text: v });
+      },
+      pct: clamped,
+      pctLabel: clamped + '%',
+      charLabel: this.raw.length + '字 → ' + text.length + '字'
+    };
+  }
+}
+</script>
+</body>
+</html>

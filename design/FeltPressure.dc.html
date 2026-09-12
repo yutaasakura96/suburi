@@ -1,0 +1,131 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+JP:wght@400;500;600&display=swap">
+  <style>
+    body { margin: 0; }
+    a { color: oklch(0.52 0.09 230); } a:hover { color: oklch(0.42 0.09 230); }
+  </style>
+</helmet>
+
+<div style="width: 1280px; height: 860px; box-sizing: border-box; background: oklch(0.975 0.002 250); font-family: 'IBM Plex Sans JP', 'Hiragino Sans', system-ui, sans-serif; color: oklch(0.28 0.008 250); display: flex; flex-direction: column; gap: 14px; padding: 40px 44px;">
+
+  <div style="background: #fff; border: 1px solid oklch(0.88 0.004 250); display: flex; flex-direction: column; flex-grow: 1;">
+
+    <div style="display: flex; align-items: baseline; justify-content: space-between; padding: 20px 32px; border-bottom: 1px solid oklch(0.88 0.004 250);">
+      <div style="display: flex; align-items: baseline; gap: 14px;">
+        <span style="font-size: 17px; font-weight: 600;">行動面接</span>
+        <span style="font-size: 13px; color: oklch(0.48 0.008 250);">日本語・実戦・5問</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 20px;">
+        <span style="display: flex; align-items: center; gap: 7px;">
+          <span style="width: 26px; height: 2px; background: oklch(0.55 0.09 230);"></span>
+          <span style="width: 26px; height: 2px; background: oklch(0.55 0.09 230);"></span>
+          <span style="width: 26px; height: 2px; background: oklch(0.55 0.09 230);"></span>
+          <span style="width: 26px; height: 2px; background: oklch(0.55 0.09 230);"></span>
+          <span style="width: 26px; height: 2px; background: oklch(0.55 0.09 230);"></span>
+        </span>
+        <span style="font-family: 'IBM Plex Mono', 'IBM Plex Sans JP', ui-monospace, monospace; font-size: 11px; letter-spacing: 0.08em; color: oklch(0.62 0.008 250);">第5問 / 5問</span>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); flex-grow: 1;">
+
+      <div style="grid-column: span 2; padding: 30px 32px 32px; display: flex; flex-direction: column; gap: 24px; border-right: 1px solid oklch(0.88 0.004 250);">
+
+        <span style="font-family: 'IBM Plex Mono', 'IBM Plex Sans JP', ui-monospace, monospace; font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: oklch(0.62 0.008 250);">Before the feedback</span>
+
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          <span style="font-size: 22px; line-height: 1.65; font-weight: 500;">いまのラウンド、どのくらい緊張しましたか。</span>
+          <span style="font-size: 13px; line-height: 1.8; color: oklch(0.52 0.008 250);">近いものを1つ選んでください。講評の前に一度だけ聞きます。</span>
+        </div>
+
+        <div style="display: flex; flex-direction: column;">
+          <sc-for list="{{opts}}" as="o" hint-placeholder-count="5">
+            <div style="display: flex; align-items: center; gap: 18px; padding: 15px 0; border-top: 1px solid oklch(0.94 0.004 250); cursor: pointer;" onClick="{{o.pick}}">
+              <span style="width: 2px; height: 22px; flex-shrink: 0; background: {{o.rail}};"></span>
+              <span style="font-family: 'IBM Plex Mono', 'IBM Plex Sans JP', ui-monospace, monospace; font-size: 11px; width: 10px; color: {{o.num}};">{{o.v}}</span>
+              <span style="font-size: 15px; line-height: 1.6; color: {{o.ink}}; font-weight: {{o.weight}};">{{o.label}}</span>
+            </div>
+          </sc-for>
+        </div>
+
+      </div>
+
+      <div style="padding: 30px 32px 32px; display: flex; flex-direction: column; gap: 20px;">
+
+        <span style="font-family: 'IBM Plex Mono', 'IBM Plex Sans JP', ui-monospace, monospace; font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: oklch(0.62 0.008 250);">What this is not</span>
+
+        <div style="display: flex; flex-direction: column; gap: 13px; font-size: 12.5px; line-height: 1.85; color: oklch(0.48 0.008 250);">
+          <span>採点ではありません。選んだ数字で講評は変わりません。</span>
+          <span>進捗グラフには出ません。上げるものでも下げるものでもありません。</span>
+          <span>回答ごとではなく、ラウンドごとに1回だけ聞きます。</span>
+        </div>
+
+        <div style="flex-grow: 1;"></div>
+
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          <div style="background: {{btnBg}}; color: {{btnInk}}; border: 1px solid {{btnBorder}}; height: 48px; display: flex; align-items: center; justify-content: center; font-size: 14px; letter-spacing: 0.04em; cursor: pointer;">記録して講評へ</div>
+          <div style="font-size: 12px; line-height: 1.7; color: oklch(0.56 0.008 250);">{{hint}}</div>
+          <div style="font-family: 'IBM Plex Mono', 'IBM Plex Sans JP', ui-monospace, monospace; font-size: 10px; line-height: 1.9; color: oklch(0.68 0.008 250); border-top: 1px solid oklch(0.92 0.004 250); padding-top: 12px;">評価基準 v1.2・出題 v1.0・職務経歴書 v3</div>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{"$preview":{"width":1280,"height":860}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { picked: null };
+    this.choices = [
+      { v: 1, label: 'まったく緊張しなかった' },
+      { v: 2, label: '少し意識した' },
+      { v: 3, label: 'それなりに緊張した' },
+      { v: 4, label: 'かなり緊張した' },
+      { v: 5, label: '頭が真っ白になった' }
+    ];
+  }
+
+  renderVals() {
+    var self = this;
+    var picked = this.state.picked;
+
+    var opts = this.choices.map(function (c) {
+      var on = picked === c.v;
+      return {
+        v: c.v,
+        label: c.label,
+        pick: function () { self.setState({ picked: c.v }); },
+        rail: on ? 'oklch(0.55 0.09 230)' : 'oklch(0.94 0.004 250)',
+        num: on ? 'oklch(0.48 0.008 250)' : 'oklch(0.72 0.008 250)',
+        ink: on ? 'oklch(0.28 0.008 250)' : 'oklch(0.48 0.008 250)',
+        weight: on ? '500' : '400'
+      };
+    });
+
+    return {
+      opts: opts,
+      btnBg: picked ? 'oklch(0.28 0.008 250)' : 'oklch(0.965 0.002 250)',
+      btnInk: picked ? '#fff' : 'oklch(0.68 0.008 250)',
+      btnBorder: picked ? 'oklch(0.28 0.008 250)' : 'oklch(0.92 0.004 250)',
+      hint: picked
+        ? '緊張度 ' + picked + ' をこのラウンドに記録します。'
+        : '1つ選ぶと講評に進めます。'
+    };
+  }
+}
+</script>
+</body>
+</html>

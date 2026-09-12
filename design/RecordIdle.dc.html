@@ -1,0 +1,75 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+JP:wght@400;500;600&display=swap">
+  <style>
+    body { margin: 0; }
+    a { color: oklch(0.52 0.09 230); } a:hover { color: oklch(0.42 0.09 230); }
+  </style>
+</helmet>
+
+<div style="width: 1280px; height: 760px; box-sizing: border-box; background: oklch(0.975 0.002 250); font-family: 'IBM Plex Sans JP', 'Hiragino Sans', system-ui, sans-serif; color: oklch(0.28 0.008 250); display: flex; flex-direction: column; gap: 14px; padding: 40px 44px;">
+
+  <div style="background: #fff; border: 1px solid oklch(0.88 0.004 250); display: flex; flex-direction: column; flex-grow: 1;">
+
+    <div style="display: flex; align-items: baseline; justify-content: space-between; padding: 20px 32px; border-bottom: 1px solid oklch(0.88 0.004 250);">
+      <div style="display: flex; align-items: baseline; gap: 14px;">
+        <span style="font-size: 17px; font-weight: 600;">行動面接</span>
+        <span style="font-size: 13px; color: oklch(0.48 0.008 250);">日本語・実戦・5問</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 20px;">
+        <span style="display: flex; align-items: center; gap: 7px;">
+          <span style="width: 26px; height: 2px; background: oklch(0.55 0.09 230);"></span>
+          <span style="width: 26px; height: 2px; background: oklch(0.92 0.004 250);"></span>
+          <span style="width: 26px; height: 2px; background: oklch(0.92 0.004 250);"></span>
+          <span style="width: 26px; height: 2px; background: oklch(0.92 0.004 250);"></span>
+          <span style="width: 26px; height: 2px; background: oklch(0.92 0.004 250);"></span>
+        </span>
+        <span style="font-family: 'IBM Plex Mono', 'IBM Plex Sans JP', ui-monospace, monospace; font-size: 11px; letter-spacing: 0.08em; color: oklch(0.62 0.008 250);">第1問 / 5問</span>
+      </div>
+    </div>
+
+    <div style="padding: 36px 32px 32px; display: flex; flex-direction: column; gap: 26px; flex-grow: 1;">
+
+      <div style="display: flex; align-items: center; gap: 9px; color: oklch(0.62 0.008 250);">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.6 6H2.4v4h2.2l3 2.4V3.6L4.6 6Z"/><path d="M10.1 5.7a3.1 3.1 0 0 1 0 4.6"/><path d="M12 3.7a5.7 5.7 0 0 1 0 8.6"/></svg>
+        <span style="font-size: 12px;">読み上げました。文字は残します。</span>
+      </div>
+
+      <div style="font-size: 19px; line-height: 1.9; color: oklch(0.32 0.008 250); max-width: 880px;">これまでのキャリアで最も困難だった状況と、その対応を教えてください。</div>
+
+      <div style="height: 1px; background: oklch(0.94 0.004 250);"></div>
+
+      <div style="display: flex; align-items: center; gap: 22px;">
+        <div style="display: flex; align-items: center; gap: 12px; border: 1px solid oklch(0.28 0.008 250); padding: 0 26px; height: 48px;">
+          <span style="width: 11px; height: 11px; border-radius: 50%; background: oklch(0.58 0.11 45);"></span>
+          <span style="font-size: 14px; letter-spacing: 0.04em;">録音を開始</span>
+        </div>
+        <span style="font-family: 'IBM Plex Mono', 'IBM Plex Sans JP', ui-monospace, monospace; font-size: 12px; color: oklch(0.62 0.008 250);">最長 4分</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 9px; font-size: 12px; line-height: 1.75; color: oklch(0.56 0.008 250);">
+        <span>一発勝負です。録り直しはできません。</span>
+        <span>止めたあとに文字起こしを直せます。</span>
+      </div>
+
+      <div style="flex-grow: 1;"></div>
+
+      <div style="display: flex; align-items: baseline; justify-content: space-between; border-top: 1px solid oklch(0.92 0.004 250); padding-top: 14px;">
+        <span style="font-size: 12px; color: oklch(0.56 0.008 250);">講評はラウンドが終わってからまとめて出ます。途中では何も出ません。</span>
+        <span style="font-family: 'IBM Plex Mono', 'IBM Plex Sans JP', ui-monospace, monospace; font-size: 10px; color: oklch(0.68 0.008 250);">出題 v1.0・職務経歴書 v3</span>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>
