@@ -98,8 +98,20 @@ Next.js (App Router) + TypeScript on Vercel · Drizzle · Postgres 17 + `pgvecto
 locally) · Better Auth with Google as the only IdP · AWS S3 for audio · OpenAI `gpt-5.6-sol`, pinned,
 for all three model jobs.
 
+**Speech-to-text is `gpt-transcribe`**, $0.0045/minute, verified 2026-09-12 — about $0.11 a round
+against ~$0.40 on Sol. It needs API **Tier 1 or above**, and its only snapshot shares its name, so
+unlike the scoring model it cannot be pinned to a dated string; the answer row's
+`transcriber_model_id` stamp is what makes a repoint visible. `docs/03-technical-design.md` §4.
+
 **Audio goes browser → S3 directly via presigned PUT.** A Vercel Function caps bodies at 4.5 MB and a
 four-minute take can exceed it.
+
+**Three platform ceilings, all verified 2026-09-12 and all on free tiers that cannot be raised.**
+Vercel Hobby functions are **300s, default and maximum** — which is the whole invocation, so
+`submit`'s `after()` scoring and its retries share one budget (`07` §5.10). Vercel Hobby cron runs
+**once per day at most, ±59 minutes**, and a more frequent expression fails the deploy rather than
+degrading (`12` §6). Neon Free keeps **6 hours of history, 6 hours maximum** — which is why the
+`pg_dump` is daily, not weekly (`12` §8).
 
 **`lib/ai/score.ts` is a port with one implementation.** Re-scoring a held-out set with a different
 model is the only way to detect drift, and that is impossible if scoring is inlined at its call
@@ -135,21 +147,11 @@ Carry these; do not silently decide them in a ticket.
 - **The near-duplicate similarity threshold.** A guess until there is real data. Start strict, log
   every near-miss with its score, tune from the log.
 - **CV claim extraction quality.** Unmeasured. First thing to eyeball on a real CV.
-- **The exact OpenAI transcription model id and its price.** Unverified as of 2026-09-12 — confirm
-  before the first implementation session.
 - **Two drawn-but-unspecified screens:** the `CV` nav item has no artboard, and practice mode's
   record frames differ from realistic mode's. Listed in `docs/10-screen-specifications.md` §12.
-- **The scoring dispatch trigger.** Scoring runs via a client `fetch` that is not awaited. Verify
-  whether Next.js's `after()` completes ~60s of post-response work reliably on a Vercel Hobby function;
-  if it does, the trigger moves server-side. `docs/07-api-design.md` §5.10.
-- **Vercel Hobby's cron frequency limit.** Unverified. The daily self-check and the one-hour pending
-  threshold depend on it; if only one daily invocation is available the threshold becomes 24 hours.
-  **Do not solve this by adding a vendor.** `docs/12-deployment.md` §6.
 - **Who sends the alert mail.** `08` §2 rejected magic links specifically to avoid a transactional email
   vendor; §6 of `12` reintroduces one as a placeholder. Decide deliberately — an alert nobody receives
   is not monitoring.
-- **Neon's free-tier PITR retention window.** Unverified. The weekly `pg_dump` is independent of the
-  answer on purpose, but the window itself should be known. `docs/12-deployment.md` §8.
 - **User-facing copy for the error catalogue.** `docs/07-api-design.md` §3 closes the set of error codes;
   none of the Japanese or English strings is written. `11` §3.10 asserts the two lists match, so this
   fails loudly until it is done — and the Japanese needs a native read.

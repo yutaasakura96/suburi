@@ -3,6 +3,81 @@
 Newest first. Every entry records what was chosen, why, and what was rejected.
 
 ---
+## Phase 5c — the four pre-build verifications
+
+All four closed on 2026-09-12 against primary sources, before any implementation ticket was written.
+Each had been left as a TBD precisely so a ticket could not decide it silently.
+
+### [2026-09-12] Speech-to-text is `gpt-transcribe` at $0.0045/minute
+
+**Decided:** `OPENAI_TRANSCRIPTION_MODEL` is `gpt-transcribe`. `03` §4's TBD and `07` §5.7's
+placeholder are both replaced with the real string.
+**Alternatives considered:** `gpt-4o-transcribe` ($0.006/min), `gpt-4o-mini-transcribe` ($0.003/min),
+Whisper ($0.006/min).
+**Reason:** it is newer *and* cheaper than `gpt-4o-transcribe`, and it is the only one of the four
+that accepts keyword hints and multiple language hints. That is not a generic nicety here — a Japanese
+answer about a Japanese employer, mixing 敬語 with English technical terms, is exactly the
+domain-term-plus-code-switching case those hints exist for. Cost was not the deciding factor: at ~24
+minutes of audio a round it is ~$0.11, a quarter of the model bill and still not a constraint.
+**Two things carried rather than buried.** It requires **API Tier 1 or above** — the Free tier does
+not serve it, which is a deployment precondition, not a runtime error to discover later. And its only
+published snapshot is also called `gpt-transcribe`, so **the "never point at an alias" rule in `03` §4
+cannot be satisfied here** the way it is for scoring. That is acceptable only because transcription is
+not the instrument: invariant 8 governs the *scoring* model, and `transcriber_model_id` is stamped on
+the answer row, so a silent repoint surfaces as a change in the stamp rather than as drift in a chart.
+
+### [2026-09-12] The scoring trigger moves into `submit`, via `after()`
+
+**Decided:** `submit` schedules scoring with Next.js `after()`. `POST /api/scoring-attempts/{id}/run`
+stays, demoted to the History retry path.
+**Alternatives considered:** keeping the client-initiated, un-awaited `fetch` that `07` §5.10 shipped
+as the working default.
+**Reason:** `07` §5.10 set its own condition — move it if `after()` reliably completes ~60s of
+post-response work inside a Hobby function's ceiling. It does. Next.js documents `after` as running for
+the route's configured max duration, implemented on serverless through Vercel's `waitUntil`, which
+extends the invocation until the scheduled promises settle; Hobby Node.js functions are 300s default
+and 300s maximum. Sixty seconds fits. `after` also runs when the response failed, redirected or 404'd,
+so an attempt is dispatched even on a submit that errored after writing the row — which is what this
+design wants, since the row exists and `run` is idempotent.
+**The trap this closes.** The 300s is the **whole invocation**, not a post-response allowance: request
+handling, response, and `after` share one budget, and §5.10's three exponential-backoff retries now
+live inside it. A ticket sizing that backoff against a fresh 300s would build a path that silently
+runs the ceiling down and leaves a `pending` row. Hobby also cannot raise `maxDuration`, so there is no
+escape hatch to reach for later — the next move would be a plan change, deliberately made.
+
+### [2026-09-12] Vercel Hobby cron is daily-only; the `pending` threshold becomes 24 hours
+
+**Decided:** `12` §6's one-hour threshold is now 24 hours. `self-check` (daily) and `digest` (weekly)
+remain two separate routes.
+**Reason:** verified — 100 cron jobs per project, minimum interval once per day, per-hour precision
+(±59 min), and a more frequent expression **fails the deployment** rather than degrading. The
+threshold change was pre-decided in `12` §6 and is recorded here only as the outcome. A delayed
+discovery is not a lost row, and it is not worth a vendor or a plan to shorten.
+**One worry reversed.** `12` §6 assumed daily-only might force a single job to do both. It does not:
+the limit is a *floor* on the interval, so a weekly digest is legal precisely because weekly is less
+frequent than daily. The section said the wrong thing and now says the right one.
+
+### [2026-09-12] The `pg_dump` moves from weekly to daily
+
+**Decided:** the dump runs daily, from the `self-check` cron route, not weekly from `digest`.
+**Alternatives considered:** keeping it weekly and recording the 6-hour window as accepted; dumping
+after every round; upgrading Neon to Launch for a 7-day window.
+**Reason:** Neon Free keeps **6 hours of history, and 6 is also the maximum** — it is a ceiling, not a
+raisable default. `12` §8 was right to make the dump independent of that answer, but the combination it
+left standing was a worst case of about **seven days of rounds**: a bad write on a Sunday, found on
+Monday, is past the window and behind the last dump. This project's premise is that the accumulated
+measurement is the only unrecoverable thing in it, so a week-wide hole is the failure the backup exists
+to prevent, not a limitation to note. Daily closes the worst case to ~24 hours, inside which the
+6-hour window covers the recent tail, at the cost of one small S3 object a day.
+**Why not the other two.** The Launch plan buys a 7-day window the daily dump already covers, for
+money, on a project otherwise entirely on free tiers. A per-round dump would put a backup write on a
+user-facing path and give it a failure mode there — to protect against losing a single round, in a
+system whose §6 monitoring already assumes the keyboard tells you when something is broken *now*.
+**Unchanged and still the weakest link:** the restore is untested. `11` §9 and `12` §8 both say so, and
+a daily dump does not make an untested restore any less of a hope.
+
+---
+
 ## Phase 5b — engineering-skills scaffolding
 
 ### [2026-09-12] Issues live in GitHub Issues, not local markdown

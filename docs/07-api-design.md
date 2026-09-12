@@ -388,7 +388,7 @@ Transcribes the object the browser PUT. Reads from S3; audio never crosses a fun
 { "answer_id": "c003e8a2-…",
   "transcript_raw": "はい、ええと、前職では経理システムの刷新を、担当していました…",
   "audio_duration_ms": 94120, "words_per_minute": 243.4,
-  "transcriber_model_id": "TBD-transcription-model" }
+  "transcriber_model_id": "gpt-transcribe" }
 ```
 
 **Idempotent, and asymmetric on purpose.** If `transcript_raw` is already set, the stored value is
@@ -466,8 +466,10 @@ A missing follow-up costs one prompt; a lost answer costs a measurement.
 
 ### 5.10 `POST /api/scoring-attempts/{attemptId}/run` ⚡
 
-Performs a pending attempt. Called by the client immediately after `submit`, **not awaited** — the
-user is already recording the next answer.
+Performs a pending attempt. **Normally not called over HTTP at all** — `submit` schedules the same
+work in `after()` (see the trigger note below), while the user is already recording the next answer.
+This endpoint is the **History retry path**: the way a `pending` or `failed` attempt is driven to
+completion by hand.
 
 ```json
 200
@@ -485,9 +487,10 @@ view that computes one, and no response field that carries one. PRD §9, refusal
 returned a mean would make the schema's guarantee cosmetic.
 
 **Idempotent and abandon-safe.** Only `status = 'pending'` transitions. A second call while the first
-is in flight is a `409`; a call on a finished attempt returns it unchanged. Because the client does
-not await it, an abandoned request can leave a row pending — which is why a stuck `pending` is
-alerted on daily (`12-deployment.md` §6) and retryable from History. **A pending score is a
+is in flight is a `409`; a call on a finished attempt returns it unchanged. Nothing awaits the scoring
+work, so a function terminated at the 300s ceiling — or one that dies mid-flight — leaves a row
+pending with no error raised anywhere. That is why a stuck `pending` is alerted on daily
+(`12-deployment.md` §6) and retryable from History. **A pending score is a
 first-class state, not an error** (`03` §5): History and Progress both render it, and
 **Progress excludes pending and failed attempts from trend lines rather than treating them as zero.**
 
@@ -499,11 +502,26 @@ Citations are written to `claim_citations` **only after span validation**: the q
 A span outside the body, or a quote that does not match its span, drops the citation (`03` §11,
 `04`).
 
-> **TBD — the trigger, not the handler.** Scoring is dispatched by a client `fetch` that is not
-> awaited. This works and is abandon-safe, but a server-side trigger would be cleaner. **Verify
-> whether Next.js's `after()` on Vercel reliably completes ~60s of post-response work within a Hobby
-> function's 300s ceiling before the first implementation session.** If it does, move the trigger into
-> `submit` and keep this endpoint for the History retry path only. Nothing else in the design changes.
+**The trigger is `after()` in `submit`, not a client `fetch`** — resolved 2026-09-12, on the condition
+this TBD set for itself. Next.js documents that `after` runs for the route's configured max duration,
+implemented on serverless through Vercel's `waitUntil`, which extends the invocation until the
+scheduled promises settle; Hobby Node.js functions are 300s by default and 300s at maximum. Sixty
+seconds of post-response scoring fits. **This endpoint stays**, as that TBD said it would, for the
+History retry path.
+
+Two consequences a ticket would otherwise get wrong:
+
+- **The 300s is the whole invocation** — request handling, the response, and the `after` work share one
+  budget; the `after` work does not get 300s of its own. The three exponential-backoff retries above
+  live *inside* that budget, not beside it. Size the backoff against 300s minus the submit path, and
+  fail the attempt to `failed` rather than run the ceiling down.
+- **Hobby cannot raise `maxDuration` past 300s.** There is no `maxDuration` escape hatch to reach for
+  when scoring gets slower; the next move would be a plan change, and it should be a deliberate one.
+
+`after` also runs when the response did not complete successfully — including a thrown error, a
+`redirect` or a `notFound`. A scoring attempt is therefore dispatched even on a submit that failed
+after the row was written, which is the behaviour this design wants: the attempt row already exists,
+and `run` is idempotent.
 
 ### 5.11 `POST /api/scoring-attempts` ⚡
 
@@ -625,10 +643,9 @@ convert a guarantee in `04` §6 into a preference.
 
 ## 7. What this document leaves open
 
-- **The scoring dispatch trigger** — §5.10's TBD. Client-initiated `run` works; verify `after()` on
-  Vercel before deciding it is permanent.
-- **The transcription model id**, still unverified as of 2026-09-12 (`03` §4). It appears in §5.7's
-  response as a placeholder; confirm the exact string and its per-minute price before implementation.
+- ~~The scoring dispatch trigger~~ and ~~the transcription model id~~ — **both closed 2026-09-12.**
+  The trigger is `after()` inside `submit` (§5.10); the model is `gpt-transcribe` at $0.0045/minute
+  (`03` §4), and §5.7's response carries the real string.
 - **The near-duplicate threshold** used in §5.4. A guess until there is real data; start strict, log
   every near-miss with its score.
 - **User-facing copy for every code in §3.** The catalogue is closed and complete; the Japanese and

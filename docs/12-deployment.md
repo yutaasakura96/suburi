@@ -80,7 +80,7 @@ in this application is safe to ship to the browser**, and none is.
 | `OPENAI_API_KEY` | All three model jobs | Vercel encrypted env. **Separate key per environment** with its own usage cap (§6) |
 | `OPENAI_SCORING_MODEL` | Pinned scoring model | Vercel env — `gpt-5.6-sol`. **Exact string, never an alias** (`03` §4) |
 | `OPENAI_GENERATION_MODEL` | Question and follow-up generation | Vercel env — `gpt-5.6-sol` |
-| `OPENAI_TRANSCRIPTION_MODEL` | Speech-to-text | **TBD — the exact id is still unverified** (`03` §4) |
+| `OPENAI_TRANSCRIPTION_MODEL` | Speech-to-text | Vercel env — `gpt-transcribe`, $0.0045/min (`03` §4). **Requires API Tier 1+**; the Free tier does not serve this model |
 | `OPENAI_TTS_MODEL` | Realistic mode speaks the question | Vercel env |
 | `SCORING_PROMPT_VERSION` | Stamp 4 on every scoring attempt | Vercel env, or derived from the prompt filename in `lib/prompts/` |
 | `AWS_ACCESS_KEY_ID` | S3 presigning | Vercel encrypted env. Dedicated IAM user (§7) |
@@ -208,7 +208,7 @@ retry loop or a prompt that doubled in size shows up on a bill, not on a screen.
 
 | Signal | Threshold | Where it goes |
 | --- | --- | --- |
-| `scoring_attempts` in `pending` for over an hour | any | email |
+| `scoring_attempts` in `pending` for over **24 hours** | any | email — Hobby cron is daily-only, see below |
 | `scoring_attempts` in `failed`, not superseded by an `ok` attempt | any | email |
 | Week-to-date OpenAI tokens | > 3× the eight-round baseline | email |
 | `spans_rejected > 0` on a CV upload | any | email — the anti-hallucination guard actually firing (`07` §5.2) |
@@ -217,14 +217,25 @@ retry loop or a prompt that doubled in size shows up on a bill, not on a screen.
 | App down | — | **not alerted.** You will know. |
 
 **Implementation:** two Vercel Cron routes under `/api/cron/`, authenticated with `CRON_SECRET`,
-returning `401` without it. `self-check` (daily) covers the first four rows; `digest` (weekly) covers
-the fifth and reports the week's rounds, tokens and spend.
+returning `401` without it. `self-check` (daily) covers the first four rows **and writes the daily
+`pg_dump`** (§8); `digest` (weekly) covers the fifth and reports the week's rounds, tokens and spend.
 
-> **TBD — Vercel Hobby's cron frequency limit.** Unverified as of 2026-09-12; Hobby plans have
-> historically been restricted to roughly one invocation per day per job. **Confirm before relying on
-> the hourly `pending` threshold.** If only daily invocations are available, the daily job does both
-> and the threshold becomes 24 hours — which is still enough to catch the failure that matters, since
-> the loss is a delayed discovery, not a lost row. Do **not** solve this by adding a vendor.
+**Vercel Hobby cron, verified 2026-09-12:** 100 cron jobs per project, **minimum interval once per
+day**, **per-hour scheduling precision** — a job set to `0 1 * * *` fires somewhere between 01:00 and
+01:59. A more frequent expression does not degrade; it **fails the deployment** with *"Hobby accounts
+are limited to daily cron jobs."*
+
+Two things follow, one of which reverses a worry this section used to carry:
+
+- **The `pending` threshold is 24 hours, not one.** As anticipated. That is still enough to catch the
+  failure that matters — the loss is a delayed discovery, not a lost row — and it is not worth a
+  vendor or a plan to shorten.
+- **Two routes are fine.** The old note assumed daily-only might force one job to do both. It does
+  not: the limit is a *floor* on the interval, so a weekly `digest` is legal precisely because weekly
+  is less frequent than daily. Keep them separate.
+
+The ±59 minute jitter touches nothing here. Both jobs are "sometime that day" work, and §8's dump is
+sized for a daily boundary, not a precise hour.
 
 > **TBD — the alert sender.** `RESEND_API_KEY` is a placeholder. `08` §2 rejected magic links
 > specifically to avoid a transactional email vendor, and adding one here reintroduces it for a
@@ -270,16 +281,31 @@ system, because `04` §5 means nothing can be rebuilt from a later state.
 
 | What | How | Restore path |
 | --- | --- | --- |
-| Postgres | Neon point-in-time restore within its retention window, **plus a weekly `pg_dump` written to `s3://<bucket>/backups/`, SSE-encrypted** | Restore into a Neon branch, verify, then promote |
+| Postgres | Neon point-in-time restore, **6 hours and not extendable on Free**, plus a **daily `pg_dump`** written to `s3://<bucket>/backups/`, SSE-encrypted | Restore into a Neon branch, verify, then promote |
 | Audio in S3 | Bucket versioning on; no lifecycle rule on `prod/` | Object version restore |
 | Prompts, rubrics, seeds | Git | Checkout |
 | Secrets | Vercel env is the store of record; not backed up | Regenerate from the source consoles (§3) |
 
 The `pg_dump` exists because Neon's retention window is a plan feature and this data outlives any
-plan. It runs from the weekly cron route.
+plan. **It runs daily, from the `self-check` cron route** (§6) — not weekly, as this section
+originally said.
 
-> **TBD — Neon's free-tier PITR retention window.** Unverified as of 2026-09-12. **Confirm before
-> relying on PITR alone**; the weekly dump is deliberately independent of the answer.
+**Neon's history window, verified 2026-09-12:** Free is **6 hours by default and 6 hours at maximum**,
+capped at 1 GB of change history. Launch is 1 day rising to 7; Scale is 1 day rising to 30. Six hours
+is a ceiling on Free, not a default that can be raised.
+
+**Why that moved the dump.** Six hours plus a weekly dump leaves a worst case of about **seven days of
+rounds** — a bad write on a Sunday, found on Monday, is past the PITR window and behind the last dump.
+This project's own premise is that the accumulated measurement is the only unrecoverable thing here, so
+a week-wide hole in it is not a limitation to note, it is the failure the backup exists to prevent. A
+daily dump closes the worst case to roughly **24 hours**, inside which the 6-hour window covers the
+recent tail. At this data size the cost is one small S3 object a day.
+
+**What was deliberately not done:** no Neon plan upgrade, no per-round dump. The plan upgrade buys a
+7-day window the daily dump already covers. A per-round dump would put a backup write on a
+user-facing path and give it a failure mode there, to protect against losing one round — the wrong
+trade in a system whose §6 monitoring already assumes the keyboard tells you when something is broken
+*now*, and whose backups exist for what has no symptom.
 
 **The restore path is untested until it is tested.** `11` §9 names this as the weakest link in the
 whole plan. **Restore into a Neon branch immediately after the first production deploy and read a

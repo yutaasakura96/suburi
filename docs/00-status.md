@@ -2,7 +2,8 @@
 
 **Project:** **Suburi** (素振り) — a private, turn-based voice interview simulator for practising job
 interviews in Japanese and English, with rubric-scored feedback and tracked progress over time.
-**Phase:** 5 complete. **The repo is configured. Next is Phase 6 — build.**
+**Phase:** 5 complete, and the four pre-build verifications with it. **The repo is configured and
+nothing on that list blocks the first ticket. Next is Phase 6 — build.**
 **Updated:** 2026-09-12
 
 ## Done
@@ -22,6 +23,11 @@ interviews in Japanese and English, with rubric-scored feedback and tracked prog
 - Phase 5b — `/setup-matt-pocock-skills` run. `docs/agents/{issue-tracker,triage-labels,domain}.md`
   and an `## Agent skills` section in `CLAUDE.md`. GitHub Issues as the tracker, default triage
   labels, single-context domain docs. Two decisions appended.
+- **Phase 5c — the four pre-build verifications are closed.** Transcription model, `after()` on Hobby,
+  Hobby cron frequency, Neon PITR window. `03` §4, `07` §5.7/§5.10/§7, `12` §2/§6/§8 and `CONTEXT.md`
+  all updated; four decisions appended. Two smaller TBDs remain, neither on that list and neither
+  blocking: **Vercel's per-branch env var scoping** (`12` §3) and **Better Auth's session expiry
+  defaults** (`08` §2). Both are confirm-at-implementation, not decide-in-advance.
 
 **Design canvas:** https://claude.ai/code/artifact/8d50e302-ed9c-48d4-ab00-c0e4e5da0788
 Page 1 is the screen set, page 2 the three exploration directions. **Working files** in `design/`;
@@ -42,12 +48,13 @@ in `06` under Phase 5b, along with why `docs/adr/` is deliberately not created.
 collapse to grill → implement. The flow is in `~/Documents/GitHub/claude-setup-inventory/mattpocock-skills-guide.md`;
 keep grill → spec → tickets inside one unbroken window.
 
-**Verify before the first implementation session**, because each one is currently an unknown that a
-ticket would otherwise decide silently:
-- The exact OpenAI transcription model id and its per-minute price (`03` §4, `12` §2).
-- Whether Next.js `after()` completes ~60s of post-response work on a Vercel Hobby function
-  (`07` §5.10). If it does, the scoring trigger moves server-side.
-- Vercel Hobby's cron frequency limit (`12` §6) and Neon's free-tier PITR window (`12` §8).
+**The pre-build verifications are done** — this list is closed, and nothing here blocks a ticket:
+- **Transcription: `gpt-transcribe`, $0.0045/min.** Needs API Tier 1+. Its only snapshot shares its
+  name, so it cannot be alias-pinned the way scoring is; the `transcriber_model_id` stamp is the guard.
+- **`after()` works on Hobby** — the scoring trigger moved into `submit`; `run` is now the retry path.
+  The 300s ceiling is the **whole invocation**, retries included, and Hobby cannot raise it.
+- **Hobby cron is daily-only, ±59 min.** The `pending` threshold is 24 hours. Two routes still fine.
+- **Neon Free PITR is 6 hours, and 6 is the maximum.** The `pg_dump` is now **daily**, not weekly.
 
 ## Blocked
 _(nothing)_
@@ -84,11 +91,17 @@ exact-match list (so feature previews cannot sign in at all); Neon `develop` is 
 never branched from `main`, or the real CV lands on a branch unfinished code writes to; and Neon `main`
 is migrated *before* `develop` merges into it.
 
-**Verified facts worth not re-deriving:** Vercel Hobby functions run to 300s (so scoring is not
-platform-limited) but cap bodies at 4.5 MB (so audio must go browser → S3 directly). OpenAI per 1M
-tokens: `astra` $10/$50, `sol` $4/$20, `terra` $2/$12, `luna` $0.20/$1.20 — roughly **$0.40/round on
-Sol**, a few dollars for the whole 30-day target. At 1,000 users model spend would dominate
-infrastructure by two orders of magnitude.
+**Verified facts worth not re-deriving:** Vercel Hobby functions run to 300s — **default and maximum,
+covering the whole invocation** including `after()` work and its retries — and cap bodies at 4.5 MB (so
+audio must go browser → S3 directly). Hobby cron is **once per day, ±59 min**, and a tighter expression
+fails the deploy. Neon Free keeps **6 hours of history, 6 being the maximum**. OpenAI per 1M tokens:
+`astra` $10/$50, `sol` $4/$20, `terra` $2/$12, `luna` $0.20/$1.20 — roughly **$0.40/round on Sol**, plus
+**~$0.11/round of `gpt-transcribe` at $0.0045/min**; a few dollars for the whole 30-day target. At 1,000
+users model spend would dominate infrastructure by two orders of magnitude.
+
+**The three free-tier ceilings are all hard.** None of 300s, daily cron, or 6-hour PITR can be raised
+without changing plan. Each already has its answer written into `12` — do not rediscover them as
+surprises mid-ticket.
 
 **Hard constraints for every later phase**, restated in `CONTEXT.md` and `10-screen-specifications.md`
 §11: no composite score ever; round-end feedback renders while the user is still at the machine;
@@ -108,12 +121,6 @@ in 4b):
   near-miss log in the weekly digest so it is tunable from data.
 - **CV claim extraction quality** — unmeasured; eyeball it on a real CV first. `07` §5.2 returns
   `spans_rejected` and `12` §6 alerts on it being non-zero.
-- **The exact OpenAI transcription model id and its per-minute price** — still unverified as of
-  2026-09-12. Confirm before the first implementation session.
-- **The scoring dispatch trigger** — verify Next.js `after()` on Vercel Hobby before treating the
-  client-fired `run` call as permanent.
-- **Vercel Hobby's cron frequency limit** and **Neon's free-tier PITR window** — both unverified, both
-  in `12`. Do not solve the cron limit by adding a vendor.
 - **Who sends the alert mail.** `08` §2 avoided an email vendor deliberately; `12` §6 reintroduces one
   as a placeholder.
 - **Two drawn-but-unspecified screens:** the `CV` nav item has no artboard, and practice mode's record

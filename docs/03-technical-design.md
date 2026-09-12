@@ -146,12 +146,26 @@ data rather than argued from memory.
 
 ### Speech-to-text
 
-OpenAI transcription, model string pinned in config alongside the scoring model.
+**`gpt-transcribe`, $0.0045 per minute** (verified 2026-09-12 against the OpenAI pricing and model
+pages). Pinned in config alongside the scoring model. The alternatives at the time: `gpt-4o-transcribe`
+$0.006, `gpt-4o-mini-transcribe` $0.003, Whisper $0.006. `gpt-transcribe` is both newer and cheaper
+than `gpt-4o-transcribe`, and it is the only one of the four that takes **keyword hints and multiple
+language hints** — which is the feature this app actually needs, because a Japanese answer about a
+Japanese company is exactly the domain-term-plus-code-switching case those hints exist for.
 
-**TBD — the exact transcription model id and its per-minute price could not be verified on
-2026-09-12; the pricing page did not render that table. Confirm both before the first implementation
-session and record them here.** The architecture does not depend on which one it is: audio reaches
-transcription from S3, and the raw transcript is stored verbatim regardless.
+At roughly 24 minutes of audio per round that is **~$0.11 a round**, against ~$0.40 on Sol.
+Transcription is a quarter of the model bill and still not a constraint.
+
+**Two things to carry.** `gpt-transcribe` requires **Tier 1 or above** — the Free API tier does not
+support it. And its only published snapshot is also called `gpt-transcribe`: there is no dated
+snapshot, so the "never point at an alias" rule above **cannot be satisfied here the way it is for
+scoring**. The transcription model is therefore stamped on the answer row (`transcriber_model_id`,
+`04`) rather than guaranteed stable by the config string, and a silent repoint would show up as a
+change in that stamp. Scoring, the actual instrument, is unaffected — invariant 8 governs the scoring
+model, and that one is a real pinned string.
+
+The architecture never depended on which model it is: audio reaches transcription from S3, and the raw
+transcript is stored verbatim regardless.
 
 ### Text-to-speech
 
