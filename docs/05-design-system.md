@@ -368,3 +368,79 @@ Direction C's matrix had none of these and had to caption itself. This one does 
   (`職務経歴書 v3` / `CV v3`), which implies chrome follows the *round's* language rather than an app
   setting. Home's English caption names round types in Japanese (`Defaults to 行動面接 · 日本語 · …`).
   Both are defensible; nothing yet states which rule the build follows. Phase 4.
+- **Hover surface and focus ring are undrawn.** §10.2 aliases shadcn's `--accent` (hover) to
+  `--ground` and `--ring` (focus) to `--mark` as placeholders. §7 requires keyboard focus on score
+  rows, so the focus ring is needed, not optional — it wants a design read, not a default.
+
+---
+
+## 10. Implementation — Tailwind and shadcn
+
+Decided 2026-09-13 (`06`, Phase 5d). This section is how §2–§4 reach code. **§2–§4 stay the source;**
+nothing here adds a value, it only names where each one lands.
+
+### 10.1 Tailwind, CSS-first
+
+Tailwind v4: `@import "tailwindcss"` in `app/globals.css`, the `@tailwindcss/postcss` plugin in
+`postcss.config.mjs`, no `tailwind.config` file. Two namespaces are wiped before any token is defined:
+
+```css
+@theme {
+  --color-*: initial;   /* §2: no hue exists that this document does not name */
+  --shadow-*: initial;  /* §4: no shadow anywhere */
+}
+```
+
+**Acceptance check at scaffold:** `bg-blue-500` generates no CSS, and a shadcn `Button` renders square
+with no shadow. Whether a later `@theme inline` block re-adds colours after the wipe was not verified
+in the docs; this check is what settles it.
+
+**Names in code.** Every §2 token keeps its name, exposed as a Tailwind colour (`--ground` →
+`bg-ground`, `--rule-frame` → `border-rule-frame`, `--ink-label` → `text-ink-label`) — **except the
+accent family:**
+
+| `05` name | In code | Why |
+| --- | --- | --- |
+| `--accent` | `--mark` | shadcn reserves `--accent` / `bg-accent` for the hover surface in every vendored component. Keeping §2.4's name would paint hover states in the score colour. |
+| `--accent-mid` | `--mark-mid` | Same family, renamed together |
+| `--accent-faint` | `--mark-faint` | |
+| `--accent-pale` | `--mark-pale` | |
+
+This document keeps saying `--accent` so it stays traceable to the artboards. Fonts are §3's two
+stacks verbatim as `--font-sans` and `--font-mono`, **including the `IBM Plex Sans JP` fallback in
+the mono stack**.
+
+### 10.2 shadcn's variables alias §2
+
+shadcn components are written against a fixed semantic vocabulary. Each variable points at a §2 token
+so vendored components render in this design without being rewritten:
+
+| shadcn | Points at | Note |
+| --- | --- | --- |
+| `--background` / `--foreground` | `--ground` / `--ink-1` | |
+| `--card` / `--card-foreground` | `--surface` / `--ink-1` | |
+| `--popover` / `--popover-foreground` | `--surface` / `--ink-3` | The tooltip, §5.4 |
+| `--border` / `--input` | `--rule-frame` | |
+| `--primary` / `--primary-foreground` | `--ink-1` / `--surface` | The solid primary button, §5.7 |
+| `--secondary` / `--muted` | `--surface-inert` | |
+| `--secondary-foreground` | `--ink-8` | The inert button's text |
+| `--muted-foreground` | `--ink-6` | Captions |
+| `--accent` / `--accent-foreground` | `--ground` / `--ink-1` | **Placeholder** — no hover surface is drawn (§9) |
+| `--destructive` | `--attention-ink` | |
+| `--ring` | `--mark` | **Placeholder** — no focus ring is drawn (§9) |
+| `--chart-1` … `--chart-5` | `--mark` | Never rendered; aliased on-hue so an accidental use cannot add a colour |
+| `--sidebar-*` | `--surface` / `--ink-1` / `--rule-frame` | Unused |
+| `--radius` | `0` | §4. Every derived `--radius-*` is a multiple of it. The score dot's `50%` (§5.3) is set on the mark, not from the scale |
+
+**No `.dark` block.** The design draws one theme.
+
+### 10.3 Rules
+
+- **shadcn on Base UI** — `npx shadcn@latest init -b base`. `components/ui/` is vendored source;
+  restyle it in place. `cssVariables: true`, which cannot be changed after init.
+- **Outside `components/ui/`, build against `05` names** (`bg-surface`, `border-rule-frame`), never
+  shadcn's (`bg-card`, `border-border`). The aliases exist so vendored components render correctly,
+  not as a second vocabulary to design in.
+- **No shadcn `Progress`, `Slider` or chart component ever displays a score**, or anything with length
+  or fill that could be summed by eye. §1 and invariant 1. The six marks in §5 are built by hand.
+- Add a component when a screen needs it, not in advance of one.

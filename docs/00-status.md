@@ -4,7 +4,7 @@
 interviews in Japanese and English, with rubric-scored feedback and tracked progress over time.
 **Phase:** 5 complete, and the four pre-build verifications with it. **The repo is configured and
 nothing on that list blocks the first ticket. Next is Phase 6 — build.**
-**Updated:** 2026-09-12
+**Updated:** 2026-09-13
 
 ## Done
 - Phase 1 — `docs/01-project-brief.md`, `docs/02-product-requirements.md`, `docs/06-decision-log.md`.
@@ -28,6 +28,10 @@ nothing on that list blocks the first ticket. Next is Phase 6 — build.**
   all updated; four decisions appended. Two smaller TBDs remain, neither on that list and neither
   blocking: **Vercel's per-branch env var scoping** (`12` §3) and **Better Auth's session expiry
   defaults** (`08` §2). Both are confirm-at-implementation, not decide-in-advance.
+- **Phase 5d — styling and components decided; the framework reason corrected.** Tailwind v4 CSS-first
+  with `05` as the only palette, shadcn/ui on Base UI, `05` §10 written (token aliasing, `--accent` →
+  `--mark` in code, `--radius: 0`, no score in a `Progress`/`Slider`). `03` §1's rejection of
+  SvelteKit/Nuxt now gives the real reason, RSC. Still no `.mcp.json`. Five decisions appended.
 
 **Design canvas:** https://claude.ai/code/artifact/8d50e302-ed9c-48d4-ab00-c0e4e5da0788
 Page 1 is the screen set, page 2 the three exploration directions. **Working files** in `design/`;
@@ -61,7 +65,8 @@ _(nothing)_
 
 ## Carrying
 
-**The stack, fixed:** Next.js (App Router) + TypeScript on Vercel · Drizzle · Postgres 17 +
+**The stack, fixed:** Next.js (App Router) + TypeScript on Vercel · Tailwind v4 · shadcn/ui on Base UI ·
+Drizzle · Postgres 17 +
 `pgvector` on Neon, Docker locally · Better Auth with Google as the only IdP · AWS S3 for audio ·
 OpenAI `gpt-5.6-sol` pinned for all three model jobs.
 

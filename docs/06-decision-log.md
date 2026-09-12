@@ -3,6 +3,72 @@
 Newest first. Every entry records what was chosen, why, and what was rejected.
 
 ---
+## Phase 5d — styling, components, and the framework's real reason
+
+Settled on 2026-09-13, before the foundation slice, because the foundation slice is where each would
+otherwise have been decided silently. Library facts checked against the official docs that day:
+`tailwindcss` 4.3.3, `shadcn` CLI 4.21.0, `@base-ui/react` 1.8.0 were the published versions. They are
+a record of what was current, not pins — pins are set at install.
+
+### [2026-09-13] Tailwind CSS v4, CSS-first, with `05` as the only palette
+
+**Decided:** Tailwind v4 via `@tailwindcss/postcss`, tokens in `@theme`, and `--color-*: initial` and
+`--shadow-*: initial` so the default palette and shadow scale do not exist.
+**Alternatives considered:** plain CSS custom properties; CSS Modules.
+**Reason:** the user's call, and it strengthens `05` rather than diluting it. `05` §2 says no other hue
+appears anywhere; with the palette wiped, a stray hue fails to generate instead of waiting for review.
+That is the project's standing preference — enforced, not merely stated — and it makes
+`app/globals.css` `05` in code, the same relationship `db/schema.ts` has with `04`.
+
+### [2026-09-13] shadcn/ui, on Base UI
+
+**Decided:** shadcn/ui, initialised with `-b base`. Components are added when a screen needs them.
+**Alternatives considered:** no component library; two unstyled primitives (tooltip, radio group)
+without shadcn; shadcn on Radix.
+**Reason:** the user's call, made over a recommendation against it. The recommendation rested on an
+inventory: across the nine screens there are no dialogs, drawers, toasts, popovers, selects, checkboxes
+or sliders — one tooltip, two rows of options, three button variants — and the six marks that make up
+the app (`05` §5) exist in no library. The user preferred to have the setup and conventions in place
+from the start. **Base UI over Radix:** it is shadcn's default since its July 2026 changelog, made by
+the teams behind Radix, Floating UI and Material UI, and new shadcn components ship for both libraries
+only "unless a component is exclusive to Base UI" — so Radix is the side that falls behind.
+**Cost accepted:** a second token vocabulary in the codebase. Contained by `05` §10: shadcn's variables
+alias `05`'s, and code outside `components/ui/` uses `05` names only.
+**Guard:** no shadcn `Progress`, `Slider` or chart component ever displays a score (invariant 1).
+
+### [2026-09-13] `05` tokens stay the source; the accent family is renamed `--mark` in code
+
+**Decided:** shadcn's semantic variables point at `05` tokens (`05` §10.2). `--radius: 0`, no `.dark`
+block. `05`'s `--accent` family is `--mark`, `--mark-mid`, `--mark-faint`, `--mark-pale` in code.
+**Alternatives considered:** adopting shadcn's semantic tokens and mapping `05` onto them; renaming
+shadcn's `--accent` inside vendored components instead.
+**Reason:** `05` measured six rule weights it refuses to collapse and nine ink levels; shadcn has one
+`--border` and two foreground levels, so adopting its vocabulary would quietly undo Phase 3. The rename
+goes on our side because shadcn's `--accent` is the hover surface in every component it will ever
+vendor — renaming theirs means re-editing each component on every add.
+**Left open:** the hover surface and the focus ring are aliased to placeholders. Neither is drawn, and
+`05` §7 makes keyboard focus required (`05` §9).
+
+### [2026-09-13] The framework rejection had the wrong reason
+
+**Decided:** Next.js stands. `03` §1's reason is replaced.
+**What was wrong:** `03` rejected Remix and SvelteKit for "a thinner ecosystem for the auth and ORM
+choices." Checked against the Better Auth docs, that is false — it ships a SvelteKit handler and a Nuxt
+integration — and Drizzle has no framework coupling. Nuxt had never been considered.
+**The real reason:** `07` §1 makes reads Server Components, so the feedback screen is a Postgres read
+with no loading state, which is what makes invariant 2 structural. SvelteKit and Nuxt have excellent
+SSR but not RSC; either would turn that screen back into a client fetch. The user raised both out of
+curiosity and agreed to keep Next.js for this project.
+
+### [2026-09-13] Still no `.mcp.json` — the shadcn MCP server is not wired
+
+**Decided:** the Phase 5 decision stands.
+**Alternatives considered:** adding shadcn's MCP server via `.mcp.json`.
+**Reason:** context7 already resolves the shadcn, Base UI and Tailwind docs above project scope, which is
+the same reasoning that kept Neon and context7 out of `.mcp.json`.
+**Revisit if:** registry lookups become frequent once components are being added.
+
+---
 ## Phase 5c — the four pre-build verifications
 
 All four closed on 2026-09-12 against primary sources, before any implementation ticket was written.

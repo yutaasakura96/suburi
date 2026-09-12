@@ -15,6 +15,8 @@ optimise the constraint away.
 | Layer | Choice | Pinned to |
 | --- | --- | --- |
 | Frontend | Next.js (App Router) + React, TypeScript | — |
+| Styling | Tailwind CSS v4, CSS-first `@theme` | `05` tokens are the only palette |
+| UI components | shadcn/ui on Base UI | vendored source in `components/ui/` |
 | Backend | Next.js Route Handlers + Server Actions, Node runtime | — |
 | ORM | Drizzle | — |
 | Database | Postgres 17 + `pgvector` | Neon (prod), Docker (local) |
@@ -25,11 +27,26 @@ optimise the constraint away.
 
 ### Why each, and what was rejected
 
-**Next.js.** One deployable that serves both UI and API, first-class on Vercel, and Server
-Components keep most state off the client — which matters because the only genuinely stateful
-surfaces here are the recorder and the transcript editor. *Rejected:* a separate SPA plus a
-standalone API, which buys nothing at one user and costs two deploys; Remix and SvelteKit, which
-have no Vercel-first advantage to offset a thinner ecosystem for the auth and ORM choices.
+**Next.js.** One deployable that serves both UI and API, first-class on Vercel, and — the reason
+that decides it — **React Server Components**. `07` §1 makes reads Server Components, so the round
+feedback screen is a Postgres read with no client fetch and no loading state; that is what makes
+invariant 2 structural rather than aspirational (§3). The only genuinely stateful client surfaces are
+the recorder and the transcript editor. *Rejected:* a separate SPA plus a standalone API, which buys
+nothing at one user and costs two deploys; SvelteKit and Nuxt, which have excellent SSR but not the
+RSC model the feedback path is built on.
+
+*Corrected 2026-09-13.* This paragraph used to reject Remix and SvelteKit for "a thinner ecosystem
+for the auth and ORM choices." That reason was false: Better Auth ships a SvelteKit handler and a Nuxt
+integration, and Drizzle has no framework coupling. Nuxt had not been considered at all. Remix's
+rejection was not re-examined.
+
+**Tailwind and shadcn/ui, on Base UI.** Tailwind v4's CSS-first `@theme` makes `app/globals.css`
+`05` in code, the way `db/schema.ts` is `04`; `--color-*: initial` deletes Tailwind's default palette,
+so "no other hue appears anywhere" (`05` §2) is enforced by the build rather than remembered. shadcn
+supplies accessible behaviour as vendored source restyled to `05` — the Progress tooltip must be
+reachable by keyboard (`05` §7), and the option rows need arrow-key navigation. *Rejected:* no
+component library; unstyled primitives without shadcn; shadcn on Radix. The token mapping and the
+rules that keep shadcn from becoming a second design system: `05` §10.
 
 **Postgres, not SQLite.** SQLite is genuinely the simpler option and deserves a straight answer.
 Three things ruled it out: Vercel Functions have no persistent disk, so SQLite would have forced a
@@ -296,6 +313,7 @@ suburi/
 │   ├── (app)/                 home · round · progress · history · cv
 │   └── api/                   route handlers — auth, presign, transcribe, score
 ├── components/                design-system primitives, per 05
+│   └── ui/                    shadcn source on Base UI, vendored and restyled to 05 §10
 ├── db/
 │   ├── schema.ts              Drizzle schema — the 04 doc in code
 │   ├── migrations/

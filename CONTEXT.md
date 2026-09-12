@@ -94,9 +94,13 @@ follow the feedback language.
 
 ## Stack, fixed in Phase 4
 
-Next.js (App Router) + TypeScript on Vercel · Drizzle · Postgres 17 + `pgvector` on Neon (Docker
-locally) · Better Auth with Google as the only IdP · AWS S3 for audio · OpenAI `gpt-5.6-sol`, pinned,
-for all three model jobs.
+Next.js (App Router) + TypeScript on Vercel · Tailwind CSS v4 · shadcn/ui on Base UI · Drizzle ·
+Postgres 17 + `pgvector` on Neon (Docker locally) · Better Auth with Google as the only IdP · AWS S3
+for audio · OpenAI `gpt-5.6-sol`, pinned, for all three model jobs.
+
+**`docs/05-design-system.md` is the only palette.** Tailwind's defaults are wiped, shadcn's variables
+alias `05`'s tokens, and code outside `components/ui/` uses `05` names. `05`'s `--accent` is `--mark`
+in code, because shadcn owns `--accent`. `05` §10.
 
 **Speech-to-text is `gpt-transcribe`**, $0.0045/minute, verified 2026-09-12 — about $0.11 a round
 against ~$0.40 on Sol. It needs API **Tier 1 or above**, and its only snapshot shares its name, so
