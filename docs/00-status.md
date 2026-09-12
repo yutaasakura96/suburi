@@ -2,7 +2,7 @@
 
 **Project:** **Suburi** (素振り) — a private, turn-based voice interview simulator for practising job
 interviews in Japanese and English, with rubric-scored feedback and tracked progress over time.
-**Phase:** 4b complete. **Planning is done. Next is Phase 5 — configure the repo.**
+**Phase:** 5 complete. **The repo is configured. Next is Phase 6 — build.**
 **Updated:** 2026-09-12
 
 ## Done
@@ -17,25 +17,37 @@ interviews in Japanese and English, with rubric-scored feedback and tracked prog
   at where they are enforced rather than only stated.
 - **Repo created and pushed** — `github.com/yutaasakura96/suburi`, public. `main` and `develop` both
   exist and both track the remote. `.gitignore` written.
+- Phase 5 — **`CLAUDE.md`** (6.9 KB) and **`.claude/settings.json`** (75 allow / 60 ask / 6 deny,
+  four plugins named). No `.mcp.json`, no hooks, no agents, no rules — four decisions appended.
+- Phase 5b — `/setup-matt-pocock-skills` run. `docs/agents/{issue-tracker,triage-labels,domain}.md`
+  and an `## Agent skills` section in `CLAUDE.md`. GitHub Issues as the tracker, default triage
+  labels, single-context domain docs. Two decisions appended.
 
 **Design canvas:** https://claude.ai/code/artifact/8d50e302-ed9c-48d4-ab00-c0e4e5da0788
 Page 1 is the screen set, page 2 the three exploration directions. **Working files** in `design/`;
 every change re-seeds from those — edit them, never the built `design/suburi-directions.html`.
 
 ## Next
-**Phase 5 — configure the repo.** Run `/project`. It reads
-`~/Documents/GitHub/claude-setup-inventory/skills/new-project/SKILL.md` and executes it verbatim,
-including its approval gate: detect the stack, propose the config as a table, wait for approval, then
-write `CLAUDE.md`, `.claude/settings.json` and `.mcp.json` if one is needed. It will find `docs/` and
-should prefer it over inference — the stack is fixed and written down, so nothing needs guessing.
+**Phase 6 — build.** Planning and configuration are both complete. The build flow is driven by
+commands only you can type; nothing can start it for you.
 
-Two things Phase 5 should carry into `CLAUDE.md` rather than leave in `docs/`: the invariant list from
-`CONTEXT.md`, and the pointer that `docs/07` §6, `docs/11` §3 and `docs/04` §6 are where those
-invariants are enforced.
+**One-time setup: done.** `/setup-matt-pocock-skills` has been run — `docs/agents/issue-tracker.md`,
+`docs/agents/triage-labels.md`, `docs/agents/domain.md`, and an `## Agent skills` section in
+`CLAUDE.md`. **Issues live in GitHub Issues**, not local files: the earlier note here said to choose
+local markdown because Backlog (Nulab) is unsupported, but that overlooked the working GitHub remote.
+`gh` gives `triage` its label queries and `wayfinder` its native dependency graph. Reversal recorded
+in `06` under Phase 5b, along with why `docs/adr/` is deliberately not created.
 
-After 5: **Phase 6 — build.** Planning is complete; the build flow is driven by commands only you can
-type. `mattpocock-skills` is currently **disabled in global settings**, so `/grill-with-docs` is
-unavailable in this repo — either enable it, or the first feature is specced directly from `docs/`.
+**Then, per feature:** `/grill-with-docs` → `/to-spec` → `/to-tickets` → `/implement`. Small changes
+collapse to grill → implement. The flow is in `~/Documents/GitHub/claude-setup-inventory/mattpocock-skills-guide.md`;
+keep grill → spec → tickets inside one unbroken window.
+
+**Verify before the first implementation session**, because each one is currently an unknown that a
+ticket would otherwise decide silently:
+- The exact OpenAI transcription model id and its per-minute price (`03` §4, `12` §2).
+- Whether Next.js `after()` completes ~60s of post-response work on a Vercel Hobby function
+  (`07` §5.10). If it does, the scoring trigger moves server-side.
+- Vercel Hobby's cron frequency limit (`12` §6) and Neon's free-tier PITR window (`12` §8).
 
 ## Blocked
 _(nothing)_
@@ -113,8 +125,13 @@ first production deploy and read a round back whole. An untested restore is a ho
 the only irreplaceable thing here.
 
 - Remote is `github.com/yutaasakura96/suburi` (public). Work on `develop`; release by PR into `main`.
-- `mattpocock-skills` is disabled in global settings, so the grill commands are unavailable here.
-- `superpowers` is not active in this repo; the template's own interview was used.
+- **`mattpocock-skills` is now `true` in `.claude/settings.json`** — project scope beats the global
+  `false`, so the grill commands are available here. `superpowers` and `frontend-design` are pinned
+  `false` in the same file, deliberately; `06` records why for each.
+- **No hooks, by decision.** Nothing blocks an edit or a push on `main`, so `12` §4's "nothing is
+  committed straight to `main`" is a convention in `CLAUDE.md`, not a mechanism. What still guards the
+  measurement record: manual expand-only migrations, and `drizzle-kit migrate`/`push`/`drop`, `psql`,
+  `pg_dump`, all `aws` and every writing Neon MCP tool sitting in `permissions.ask`.
 
 ## Skipped
 - **`09-user-flows.md`** — covered by PRD §5's user stories and `10`'s per-screen state

@@ -3,6 +3,99 @@
 Newest first. Every entry records what was chosen, why, and what was rejected.
 
 ---
+## Phase 5b — engineering-skills scaffolding
+
+### [2026-09-12] Issues live in GitHub Issues, not local markdown
+
+**Decided:** `docs/agents/issue-tracker.md` is the GitHub template. `to-spec`, `to-tickets`, `triage`
+and `wayfinder` all drive `gh` against `yutaasakura96/suburi`.
+**Alternatives considered:** local markdown under `.scratch/<feature>/`, which is what
+`docs/00-status.md` instructed this session to choose; freeform prose describing a Backlog (Nulab)
+workflow.
+**Reason:** this reverses the status file, and the reversal is the point of recording it. That note was
+written on the belief that Backlog was the tracker in play and that Backlog is unsupported — the second
+half is true, the first was never checked against the repo, which has had a working GitHub remote since
+Phase 5. Local markdown was the fallback for a repo with no remote; this repo has one. GitHub gives real
+issue numbers, label queries that `triage` needs, and native issue dependencies that `wayfinder`'s
+blocking graph reads directly — under local markdown that graph degrades to a `Blocked by:` line
+maintained by hand.
+**Not a privacy change:** the repo is already public. Invariant 6 governs *round data* — transcripts,
+scores, the CV — none of which goes near an issue. Tickets are about code.
+**PRs as a request surface: left off.** Single-user repo; there are no external PRs to triage.
+
+### [2026-09-12] No `docs/adr/`; the decision log stays the single ADR surface
+
+**Decided:** `docs/agents/domain.md` diverges from the skill's seed template. It points at
+`docs/06-decision-log.md` and states that `docs/adr/` should not be created.
+**Alternatives considered:** taking the template verbatim, which sends every skill to `docs/adr/` and
+would have `/domain-modeling` create it lazily on the first resolved decision.
+**Reason:** two decision records is none. This log is append-only and `CLAUDE.md` already calls it the
+answer to every "why is it like this?" — a parallel `docs/adr/` would split thirty-seven entries of
+history from everything written after Phase 6 starts, and the split would be invisible until someone
+searched the wrong one. A new decision is a new entry here.
+**Also written into `domain.md`:** the invariants are not negotiable in a ticket, and a ticket needing
+one relaxed edits `04` §6, `07` §6 and `11` §3 first. The skills that generate tickets read this file;
+that rule needed to be in their path, not only in `CLAUDE.md`.
+
+---
+
+
+## Phase 5 — repo configuration
+
+### [2026-09-12] No branch guard hook; no hooks at all in v1
+
+**Decided:** `.claude/hooks/` is not created. Nothing blocks an edit on `main`.
+**Alternatives considered:** lfca-lab's `pre-edit-branch-guard.sh`, which refuses edits on `main` and
+`master`; extending it to `develop` so `12` §4's feature-branch flow is enforced rather than followed.
+**Reason:** the user's call, stated plainly — the agent is trusted to handle the work. Worth recording
+because the docs argue the other way: `12` §4 says nothing is committed straight to `main`, and a push
+to `main` promotes production. That rule is now a convention in `CLAUDE.md` rather than a mechanism.
+**What still protects the measurement record:** migrations are manual and expand-only, so no unattended
+DDL reaches Neon `main`; `drizzle-kit migrate` / `push` / `drop`, `psql`, `pg_dump`, all `aws` and every
+writing Neon MCP tool sit in `ask`; and Vercel's instant rollback covers a bad code deploy. The branch
+guard was the weakest of these, and it was the one removed.
+**Precedent honoured:** the catalog records that a `pre-push-main-guard.sh` existed from 2026-09-02 to
+2026-09-06 and was deliberately removed, partly because a guard that is a text match on a shell command
+is not a guard. `git push:*` is therefore in `allow`, not `ask`.
+
+### [2026-09-12] Four plugins named explicitly, two of them off
+
+**Decided:** `.claude/settings.json` sets `openai-developers` and `mattpocock-skills` to `true`, and
+`superpowers` and `frontend-design` to `false` — the two `false` entries written out rather than left
+absent.
+**Alternatives considered:** enabling nothing and inheriting the global layer; enabling `superpowers`
+for its TDD and systematic-debugging skills.
+**Reason:** `openai-developers` because every model call here is OpenAI and its bundled Docs MCP is the
+tool that closes the open TBD on the transcription model id and price (`03` §4). `mattpocock-skills`
+because Phase 6 runs on `/grill-with-docs`, which is unreachable while the pack is disabled globally.
+`superpowers` is off because it must not share a repo with mattpocock-skills, and because its
+`brainstorming` skill is model-invocable and describes itself as mandatory — in a planning repo it will
+try to seize any interview. `frontend-design` is off because `05` and `10` were *extracted* from a built
+prototype, and a skill that forces a fresh design frame works against a design system that was measured
+rather than invented.
+**Why the explicit `false`:** absence reads as disabled today, but a later flip at user scope would leak
+both plugins into this repo silently. The `false` is the record of a decision, not a no-op.
+
+### [2026-09-12] No `.mcp.json`
+
+**Decided:** no project-scoped MCP servers.
+**Alternatives considered:** Playwright (the testing plan drives the recorder with it); the GitHub MCP;
+a project-scoped Neon server.
+**Reason:** context7 and Neon already resolve above project scope, so wiring them again would be a
+second copy to keep current. Playwright has no application to drive yet — wire it at the first E2E
+ticket, against a real dev server, not before. The catalog also records that both existing GitHub MCP
+wirings use the deprecated legacy npm server; `gh` covers what is needed here.
+
+### [2026-09-12] No `.claude/agents/` and no `.claude/rules/`
+
+**Decided:** neither directory is created.
+**Alternatives considered:** copying the house roster (code-reviewer, db-agent, security-agent) and the
+per-concern rule files from portfolio-v2 and ss-platform.
+**Reason:** there is no code. Rules written now would be a second copy of `docs/` and `CONTEXT.md` that
+drifts from them, which is the configuration smell the catalog names directly. Revisit once there is a
+codebase to have conventions about — the roster is a copy-paste away.
+
+---
 
 ## Phase 4b — the deferred Tier 2 docs
 
