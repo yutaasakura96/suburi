@@ -41,7 +41,7 @@ specific lie it prevents.
 | Layer | Tool | Runs against |
 | --- | --- | --- |
 | Units | Vitest | pure functions, no I/O |
-| Integration | Vitest | **a real Postgres 17 + `pgvector`** — Docker locally, a service container in CI |
+| Integration | Vitest | **a real Postgres 18 + `pgvector`** — Docker locally, a service container in CI |
 | End-to-end | Playwright, Chromium | the built app, with S3 and OpenAI intercepted |
 | Scoring quality | `scripts/rescore-held-out.ts` | the real model. **Not a test** — see §6 |
 
@@ -183,7 +183,7 @@ wiring between screens that no unit test sees.
 | Flow | Asserts |
 | --- | --- |
 | Route protection | Unauthenticated `/progress`, `/history`, `/cv`, `/round/*` → `/sign-in`. **`/api/*` → `401` with no redirect** (`08` §5). |
-| A route added later | Every path in the App Router is either in the public list or redirects. Fails when someone adds a page middleware's matcher misses — the exact hole `08` §5 warns about. |
+| A route added later | Every path in the App Router is either in the public list or redirects. Fails when someone adds a page the proxy's matcher misses — the exact hole `08` §5 warns about. |
 | Round setup | The four stamps are displayed before 開始; a failing model preflight disables 開始 and says why, with **no option to start anyway**. |
 | The cap fires | Fake device, realistic mode: recording stops at 240s and **the take is retained** — screen 4 promises `4分で自動的に止まります。そこまでの録音は残ります。` |
 | The runaway guard fires | Practice mode: at 15 minutes it behaves exactly like the cap, take kept, **and it is not rendered as a timer** (`03` §7 — not shown as pressure, not part of practice's rhythm). |
@@ -260,7 +260,7 @@ GitHub Actions, on every push and every pull request:
 1. `tsc --noEmit`
 2. `eslint`
 3. `vitest run` — units
-4. `vitest run --project=integration` — against a `pgvector/pgvector:pg17` service container, schema built by the real migrations
+4. `vitest run --project=integration` — against a `pgvector/pgvector:pg18` service container, schema built by the real migrations
 5. `playwright test` — Chromium, against a production build
 6. `npm audit --audit-level=high`
 

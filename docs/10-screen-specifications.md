@@ -409,6 +409,9 @@ Restated from PRD §9 because a specification that omits them invites a build th
 
 - **Mobile.** Desktop only in v1; no breakpoint is drawn and none should be inferred from the 1280px
   frame.
+- **Sign-in page.** `/sign-in` (`08` §5) has no artboard. The foundation slice builds it bare in `05`
+  tokens — wordmark, one Google button, the refusal line — with both languages on the page, so it does
+  not decide the open bilingual chrome rule. Its Japanese strings need a native read.
 - **CV screen.** The nav has a fourth item, `CV`, that no artboard draws. It needs CV upload, parsing
   into individually citable units, and version history — Phase 4's inbox, then a design pass.
 - **Practice mode's screens.** Practice differs at the record frames (no timer, `録り直し可`) and

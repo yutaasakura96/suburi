@@ -40,8 +40,8 @@ by round end the scores are already rows.
 
 ### Rules that apply to every endpoint
 
-1. **Session required.** No public endpoint exists except Better Auth's own. Enforced in middleware
-   *and* re-asserted inside the handler (`08` §5) — middleware's matcher is not a security boundary.
+1. **Session required.** No public endpoint exists except Better Auth's own. Enforced in the proxy
+   *and* re-asserted inside the handler (`08` §5) — the proxy's matcher is not a security boundary.
 2. **Every query is scoped by the session's `user_id`.** A row belonging to another `user_id` is
    `404`, never `403`: the API does not confirm that someone else's id exists.
 3. **Zod at the boundary, server-side.** Client validation is for feedback speed and counts for

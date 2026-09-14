@@ -3,6 +3,102 @@
 Newest first. Every entry records what was chosen, why, and what was rejected.
 
 ---
+## Phase 6 — the foundation slice, decided before it was built
+
+Settled 2026-09-13/14 in the grilling for the foundation slice (spec #1, tickets #2–#7). Library and
+platform facts were checked that day against npm, the vendors' docs and, where the docs were silent,
+the library source.
+
+### [2026-09-14] The slice stops at `develop`
+
+**Decided:** the foundation slice ends with `develop` deployed on a stable Vercel subdomain and a real
+Google sign-in there. Production and Neon `main` are not touched.
+**Alternatives considered:** local only; everything through production.
+**Reason:** `develop` is where `12` §1 says real behaviour is verified, and it is the only way to close
+`12` §3's env-scoping question. Seeding production before anything is measured creates the
+irreplaceable record early for no gain, and `12` §8's restore drill belongs to a production deploy that
+holds something.
+
+### [2026-09-14] The user row is seeded by script, not by migration
+
+**Decided:** a hand-run seed script reads `ALLOWED_EMAIL` and inserts the single `users` row with
+`email_verified = true`, idempotently. `03` §2, `04` §2, `08` §2 and `12` §3 amended.
+**Alternatives considered:** the email literally in a migration, as the docs said; no seed, letting
+the first sign-in create the row behind the `ALLOWED_EMAIL` check alone.
+**Reason:** migrations are committed files and the repository is public, so a migration would publish
+the email forever. Dropping the seed would mean turning `disableSignUp` off and leaving one lock where
+`08` deliberately has two. `email_verified = true` is not incidental: Better Auth 1.7.4 links a first
+Google sign-in to an existing user only when that user is verified (read in its source).
+
+### [2026-09-14] Sessions last 30 days, refreshed daily
+
+**Decided:** `expiresIn` 30 days, `updateAge` 1 day. Closes `08` §3's TBD.
+**Alternatives considered:** Better Auth's defaults, 7 days and 1 day.
+**Reason:** `08`'s target was ~30 days rolling. Seven days signs the user out across a gap between
+practice weeks, which is the interruption `08` §3 exists to avoid; the threat model in `03` §9 gains
+nothing from the shorter window.
+
+### [2026-09-14] node-postgres everywhere
+
+**Decided:** the `pg` driver locally, in CI and on Vercel, over Neon's pooled URL.
+**Alternatives considered:** Neon's HTTP driver; Neon's WebSocket driver deployed with `pg` in tests.
+**Reason:** Drizzle's Neon HTTP driver throws on `db.transaction()` (read in its source), and `11` §2's
+integration tests and `07`'s submit path both need transactions. Using the same driver in tests and in
+production keeps the invariant tests proving what production runs. This is a judgement, not a
+documented recommendation for Vercel Node functions.
+**Fallback:** Neon's WebSocket driver if `pg` shows connection churn on `develop`. Taking it is a new
+entry here.
+
+### [2026-09-14] Drizzle stable, not the 1.0 RC
+
+**Decided:** `drizzle-orm` 0.45.2 and `drizzle-kit` 0.31.10.
+**Alternatives considered:** the 1.0 RC, which Drizzle's own Neon and schema docs now describe.
+**Reason:** `db/schema.ts` holds the measurement record and its migrations are manual and expand-only.
+That is the wrong place to absorb pre-release breaking changes. Moving to 1.0 is its own deliberate
+upgrade, with its own entry. Docs written for the RC API are not a guide to 0.45.2.
+
+### [2026-09-14] TypeScript 7, with a fallback
+
+**Decided:** `typescript` 7.0.2, the native compiler.
+**Alternatives considered:** 6.0.3, the last JavaScript-based line.
+**Reason:** it is the current stable release. Whether Next, Drizzle and Better Auth's types are clean
+under it was not verified in advance, so the scaffold is the test.
+**Fallback:** 6.0.3 if `tsc --noEmit` does not pass on the scaffold. Taking it is a new entry here,
+naming what failed.
+
+### [2026-09-14] Postgres 18
+
+**Decided:** Postgres 18 on Neon, `pgvector/pgvector:pg18` locally and in CI. Every `pg17` in
+`CLAUDE.md`, `CONTEXT.md`, `03`, `04`, `11` and `12` replaced.
+**Alternatives considered:** staying on 17, as Phase 4 wrote.
+**Reason:** 18 is the newest supported major (18.6, supported to November 2030). Neon runs it and ships
+`pgvector` 0.8.6 on it against 0.8.0 on 17, and the near-duplicate guard (`03` §11) rests on pgvector.
+Nothing had been provisioned, so switching cost nothing; after real data lands on Neon `main` it
+would be a major-version migration.
+
+### [2026-09-14] Versions are at least the newest LTS, checked live
+
+**Decided:** every runtime, framework, database and library is chosen at the newest LTS or newest
+supported line, verified against the registry and the vendor's support policy when chosen, and pinned
+exactly. The pins are in `03` §1.
+**Alternatives considered:** always the absolute latest; carrying versions forward from planning notes.
+**Reason:** the user's rule. A re-check on 2026-09-14 found Postgres still pinned at 17 from Phase 4
+when 18 was current — exactly what carrying a version forward without checking produces. The latest is
+not required: Node stays on 24 because 26 is not yet LTS and Vercel does not offer it.
+
+### [2026-09-14] Smaller calls, recorded together
+
+- **Sign-in page in both languages.** `/sign-in` has no artboard (`10` §12) and no round, so it cannot
+  follow a round's language. Showing both avoids deciding the open bilingual chrome rule by accident.
+- **No `AGENTS.md`.** `create-next-app` writes one by default; it is removed. `CLAUDE.md` and
+  `CONTEXT.md` are the agent docs, and a third would drift.
+- **React Compiler off.** Nothing here needs it, and its cost with Turbopack was not checked.
+- **Three Google redirect URIs.** `localhost`, `develop`'s stable URL and production. `12` §1 has local
+  development signing in with the same allowlist, which the earlier two-URI list missed.
+- **Client caches named as rejected.** `03` §7 now names TanStack Query, TanStack Router and Zustand,
+  so a ticket cannot add one on the grounds that nothing forbade it by name.
+
+---
 ## Phase 5d — styling, components, and the framework's real reason
 
 Settled on 2026-09-13, before the foundation slice, because the foundation slice is where each would

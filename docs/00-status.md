@@ -2,9 +2,9 @@
 
 **Project:** **Suburi** (素振り) — a private, turn-based voice interview simulator for practising job
 interviews in Japanese and English, with rubric-scored feedback and tracked progress over time.
-**Phase:** 5 complete, and the four pre-build verifications with it. **The repo is configured and
-nothing on that list blocks the first ticket. Next is Phase 6 — build.**
-**Updated:** 2026-09-13
+**Phase:** 6 — build, in progress. **The foundation slice is specified and ticketed:** spec
+[#1](https://github.com/yutaasakura96/suburi/issues/1), tickets #2–#7. #2, the docs-first ticket, has landed on `develop`.
+**Updated:** 2026-09-15
 
 ## Done
 - Phase 1 — `docs/01-project-brief.md`, `docs/02-product-requirements.md`, `docs/06-decision-log.md`.
@@ -32,14 +32,21 @@ nothing on that list blocks the first ticket. Next is Phase 6 — build.**
   with `05` as the only palette, shadcn/ui on Base UI, `05` §10 written (token aliasing, `--accent` →
   `--mark` in code, `--radius: 0`, no score in a `Progress`/`Slider`). `03` §1's rejection of
   SvelteKit/Nuxt now gives the real reason, RSC. Still no `.mcp.json`. Five decisions appended.
+- **Phase 6 started — the foundation slice grilled, specified and ticketed.** Spec #1; tickets #2–#7.
+  #2 applied the decisions to the docs: seed by script, not migration (`email_verified = true`);
+  sessions 30 days / 1 day (closes `08` §3); proxy, not middleware; branch-scoped Preview env vars on
+  Hobby (closes `12` §3); the `05` §10.1 colour wipe verified; Postgres 17 → 18 everywhere; pinned
+  versions in `03` §1; three Google redirect URIs including `localhost`. Nine entries in `06`.
 
 **Design canvas:** https://claude.ai/code/artifact/8d50e302-ed9c-48d4-ab00-c0e4e5da0788
 Page 1 is the screen set, page 2 the three exploration directions. **Working files** in `design/`;
 every change re-seeds from those — edit them, never the built `design/suburi-directions.html`.
 
 ## Next
-**Phase 6 — build.** Planning and configuration are both complete. The build flow is driven by
-commands only you can type; nothing can start it for you.
+**The foundation slice, ticket by ticket.** #2 has landed. Next is **#3, the walking skeleton**; then #4
+(the `05` palette and static sign-in) and #5 (pg18 schema, invariant tests, seed) in either order; then
+#6 (locked sign-in); then #7 (`develop` deployed — `ready-for-human`, a wizard you run). Work each with
+`/implement #N`. The native "blocked by" links on GitHub are the order.
 
 **One-time setup: done.** `/setup-matt-pocock-skills` has been run — `docs/agents/issue-tracker.md`,
 `docs/agents/triage-labels.md`, `docs/agents/domain.md`, and an `## Agent skills` section in
@@ -66,7 +73,7 @@ _(nothing)_
 ## Carrying
 
 **The stack, fixed:** Next.js (App Router) + TypeScript on Vercel · Tailwind v4 · shadcn/ui on Base UI ·
-Drizzle · Postgres 17 +
+Drizzle · Postgres 18 +
 `pgvector` on Neon, Docker locally · Better Auth with Google as the only IdP · AWS S3 for audio ·
 OpenAI `gpt-5.6-sol` pinned for all three model jobs.
 

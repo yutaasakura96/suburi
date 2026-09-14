@@ -392,8 +392,11 @@ Tailwind v4: `@import "tailwindcss"` in `app/globals.css`, the `@tailwindcss/pos
 ```
 
 **Acceptance check at scaffold:** `bg-blue-500` generates no CSS, and a shadcn `Button` renders square
-with no shadow. Whether a later `@theme inline` block re-adds colours after the wipe was not verified
-in the docs; this check is what settles it.
+with no shadow. **The wipe survives shadcn's `@theme inline` block** — verified 2026-09-14 against the
+Tailwind docs and a local build on 4.3.3. A `--color-*: initial` reset followed by `@theme inline {
+--color-background: var(--background) }` generates `bg-background` and nothing from the default
+palette: no `bg-blue-500`, no `text-white`. The check stays anyway, because it is what catches a
+later edit that breaks this.
 
 **Names in code.** Every §2 token keeps its name, exposed as a Tailwind colour (`--ground` →
 `bg-ground`, `--rule-frame` → `border-rule-frame`, `--ink-label` → `text-ink-label`) — **except the

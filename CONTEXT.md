@@ -95,7 +95,7 @@ follow the feedback language.
 ## Stack, fixed in Phase 4
 
 Next.js (App Router) + TypeScript on Vercel · Tailwind CSS v4 · shadcn/ui on Base UI · Drizzle ·
-Postgres 17 + `pgvector` on Neon (Docker locally) · Better Auth with Google as the only IdP · AWS S3
+Postgres 18 + `pgvector` on Neon (Docker locally) · Better Auth with Google as the only IdP · AWS S3
 for audio · OpenAI `gpt-5.6-sol`, pinned, for all three model jobs.
 
 **`docs/05-design-system.md` is the only palette.** Tailwind's defaults are wiped, shadcn's variables
@@ -147,7 +147,9 @@ Carry these; do not silently decide them in a ticket.
 
 - **The bilingual chrome rule.** Does UI chrome follow the round's language, or the app's? Progress
   localises version labels per panel (`職務経歴書 v3` vs `CV v3`), implying per-round; Home's English
-  caption names round types in Japanese. Both defensible, neither decided.
+  caption names round types in Japanese. Both defensible, neither decided. `/sign-in` shows both
+  languages side by side (`10` §12) — it has no round, so it sidesteps the rule rather than setting a
+  precedent for it.
 - **The near-duplicate similarity threshold.** A guess until there is real data. Start strict, log
   every near-miss with its score, tune from the log.
 - **CV claim extraction quality.** Unmeasured. First thing to eyeball on a real CV.

@@ -19,7 +19,7 @@ optimise the constraint away.
 | UI components | shadcn/ui on Base UI | vendored source in `components/ui/` |
 | Backend | Next.js Route Handlers + Server Actions, Node runtime | — |
 | ORM | Drizzle | — |
-| Database | Postgres 17 + `pgvector` | Neon (prod), Docker (local) |
+| Database | Postgres 18 + `pgvector` | Neon (prod), Docker (local) |
 | Auth | Better Auth, Google IdP only | — |
 | Object storage | AWS S3 | one bucket, one prefix |
 | Models | OpenAI, `gpt-5.6-sol` | exact string, never an alias |
@@ -62,6 +62,31 @@ version-stamped columns, which are exactly where a silent mistake would be most 
 
 **OpenAI `gpt-5.6-sol`, pinned.** See §4.
 
+### Versions, pinned at the foundation slice
+
+Verified 2026-09-14 against the npm registry and each project's own support policy. **The rule:** at
+least the newest LTS or newest supported line, checked live when chosen — not necessarily the latest,
+and never carried forward from an earlier note without re-checking. Every dependency is pinned
+exactly — npm is configured to save exact versions — and the Node major is pinned in both a version
+file and `engines`. Dependabot proposes upgrades; Better Auth, Drizzle and the OpenAI SDK are never
+auto-merged (`11` §7).
+
+| Package | Pinned | Why this line |
+| --- | --- | --- |
+| Node.js | 24 | Active LTS and Vercel's default. 26 is not LTS until 2026-10-28, and Vercel offers only 20, 22 and 24 |
+| `next` | 16.3.5 | 16.x is Next.js's Active LTS |
+| `react`, `react-dom` | 19.3.0 | Latest stable |
+| `typescript` | 7.0.2 | Latest stable, the native compiler. **Fallback 6.0.3**, the last JavaScript-based line, if `tsc --noEmit` does not pass on the scaffold (`06`) |
+| `tailwindcss`, `@tailwindcss/postcss` | 4.3.3 | Latest stable |
+| `shadcn` CLI, `@base-ui/react` | 4.21.0, 1.8.0 | Latest stable |
+| `drizzle-orm`, `drizzle-kit` | 0.45.2, 0.31.10 | Latest **stable**. The 1.0 RC, and the docs pages written for it, are not used (`06`) |
+| `pg` | 8.23.0 | The one driver, locally, in CI and on Vercel (`06`) |
+| `better-auth` | 1.7.4 | Latest stable |
+| `zod` | 4.6.5 | Latest stable |
+| `vitest`, `@playwright/test` | 5.0.0, 1.63.0 | Latest stable |
+| `eslint`, `eslint-config-next` | 10.10.0, 16.3.5 | Latest stable; the config matches `next` |
+| Postgres | 18 | Newest supported major (18.6, supported to 2030). Neon ships `pgvector` 0.8.6 on 18 against 0.8.0 on 17 (`06`) |
+
 ---
 
 ## 2. Tenancy and auth posture
@@ -70,8 +95,10 @@ version-stamped columns, which are exactly where a silent mistake would be most 
 
 Every table that holds user data carries `user_id`. There is no invite flow, no role, no sharing
 surface, no signup route. Access is Google sign-in with Better Auth's per-provider
-`disableSignUp: true`, against a user row seeded by migration — an account not already in the
-database cannot be created by signing in.
+`disableSignUp: true`, against a user row inserted by a hand-run seed script that reads
+`ALLOWED_EMAIL` — an account not already in the database cannot be created by signing in. Not by
+migration: migrations are committed files in a public repository, and the allowlisted email would be
+published with them.
 
 This reverses PRD §1 as originally written. The PRD and brief have been amended to match rather than
 left contradicting the schema; see decision log. What has **not** changed is screen-spec refusal #6:
@@ -226,6 +253,8 @@ problem and the hosting choice is noise. Nothing about that changes what to buil
 
 **Server state is Postgres, read through Server Components.** No client-side cache layer, no global
 store in v1 — introducing one would be inventing a synchronisation problem the app does not have.
+Named so a ticket does not add one: **no TanStack Query, no TanStack Router, no Zustand**, nor any
+other client cache, router or global store.
 
 **Client state is two surfaces only:**
 

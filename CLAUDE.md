@@ -70,13 +70,13 @@ app is scaffolded.
 tsc --noEmit                            typecheck
 eslint                                  lint
 vitest run                              units
-vitest run --project=integration        against a real pgvector/pgvector:pg17 container
+vitest run --project=integration        against a real pgvector/pgvector:pg18 container
 playwright test                         Chromium, against a production build
 drizzle-kit generate                    write the migration; read the SQL before applying
 drizzle-kit migrate                     apply, using DATABASE_URL_UNPOOLED
 ```
 
-Local Postgres is Docker Compose on `pgvector/pgvector:pg17`. Local uses the **same pinned model
+Local Postgres is Docker Compose on `pgvector/pgvector:pg18`. Local uses the **same pinned model
 strings as production** — testing against a cheaper model makes local behaviour unrepresentative of
 the thing being measured.
 

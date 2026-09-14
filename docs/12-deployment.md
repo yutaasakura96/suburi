@@ -17,7 +17,7 @@ this table supersedes it.
 | --- | --- | --- | --- |
 | Git branch | any | **`develop`** | **`main`** |
 | App | `next dev` | Vercel, `develop` (stable URL) | Vercel, `main` |
-| Postgres | Docker Compose, `pgvector/pgvector:pg17` | **Neon `develop` branch** | **Neon `main` branch** |
+| Postgres | Docker Compose, `pgvector/pgvector:pg18` | **Neon `develop` branch** | **Neon `main` branch** |
 | Object storage | MinIO, or the real bucket under `dev/` | Real bucket, `dev/` prefix | Real bucket, `prod/` prefix |
 | Data | Synthetic seed | **Synthetic seed** | Real |
 | Models | Real OpenAI, **same pinned strings** | Real OpenAI, same pinned strings | Real OpenAI, same pinned strings |
@@ -107,16 +107,16 @@ in this application is safe to ship to the browser**, and none is.
 
 In this order. Steps 3 and 4 are the ones that fail silently if skipped.
 
-1. **Neon:** project, Postgres 17, `create extension vector`. Note the pooled and unpooled URLs.
-2. **Google Cloud:** OAuth client. Authorised redirect URIs for the production domain and for **`develop`'s stable URL** — which is the second reason `develop` gets a fixed domain rather than a per-commit one: Google's redirect URIs are an exact-match list, so a generated hostname can never sign in. Feature-branch previews therefore cannot sign in either; verify feature work on `develop`, not on its own preview URL.
+1. **Neon:** project, Postgres 18, `create extension vector`. Note the pooled and unpooled URLs.
+2. **Google Cloud:** OAuth client. Authorised redirect URIs for three origins — **`localhost`**, because local development signs in with the same Google allowlist (§1); the production subdomain, **`suburi.vercel.app`**; and **`develop`'s stable subdomain, `suburi-develop.vercel.app`** (if either name is taken, use what Vercel offers and change this list, §1 and the URIs together) — which is the second reason `develop` gets a fixed domain rather than a per-commit one: Google's redirect URIs are an exact-match list, so a generated hostname can never sign in. Feature-branch previews therefore cannot sign in either; verify feature work on `develop`, not on its own preview URL.
 3. **S3 bucket:** Block Public Access **all four settings on**; default encryption SSE-S3 or better; versioning on; a lifecycle rule expiring `dev/` after 30 days and **none on `prod/`** (audio is retained — `04` §5).
 4. **S3 CORS:** the browser PUTs directly, so without this the whole upload path fails at runtime and nowhere else. Allow `PUT` and `GET` from the production origin and `develop`'s origin; allowed headers `content-type`; no wildcard origin.
 5. **IAM user**, dedicated, with exactly `s3:PutObject` and `s3:GetObject` on `arn:aws:s3:::<bucket>/prod/*` and `/dev/*`. No `ListBucket`, no `DeleteObject` — **nothing in this app deletes an object**, so the credential should not be able to.
 6. **OpenAI:** one key per environment, each with a monthly usage cap (§6).
 7. **Vercel:** import the repo. **Production branch = `main`.** Give `develop` a stable domain and point the Preview scope's `DATABASE_URL` at Neon `develop`. Populate §2 per scope.
-   > **TBD — per-branch environment variables.** Vercel's Preview scope covers every non-production branch. Confirm whether branch-scoped overrides are available on the current plan; if they are not, feature previews share `develop`'s variables, which is acceptable because they share its database anyway.
+   > **Per-branch environment variables — available on Hobby** (verified 2026-09-14 against Vercel's environment-variable and environments docs). A Preview variable can be scoped to one Git branch, and it overrides the general Preview value. Assigning a stable domain to a branch, with branch-specific variables, is marked "All plans, including Hobby". Custom Environments are Pro and Enterprise only and are not needed. **So:** every §2 variable for `develop` is scoped to the `develop` branch in Preview. Feature previews get whatever is left in general Preview, and they cannot sign in anyway.
 8. **Neon `develop` branch:** create it from an empty schema, migrate, seed **synthetic** data. Never branch it from `main` (§1).
-9. **Seed production:** migrations, then the single `users` row, the set-piece questions, and rubric `v1.2` for both `ja` and `en`. The user row is seeded by migration — `disableSignUp: true` means it cannot be created by signing in (`08` §2).
+9. **Seed production:** migrations, then the single `users` row, the set-piece questions, and rubric `v1.2` for both `ja` and `en`. The user row is inserted by the hand-run seed script from `ALLOWED_EMAIL`, with `email_verified = true` — **not by migration**, which would commit the email to a public repository. `disableSignUp: true` means it cannot be created by signing in (`08` §2).
 10. **Verify the allowlist twice:** sign in with the allowlisted account (works), and confirm a second Google account is rejected. `08` §2 deliberately has two independent mechanisms; this checks both, before there is anything to protect.
 11. **Sentry:** project, DSN, and the scrubbing configuration in §7 — **configured before the first real error, not after.**
 

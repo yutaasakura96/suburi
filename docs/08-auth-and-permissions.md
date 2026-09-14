@@ -41,7 +41,7 @@ desktop machine this app is built for (desktop-only, decision log Phase 2).
 
 Better Auth's per-provider `disableSignUp: true` on the Google provider (verified 2026-09-12 against
 Better Auth's `socialProviders` reference). A Google account with no matching `users` row **cannot
-create one by signing in**. The single row is seeded by migration.
+create one by signing in**. The single row is inserted by a seed script, below.
 
 ```
 socialProviders: {
@@ -53,7 +53,15 @@ This gives an allowlist with **no invite flow, no signup route, and no admin sur
 which is the whole reason to prefer it over a hand-rolled email check.
 
 `ALLOWED_EMAIL` is additionally asserted server-side on session creation, so the guarantee does not
-rest on a single library flag being correct.
+rest on a single library flag being correct. It lives in a session-creation database hook, which
+refuses the session for any other email.
+
+**The row comes from a seed script, not a migration.** A hand-run script reads `ALLOWED_EMAIL` from
+the environment and inserts the row with `email_verified = true`, idempotently. A migration would
+commit the email to a public repository forever. Two library facts, verified 2026-09-14 against Better
+Auth 1.7.4's source: `disableSignUp` blocks only the create-a-new-user path — a matching existing user
+still signs in — and a first Google sign-in links to that existing row only if the row is
+`email_verified`, otherwise it fails with "account not linked". Account linking stays at its default.
 
 ---
 
@@ -67,10 +75,11 @@ you want for the only credential guarding this data.
 (every request that matters reads Postgres anyway), and unrevocable credentials are a poor trade for
 a single-user app holding sensitive documents.
 
-**TBD — confirm Better Auth's default session expiry and refresh behaviour at implementation time
-and record the actual values here.** Target: ~30 days with rolling refresh. A short expiry buys
-nothing against the threat model in `03` §9 and costs a sign-in mid-practice, which is exactly the
-interruption realistic mode is designed not to have.
+**Expiry: `expiresIn` 30 days, `updateAge` 1 day** — a session lasts 30 days and is extended at most
+once a day while in use. Better Auth's defaults are 7 days and 1 day (verified 2026-09-14); the expiry
+is deliberately overridden. A short expiry buys nothing against the threat model in `03` §9 and costs
+a sign-in mid-practice, or after a gap between practice weeks, which is exactly the interruption
+realistic mode is designed not to have.
 
 ---
 
@@ -106,9 +115,11 @@ deleted"* as a deliberate pressure countermeasure.
 | `/` (Home), `/round/*`, `/progress`, `/history`, `/cv` | session required | `/sign-in` |
 | `/api/*` (presign, transcribe, score) | session required | `401`, no redirect |
 
-Enforced in middleware **and** re-asserted inside every Server Action and Route Handler. Middleware
-alone is not a security boundary — a route added later that middleware's matcher does not cover would
-otherwise be silently public.
+Enforced in the proxy **and** re-asserted inside every page, Server Action and Route Handler. Next.js
+16 renamed middleware to proxy. The proxy's session check is **optimistic** — Better Auth's own docs
+say so, since it reads the cookie without validating the session — so it only decides where to
+redirect. The proxy alone is not a security boundary — a route added later that its matcher does not
+cover would otherwise be silently public.
 
 **Every query is scoped by the session's `user_id`**, from day one, even though there is only one.
 That is the point of doing tenancy now: the scoping habit is established while it is free, not
