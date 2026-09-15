@@ -76,15 +76,16 @@ auto-merged (`11` §7).
 | Node.js | 24 | Active LTS and Vercel's default. 26 is not LTS until 2026-10-28, and Vercel offers only 20, 22 and 24 |
 | `next` | 16.3.5 | 16.x is Next.js's Active LTS |
 | `react`, `react-dom` | 19.3.0 | Latest stable |
-| `typescript` | 7.0.2 | Latest stable, the native compiler. **Fallback 6.0.3**, the last JavaScript-based line, if `tsc --noEmit` does not pass on the scaffold (`06`) |
+| `typescript` | 6.0.3 | **The fallback, taken.** 7.0.2 passes `tsc --noEmit`, but `typescript-eslint` refuses to load on 7 (`06`) |
 | `tailwindcss`, `@tailwindcss/postcss` | 4.3.3 | Latest stable |
 | `shadcn` CLI, `@base-ui/react` | 4.21.0, 1.8.0 | Latest stable |
 | `drizzle-orm`, `drizzle-kit` | 0.45.2, 0.31.10 | Latest **stable**. The 1.0 RC, and the docs pages written for it, are not used (`06`) |
 | `pg` | 8.23.0 | The one driver, locally, in CI and on Vercel (`06`) |
 | `better-auth` | 1.7.4 | Latest stable |
 | `zod` | 4.6.5 | Latest stable |
-| `vitest`, `@playwright/test` | 5.0.0, 1.63.0 | Latest stable |
-| `eslint`, `eslint-config-next` | 10.10.0, 16.3.5 | Latest stable; the config matches `next` |
+| `vitest`, `@playwright/test`, `vite` | 5.0.0, 1.63.0, 8.3.0 | Latest stable. `vite` is Vitest's peer, pinned so it is not left to resolution |
+| `eslint` | 10.10.0 | Latest stable. 9.x reached end-of-life 2026-08-06 |
+| `@next/eslint-plugin-next`, `eslint-plugin-react-hooks`, `typescript-eslint` | 16.3.5, 7.1.1, 8.70.0 | Assembled by hand in place of `eslint-config-next`, whose react, import and jsx-a11y plugins do not support ESLint 10 (`06`) |
 | Postgres | 18 | Newest supported major (18.6, supported to 2030). Neon ships `pgvector` 0.8.6 on 18 against 0.8.0 on 17 (`06`) |
 
 ---

@@ -9,6 +9,28 @@ Settled 2026-09-13/14 in the grilling for the foundation slice (spec #1, tickets
 platform facts were checked that day against npm, the vendors' docs and, where the docs were silent,
 the library source.
 
+### [2026-09-15] TypeScript falls back to 6.0.3
+
+**Decided:** `typescript` 6.0.3, the fallback #1 named. `03` §1 amended.
+**Alternatives considered:** keep 7.0.2 and lint without `typescript-eslint`.
+**Reason:** found building #3. 7.0.2 passes `tsc --noEmit` on the scaffold, but `typescript-eslint`
+8.70.0, latest and canary alike, throws "does not support TS 7.0" on load; its peer range is
+`<6.1.0`. Linting without it leaves ESLint unable to parse `.ts` and `.tsx`, which empties the lint
+step. Revisit when `typescript-eslint` supports 7 (typescript-eslint#10940).
+
+### [2026-09-15] ESLint 10 with a hand-assembled config, not `eslint-config-next`
+
+**Decided:** `eslint` 10.10.0 with a flat config built from `@next/eslint-plugin-next` (recommended
+and core-web-vitals), `eslint-plugin-react-hooks` and `typescript-eslint`. `eslint-config-next` is not
+installed. The config also forbids `process.env` outside `lib/config.ts`. `03` §1 amended.
+**Alternatives considered:** `eslint` 9.39.5 with `eslint-config-next`; `eslint` 10 with
+`eslint-config-next` forced in by `--legacy-peer-deps`.
+**Reason:** found building #3. `eslint-config-next` 16.3.5 depends on `eslint-plugin-react`, `-import`
+and `-jsx-a11y`, whose peer ranges stop at ESLint 9, and `eslint-plugin-react` crashes on 10.10.0
+(eslint-plugin-react#3977, open). ESLint 9 reached end-of-life on 2026-08-06, so pinning it breaks the
+version floor rule. Forcing the install still crashes at lint time. The cost is the react, import and
+jsx-a11y rules; return to `eslint-config-next` when its plugins support 10.
+
 ### [2026-09-14] The slice stops at `develop`
 
 **Decided:** the foundation slice ends with `develop` deployed on a stable Vercel subdomain and a real
