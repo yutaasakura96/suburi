@@ -1,0 +1,44 @@
+# docs/11-testing-plan.md §7. Integration against a pgvector/pgvector:pg18 service
+# container joins with #5, when there is a schema to test.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    # Well-formed placeholders so the production server boots. No real credential.
+    env:
+      DATABASE_URL: postgresql://suburi:suburi@localhost:5432/suburi
+      DATABASE_URL_UNPOOLED: postgresql://suburi:suburi@localhost:5432/suburi
+      BETTER_AUTH_SECRET: ci-only-placeholder-secret-not-a-real-one
+      BETTER_AUTH_URL: http://localhost:3000
+      GOOGLE_CLIENT_ID: ci-placeholder
+      GOOGLE_CLIENT_SECRET: ci-placeholder
+      ALLOWED_EMAIL: ci@example.com
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Unit tests
+        run: npm test
+      - name: Build
+        run: npm run build
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: End-to-end
+        run: npm run test:e2e
+      - name: Audit
+        run: npm audit --audit-level=high

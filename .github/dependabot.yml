@@ -1,0 +1,13 @@
+# Weekly upgrade PRs. Nothing is auto-merged — Better Auth, Drizzle and the OpenAI SDK
+# sit on the auth and scoring paths and move only on purpose (docs/11-testing-plan.md §7).
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    versioning-strategy: increase
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
