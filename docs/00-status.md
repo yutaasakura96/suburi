@@ -41,19 +41,25 @@ interviews in Japanese and English, with rubric-scored feedback and tracked prog
   `process.env` read, checked at boot in `instrumentation.ts`), `.env.example`, Vitest `unit` and
   `integration` projects, Playwright on port 3100, CI green, Dependabot weekly. Two fallbacks taken
   and recorded in `06`: TypeScript 6.0.3 (typescript-eslint refuses TS 7) and a hand-assembled ESLint
-  10 flat config instead of `eslint-config-next`. `db:generate`/`db:migrate` exit 1 until #5.
+  10 flat config instead of `eslint-config-next`.
+- **#5 — the measurement record.** Docker Compose `pgvector/pgvector:pg18` on **host port 5433** (5432
+  was taken locally), `db/schema.ts` for all of `04`, a custom `0000_enable-vector` migration then the
+  generated `0001_measurement-record`, the eleven `11` §3.1 tests plus a new "Enumerated values" test,
+  `11` §3.2 check 1, the idempotent user seed (`npm run db:seed`), and an integration step in CI
+  against a pg18 service container. Three decisions from grilling, in `06`: restrict on every
+  application FK (04's cascades and set null were wrong), value checks on every enumerated text column,
+  `users.name` not null seeded from the email's local part. `12` §3 step 8 now says the user row only.
+  Found in passing: `ON DELETE RESTRICT` raises SQLSTATE `23001`, not `23503`; the tests assert it.
 - **Local machine gotcha:** npm 11.3.0 crashes on install (`edgesOut`); use `npx -y npm@latest install`.
-  `docs/12-deployment.md` §3 step 8 still says `develop` gets a synthetic seed; this slice seeds only
-  the user row.
 
 **Design canvas:** https://claude.ai/code/artifact/8d50e302-ed9c-48d4-ab00-c0e4e5da0788
 Page 1 is the screen set, page 2 the three exploration directions. **Working files** in `design/`;
 every change re-seeds from those — edit them, never the built `design/suburi-directions.html`.
 
 ## Next
-**The foundation slice, ticket by ticket.** #2 and #3 have landed. Next are **#4** (the `05` palette and
-static sign-in) and **#5** (pg18 schema, invariant tests, seed), in either order; then
-#6 (locked sign-in); then #7 (`develop` deployed — `ready-for-human`, a wizard you run). Work each with
+**The foundation slice, ticket by ticket.** #2, #3 and #5 have landed. Next is **#4** (the `05` palette
+and static sign-in); then #6 (locked sign-in — verify Better Auth 1.7.4's Drizzle adapter against the
+plural snake_case tables #5 built); then #7 (`develop` deployed — `ready-for-human`, a wizard you run). Work each with
 `/implement #N`. The native "blocked by" links on GitHub are the order.
 
 **One-time setup: done.** `/setup-matt-pocock-skills` has been run — `docs/agents/issue-tracker.md`,
