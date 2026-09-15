@@ -9,6 +9,39 @@ Settled 2026-09-13/14 in the grilling for the foundation slice (spec #1, tickets
 platform facts were checked that day against npm, the vendors' docs and, where the docs were silent,
 the library source.
 
+### [2026-09-15] No foreign key between application tables cascades or sets null
+
+**Decided:** `scores.scoring_attempt_id`, `claim_citations.answer_id` and
+`cv_claims.supersedes_claim_id` are `on delete restrict`. `04` amended.
+**Alternatives considered:** keep `04`'s original cascade, cascade and set null as three exceptions to
+§0; restrict the two cascades but keep lineage as set null.
+**Reason:** found building #5 — `04` §0 and #5 said restrict everywhere except from `users`, while
+`04`'s tables said otherwise. A cascade from an attempt to its scores, or from an answer to its
+citations, is a deletion of measurement nobody wrote; set null on lineage silently severs the
+coverage chain. Invariant 7 wants the delete refused, loudly.
+
+### [2026-09-15] Enumerated text columns carry value check constraints
+
+**Decided:** every enumerated `text` column in `04` gets a check constraint listing its values, named
+`<table>_<column>_check`; `11` §3.1 gains an "Enumerated values" test. `scores.dimension` is excluded.
+**Alternatives considered:** only the constraints `04` already named, with a follow-up issue; Postgres
+enum types.
+**Reason:** found building #5. A row with `language = 'jp'` was accepted and would split one
+first-attempt series into two without any error. Text plus a check keeps `04`'s typing and makes a new
+value a constraint swap rather than an `ALTER TYPE`. `scores.dimension`'s valid set depends on the
+rubric row, which a column check cannot see.
+
+### [2026-09-15] users.name is not null, seeded from the email's local part
+
+**Decided:** `users.name text not null`; the seed writes the local part of `ALLOWED_EMAIL`. `users`
+also gains Better Auth's `image` and `updated_at`. `04` amended.
+**Alternatives considered:** nullable per `04`'s original row (Better Auth's `User` type says string,
+so #6 would carry a null it is not typed for); not null with an empty string (a placeholder that
+means nothing).
+**Reason:** Better Auth 1.7.4 declares `name` required (`@better-auth/core` `db/get-tables`), and with
+sign-up disabled it never writes the row itself. The local part adds nothing to the repository or the
+environment. Whether Google's profile name overwrites it on sign-in is #6's call.
+
 ### [2026-09-15] TypeScript falls back to 6.0.3
 
 **Decided:** `typescript` 6.0.3, the fallback #1 named. `03` §1 amended.

@@ -82,6 +82,7 @@ amending first.
 | Span sanity | `span_end <= span_start` raises a check violation | — |
 | Answer is question XOR follow-up | Both set, or neither, raises a check violation | An answer with no provenance |
 | Restrict, not cascade | Deleting a `questions` row that an answer references raises a foreign-key violation | Rewriting history by deleting a bank row |
+| Enumerated values | A value outside its list (`04` §0) in any enumerated `text` column raises a check violation | A misspelt `language` splitting one first-attempt series into two |
 
 ### 3.2 No composite score — asserted three ways
 
