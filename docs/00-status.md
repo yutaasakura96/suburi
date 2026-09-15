@@ -3,7 +3,7 @@
 **Project:** **Suburi** (素振り) — a private, turn-based voice interview simulator for practising job
 interviews in Japanese and English, with rubric-scored feedback and tracked progress over time.
 **Phase:** 6 — build, in progress. **The foundation slice is specified and ticketed:** spec
-[#1](https://github.com/yutaasakura96/suburi/issues/1), tickets #2–#7. #2, the docs-first ticket, has landed on `develop`.
+[#1](https://github.com/yutaasakura96/suburi/issues/1), tickets #2–#7. #2 (docs first) and #3 (walking skeleton) have landed.
 **Updated:** 2026-09-15
 
 ## Done
@@ -37,14 +37,22 @@ interviews in Japanese and English, with rubric-scored feedback and tracked prog
   sessions 30 days / 1 day (closes `08` §3); proxy, not middleware; branch-scoped Preview env vars on
   Hobby (closes `12` §3); the `05` §10.1 colour wipe verified; Postgres 17 → 18 everywhere; pinned
   versions in `03` §1; three Google redirect URIs including `localhost`. Nine entries in `06`.
+- **#3 — the walking skeleton.** Next 16.3.5 scaffold, Zod config module (`lib/config.ts`, the only
+  `process.env` read, checked at boot in `instrumentation.ts`), `.env.example`, Vitest `unit` and
+  `integration` projects, Playwright on port 3100, CI green, Dependabot weekly. Two fallbacks taken
+  and recorded in `06`: TypeScript 6.0.3 (typescript-eslint refuses TS 7) and a hand-assembled ESLint
+  10 flat config instead of `eslint-config-next`. `db:generate`/`db:migrate` exit 1 until #5.
+- **Local machine gotcha:** npm 11.3.0 crashes on install (`edgesOut`); use `npx -y npm@latest install`.
+  `docs/12-deployment.md` §3 step 8 still says `develop` gets a synthetic seed; this slice seeds only
+  the user row.
 
 **Design canvas:** https://claude.ai/code/artifact/8d50e302-ed9c-48d4-ab00-c0e4e5da0788
 Page 1 is the screen set, page 2 the three exploration directions. **Working files** in `design/`;
 every change re-seeds from those — edit them, never the built `design/suburi-directions.html`.
 
 ## Next
-**The foundation slice, ticket by ticket.** #2 has landed. Next is **#3, the walking skeleton**; then #4
-(the `05` palette and static sign-in) and #5 (pg18 schema, invariant tests, seed) in either order; then
+**The foundation slice, ticket by ticket.** #2 and #3 have landed. Next are **#4** (the `05` palette and
+static sign-in) and **#5** (pg18 schema, invariant tests, seed), in either order; then
 #6 (locked sign-in); then #7 (`develop` deployed — `ready-for-human`, a wizard you run). Work each with
 `/implement #N`. The native "blocked by" links on GitHub are the order.
 
