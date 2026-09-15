@@ -19,12 +19,18 @@ export type Config = z.infer<typeof schema>;
 
 type Env = Record<string, string | undefined>;
 
+type Problem = { name: string; problem: "missing" | "malformed" };
+
+// No parameter properties: scripts/seed.mts runs this file under Node's type stripping.
 export class ConfigError extends Error {
-  constructor(readonly problems: { name: string; problem: "missing" | "malformed" }[]) {
+  readonly problems: Problem[];
+
+  constructor(problems: Problem[]) {
     super(
       `Invalid configuration: ${problems.map((p) => `${p.name} is ${p.problem}`).join(", ")}`,
     );
     this.name = "ConfigError";
+    this.problems = problems;
   }
 }
 

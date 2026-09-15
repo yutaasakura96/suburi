@@ -1,5 +1,4 @@
-# docs/11-testing-plan.md §7. Integration against a pgvector/pgvector:pg18 service
-# container joins with #5, when there is a schema to test.
+# docs/11-testing-plan.md §7.
 name: CI
 
 on:
@@ -12,10 +11,25 @@ permissions:
 jobs:
   ci:
     runs-on: ubuntu-latest
+    services:
+      # Same image as docker-compose.yml. Integration tests build suburi_test from the migrations.
+      postgres:
+        image: pgvector/pgvector:pg18
+        env:
+          POSTGRES_USER: suburi
+          POSTGRES_PASSWORD: suburi
+          POSTGRES_DB: suburi
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U suburi -d suburi"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 15
     # Well-formed placeholders so the production server boots. No real credential.
     env:
-      DATABASE_URL: postgresql://suburi:suburi@localhost:5432/suburi
-      DATABASE_URL_UNPOOLED: postgresql://suburi:suburi@localhost:5432/suburi
+      DATABASE_URL: postgresql://suburi:suburi@localhost:5433/suburi
+      DATABASE_URL_UNPOOLED: postgresql://suburi:suburi@localhost:5433/suburi
       BETTER_AUTH_SECRET: ci-only-placeholder-secret-not-a-real-one
       BETTER_AUTH_URL: http://localhost:3000
       GOOGLE_CLIENT_ID: ci-placeholder
@@ -34,6 +48,8 @@ jobs:
         run: npm run lint
       - name: Unit tests
         run: npm test
+      - name: Integration tests
+        run: npm run test:integration
       - name: Build
         run: npm run build
       - name: Install Chromium

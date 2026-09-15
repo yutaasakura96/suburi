@@ -1,0 +1,23 @@
+# Local Postgres, the same major and extension as Neon (docs/12-deployment.md §1).
+# `npm run db:up`, then `npm run db:migrate`. Integration tests create their own `suburi_test`.
+services:
+  postgres:
+    image: pgvector/pgvector:pg18
+    environment:
+      POSTGRES_USER: suburi
+      POSTGRES_PASSWORD: suburi
+      POSTGRES_DB: suburi
+    ports:
+      # 5433 on the host so Suburi does not collide with another local Postgres on 5432.
+      - "5433:5432"
+    volumes:
+      # Postgres 18 images keep data under a versioned subdirectory of this path.
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U suburi -d suburi"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
+
+volumes:
+  pgdata:

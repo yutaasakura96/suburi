@@ -14,11 +14,15 @@
     "test": "vitest run --project=unit",
     "test:integration": "vitest run --project=integration",
     "test:e2e": "playwright test",
-    "db:generate": "node -e \"console.error('db:generate lands with #5'); process.exit(1)\"",
-    "db:migrate": "node -e \"console.error('db:migrate lands with #5'); process.exit(1)\""
+    "db:up": "docker compose up -d --wait",
+    "db:generate": "node --env-file-if-exists=.env node_modules/drizzle-kit/bin.cjs generate",
+    "db:migrate": "node --env-file-if-exists=.env node_modules/drizzle-kit/bin.cjs migrate",
+    "db:seed": "node --env-file-if-exists=.env scripts/seed.mts"
   },
   "dependencies": {
+    "drizzle-orm": "0.45.2",
     "next": "16.3.5",
+    "pg": "8.23.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "zod": "4.6.5"
@@ -28,8 +32,10 @@
     "@playwright/test": "1.63.0",
     "@tailwindcss/postcss": "4.3.3",
     "@types/node": "24.13.4",
+    "@types/pg": "8.23.1",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
+    "drizzle-kit": "0.31.10",
     "eslint": "10.10.0",
     "eslint-plugin-react-hooks": "7.1.1",
     "tailwindcss": "4.3.3",

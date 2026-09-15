@@ -17,6 +17,7 @@ export default defineConfig({
           name: "integration",
           environment: "node",
           include: ["**/*.integration.test.ts"],
+          globalSetup: ["db/test/global-setup.ts"],
           exclude: ["node_modules/**"],
         },
       },
