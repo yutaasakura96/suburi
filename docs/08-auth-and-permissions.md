@@ -121,6 +121,10 @@ say so, since it reads the cookie without validating the session — so it only 
 redirect. The proxy alone is not a security boundary — a route added later that its matcher does not
 cover would otherwise be silently public.
 
+In code: `proxy.ts` matches every path but build output, and keeps the public list itself. Pages and
+Server Actions re-check with `requireSession()`, route handlers with `requireApiSession()`, both in
+`lib/auth/session.ts`.
+
 **Every query is scoped by the session's `user_id`**, from day one, even though there is only one.
 That is the point of doing tenancy now: the scoping habit is established while it is free, not
 retrofitted across every query later under pressure.

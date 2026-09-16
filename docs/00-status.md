@@ -4,8 +4,8 @@
 interviews in Japanese and English, with rubric-scored feedback and tracked progress over time.
 **Phase:** 6 — build, in progress. **The foundation slice is specified and ticketed:** spec
 [#1](https://github.com/yutaasakura96/suburi/issues/1), tickets #2–#7. #2 (docs first), #3 (walking
-skeleton), #5 (measurement record) and #4 (palette and sign-in) have landed.
-**Updated:** 2026-09-16
+skeleton), #5 (measurement record), #4 (palette and sign-in) and #6 (locked sign-in) have landed.
+**Updated:** 2026-09-17
 
 ## Done
 - Phase 1 — `docs/01-project-brief.md`, `docs/02-product-requirements.md`, `docs/06-decision-log.md`.
@@ -65,6 +65,17 @@ skeleton), #5 (measurement record) and #4 (palette and sign-in) have landed.
   `globals.css` imports `shadcn/tailwind.css`.
   **The three Japanese strings await a native read** — `Googleでログイン`,
   `このアカウントではログインできません。` and the existing `素振り` — so #4 stays open until they are read.
+- **#6 — locked sign-in.** `lib/auth/auth.ts` is `createAuth({ db, transaction })` on the Drizzle
+  adapter: 30-day sessions refreshed daily, cookies explicitly `HttpOnly; Secure; SameSite=Lax`,
+  Google only with `disableSignUp`, and a session hook that refuses any email but `ALLOWED_EMAIL`
+  and logs an HMAC email hash. The handler is at `app/api/auth/[...all]`. `proxy.ts` matches every
+  path, redirects pages to `/sign-in` and answers `/api/*` with the `401` envelope.
+  `lib/auth/session.ts` has the server-side re-checks. Home is `app/(app)/page.tsx`. The `/sign-in`
+  button is a Server Action and the refusal line shows on any `?error=`. Seam 2 drives the real
+  Google callback with only the token exchange stubbed; each lock was mutation-checked. **Correction
+  found building it:** 1.7.4 also sets a signed `state` cookie with database state storage, so
+  `nextCookies()` is load-bearing. CI now migrates the e2e database before Playwright. Eight entries
+  in `06`.
 - **Local machine gotcha:** npm 11.3.0 crashes on install (`edgesOut`); use `npx -y npm@latest install`.
 - **`next start` refuses to boot without the seven env vars**, so Playwright needs them locally; CI
   supplies well-formed placeholders in `.github/workflows/ci.yml`. Turbopack also emits stylesheets to
@@ -75,9 +86,8 @@ Page 1 is the screen set, page 2 the three exploration directions. **Working fil
 every change re-seeds from those — edit them, never the built `design/suburi-directions.html`.
 
 ## Next
-**The foundation slice, ticket by ticket.** #2, #3, #4 and #5 have landed. Next is **#6** (locked
-sign-in — verify Better Auth 1.7.4's Drizzle adapter against the plural snake_case tables #5 built,
-and wire the button #4 left static); then #7 (`develop` deployed — `ready-for-human`, a wizard you
+**The foundation slice, ticket by ticket.** #2–#6 have landed (#4 still waits on the native read).
+Next is #7 (`develop` deployed — `ready-for-human`, a wizard you
 run). Work each with `/implement #N`. The native "blocked by" links on GitHub are the order.
 
 **One-time setup: done.** `/setup-matt-pocock-skills` has been run — `docs/agents/issue-tracker.md`,

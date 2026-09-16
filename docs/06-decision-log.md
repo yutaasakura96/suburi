@@ -9,6 +9,104 @@ Settled 2026-09-13/14 in the grilling for the foundation slice (spec #1, tickets
 platform facts were checked that day against npm, the vendors' docs and, where the docs were silent,
 the library source.
 
+### [2026-09-17] Seam 2 drives the real Google callback, with only the token exchange stubbed
+
+**Decided:** `lib/auth/auth.integration.test.ts` mints state with `auth.api.signInSocial`, then sends
+`GET /api/auth/callback/google` through `auth.handler`. Only `globalThis.fetch` is stubbed, for
+`https://oauth2.googleapis.com/token`, returning an unsigned but decodable `id_token`. Any other
+network call fails the test.
+**Alternatives considered:** calling `handleOAuthUserInfo` directly; Playwright with the callback
+intercepted, as #6 allowed.
+**Reason:** calling `handleOAuthUserInfo` means the test passes `disableSignUp` itself, so it proves
+nothing about the config. Playwright's `page.route` cannot see the token exchange, which is
+server-side. Better Auth 1.7.4's Google `getUserInfo` only decodes the `id_token` on the callback
+path, so an unsigned token is enough. **Checked by mutation, 2026-09-17:** with `disableSignUp`
+off, the no-user test fails (the row gets created); with the hook's email check removed, the
+other-email test fails. Each lock is proven on its own.
+
+### [2026-09-17] `createAuth({ db, transaction })`, with tests binding a rolled-back transaction
+
+**Decided:** `lib/auth/auth.ts` exports a factory. `lib/auth/index.ts` binds the app pool with
+`transaction: true`. Tests bind drizzle over the client `inRolledBackTransaction` holds, with
+`transaction: false`, so every auth write rolls back. That flag is the only difference from
+production. The app's db and auth instances are created on first use, so importing them reads no
+configuration.
+**Alternatives considered:** a module-level `auth` singleton, with tests cleaning up after
+themselves.
+**Reason:** a singleton cannot be pointed at the test transaction. Cleanup by hand is how a test
+database collects stray rows.
+
+### [2026-09-17] The sign-in button is a Server Action, and `nextCookies()` is load-bearing
+
+**Decided:** `/sign-in` stays a server component. #4's Button submits a `<form action>` whose Server
+Action calls `auth.api.signInSocial({ body: { provider: "google", callbackURL: "/", errorCallbackURL:
+"/sign-in" }, headers })` and then `redirect(url)`. `nextCookies()` is the only plugin, and it stays
+last. No `better-auth/react`.
+**Alternatives considered:** a plain HTML form posting to `/api/auth/sign-in/social`; the React
+client.
+**Reason:** `POST /sign-in/social` takes JSON only and answers 200 with a URL, not a 302, so a plain
+form cannot use it. The client would add a bundle to a page that needs no client JS.
+**Corrected at implementation:** the grill said state lives only in the `verifications` table, so
+the action had no cookie to forward. That is wrong for 1.7.4. With database state storage,
+`generateGenericState` also sets a signed `better-auth.state` cookie, and the callback refuses with
+`state_security_mismatch` if it is missing. Without `nextCookies()` the flow starts and can never
+finish. **Checked by mutation:** remove the plugin and the Playwright button test fails on the
+missing cookie.
+
+### [2026-09-17] Cookie attributes are set explicitly, not inferred from the URL's scheme
+
+**Decided:** `advanced.defaultCookieAttributes: { httpOnly: true, secure: true, sameSite: "lax" }`.
+**Alternatives considered:** Better Auth's default, which sets `Secure` (and the `__Secure-` name
+prefix) only when `BETTER_AUTH_URL` is `https`; `useSecureCookies: true`, which also forces the
+prefix.
+**Reason:** #6 asks for `Secure`, and the default would leave localhost and CI without it. Setting
+only the attribute keeps unprefixed names on `http://localhost`, and `develop` and production still
+get the prefix from their `https` URL. The proxy's `getSessionCookie` reads both names. **Measured
+2026-09-17:** Chromium stores the `Secure` state cookie from `http://localhost:3100`, so local sign-in
+is not broken by it.
+
+### [2026-09-17] Refusals are logged in the session hook only, with a keyed hash
+
+**Decided:** the hook logs `{"event":"auth_rejected","emailHash":…}` with `console.warn`, where the
+hash is HMAC-SHA256 of the lowercased email keyed by `BETTER_AUTH_SECRET`. It then throws
+`APIError("UNAUTHORIZED", { code: "account_refused" })`, which the callback turns into
+`/sign-in?error=account_refused`.
+**Alternatives considered:** a plain SHA-256; returning `false` from the hook; a log line on the
+`disableSignUp` path too.
+**Reason:** a plain hash of an email can be reversed by hashing guesses. A keyed one still lets the
+owner check a known address. Returning `false` also redirects, but as
+`error=unable_to_create_session`, which looks the same as a database fault. The thrown code names the
+refusal. The `disableSignUp` refusal cannot carry a hash:
+Better Auth refuses before any hook sees the profile, and logs only `signup_disabled`, with no email.
+Both refusals land on `/sign-in` with `?error=`, and the page shows the same line for any error.
+
+### [2026-09-17] Session re-checks go through `lib/auth/session.ts`
+
+**Decided:** `requireSession()` for pages and Server Actions redirects to `/sign-in`.
+`requireApiSession()` for route handlers returns the user id or the `401` envelope, and never
+redirects. Both wrap `auth.api.getSession({ headers })` and return the `user_id` queries scope by.
+`signInWithGoogle` is the one action without a check, because it only starts the flow.
+**Reason:** `08` §5 treats the proxy as optimistic. A named helper per surface is easier to spot
+when it is missing than an inline `getSession` call.
+
+### [2026-09-17] The proxy matches everything and keeps its public list in code
+
+**Decided:** `proxy.ts` matches every path except `_next/static`, `_next/image` and `favicon.ico`.
+`/sign-in` and `/api/auth` (and anything under `/api/auth/`) are public, checked in code. Without a
+session cookie, `/api/*` gets the `07` §2 `401` envelope and every other path redirects to
+`/sign-in`. The envelope lives in `lib/api/errors.ts`.
+**Alternatives considered:** a negative-lookahead matcher that also excludes the public routes.
+**Reason:** a route added later is covered by default, which is the gap `08` §5 warns about. A
+lookahead for `api/auth` would also exempt `/api/authors`. The unit test asserts it does not, and the
+Playwright test hits an `/api/*` path that has no handler.
+
+### [2026-09-17] Google's profile does not overwrite the seeded user's name
+
+**Decided:** `overrideUserInfoOnSignIn` stays at its default, off. Account linking stays at its
+default too.
+**Reason:** this was left to #6 when `users.name` became not null. The seeded local part is enough for
+a single user, and it keeps the user row the seed wrote.
+
 ### [2026-09-16] Both families are self-hosted by `next/font`, so §3's stacks name variables
 
 **Decided:** `IBM Plex Sans JP` and `IBM Plex Mono` are loaded with `next/font/google`, downloaded at
