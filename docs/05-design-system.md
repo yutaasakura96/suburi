@@ -409,9 +409,22 @@ accent family:**
 | `--accent-faint` | `--mark-faint` | |
 | `--accent-pale` | `--mark-pale` | |
 
-This document keeps saying `--accent` so it stays traceable to the artboards. Fonts are §3's two
-stacks verbatim as `--font-sans` and `--font-mono`, **including the `IBM Plex Sans JP` fallback in
-the mono stack**.
+This document keeps saying `--accent` so it stays traceable to the artboards.
+
+**Fonts are §3's two stacks as `--font-sans` and `--font-mono`, in §3's order, including the
+`IBM Plex Sans JP` fallback in the mono stack** — but the family names are not written literally.
+Both families are loaded by `next/font/google`, which downloads every file at build time, serves them
+from this origin and **renames each family to a generated, unguessable string**, so a literal
+`'IBM Plex Sans JP'` would match nothing. Each stack therefore begins with the loader's CSS variable
+and continues with §3's fallbacks verbatim:
+
+```css
+--font-sans: var(--font-plex-sans-jp), 'Hiragino Sans', system-ui, sans-serif;
+--font-mono: var(--font-plex-mono), var(--font-plex-sans-jp), ui-monospace, monospace;
+```
+
+The mono stack's second entry is §3's load-bearing CJK fallback in its variable form; it is the same
+rule and is removed for the same reason: never.
 
 ### 10.2 shadcn's variables alias §2
 
@@ -433,7 +446,14 @@ so vendored components render in this design without being rewritten:
 | `--ring` | `--mark` | **Placeholder** — no focus ring is drawn (§9) |
 | `--chart-1` … `--chart-5` | `--mark` | Never rendered; aliased on-hue so an accidental use cannot add a colour |
 | `--sidebar-*` | `--surface` / `--ink-1` / `--rule-frame` | Unused |
-| `--radius` | `0` | §4. Every derived `--radius-*` is a multiple of it. The score dot's `50%` (§5.3) is set on the mark, not from the scale |
+| `--radius` | `0` | §4. Every derived `--radius-*` is a multiple of it — **and each one is declared**, see below. The score dot's `50%` (§5.3) is set on the mark, not from the scale |
+
+**`--radius: 0` on its own does not square a vendored component.** The Base UI Button ships
+`rounded-lg` and `rounded-[min(var(--radius-md),10px)]` as literal utilities, which read Tailwind's
+own `--radius-*` scale rather than `--radius`. So the derived scale is declared from `--radius`
+(`--radius-sm`, `--radius-md`, `--radius-lg`, `--radius-xl`), which is what makes `rounded-lg`
+compute to `0px`. The §10.1 acceptance check — a `Button` rendering square — is what catches this
+being undone.
 
 **No `.dark` block.** The design draws one theme.
 

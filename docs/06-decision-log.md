@@ -9,6 +9,67 @@ Settled 2026-09-13/14 in the grilling for the foundation slice (spec #1, tickets
 platform facts were checked that day against npm, the vendors' docs and, where the docs were silent,
 the library source.
 
+### [2026-09-16] Both families are self-hosted by `next/font`, so §3's stacks name variables
+
+**Decided:** `IBM Plex Sans JP` and `IBM Plex Mono` are loaded with `next/font/google`, downloaded at
+build time and served from this origin. `--font-sans` and `--font-mono` keep §3's order and fallbacks
+but begin with the loader's generated variable rather than the literal family name. `05` §10.1
+amended.
+**Alternatives considered:** a `fonts.googleapis.com` stylesheet link, which keeps the literal names
+and needs no doc change; `@fontsource` packages, self-hosted with literal names.
+**Reason:** `05` §10.1 asked for the stacks "verbatim", and `next/font` makes that impossible — it
+hashes each family to an unguessable name so it can decide per route what to preload, so a literal
+`'IBM Plex Sans JP'` matches nothing. Of the three, only the link tag keeps the literal names, and it
+makes a private app holding a CV call Google on every page load and adds two hosts to a later CSP.
+`@fontsource` is self-hosted too, but adds two pinned dependencies and hand-listed weights to gain
+only the literal spelling. Order and fallbacks are what §3 was protecting, and those survive intact.
+**Found in passing:** Google publishes no `japanese` subset for Plex Sans JP, so `next/font` refuses
+to preload it and the CJK files are fetched on use. `preload: false` is required on that family, not
+optional.
+
+### [2026-09-16] The derived `--radius-*` scale is declared, not just `--radius: 0`
+
+**Decided:** `--radius-sm`, `--radius-md`, `--radius-lg` and `--radius-xl` are declared from
+`--radius` alongside it. `05` §10.2 amended.
+**Alternatives considered:** `--radius: 0` alone, per `05` §10.2 as written; stripping the radius
+utilities out of the vendored component instead.
+**Reason:** found building #4 — the Base UI Button's classes are `rounded-lg` and
+`rounded-[min(var(--radius-md),10px)]`, which read Tailwind's `--radius-*` scale, not `--radius`. The
+`@theme` wipe covers `--color-*` and `--shadow-*` only, so that scale keeps Tailwind's defaults and
+`rounded-lg` would compute to `0.5rem` with `--radius: 0` set and obeyed. Declaring the scale fixes
+every vendored component at once, where editing classes fixes one.
+
+### [2026-09-16] `components/ui/button.tsx` is restyled in place to `05` §5.7
+
+**Decided:** the vendored Button's `default` and `outline` variants are edited to §5.7 — 48px tall,
+square, 14px at `0.04em`, `--ink-1` solid and `1px solid --ink-1` outline — rather than corrected by
+`className` at each call site.
+**Alternatives considered:** leaving the registry file pristine and overriding per call site;
+hand-building the sign-in button with no shadcn component at all.
+**Reason:** `05` §10.3 already calls `components/ui/` vendored source to restyle in place, and §5.7
+is a component specification, not a one-page exception — the registry's `h-8` default would otherwise
+be re-overridden on every screen and §5.7 would live nowhere. Hand-building was rejected because
+spec #1's user story 40 wants a vendored component proving the token mapping reached the components.
+**Cost accepted:** re-adding `button` from the registry overwrites the file. Nothing upgrades it
+automatically — vendored source is outside Dependabot's reach.
+
+### [2026-09-16] `/sign-in`: one card, Japanese above English, one button
+
+**Decided:** a single centred `05` card — wordmark `素振り` plus the `SUBURI` lockup (§5.1), one 48px
+primary button whose label is Japanese with the English beneath it in §5.7's 12px `--ink-6` caption
+slot, and a fixed-height refusal slot below it, Japanese over English. Draft copy uses **ログイン**:
+`Googleでログイン` and `このアカウントではログインできません。`
+**Alternatives considered:** English label with Japanese beneath; two side-by-side language columns;
+`サインイン`, which matches Google's own branded button wording.
+**Reason:** `10` §12 wants both languages on the page so it does not decide the open bilingual chrome
+rule, and a single button carrying both labels shows both without making either the app's chrome
+language — two columns would have had one column hold the button and the other only text. `ログイン`
+is the more common everyday verb on Japanese sites.
+**Not final:** these are the first three Japanese strings in the build. They go to a native read
+before `develop` is called done, per `05` §6 and the ticket.
+**Deliberately not decided here:** the refusal line is rendered but empty in #4 — what sets it is
+#6's business. The bilingual chrome rule, the hover surface and the focus ring all stay open.
+
 ### [2026-09-15] No foreign key between application tables cascades or sets null
 
 **Decided:** `scores.scoring_attempt_id`, `claim_citations.answer_id` and
