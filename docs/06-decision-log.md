@@ -17,14 +17,19 @@ but begin with the loader's generated variable rather than the literal family na
 amended.
 **Alternatives considered:** a `fonts.googleapis.com` stylesheet link, which keeps the literal names
 and needs no doc change; `@fontsource` packages, self-hosted with literal names.
-**Reason:** `05` §10.1 asked for the stacks "verbatim", and `next/font` makes that impossible — it
-hashes each family to an unguessable name so it can decide per route what to preload, so a literal
-`'IBM Plex Sans JP'` matches nothing. Of the three, only the link tag keeps the literal names, and it
-makes a private app holding a CV call Google on every page load and adds two hosts to a later CSP.
-`@fontsource` is self-hosted too, but adds two pinned dependencies and hand-listed weights to gain
-only the literal spelling. Order and fallbacks are what §3 was protecting, and those survive intact.
+**Reason:** the link tag is the only option that keeps the literal spelling, and it makes a private
+app holding a CV call Google on every page load and adds two hosts to a later CSP. `@fontsource` is
+self-hosted too, but adds two pinned dependencies and hand-listed weights to gain only that spelling.
+Order and fallbacks are what §3 was protecting, and both survive the variable form intact.
+**Why the variable rather than the literal name, having chosen `next/font`:** the variable resolves
+to `"IBM Plex Sans JP", "IBM Plex Sans JP Fallback"` — Next generates a second, metric-adjusted
+`@font-face` per family (`size-adjust`, `ascent-override`) whose only job is to hold the layout still
+before the webfont arrives. Naming the family literally drops it. It is also the portable form: the
+webpack build hashes the family name, and only the Turbopack build in 16.3.5 keeps it readable.
+**Measured on the build, 2026-09-16:** 380 self-hosted `woff2` files for the two families, 379 of
+them scoped by `unicode-range`; nothing is fetched that a page does not set.
 **Found in passing:** Google publishes no `japanese` subset for Plex Sans JP, so `next/font` refuses
-to preload it and the CJK files are fetched on use. `preload: false` is required on that family, not
+to preload it and the CJK slices are fetched on use. `preload: false` is required on that family, not
 optional.
 
 ### [2026-09-16] The derived `--radius-*` scale is declared, not just `--radius: 0`

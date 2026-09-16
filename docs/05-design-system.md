@@ -413,10 +413,13 @@ This document keeps saying `--accent` so it stays traceable to the artboards.
 
 **Fonts are §3's two stacks as `--font-sans` and `--font-mono`, in §3's order, including the
 `IBM Plex Sans JP` fallback in the mono stack** — but the family names are not written literally.
-Both families are loaded by `next/font/google`, which downloads every file at build time, serves them
-from this origin and **renames each family to a generated, unguessable string**, so a literal
-`'IBM Plex Sans JP'` would match nothing. Each stack therefore begins with the loader's CSS variable
-and continues with §3's fallbacks verbatim:
+Both families are loaded by `next/font/google`, which downloads every file at build time and serves
+them from this origin (measured on the 16.3.5 Turbopack build, 2026-09-16: 380 `woff2` slices, 379 of
+them `unicode-range`-scoped). **Each stack begins with the loader's CSS variable**, because that
+variable is the only form that carries the metric-adjusted fallback Next generates beside each family
+— `var(--font-plex-sans-jp)` resolves to `"IBM Plex Sans JP", "IBM Plex Sans JP Fallback"`, and the
+`Fallback` face is what holds the layout still before the webfont arrives. Spelling the family
+literally silently drops it, and under Next's webpack build the literal name does not resolve at all.
 
 ```css
 --font-sans: var(--font-plex-sans-jp), 'Hiragino Sans', system-ui, sans-serif;

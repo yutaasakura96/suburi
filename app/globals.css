@@ -1,1 +1,157 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+/* Inert without a `.dark` ancestor, and there is none: the design draws one theme (05 §10.2).
+   Declared only so the `dark:` utilities inside components/ui/ compile. */
+@custom-variant dark (&:is(.dark *));
+
+/* 05 §10.1 — wiped before any token is defined. No hue and no shadow exists that 05 does not name. */
+@theme {
+    --color-*: initial;
+    --shadow-*: initial;
+}
+
+/* 05 §2 — the only palette. Every token keeps 05's name, except the accent family, which is
+   --mark* in code because shadcn reserves --accent for the hover surface (05 §10.1). */
+@theme {
+    /* §2.1 Ground and surface */
+    --color-ground: oklch(0.975 0.002 250);
+    --color-surface: #fff;
+    --color-surface-inert: oklch(0.965 0.002 250);
+
+    /* §2.2 Rules — six weights, deliberately not collapsed further */
+    --color-rule-frame: oklch(0.88 0.004 250);
+    --color-rule-section: oklch(0.92 0.004 250);
+    --color-rule-axis: oklch(0.9 0.004 250);
+    --color-rule-row: oklch(0.94 0.004 250);
+    --color-rule-hairline: oklch(0.955 0.004 250);
+    --color-tick: oklch(0.86 0.004 250);
+
+    /* §2.3 Ink — nine levels plus the label level */
+    --color-ink-1: oklch(0.28 0.008 250);
+    --color-ink-2: oklch(0.34 0.008 250);
+    --color-ink-3: oklch(0.4 0.008 250);
+    --color-ink-4: oklch(0.48 0.008 250);
+    --color-ink-5: oklch(0.52 0.008 250);
+    --color-ink-6: oklch(0.56 0.008 250);
+    --color-ink-7: oklch(0.6 0.008 250);
+    --color-ink-label: oklch(0.62 0.008 250);
+    --color-ink-8: oklch(0.68 0.008 250);
+    --color-ink-9: oklch(0.78 0.008 250);
+
+    /* §2.4 Accent, hue 230 — 05's --accent family, named --mark* in code */
+    --color-mark: oklch(0.55 0.09 230);
+    --color-mark-mid: oklch(0.72 0.07 230);
+    --color-mark-faint: oklch(0.82 0.045 230);
+    --color-mark-pale: oklch(0.84 0.04 230);
+    --color-link: oklch(0.52 0.09 230);
+    --color-link-hover: oklch(0.42 0.09 230);
+
+    /* §2.5 Attention, hue 45 — marks the thing the eye should reach first, never a judgement */
+    --color-attention-mark: oklch(0.58 0.11 45);
+    --color-attention-ink: oklch(0.52 0.11 45);
+
+    /* §3 — the two stacks, in 05's order. next/font generates the family names, so each stack
+       starts with its loader variable (05 §10.1). The mono stack's second entry is the CJK
+       fallback: Plex Mono has no CJK coverage and Japanese is set in the mono role throughout. */
+    --font-sans: var(--font-plex-sans-jp), "Hiragino Sans", system-ui, sans-serif;
+    --font-mono: var(--font-plex-mono), var(--font-plex-sans-jp), ui-monospace, monospace;
+}
+
+/* 05 §10.2 — shadcn's semantic variables alias §2 so vendored components render in this design.
+   Outside components/ui/, build against 05's names (bg-surface), never these (bg-card). */
+@theme inline {
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --color-card: var(--card);
+    --color-card-foreground: var(--card-foreground);
+    --color-popover: var(--popover);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-primary: var(--primary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-secondary: var(--secondary);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-muted: var(--muted);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-accent: var(--accent);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-destructive: var(--destructive);
+    --color-border: var(--border);
+    --color-input: var(--input);
+    --color-ring: var(--ring);
+    --color-chart-1: var(--chart-1);
+    --color-chart-2: var(--chart-2);
+    --color-chart-3: var(--chart-3);
+    --color-chart-4: var(--chart-4);
+    --color-chart-5: var(--chart-5);
+    --color-sidebar: var(--sidebar);
+    --color-sidebar-foreground: var(--sidebar-foreground);
+    --color-sidebar-primary: var(--sidebar-primary);
+    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+    --color-sidebar-accent: var(--sidebar-accent);
+    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+    --color-sidebar-border: var(--sidebar-border);
+    --color-sidebar-ring: var(--sidebar-ring);
+
+    /* §4 — no radius anywhere. The derived scale is what the vendored components' `rounded-lg`
+       and `rounded-[min(var(--radius-md),10px)]` utilities read, so each one is declared. */
+    --radius-sm: calc(var(--radius) * 0.6);
+    --radius-md: calc(var(--radius) * 0.8);
+    --radius-lg: var(--radius);
+    --radius-xl: calc(var(--radius) * 1.4);
+    --radius-2xl: calc(var(--radius) * 1.8);
+    --radius-3xl: calc(var(--radius) * 2.2);
+    --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+    --background: var(--color-ground);
+    --foreground: var(--color-ink-1);
+    --card: var(--color-surface);
+    --card-foreground: var(--color-ink-1);
+    --popover: var(--color-surface);
+    --popover-foreground: var(--color-ink-3);
+    --primary: var(--color-ink-1);
+    --primary-foreground: var(--color-surface);
+    --secondary: var(--color-surface-inert);
+    --secondary-foreground: var(--color-ink-8);
+    --muted: var(--color-surface-inert);
+    --muted-foreground: var(--color-ink-6);
+    /* Placeholder — no hover surface is drawn (05 §9) */
+    --accent: var(--color-ground);
+    --accent-foreground: var(--color-ink-1);
+    --destructive: var(--color-attention-ink);
+    --border: var(--color-rule-frame);
+    --input: var(--color-rule-frame);
+    /* Placeholder — no focus ring is drawn (05 §9) */
+    --ring: var(--color-mark);
+    /* Never rendered; aliased on-hue so an accidental use cannot add a colour */
+    --chart-1: var(--color-mark);
+    --chart-2: var(--color-mark);
+    --chart-3: var(--color-mark);
+    --chart-4: var(--color-mark);
+    --chart-5: var(--color-mark);
+    /* Unused */
+    --sidebar: var(--color-surface);
+    --sidebar-foreground: var(--color-ink-1);
+    --sidebar-primary: var(--color-ink-1);
+    --sidebar-primary-foreground: var(--color-surface);
+    --sidebar-accent: var(--color-ground);
+    --sidebar-accent-foreground: var(--color-ink-1);
+    --sidebar-border: var(--color-rule-frame);
+    --sidebar-ring: var(--color-mark);
+    --radius: 0;
+}
+
+@layer base {
+    * {
+        @apply border-rule-frame outline-mark/50;
+    }
+    body {
+        @apply bg-ground text-ink-1;
+    }
+    html {
+        @apply font-sans;
+    }
+}

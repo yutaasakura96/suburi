@@ -78,7 +78,8 @@ auto-merged (`11` §7).
 | `react`, `react-dom` | 19.3.0 | Latest stable |
 | `typescript` | 6.0.3 | **The fallback, taken.** 7.0.2 passes `tsc --noEmit`, but `typescript-eslint` refuses to load on 7 (`06`) |
 | `tailwindcss`, `@tailwindcss/postcss` | 4.3.3 | Latest stable |
-| `shadcn` CLI, `@base-ui/react` | 4.21.0, 1.8.0 | Latest stable |
+| `shadcn` CLI, `@base-ui/react` | 4.21.0, 1.8.0 | Latest stable. `shadcn` is a **build input, not only a CLI** — `app/globals.css` imports `shadcn/tailwind.css`, which its `init` added |
+| `cn`, `class-variance-authority`, `tw-animate-css` | 0.3.0, 0.7.1, 1.4.0 | What `shadcn init` installs on 4.21.0. `cn` is shadcn's own compiled replacement for `clsx` + `tailwind-merge`, and `components/ui/` imports it directly |
 | `drizzle-orm`, `drizzle-kit` | 0.45.2, 0.31.10 | Latest **stable**. The 1.0 RC, and the docs pages written for it, are not used (`06`) |
 | `pg` | 8.23.0 | The one driver, locally, in CI and on Vercel (`06`) |
 | `better-auth` | 1.7.4 | Latest stable |
