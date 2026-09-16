@@ -3,8 +3,9 @@
 **Project:** **Suburi** (素振り) — a private, turn-based voice interview simulator for practising job
 interviews in Japanese and English, with rubric-scored feedback and tracked progress over time.
 **Phase:** 6 — build, in progress. **The foundation slice is specified and ticketed:** spec
-[#1](https://github.com/yutaasakura96/suburi/issues/1), tickets #2–#7. #2 (docs first) and #3 (walking skeleton) have landed.
-**Updated:** 2026-09-15
+[#1](https://github.com/yutaasakura96/suburi/issues/1), tickets #2–#7. #2 (docs first), #3 (walking
+skeleton), #5 (measurement record) and #4 (palette and sign-in) have landed.
+**Updated:** 2026-09-16
 
 ## Done
 - Phase 1 — `docs/01-project-brief.md`, `docs/02-product-requirements.md`, `docs/06-decision-log.md`.
@@ -50,17 +51,34 @@ interviews in Japanese and English, with rubric-scored feedback and tracked prog
   application FK (04's cascades and set null were wrong), value checks on every enumerated text column,
   `users.name` not null seeded from the email's local part. `12` §3 step 8 now says the user row only.
   Found in passing: `ON DELETE RESTRICT` raises SQLSTATE `23001`, not `23503`; the tests assert it.
+- **#4 — the `05` palette and a static bilingual sign-in.** `app/globals.css` is `05` §2 in code: the
+  `--color-*`/`--shadow-*` wipe, every token under its own name, the accent family as `--mark*`, and
+  shadcn's variables aliased per §10.2 with no `.dark` block. shadcn 4.21.0 initialised on Base UI
+  1.8.0; `components/ui/button.tsx` restyled in place to §5.7 (48px, square, 14px/0.04em, weight 400).
+  `/sign-in` renders the §5.1 wordmark, one Google button labelled in Japanese with English beneath,
+  and a refusal slot that reserves its height for #6. Four decisions in `06`, two of them from facts
+  measured against the build: **`--radius: 0` alone does not square a vendored component** (its
+  classes read Tailwind's `--radius-*` scale, so the derived scale is declared), and **Next 16.3.5's
+  Turbopack build keeps the literal font-family name** and adds a metric-adjusted `… Fallback` face —
+  which is the real reason each stack starts with the loader's variable. `03` §1 now pins `cn`,
+  `class-variance-authority` and `tw-animate-css`, and records that `shadcn` is a build input because
+  `globals.css` imports `shadcn/tailwind.css`.
+  **The three Japanese strings await a native read** — `Googleでログイン`,
+  `このアカウントではログインできません。` and the existing `素振り` — so #4 stays open until they are read.
 - **Local machine gotcha:** npm 11.3.0 crashes on install (`edgesOut`); use `npx -y npm@latest install`.
+- **`next start` refuses to boot without the seven env vars**, so Playwright needs them locally; CI
+  supplies well-formed placeholders in `.github/workflows/ci.yml`. Turbopack also emits stylesheets to
+  `.next/static/chunks`, not `.next/static/css` — the built-CSS assertion searches the static tree.
 
 **Design canvas:** https://claude.ai/code/artifact/8d50e302-ed9c-48d4-ab00-c0e4e5da0788
 Page 1 is the screen set, page 2 the three exploration directions. **Working files** in `design/`;
 every change re-seeds from those — edit them, never the built `design/suburi-directions.html`.
 
 ## Next
-**The foundation slice, ticket by ticket.** #2, #3 and #5 have landed. Next is **#4** (the `05` palette
-and static sign-in); then #6 (locked sign-in — verify Better Auth 1.7.4's Drizzle adapter against the
-plural snake_case tables #5 built); then #7 (`develop` deployed — `ready-for-human`, a wizard you run). Work each with
-`/implement #N`. The native "blocked by" links on GitHub are the order.
+**The foundation slice, ticket by ticket.** #2, #3, #4 and #5 have landed. Next is **#6** (locked
+sign-in — verify Better Auth 1.7.4's Drizzle adapter against the plural snake_case tables #5 built,
+and wire the button #4 left static); then #7 (`develop` deployed — `ready-for-human`, a wizard you
+run). Work each with `/implement #N`. The native "blocked by" links on GitHub are the order.
 
 **One-time setup: done.** `/setup-matt-pocock-skills` has been run — `docs/agents/issue-tracker.md`,
 `docs/agents/triage-labels.md`, `docs/agents/domain.md`, and an `## Agent skills` section in
