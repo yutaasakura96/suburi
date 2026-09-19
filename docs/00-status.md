@@ -100,14 +100,9 @@ every change re-seeds from those — edit them, never the built `design/suburi-d
 **The foundation slice is done** (#4 still waits on the native read). Next is the first feature,
 by the per-feature flow below.
 
-**Three small fixes found while deploying, none yet ticketed:**
-- **`next dev` appends a Next.js block to `CLAUDE.md`** on every start. `agentRules: false` in
-  `next.config.ts` turns it off; whether to keep it is the same call as "No `AGENTS.md`" in `06`.
-- **A build with no config fails, not only its runtime.** Home is prerendered and `getConfig()` throws
-  before anything marks it dynamic, so a feature-branch preview with no variables cannot build —
-  stricter than `12` §1 says.
-- **`pg` logs a deprecation warning at error level** for `sslmode=require`. `sslmode=verify-full` in
-  the URLs keeps today's behaviour and silences it.
+**The three deploy fixes are #10** (branch `fix/10-deploy-fixes`): `agentRules: false`; only `main`
+and `develop` deploy (`vercel.json`); remote database URLs must carry `sslmode=verify-full`, which
+`lib/config.ts` now enforces. `develop`'s Vercel URLs are already switched. Three entries in `06`.
 
 **Local machine:** node comes from asdf, which non-interactive shells do not load — a wizard or `!`
 command that runs `node` fails with `env: node: No such file or directory`.
@@ -163,7 +158,7 @@ OpenAI `gpt-5.6-sol` pinned for all three model jobs.
 → a stable Vercel URL → Neon `develop`, seeded synthetic. Feature branches come off `develop` and share
 its database. **Nothing but `main` points at Neon `main`.** Three consequences that are easy to miss and
 are written up in `12` §1/§4: `develop` needs a *stable* domain because Google's redirect URIs are an
-exact-match list (so feature previews cannot sign in at all); Neon `develop` is reset from a fresh seed,
+exact-match list (so feature branches are not deployed at all); Neon `develop` is reset from a fresh seed,
 never branched from `main`, or the real CV lands on a branch unfinished code writes to; and Neon `main`
 is migrated *before* `develop` merges into it.
 

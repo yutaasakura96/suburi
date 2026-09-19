@@ -48,12 +48,13 @@ three documents first.
 
 `main` → Vercel production → Neon `main`. `develop` → a stable Vercel URL → Neon `develop`, seeded
 synthetic. Feature branches come off `develop` and **share its database** — no Neon branch per
-preview. **Nothing but `main` ever points at Neon `main`.**
+feature. **Nothing but `main` ever points at Neon `main`.**
 
 Three consequences that are easy to miss:
 
 - `develop` needs a *stable* domain, because Google's redirect URIs are an exact-match list. Feature
-  previews cannot sign in at all — verify feature work on `develop`, not on its own preview URL.
+  branches are not deployed at all (`vercel.json`) — they could not sign in. Verify feature work on
+  `develop`.
 - Neon `develop` is reset from a fresh seed, **never branched from `main`**, or the real CV lands on
   a branch that unfinished code writes to.
 - **Neon `main` is migrated before `develop` merges into it.** Migration first, deploying push
@@ -108,6 +109,10 @@ the thing being measured.
   nowhere; another user's row is `404`.
 - **Screen 7, the felt-pressure rating, is load-bearing for latency.** It is where the last answer's
   score lands. Do not make it skippable in realistic mode.
+- **For Next.js APIs, read the installed version's docs** in `node_modules/next/dist/docs/`, not
+  memory. `agentRules: false` stops `next dev` writing them into this file.
+- **Remote Postgres URLs carry `sslmode=verify-full`.** Neon hands out `require`, which pg v9 downgrades
+  to an unchecked certificate; `lib/config.ts` refuses it.
 - **Desktop only**, stated by the app rather than degraded on a phone. No breakpoints; do not infer
   one from the 1280px canvas.
 - **Every new Japanese string needs a native read.** Rules earned so far: `docs/05-design-system.md`

@@ -9,6 +9,42 @@ Settled 2026-09-13/14 in the grilling for the foundation slice (spec #1, tickets
 platform facts were checked that day against npm, the vendors' docs and, where the docs were silent,
 the library source.
 
+### [2026-09-19] Remote Postgres URLs must say `sslmode=verify-full`, and config refuses anything else
+
+**Decided:** both database URLs use `sslmode=verify-full`. `lib/config.ts` rejects a non-local
+Postgres URL whose `sslmode` is anything else, or which sets `uselibpqcompat`; `localhost` and
+`127.0.0.1` are exempt. `develop`'s two Vercel variables were changed by id (#10).
+**Alternatives considered:** changing the URLs only; `uselibpqcompat=true` for libpq semantics now.
+**Reason:** the installed `pg-connection-string` treats `require` as `verify-full` and warns that pg v9
+will switch it to libpq's meaning, which encrypts but does not check the certificate. Dependabot
+opens majors weekly, so the URL alone would downgrade TLS silently on one merged PR, and Neon's console
+hands out `require` to whoever sets up production. Refusing it at boot turns both into a loud failure.
+libpq semantics are the weaker mode. **Checked 2026-09-19:** both `develop` URLs connect over TLS 1.3
+with the certificate verified (`authorized: true`) and no warning.
+
+### [2026-09-19] Feature branches are not deployed
+
+**Decided:** `vercel.json` sets `git.deploymentEnabled` to `{ "**": false, "main": true, "develop":
+true }`. `12` §1 no longer says feature previews share Neon `develop`.
+**Alternatives considered:** make Home's build independent of config by reading `headers()` before
+`getAuth()`, so previews build; give general Preview `develop`'s config.
+**Reason:** a feature preview holds no configuration, cannot sign in (its URL is not a redirect URI),
+and its production build is already checked in CI, so deploying one produced only a failing check.
+Building without config would have turned that into a green check on a deployment that refuses to boot.
+Giving it `develop`'s config spreads those credentials to every branch for a URL that still cannot
+sign in. Vercel's docs (checked 2026-09-19): a branch matching several rules deploys if any is `true`;
+`**` is needed because branch names contain `/`. Home's build still needs config — revisit if a build
+without it ever has a reason to exist.
+
+### [2026-09-19] `next dev` does not write agent rules
+
+**Decided:** `agentRules: false` in `next.config.ts`, plus one hand-written line in `CLAUDE.md`
+pointing at `node_modules/next/dist/docs/`.
+**Alternatives considered:** commit Next's managed block; turn it off with no pointer.
+**Reason:** Next 16.3.5 writes `AGENTS.md` and a block in `CLAUDE.md` on every `next dev` it thinks an
+agent started, which reverses "No `AGENTS.md`" (Phase 6) and dirtied the tree each run. The block's one
+idea — read the docs for the installed version — survives as a line that never needs updating.
+
 ### [2026-09-19] Neon `develop` is a Schema only branch with a role `main` never has
 
 **Decided:** `develop` was created as **Schema only** from `main`, then given its own role

@@ -29,10 +29,12 @@ this table supersedes it.
 `develop`. Nothing else is allowed to point at Neon `main`. That single rule is what keeps unfinished
 code away from the measurement record.
 
-**Feature branches** are cut from `develop` and merge back into it. Their Vercel previews share the
-**Neon `develop` branch** — not one branch per preview. At this scale a database per preview is
-bookkeeping without a payoff, and the shared develop database is the thing feature work should be
-integrating against anyway. If a feature needs a destructive schema experiment, cut it a throwaway Neon
+**Feature branches** are cut from `develop` and merge back into it. **They are not deployed:**
+`vercel.json` sets `git.deploymentEnabled` to `"**": false` with `main` and `develop` set `true` (a
+branch deploys if any matching rule is `true`). A feature preview would hold no configuration and could
+not sign in (§3 step 2), and CI already builds and tests each branch. Feature work integrates against
+the **Neon `develop` branch** — locally, or on `develop` once merged — not one branch per feature. At
+this scale a database per feature is bookkeeping without a payoff. If a feature needs a destructive schema experiment, cut it a throwaway Neon
 branch from `develop` by hand and delete it afterwards.
 
 **`develop` never sees real data.** Every write in this schema is permanent (`04` §5) — a half-built
@@ -72,6 +74,8 @@ in this application is safe to ship to the browser**, and none is.
 | --- | --- | --- |
 | `DATABASE_URL` | Postgres connection, pooled | Vercel encrypted env. **Production scope → Neon `main`; Preview scope → Neon `develop`.** `.env.local` locally |
 | `DATABASE_URL_UNPOOLED` | Direct connection for migrations | Same. Drizzle migrations do not run through a pooler |
+
+**Both database URLs carry `sslmode=verify-full`** when the host is not local. Neon's console hands out `sslmode=require`, which pg v8 treats as `verify-full` but pg v9 will give libpq's meaning — encrypted, certificate unchecked. `lib/config.ts` refuses a remote URL without `verify-full` (and refuses `uselibpqcompat`), so the swap happens at setup, not after a Dependabot major. `localhost` and `127.0.0.1` are exempt: Docker has no TLS.
 | `BETTER_AUTH_SECRET` | Session signing | Vercel encrypted env. **Distinct value per environment** — a `develop` session must not be valid in production |
 | `BETTER_AUTH_URL` | Callback base URL | Vercel env, per environment. `develop` uses its stable URL, not the per-commit one |
 | `GOOGLE_CLIENT_ID` | Google OAuth | Google Cloud console; value in Vercel env |
@@ -108,13 +112,13 @@ in this application is safe to ship to the browser**, and none is.
 In this order. Steps 3 and 4 are the ones that fail silently if skipped.
 
 1. **Neon:** project, Postgres 18, `create extension vector`. Note the pooled and unpooled URLs. **Done 2026-09-19:** project `suburi`, region `aws-ap-southeast-1`; the default branch renamed `main`.
-2. **Google Cloud:** OAuth client. Authorised redirect URIs for three origins — **`localhost`**, because local development signs in with the same Google allowlist (§1); the production subdomain, **`suburi-murex.vercel.app`** (`suburi.vercel.app` was taken; Vercel assigned this on import, 2026-09-19); and **`develop`'s stable subdomain, `suburi-develop.vercel.app`** (if a name ever changes, change this list, §1 and the URIs together). Each URI is the origin plus `/api/auth/callback/google`, and local is `http://localhost:3000`. The client stays in **Testing**: with only `openid`, `email` and `profile` requested, Google lets any account through, so the two locks in `08` §2 are the whole gate — which is the second reason `develop` gets a fixed domain rather than a per-commit one: Google's redirect URIs are an exact-match list, so a generated hostname can never sign in. Feature-branch previews therefore cannot sign in either; verify feature work on `develop`, not on its own preview URL.
+2. **Google Cloud:** OAuth client. Authorised redirect URIs for three origins — **`localhost`**, because local development signs in with the same Google allowlist (§1); the production subdomain, **`suburi-murex.vercel.app`** (`suburi.vercel.app` was taken; Vercel assigned this on import, 2026-09-19); and **`develop`'s stable subdomain, `suburi-develop.vercel.app`** (if a name ever changes, change this list, §1 and the URIs together). Each URI is the origin plus `/api/auth/callback/google`, and local is `http://localhost:3000`. The client stays in **Testing**: with only `openid`, `email` and `profile` requested, Google lets any account through, so the two locks in `08` §2 are the whole gate — which is the second reason `develop` gets a fixed domain rather than a per-commit one: Google's redirect URIs are an exact-match list, so a generated hostname can never sign in. A per-commit URL could not sign in either, which is one reason feature branches are not deployed (§1); verify feature work on `develop`.
 3. **S3 bucket:** Block Public Access **all four settings on**; default encryption SSE-S3 or better; versioning on; a lifecycle rule expiring `dev/` after 30 days and **none on `prod/`** (audio is retained — `04` §5).
 4. **S3 CORS:** the browser PUTs directly, so without this the whole upload path fails at runtime and nowhere else. Allow `PUT` and `GET` from the production origin and `develop`'s origin; allowed headers `content-type`; no wildcard origin.
 5. **IAM user**, dedicated, with exactly `s3:PutObject` and `s3:GetObject` on `arn:aws:s3:::<bucket>/prod/*` and `/dev/*`. No `ListBucket`, no `DeleteObject` — **nothing in this app deletes an object**, so the credential should not be able to.
 6. **OpenAI:** one key per environment, each with a monthly usage cap (§6).
 7. **Vercel:** import the repo. **Production branch = `main`.** Give `develop` a stable domain and point the Preview scope's `DATABASE_URL` at Neon `develop`. Populate §2 per scope. **Leave the import form's environment variables empty** — it scopes them to Production and Preview at once. Importing deploys `main` immediately, and that build fails without Production variables; that is expected until production is set up. Vercel's Deployment Protection is on for Preview by default and stays on: `develop` asks for a Vercel login before the app's own sign-in.
-   > **Per-branch environment variables — available on Hobby** (verified 2026-09-14 against Vercel's environment-variable and environments docs). A Preview variable can be scoped to one Git branch, and it overrides the general Preview value. Assigning a stable domain to a branch, with branch-specific variables, is marked "All plans, including Hobby". Custom Environments are Pro and Enterprise only and are not needed. **So:** every §2 variable for `develop` is scoped to the `develop` branch in Preview. Feature previews get whatever is left in general Preview, and they cannot sign in anyway.
+   > **Per-branch environment variables — available on Hobby** (verified 2026-09-14 against Vercel's environment-variable and environments docs). A Preview variable can be scoped to one Git branch, and it overrides the general Preview value. Assigning a stable domain to a branch, with branch-specific variables, is marked "All plans, including Hobby". Custom Environments are Pro and Enterprise only and are not needed. **So:** every §2 variable for `develop` is scoped to the `develop` branch in Preview. General Preview holds nothing; feature branches are not deployed (§1).
 8. **Neon `develop` branch:** create it as **Schema only** from `main` (Neon has no empty-branch option; this copies no rows), then give it a role and database of its own — `suburi_develop`, owning database `suburi` — because a Schema only branch copies `main`'s roles *with their passwords*. Only `suburi_develop` goes in `develop`'s URLs, and `main` refuses it (`28P01`, checked 2026-09-19). Then migrate, then run the seed script (`npm run db:seed`) with `develop`'s own `ALLOWED_EMAIL`. That seeds only the user row; synthetic round data arrives with the slice that first needs it. Never branch it from `main` (§1).
 9. **Seed production:** migrations, then the single `users` row, the set-piece questions, and rubric `v1.2` for both `ja` and `en`. The user row is inserted by the hand-run seed script from `ALLOWED_EMAIL`, with `email_verified = true` — **not by migration**, which would commit the email to a public repository. `disableSignUp: true` means it cannot be created by signing in (`08` §2).
 10. **Verify the allowlist twice:** sign in with the allowlisted account (works), and confirm a second Google account is rejected. `08` §2 deliberately has two independent mechanisms; this checks both, before there is anything to protect.
@@ -334,7 +338,7 @@ Not a substitute for `11`; these are the things only production can answer.
 | Not built | Why |
 | --- | --- |
 | A fourth environment | `develop` **is** staging — a long-lived branch with its own long-lived Neon branch. A separate staging tier would be a third database to seed, migrate and keep honest. |
-| A Neon branch per preview | §1 — bookkeeping without a payoff at this scale; feature previews share Neon `develop`, which is what they should be integrating against. |
+| A Neon branch per preview | §1 — bookkeeping without a payoff at this scale; feature work integrates against Neon `develop`. |
 | Blue/green or canary | One user. Vercel's instant rollback is the entire deployment-risk story. |
 | Infrastructure as code | One Next.js app, one managed database, one bucket. This is the same reason `13-infrastructure-and-security.md` is not written (`00-status.md`); revisit together. |
 | Automated migrations on deploy | §4 — the measurement record does not get unattended DDL. |
