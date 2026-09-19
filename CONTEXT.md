@@ -38,9 +38,14 @@ docs and the build.
 | **The correction step** | Editing the raw transcript inline before submitting. Raw and corrected both persist. **This is the feature no surveyed competitor has — never optimise it away.** |
 | **Rewrite magnitude** | How much the correction step changed the raw transcript. The diff is data, not a side effect. |
 | **Role context** | What the round is pitched at: an uploaded posting, researched notes, or explicit **General practice**. |
-| **Claim** | One atomic, citable assertion extracted from a CV version, with a character **span** into that version's immutable text. |
+| **CV** | The set of documents a round is scored against, **one per language**, each with its own version history. Japanese: a required **履歴書**, an optional **職務経歴書**, and additional documents. English: a required **CV** document and additional documents. In Japanese copy the set is **応募書類**; in English, **CV**. |
+| **Document** | One member of a CV: a 履歴書, a 職務経歴書, a CV document, or an **additional document** (titled by the user, up to five, in either language). Pasted, or imported from `.docx`/`.pdf` into editable text that the user checks before saving. |
+| **CV version** | An immutable snapshot of one language's whole CV. Changing any document makes a new version of the set. Labelled `応募書類 v{n}` / `CV v{n}`, numbered per language, never typed by the user. |
+| **Current CV version** | The newest CV version in a language. The only one a new round in that language can use; older versions stay readable, never selectable. |
+| **Claim** | One atomic, citable assertion extracted from a CV version, with a character **span** into that version's immutable text. Never drawn from a 履歴書's personal particulars. |
 | **Span** | `[start, end)` into `cv_versions.body`. Quotes are **sliced from stored text by span**, never taken from model output. |
 | **Coverage** | Which CV claims have been cited, and which never have. Makes *"CV material never used"* expressible. |
+| **Carry-forward** | A claim in a new CV version whose normalised text exactly matches a claim in the previous version **of the same language**. It inherits that claim's coverage. |
 | **Stamps** | The four version markers on every scored answer: **CV version, rubric version, generator prompt version, scoring model**. |
 | **Boundary** | The line Progress draws wherever a stamp changed. Makes drift visible instead of silent. |
 | **Drift** | The same answer scoring differently over time because the *scorer* changed. The central technical risk. |
