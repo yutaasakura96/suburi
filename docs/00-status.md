@@ -3,9 +3,10 @@
 **Project:** **Suburi** (素振り) — a private, turn-based voice interview simulator for practising job
 interviews in Japanese and English, with rubric-scored feedback and tracked progress over time.
 **Phase:** 6 — build, in progress. **The foundation slice is specified and ticketed:** spec
-[#1](https://github.com/yutaasakura96/suburi/issues/1), tickets #2–#7. #2 (docs first), #3 (walking
-skeleton), #5 (measurement record), #4 (palette and sign-in) and #6 (locked sign-in) have landed.
-**Updated:** 2026-09-17
+[#1](https://github.com/yutaasakura96/suburi/issues/1), tickets #2–#7. **All six have landed**; #4
+stays open only for the native read of three Japanese strings. **`develop` is live at
+https://suburi-develop.vercel.app.**
+**Updated:** 2026-09-19
 
 ## Done
 - Phase 1 — `docs/01-project-brief.md`, `docs/02-product-requirements.md`, `docs/06-decision-log.md`.
@@ -76,6 +77,16 @@ skeleton), #5 (measurement record), #4 (palette and sign-in) and #6 (locked sign
   found building it:** 1.7.4 also sets a signed `state` cookie with database state storage, so
   `nextCookies()` is load-bearing. CI now migrates the e2e database before Playwright. Eight entries
   in `06`.
+- **#7 — `develop` deployed, both locks proven on real Google sign-in.** Neon project `suburi`
+  (Postgres 18, `aws-ap-southeast-1`); `develop` is a Schema only branch with its own
+  `suburi_develop` role and `suburi` database, migrated and seeded. One Google OAuth client, left in
+  Testing, with redirect URIs for `localhost:3000`, `suburi-develop.vercel.app` and
+  **`suburi-murex.vercel.app`** — production's name, because `suburi.vercel.app` was taken. The
+  seven config variables sit in Vercel's Preview scope for the `develop` branch only; **Production
+  holds none**, so `main`'s import deploy failed as expected. Verified 2026-09-19: local sign-in, the
+  allowlisted account on `develop`, a second account refused (`signup_disabled` in the log), no
+  pooled-connection errors, and `develop`'s credential refused by Neon `main` (`28P01`). Vercel's
+  Deployment Protection stays on in front of `develop`. Four entries in `06`.
 - **Local machine gotcha:** npm 11.3.0 crashes on install (`edgesOut`); use `npx -y npm@latest install`.
 - **`next start` refuses to boot without the seven env vars**, so Playwright needs them locally; CI
   supplies well-formed placeholders in `.github/workflows/ci.yml`. Turbopack also emits stylesheets to
@@ -86,9 +97,20 @@ Page 1 is the screen set, page 2 the three exploration directions. **Working fil
 every change re-seeds from those — edit them, never the built `design/suburi-directions.html`.
 
 ## Next
-**The foundation slice, ticket by ticket.** #2–#6 have landed (#4 still waits on the native read).
-Next is #7 (`develop` deployed — `ready-for-human`, a wizard you
-run). Work each with `/implement #N`. The native "blocked by" links on GitHub are the order.
+**The foundation slice is done** (#4 still waits on the native read). Next is the first feature,
+by the per-feature flow below.
+
+**Three small fixes found while deploying, none yet ticketed:**
+- **`next dev` appends a Next.js block to `CLAUDE.md`** on every start. `agentRules: false` in
+  `next.config.ts` turns it off; whether to keep it is the same call as "No `AGENTS.md`" in `06`.
+- **A build with no config fails, not only its runtime.** Home is prerendered and `getConfig()` throws
+  before anything marks it dynamic, so a feature-branch preview with no variables cannot build —
+  stricter than `12` §1 says.
+- **`pg` logs a deprecation warning at error level** for `sslmode=require`. `sslmode=verify-full` in
+  the URLs keeps today's behaviour and silences it.
+
+**Local machine:** node comes from asdf, which non-interactive shells do not load — a wizard or `!`
+command that runs `node` fails with `env: node: No such file or directory`.
 
 **One-time setup: done.** `/setup-matt-pocock-skills` has been run — `docs/agents/issue-tracker.md`,
 `docs/agents/triage-labels.md`, `docs/agents/domain.md`, and an `## Agent skills` section in

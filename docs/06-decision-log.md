@@ -9,6 +9,51 @@ Settled 2026-09-13/14 in the grilling for the foundation slice (spec #1, tickets
 platform facts were checked that day against npm, the vendors' docs and, where the docs were silent,
 the library source.
 
+### [2026-09-19] Neon `develop` is a Schema only branch with a role `main` never has
+
+**Decided:** `develop` was created as **Schema only** from `main`, then given its own role
+`suburi_develop` and database `suburi` owned by it. Only that role appears in `develop`'s URLs.
+**Alternatives considered:** an empty branch; a full branch of `main` while it is still empty; the
+copied `neondb` database with its `neondb_owner` role.
+**Reason:** Neon offers no empty branch (checked against its branching docs 2026-09-17). Schema only
+copies no rows, but it copies `main`'s roles *with their passwords*, so `neondb_owner` on `develop`
+would authenticate against `main` too. A role created on the child never exists on the parent.
+Owning the database also lets migrations create tables in `public`. **Checked 2026-09-19:**
+`suburi_develop` connects to `develop` over both URLs, and `main`'s host refuses it with `28P01`.
+
+### [2026-09-19] Production is `suburi-murex.vercel.app`, and Neon lives in `aws-ap-southeast-1`
+
+**Decided:** the production domain Vercel assigned on import, since `suburi.vercel.app` was taken.
+`develop` got `suburi-develop.vercel.app` as planned. Google's three redirect URIs and `12` §1/§3
+changed together, as `12` §3 step 2 required. The Neon project is in `aws-ap-southeast-1`.
+**Alternatives considered:** a custom domain — not needed for one user, and not free.
+**Reason:** the name was not available; the region was chosen at project creation, the docs having
+named none. Both are recorded here because nothing else says why they are what they are.
+
+### [2026-09-19] Vercel Deployment Protection stays on for Preview
+
+**Decided:** keep Vercel's default Standard Protection. `suburi-develop.vercel.app` asks for a Vercel
+login before the app's own Google sign-in.
+**Alternatives considered:** turning it off so `develop` behaves like production.
+**Reason:** `12` §1 already accepts that a discovered `develop` URL must open nothing; this makes it
+show nothing at all. The cost is one extra login per browser. Testing the refused account in a
+second browser therefore needs a Vercel login too — on 2026-09-19 GitHub's OAuth failed there, and the
+test was run by deleting the `__Secure-better-auth` cookies in the already-authorised window instead.
+
+### [2026-09-19] Both locks proven on the real Google flow; Google itself gates nothing
+
+**Decided:** #7 is proven. On `develop`, the allowlisted account lands on the empty Home; a second
+Google account is refused with the refusal line, and Vercel's log shows Better Auth's
+`signup_disabled`. Local sign-in on `http://localhost:3000` works with the same client.
+**Alternatives considered:** relying on the OAuth app's Testing status and test-user list.
+**Reason:** Google exempts apps asking only for `openid`, `email` and `profile` from the test-user
+limit, so any account reaches the callback. The locks in `08` §2 are the whole gate. The second
+account has no user row, so it is refused by `disableSignUp`; the session hook's `auth_rejected`
+path needs a user row with another email and stays covered by the integration test, not by a live
+sign-in. node-postgres over the pooled URL showed no connection errors, so the WebSocket fallback
+(2026-09-14) is not taken. Its only noise is `pg`'s deprecation warning for `sslmode=require`,
+logged at error level.
+
 ### [2026-09-17] Seam 2 drives the real Google callback, with only the token exchange stubbed
 
 **Decided:** `lib/auth/auth.integration.test.ts` mints state with `auth.api.signInSocial`, then sends
