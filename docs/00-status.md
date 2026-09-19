@@ -3,9 +3,8 @@
 **Project:** **Suburi** (素振り) — a private, turn-based voice interview simulator for practising job
 interviews in Japanese and English, with rubric-scored feedback and tracked progress over time.
 **Phase:** 6 — build, in progress. **The foundation slice is specified and ticketed:** spec
-[#1](https://github.com/yutaasakura96/suburi/issues/1), tickets #2–#7. **All six have landed**; #4
-stays open only for the native read of three Japanese strings. **`develop` is live at
-https://suburi-develop.vercel.app.**
+[#1](https://github.com/yutaasakura96/suburi/issues/1), tickets #2–#7. **All six have landed and are
+closed.** **`develop` is live at https://suburi-develop.vercel.app.**
 **Updated:** 2026-09-19
 
 ## Done
@@ -64,8 +63,8 @@ https://suburi-develop.vercel.app.**
   which is the real reason each stack starts with the loader's variable. `03` §1 now pins `cn`,
   `class-variance-authority` and `tw-animate-css`, and records that `shadcn` is a build input because
   `globals.css` imports `shadcn/tailwind.css`.
-  **The three Japanese strings await a native read** — `Googleでログイン`,
-  `このアカウントではログインできません。` and the existing `素振り` — so #4 stays open until they are read.
+  **The three Japanese strings passed a native read on 2026-09-19** — `Googleでログイン`,
+  `このアカウントではログインできません。` and `素振り`, as written. #4 closed.
 - **#6 — locked sign-in.** `lib/auth/auth.ts` is `createAuth({ db, transaction })` on the Drizzle
   adapter: 30-day sessions refreshed daily, cookies explicitly `HttpOnly; Secure; SameSite=Lax`,
   Google only with `disableSignUp`, and a session hook that refuses any email but `ALLOWED_EMAIL`
@@ -97,12 +96,13 @@ Page 1 is the screen set, page 2 the three exploration directions. **Working fil
 every change re-seeds from those — edit them, never the built `design/suburi-directions.html`.
 
 ## Next
-**The foundation slice is done** (#4 still waits on the native read). Next is the first feature,
+**The foundation slice is done.** Next is the first feature,
 by the per-feature flow below.
 
-**The three deploy fixes are #10** (branch `fix/10-deploy-fixes`): `agentRules: false`; only `main`
-and `develop` deploy (`vercel.json`); remote database URLs must carry `sslmode=verify-full`, which
-`lib/config.ts` now enforces. `develop`'s Vercel URLs are already switched. Three entries in `06`.
+**The three deploy fixes, #10, are closed:** `agentRules: false`; only `main` and `develop` deploy
+(`vercel.json`); remote database URLs must carry `sslmode=verify-full`, which `lib/config.ts` now
+enforces. Verified 2026-09-19 by a real sign-in on `develop` at `a1ab03c`: no pg `SECURITY WARNING`
+in the runtime log. Three entries in `06`.
 
 **Local machine:** node comes from asdf, which non-interactive shells do not load — a wizard or `!`
 command that runs `node` fails with `env: node: No such file or directory`.
