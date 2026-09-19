@@ -50,6 +50,32 @@ describe("parseConfig", () => {
     expect(error.message).not.toContain(value);
   });
 
+  // pg v9 gives `require` libpq's meaning: encrypted, certificate unchecked.
+  describe.each(["DATABASE_URL", "DATABASE_URL_UNPOOLED"])("%s TLS", (name) => {
+    const remote = "postgresql://suburi:pw@ep-x.ap-southeast-1.aws.neon.tech/suburi";
+
+    it.each([
+      ["no sslmode", remote],
+      ["sslmode=require", `${remote}?sslmode=require&channel_binding=require`],
+      ["sslmode=verify-ca", `${remote}?sslmode=verify-ca`],
+      ["uselibpqcompat", `${remote}?uselibpqcompat=true&sslmode=verify-full`],
+    ])("rejects a remote URL with %s", (_, value) => {
+      const error = errorFrom({ ...valid, [name]: value });
+      expect(error.problems).toEqual([{ name, problem: "malformed" }]);
+      expect(error.message).not.toContain(value);
+    });
+
+    it("accepts a remote URL with sslmode=verify-full", () => {
+      const value = `${remote}?sslmode=verify-full&channel_binding=require`;
+      expect(parseConfig({ ...valid, [name]: value })[name as "DATABASE_URL"]).toBe(value);
+    });
+
+    it.each(["localhost:5433", "127.0.0.1:5433"])("accepts local %s without sslmode", (host) => {
+      const value = `postgresql://suburi:pw@${host}/suburi`;
+      expect(parseConfig({ ...valid, [name]: value })[name as "DATABASE_URL"]).toBe(value);
+    });
+  });
+
   it("never echoes a secret value, even when another variable is wrong", () => {
     const error = errorFrom({ ...valid, ALLOWED_EMAIL: undefined });
     expect(error.message).not.toContain(valid.GOOGLE_CLIENT_SECRET);

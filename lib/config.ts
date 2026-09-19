@@ -3,7 +3,18 @@ import { z } from "zod";
 // The only module that reads process.env (docs/12-deployment.md §2). Every variable is
 // required; none has a default. Errors name the variable, never its value.
 
-const postgresUrl = z.url({ protocol: /^postgres(ql)?$/ });
+const localHosts = new Set(["localhost", "127.0.0.1"]);
+
+// A remote database must verify the server certificate. pg v9 gives `require` libpq's meaning
+// (encrypted, certificate unchecked), so anything but an explicit verify-full is refused. Local
+// Docker has no TLS.
+const postgresUrl = z.url({ protocol: /^postgres(ql)?$/ }).refine((value) => {
+  // Zod 4 runs this even when the url check above has already failed.
+  if (!URL.canParse(value)) return false;
+  const url = new URL(value);
+  if (localHosts.has(url.hostname)) return true;
+  return url.searchParams.get("sslmode") === "verify-full" && !url.searchParams.has("uselibpqcompat");
+});
 
 const schema = z.object({
   DATABASE_URL: postgresUrl,
