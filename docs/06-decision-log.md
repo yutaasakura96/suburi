@@ -3,6 +3,272 @@
 Newest first. Every entry records what was chosen, why, and what was rejected.
 
 ---
+## Phase 6 — getting a CV in, decided before it was built
+
+Settled 2026-09-19 in the grilling for the first feature (spec #11, tickets #12–#21), and written into
+the docs by #12 before any code followed them. Every entry below contradicts something an earlier
+phase wrote; each says what.
+
+### [2026-09-19] A CV is a set of documents per language, not one text
+
+**Decided:** a CV is **one per language, each a set of documents**. `ja` requires exactly one 履歴書 and
+allows at most one 職務経歴書 plus up to five additional documents; `en` requires exactly one CV
+document plus up to five additional. An additional document may be written in either language whatever
+the set's language is; the set's language decides which rounds it is scored against.
+**Alternatives considered:** one text per language, as `04` and `07` §5.2 originally had it, with the
+user pasting everything into one box; a `documents` table with no required kinds; separate version
+histories per document.
+**Reason:** it is how the user actually applies. A Japanese application *is* a 履歴書 first, sometimes
+a 職務経歴書, sometimes supporting material — and a single box makes the app unable to say which
+document a claim came from, which is the difference between "your 職務経歴書 never mentions this" and a
+sentence it cannot write. Required kinds rather than a free-form list because a CV set missing its core
+document is not a CV, and catching that at the boundary is cheaper than discovering it in a round.
+
+### [2026-09-19] `応募書類` replaces `職務経歴書` as the Japanese stamp word
+
+**Decided:** every Japanese version label reads `応募書類 v{n}`; English reads `CV v{n}`. `職務経歴書`
+stays in use only where it means that one document. Stamps in `05` §5.4, §5.9 and every drawn stamp in
+`10` were changed.
+**Alternatives considered:** keeping `職務経歴書 v{n}`; `CV v{n}` in both languages; `応募書類一式`.
+**Reason:** `職務経歴書` names one member of the set, and the set is what the stamp identifies. A stamp
+that names a document the set may not even contain — a first-job 応募書類 is a 履歴書 alone — points at
+the wrong thing on every screen that shows it. `応募書類` is the ordinary word for the bundle a
+candidate submits. **It has not had its native read**; that happens with the CV screen's chrome and the
+error catalogue (#13), and the read is what ships.
+
+### [2026-09-19] One immutable `body` for the whole set, with `cv_documents` carrying ranges
+
+**Decided:** `cv_versions.body` stays one immutable string — the set's documents joined server-side in
+`position` order with a fixed separator. A new `cv_documents` table records each document's `kind`,
+`title`, `source_filename`, `position` and its `[start, end)` range into that `body`. Spans, the span
+validator, quote slicing and the CV-version stamp are unchanged.
+**Alternatives considered:** one text column per document, with spans carrying a document id; a
+`documents` JSON column on `cv_versions`; recomputing ranges from the join order on read.
+**Reason:** every mechanism that makes citation trustworthy already works on a single immutable string
+(`03` §11), and splitting `body` would have meant a new span type, a second validator, and a migration
+that rewrites `body` — which `04` §5 forbids outright because every existing span indexes into it.
+Storing the ranges beside the joined text buys the document boundary without touching any of it.
+Recomputing them on read would make a separator change silently move every historical boundary.
+
+### [2026-09-19] `cv_versions.source_filename` is retired, not dropped
+
+**Decided:** the column stays, always null. Filenames now live on `cv_documents`, one per document.
+`04` records it as retired.
+**Alternatives considered:** dropping it; keeping it as the first document's filename.
+**Reason:** migrations are expand-only (`12` §4) — that rule is what makes Vercel's instant rollback a
+complete rollback story, and a dropped column breaks it for a tidier table. Keeping it as one
+document's filename would be worse than null: a value that looks meaningful and is arbitrary.
+
+### [2026-09-19] The version label is derived per language, and the database enforces it
+
+**Decided:** the server derives `version_label` — `応募書類 v{n}` / `CV v{n}`, `n` per language — and
+the client never sends one. `unique (user_id, language, version_label)` backs it.
+**Alternatives considered:** the user naming their versions; a global sequence across both languages; a
+sequence number column instead of a label.
+**Reason:** the label is a **stamp** — it appears on scored answers and on Progress boundaries — and
+§1's rule 6 already says the client chooses no stamp. Per-language numbering keeps the two histories
+independent, which is the same reason they are separate CVs at all: changing the English CV must not
+draw a boundary on Japanese progress. The unique index is there because two concurrent saves would
+otherwise both compute `v4`, and two rows labelled `v4` make every answer stamped with that string
+ambiguous forever.
+
+### [2026-09-19] The current CV version is the newest one, with no flag to say so
+
+**Decided:** current = `max(created_at)` per `(user_id, language)`. No `is_current` column. Older
+versions stay readable and are never selectable for a new round; no endpoint makes one current.
+**Alternatives considered:** an `is_current` boolean; a `current_cv_version_id` on `users`; letting a
+round pick a version.
+**Reason:** a flag is a second source of truth that a half-committed transaction can leave pointing at
+the wrong row, and the ordering cannot disagree with itself. Letting a round choose would make the CV
+stamp a user decision, which is exactly the failure the decision log already refused for the model and
+the rubric: a stamp the user picks makes drift voluntary and biased.
+
+### [2026-09-19] Claims stay flat — no `kind` column on `cv_claims`
+
+**Decided:** `cv_claims` gains nothing. Which document a claim came from is answered by which
+`cv_documents` range its span falls inside.
+**Alternatives considered:** a `kind` column mirroring the document's; a `cv_document_id` foreign key.
+**Reason:** both would be a second, copyable answer to a question the span already answers, and the two
+could disagree. A `cv_document_id` is the more defensible of the two and still loses: it would have to
+be kept consistent with the span, and the span is the thing the citation mechanism actually trusts.
+
+### [2026-09-19] A claim's span may not cross a document boundary
+
+**Decided:** the span validator gains one rule — a span must lie inside exactly one `cv_documents`
+range. A span that crosses a boundary is dropped and counted in `spans_rejected`, never clamped.
+**Alternatives considered:** clamping to the nearest boundary; allowing it and attributing the claim to
+the document holding its start.
+**Reason:** a "claim" spanning the join between a 履歴書 and a portfolio is an assertion the user never
+made — it is two fragments the separator happened to put next to each other. Clamping would turn a
+detected hallucination into a plausible-looking quote, which is the precise failure the validator
+exists to prevent: it drops, it never repairs.
+
+### [2026-09-19] Personal particulars never become claims
+
+**Decided:** the extraction prompt draws only from education, work history, qualifications, 志望動機 and
+自己PR. Birth date, address, telephone number, photograph and family details are never claims. The CV
+screen hints beside the 履歴書 box that they can be left out of the pasted text altogether.
+**Alternatives considered:** stripping them server-side before the model call; a claim `kind` marking
+them so they could be filtered at citation time; saying nothing and relying on the model.
+**Reason:** feedback that cites the user's address is the failure being designed out, and the cheapest
+place to prevent it is for the text never to be there. Stripping server-side means pattern-matching
+addresses in two languages, which fails quietly. The hint is offered rather than enforced because the
+user may have reasons to paste a complete 履歴書, and the prompt rule still holds if they do.
+
+### [2026-09-19] Extraction is synchronous, all-or-nothing, and zero surviving claims is a failure
+
+**Decided:** one model call, inside the transaction that writes the version, its documents and its
+claims. On a model failure **or zero claims surviving the validator**, nothing is written and the
+response is `502 cv_extraction_failed`. The latency is measured on the first real run, not budgeted in
+advance.
+**Alternatives considered:** background extraction with the version written first; writing the version
+and retrying extraction later; accepting a version with zero claims.
+**Reason:** a CV version holding half its claims — or none — makes *"CV material never used"* a lie for
+as long as that version is current, and it is current until the user saves another one. Asking the user
+to press save again is a much smaller cost than a coverage count nobody can trust. Background
+extraction would also put a spinner between the user and the thing they came to check.
+
+### [2026-09-19] Extraction sits behind a port, with per-language versioned prompts
+
+**Decided:** claim extraction is a port in `lib/ai/`, beside generate · transcribe · score, with one
+real implementation on the pinned `gpt-5.6-sol` and a fake for tests — **no test ever calls OpenAI**
+(`11` §2). Its prompt is one file per language in `lib/prompts/`, `cv-extract-ja-…` and
+`cv-extract-en-…`, with the version in the filename and recorded on the version row as
+`extractor_prompt_version`. Everything deterministic around it — the composition rules, the join that
+builds `body`, the span validator, quote slicing — lives in `lib/cv/`, callable with no model at all.
+**Alternatives considered:** calling the SDK directly from the route handler; one bilingual prompt
+with a language parameter.
+**Reason:** the same argument that made `lib/ai/score.ts` a port. Extraction quality is unmeasured, and
+the only way to compare two extractors on the same CV is to swap the implementation — impossible if the
+call is inlined at its call site. One bilingual prompt would make a Japanese-only wording fix a change
+to the English prompt's version too, which is a boundary drawn where nothing changed. Splitting
+`lib/cv/` out is what lets the span validator be a pure unit test (`11` §3.3) rather than an
+integration test with a fake model bolted on.
+
+### [2026-09-19] Carry-forward matches the immediately previous version of the same language, from any document
+
+**Decided:** a new claim carries forward when its `text_normalised` is byte-identical to a claim in the
+**immediately previous version of the same language**, from any document in it. Two versions back never
+matches; the other language never matches.
+**Alternatives considered:** matching against every prior version; matching within the same document
+only; similarity-based matching.
+**Reason:** same-document matching would reset coverage for text moved from a 職務経歴書 into a
+portfolio, which is reorganisation, not a new assertion. Matching against every prior version would
+make a claim deleted three versions ago and retyped today inherit coverage it had not earned, and would
+make the rule's result depend on history the user cannot see. Similarity was already refused for claims
+in Phase 1 and is refused again for the same reason: a reworded claim is honestly a different thing to
+cite.
+
+### [2026-09-19] A no-op save is refused: `422 cv_unchanged`
+
+**Decided:** if every document in the request matches the current version of that language exactly on
+`kind`, `title` and `text`, in the same order, the save is refused and **nothing is written**. The
+client also disables the save control while a save is in flight.
+**Alternatives considered:** returning `200` with the existing version; allowing the duplicate;
+client-side prevention alone.
+**Reason:** the new-version form is **prefilled from the current version**, so an accidental no-op save
+is the likely mistake, not an unlikely one. A duplicate version is permanent (`04` §5), costs an
+extraction call, and draws a Progress boundary marking a change that did not happen — a false line on
+the chart the whole product exists to keep honest. A `200` would hide the refusal from a client that
+should show it; client-side prevention alone is not a boundary (`07` §1, rule 3).
+
+### [2026-09-19] Documents are pasted, or imported into editable text in the browser
+
+**Decided:** every document is pasted, or imported from `.docx`/`.pdf` **in the browser** into an
+editable box the user checks before saving. The file never reaches the server; only approved text does.
+The extraction library is chosen and pinned at implementation.
+**Alternatives considered:** uploading the file and parsing server-side; uploading to S3 and parsing
+asynchronously; paste only.
+**Reason:** a Vercel function caps bodies at 4.5 MB and a CV is text, so there is no reason for the
+file to cross the boundary at all — and what gets scored must be text the user has read, because PDF
+extraction reliably mangles line wraps and tables. Paste only would have been honest but makes the
+user do by hand what the browser can do. Parsing server-side would add a file upload path, a
+content-type surface and a temporary file, for no gain.
+
+### [2026-09-19] The CV screen is specified straight into `10`, with per-panel chrome and no artboard
+
+**Decided:** `/cv` is two panels, one per language; **each panel's chrome is in its own language**;
+empty state offers one action; the current version renders each document's text with claim spans
+underlined; the new-version form is prefilled; version history is readable and never selectable. **No
+coverage marks until citations exist.** Written into `10` §13 from `05` components — no artboard.
+**Alternatives considered:** a design pass first; one panel with a language switch; showing a claim
+list instead of the underlined text; marking cited/never-cited now.
+**Reason:** every element it needs is already measured in `05`, so an artboard would have produced
+nothing the specification does not already fix, and `10` §12 had been carrying this screen as an open
+item since Phase 3. The underlined full text rather than a claim list is the point of the screen: it is
+how extraction quality gets checked, and a wrong span is only visible against the user's own sentences.
+Coverage marks would read as "never used" on every claim until scoring exists, which is false rather
+than empty. **The per-panel chrome decision is local to this screen and settles nothing for the round
+screens** — the general bilingual chrome rule stays open (`CONTEXT.md`).
+
+### [2026-09-19] The shared rate limiter is built now, with its mechanism chosen at implementation
+
+**Decided:** one shared per-session limiter for every ⚡ route, built with `POST /api/cv-versions`
+because it is the first ⚡ route to exist. `429 rate_limited` with `Retry-After`. The mechanism —
+a Postgres-backed window as an expand-only migration, or Vercel's own limiting if Hobby offers it — is
+chosen against current platform documentation when it is built, not asserted here.
+**Alternatives considered:** deferring the limiter until the round loop; a per-route limiter.
+**Reason:** this endpoint calls a model, and an unlimited model route is the second worst thing an
+attacker could do (`03` §9) — deferring it means the first route that can spend the OpenAI budget ships
+without the guard. Built once and shared, because a limiter re-implemented per route is a limiter with
+a different bug per route. The mechanism is left open deliberately: platform rate-limiting offerings
+change, and a document that asserts one from memory is a document that is wrong later (`CLAUDE.md`).
+
+### [2026-09-19] The whole error catalogue's copy is written now, in one batch
+
+**Decided:** `lib/api` grows from the single `unauthenticated` helper to the full `07` §2 envelope and
+every `07` §3 code, and the **entire** catalogue's `ja` and `en` copy is written now — including
+`cv_unchanged` — and goes through one native read (#13).
+**Alternatives considered:** writing copy code by code as each endpoint lands.
+**Reason:** the Japanese half is one native read either way, and a catalogue written in instalments
+acquires a different voice in each instalment. `11` §3.10 already asserts the two lists match, so the
+work fails loudly until it is done; doing it in one pass is the cheaper way to make it pass.
+
+### [2026-09-19] The extraction model string is a pinned constant in code, not an env var
+
+**Decided:** `OPENAI_API_KEY` joins `lib/config.ts` and `.env.example` and is added to the `develop`
+branch's Preview scope. The **extractor model string** is a pinned constant in code — changing it is a
+migration with a re-score and a boundary, not a deploy-time edit.
+**Alternatives considered:** an `OPENAI_EXTRACTION_MODEL` env var, matching the three model strings
+already in `12` §2.
+**Reason:** a stamp that can be changed from a hosting dashboard is a stamp that can be changed without
+a code review, and invariant 8 says changing it is a migration. **This is a live divergence from `12`
+§2**, which treats `OPENAI_SCORING_MODEL`, `OPENAI_GENERATION_MODEL` and `OPENAI_TRANSCRIPTION_MODEL`
+as environment variables. Reconciling those three is a bigger decision than this feature's docs ticket,
+and moving them is a `12` §5 stamp-change procedure, so they are left alone and the tension is recorded
+here rather than resolved quietly in a docs edit.
+
+### [2026-09-19] `develop`'s CV is invented, and its claims are fixtures rather than a model call
+
+**Decided:** the seed inserts one CV version per language about an invented person — Japanese: a
+履歴書, a 職務経歴書 and one additional document; English: a CV document and one additional — with
+**claims written directly as fixtures**, no model call, and **every seeded span run through the span
+validator**. Idempotent, like the user seed.
+**Alternatives considered:** seeding by calling the real extractor once and committing what came back;
+a redacted version of the real CV; no CV on `develop` at all.
+**Reason:** a seed that calls OpenAI costs money, needs a key in whatever runs it, and produces
+different rows on every run — which makes `develop`'s data unreproducible and any test against it
+unrepeatable. A redacted real CV is still the real CV and `12` §1 gives it exactly two homes, neither
+of them a public repository. Running the fixtures through the validator is the point of the exercise:
+a hand-typed span that does not slice back to its text fails the seed loudly instead of sitting on
+`develop` as a wrong underline that looks like an extractor bug.
+
+### [2026-09-19] The real-CV check runs locally; production is set up last
+
+**Decided:** extraction on the real CV is checked **locally, against Docker Postgres** (#20), before
+anything is scored against it. Production setup — `12` §3 steps 3–6 and 9–11, with `sslmode=verify-full`
+— is the **last** ticket of this feature (#21). `develop` gets an invented CV in both languages, with
+claims written as fixtures and every seeded span run through the validator (#19).
+**Alternatives considered:** running the check on `develop`; setting production up first so the real CV
+has somewhere to live.
+**Reason:** `12` §1 and `11` §8 give the real CV exactly two homes, and a Neon branch that unfinished
+code writes to is not one of them — that is the same rule that forbids branching Neon `develop` from
+`main`. Setting production up first would create a database that must sit empty and correct for the
+length of a feature; setting it up last means the real CV lands only once there is something correct
+for it to land in.
+
+---
+
 ## Phase 6 — the foundation slice, decided before it was built
 
 Settled 2026-09-13/14 in the grilling for the foundation slice (spec #1, tickets #2–#7). Library and

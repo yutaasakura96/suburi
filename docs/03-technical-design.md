@@ -165,13 +165,29 @@ make it skippable in realistic mode.
 
 ## 4. Model use
 
-Three distinct jobs, one pinned model:
+Four distinct jobs, one pinned model:
 
 | Job | Model | Latency budget | Stakes |
 | --- | --- | --- | --- |
 | Question generation | `gpt-5.6-sol` | before round / between answers | High — banked permanently |
 | Follow-up generation | `gpt-5.6-sol` | user is waiting | Low — never scored, never banked |
 | Answer scoring | `gpt-5.6-sol` | during the next answer | **The instrument** |
+| CV claim extraction | `gpt-5.6-sol` | **measured on the first real run**, not budgeted in advance | High — every citation and every coverage count rests on it |
+
+**CV claim extraction is one synchronous call, all-or-nothing.** The user saves a CV version and waits;
+the call runs inside the same transaction as the insert, and if it fails — or if no claim survives the
+span validator — nothing is written and the user simply saves again (`07` §5.2). A version holding half
+its claims would make *"CV material never used"* a lie for the rest of that version's life, which is
+worse than a save the user has to repeat. The latency is deliberately left unwritten here: a CV is a
+much longer prompt than an answer, the call is made a handful of times ever rather than once per
+answer, and a budget guessed now would be a number later sessions defend instead of measure. The first
+real run records it (`11` §5).
+
+**Its prompt is versioned per language** — `cv-extract-ja-…`, `cv-extract-en-…` in `lib/prompts/` —
+and recorded on the version as `extractor_prompt_version`. It is *not* a fifth **stamp**: that word is
+reserved for the four markers on a scored answer (`CONTEXT.md`), and this one draws no Progress
+boundary. It extracts from education, work history,
+qualifications, 志望動機 and 自己PR only; **never from a 履歴書's personal particulars** (`04`).
 
 Pricing that drove this (per 1M tokens, verified 2026-09-12): `gpt-6-astra` $10/$50, `gpt-5.6-sol`
 $4/$20, `gpt-5.6-terra` $2/$12, `gpt-5.6-luna` $0.20/$1.20. A realistic round is roughly **$0.40 on
@@ -350,9 +366,9 @@ suburi/
 │   ├── migrations/
 │   └── seed.ts                seeded user row, set pieces
 ├── lib/
-│   ├── ai/                    ports: generate · transcribe · score  ← one interface each
+│   ├── ai/                    ports: generate · transcribe · score · extract-cv-claims  ← one interface each
 │   ├── prompts/               versioned prompt files; the version is in the filename
-│   ├── cv/                    claim extraction, span slicing
+│   ├── cv/                    composition rules, body assembly, span validation, quote slicing
 │   ├── rubric/                rubric versions as data, not prose
 │   └── s3/
 ├── docs/                      01–10, this file among them
@@ -362,6 +378,11 @@ suburi/
 **`lib/ai/score.ts` is a port with one implementation.** That is deliberate: re-scoring a held-out
 set with a different model is the only way to detect scorer drift, and it is impossible if the
 scoring call is inlined at its call sites.
+
+**The CV-extraction port is the same shape, for a different reason.** Extraction quality is unmeasured
+(`CONTEXT.md`), so it has one real implementation and a fake — and no test ever calls OpenAI (`11`
+§2). `lib/cv/` holds everything around it that must stay deterministic and testable without a model:
+the composition rules, the join that builds `body`, the span validator, and quote slicing.
 
 ---
 

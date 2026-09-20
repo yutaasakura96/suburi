@@ -237,7 +237,7 @@ The same mark, over time. A `360×40px` SVG per dimension row, label column `96p
   Below that: bare dots plus a count of how many more are needed.
 - **Version-change verticals:** 1px `--rule-axis`, full height, with a 9px mono label at `0.06em` in
   `--ink-8`, offset `+5px` from the line. Labels follow the panel's language (`出題 v1.0 /
-  評価基準 v1.2 / 職務経歴書 v3` — `gen v1.0 / rubric v1.2 / CV v3`).
+  評価基準 v1.2 / 応募書類 v3` — `gen v1.0 / rubric v1.2 / CV v3`).
 - **Tooltip:** `#fff` on a 1px `--tick` border, `padding: 5px 9px`, 10px mono at `0.04em` in
   `--ink-3`, content `2026-09-12・構成 4・第1問`.
 - **Not-scored state:** the plot area is replaced by a 1px `--rule-hairline` line and the note
@@ -291,7 +291,7 @@ unused material.
 
 Bottom-right of every screen that shows or produces a score. 10px mono, line-height 1.9, `--ink-8`,
 above it a 1px `--rule-section` rule with `padding-top: 12px`. Content is the round's stamps joined by
-nakaguro: `評価基準 v1.2・出題 v1.0・職務経歴書 v3`.
+nakaguro: `評価基準 v1.2・出題 v1.0・応募書類 v3`.
 
 ---
 
@@ -311,6 +311,19 @@ Errors already made and fixed in this project. Each line below is a rule because
 - **Vocabulary settled by native read:** `深掘り` (not `追撃`) for a follow-up question; `緊張度`
   (not `体感圧力`) for felt pressure; `職務経歴書` (not `経歴書`) — this is a mid-career move, not a
   new-graduate one.
+- **`応募書類`, not `職務経歴書`, is the Japanese stamp word.** The Japanese CV is a *set* — a required
+  `履歴書`, an optional `職務経歴書`, and up to five additional documents (`CONTEXT.md`). `職務経歴書`
+  names one member of that set, so using it for the whole set made a stamp that pointed at the wrong
+  thing. Every version label reads **`応募書類 v{n}`** in Japanese and **`CV v{n}`** in English, and
+  both are derived by the app, never typed. `職務経歴書` stays in use where it means that one
+  document. **`応募書類` itself has not had its native read yet** — it is in the batch with the CV
+  screen's chrome and the error catalogue (#13).
+  **Not yet changed, deliberately:** three *prose* strings on the feedback and Progress screens still
+  say `職務経歴書` where they now mean the set — §3.3's section label `職務経歴書との照合`, the
+  round-level line `数値の裏づけが2か所ありません。職務経歴書の「請求処理を40%短縮」を使う。`, and
+  Progress's legend `縦線は評価基準・出題・職務経歴書が変わったところです。` (`10` §8, §9). They are
+  rewritten sentences, not stamps, so they go through a native read with the screens that carry them
+  rather than being swapped here. Recorded in `10` §12 so it is not lost.
 - **Never set Japanese in a Latin-only mono stack** (§3), and never rely on
   `text-transform: uppercase` for a Japanese label (§3.3).
 
@@ -365,9 +378,12 @@ Direction C's matrix had none of these and had to caption itself. This one does 
 - **Practice mode's hard recording cap** (decision 23) is still undrawn. It is a runaway-recording
   guard, not a design element — settle it in Phase 4 against the storage and latency questions.
 - **The bilingual chrome question.** Progress localises its own version labels per panel
-  (`職務経歴書 v3` / `CV v3`), which implies chrome follows the *round's* language rather than an app
+  (`応募書類 v3` / `CV v3`), which implies chrome follows the *round's* language rather than an app
   setting. Home's English caption names round types in Japanese (`Defaults to 行動面接 · 日本語 · …`).
   Both are defensible; nothing yet states which rule the build follows. Phase 4.
+  **Still open.** The CV screen (`10` §13) settles it *for that screen only* — each panel's chrome is
+  in its own language, because each panel is about one language's documents. That is a local answer to
+  a local question and sets no precedent for the round screens.
 - **Hover surface and focus ring are undrawn.** §10.2 aliases shadcn's `--accent` (hover) to
   `--ground` and `--ring` (focus) to `--mark` as placeholders. §7 requires keyboard focus on score
   rows, so the focus ring is needed, not optional — it wants a design read, not a default.

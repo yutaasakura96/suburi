@@ -39,8 +39,25 @@ branch from `develop` by hand and delete it afterwards.
 
 **`develop` never sees real data.** Every write in this schema is permanent (`04` §5) — a half-built
 handler writing to the measurement record cannot be undone, only outlived. So Neon `develop` is seeded
-with a synthetic CV, synthetic questions and synthetic rounds, and writes audio under `dev/`. The same
-Google allowlist applies, so a `develop` URL discovered by anyone still opens nothing.
+synthetically and writes audio under `dev/`. The same Google allowlist applies, so a `develop` URL
+discovered by anyone still opens nothing.
+
+**The seed grows one slice at a time, and today it is the user row plus a synthetic CV.** An earlier
+version of this section described `develop` as already carrying a synthetic CV, synthetic questions and
+synthetic rounds; only the user row was ever seeded (§3 step 8). What the CV slice adds:
+
+- **One CV version per language, with its documents** — Japanese: a 履歴書, a 職務経歴書 and one
+  additional document; English: a CV document and one additional document. Invented, about an invented
+  person. **The real CV is never seed material**, here or anywhere: §8 and `11` §8 give it exactly two
+  homes, and a seed file in a public repository is not one of them.
+- **Claims written directly as fixtures — no model call.** A seed that calls OpenAI is a seed that
+  costs money, needs a key, and produces different rows every time it runs, which makes `develop`'s
+  data unreproducible and a test against it unrepeatable.
+- **Every seeded span run through the span validator**, so a hand-typed fixture that does not slice
+  back to its text fails the seed rather than sitting in `develop` as a wrong underline.
+- **Idempotent**, like the user seed: running it twice leaves one CV version per language, not two.
+
+Synthetic questions and rounds still arrive with the slice that first needs them.
 
 **Cron is off on `develop` on purpose.** The self-check alerts on pending scores and cost drift (§6);
 run against synthetic data it would mail noise, and an alert channel that cries wolf is one you stop
@@ -81,7 +98,7 @@ in this application is safe to ship to the browser**, and none is.
 | `GOOGLE_CLIENT_ID` | Google OAuth | Google Cloud console; value in Vercel env |
 | `GOOGLE_CLIENT_SECRET` | Google OAuth | Same |
 | `ALLOWED_EMAIL` | The allowlist assertion on session creation (`08` §2) | Vercel env. Not a secret, but environment-scoped |
-| `OPENAI_API_KEY` | All three model jobs | Vercel encrypted env. **Separate key per environment** with its own usage cap (§6) |
+| `OPENAI_API_KEY` | **Every model call** — question generation, follow-ups, scoring, **CV claim extraction** (`03` §4), transcription, TTS | Vercel encrypted env. **Separate key per environment** with its own usage cap (§6). **First needed by CV claim extraction**, which is the first model call the app makes at all; added to the `develop` branch's Preview scope and to `.env.example` with that slice |
 | `OPENAI_SCORING_MODEL` | Pinned scoring model | Vercel env — `gpt-5.6-sol`. **Exact string, never an alias** (`03` §4) |
 | `OPENAI_GENERATION_MODEL` | Question and follow-up generation | Vercel env — `gpt-5.6-sol` |
 | `OPENAI_TRANSCRIPTION_MODEL` | Speech-to-text | Vercel env — `gpt-transcribe`, $0.0045/min (`03` §4). **Requires API Tier 1+**; the Free tier does not serve this model |
@@ -117,9 +134,10 @@ In this order. Steps 3 and 4 are the ones that fail silently if skipped.
 4. **S3 CORS:** the browser PUTs directly, so without this the whole upload path fails at runtime and nowhere else. Allow `PUT` and `GET` from the production origin and `develop`'s origin; allowed headers `content-type`; no wildcard origin.
 5. **IAM user**, dedicated, with exactly `s3:PutObject` and `s3:GetObject` on `arn:aws:s3:::<bucket>/prod/*` and `/dev/*`. No `ListBucket`, no `DeleteObject` — **nothing in this app deletes an object**, so the credential should not be able to.
 6. **OpenAI:** one key per environment, each with a monthly usage cap (§6).
-7. **Vercel:** import the repo. **Production branch = `main`.** Give `develop` a stable domain and point the Preview scope's `DATABASE_URL` at Neon `develop`. Populate §2 per scope. **Leave the import form's environment variables empty** — it scopes them to Production and Preview at once. Importing deploys `main` immediately, and that build fails without Production variables; that is expected until production is set up. Vercel's Deployment Protection is on for Preview by default and stays on: `develop` asks for a Vercel login before the app's own sign-in.
+7. **Vercel:** import the repo. **Production branch = `main`.** Give `develop` a stable domain and point the Preview scope's `DATABASE_URL` at Neon `develop`. Populate §2 per scope. **Leave the import form's environment variables empty** — it scopes them to Production and Preview at once. A variable added after this step follows the same rule: branch-scoped in Preview, before the deploy that first reads it (`OPENAI_API_KEY`, step 8). Importing deploys `main` immediately, and that build fails without Production variables; that is expected until production is set up. Vercel's Deployment Protection is on for Preview by default and stays on: `develop` asks for a Vercel login before the app's own sign-in.
    > **Per-branch environment variables — available on Hobby** (verified 2026-09-14 against Vercel's environment-variable and environments docs). A Preview variable can be scoped to one Git branch, and it overrides the general Preview value. Assigning a stable domain to a branch, with branch-specific variables, is marked "All plans, including Hobby". Custom Environments are Pro and Enterprise only and are not needed. **So:** every §2 variable for `develop` is scoped to the `develop` branch in Preview. General Preview holds nothing; feature branches are not deployed (§1).
-8. **Neon `develop` branch:** create it as **Schema only** from `main` (Neon has no empty-branch option; this copies no rows), then give it a role and database of its own — `suburi_develop`, owning database `suburi` — because a Schema only branch copies `main`'s roles *with their passwords*. Only `suburi_develop` goes in `develop`'s URLs, and `main` refuses it (`28P01`, checked 2026-09-19). Then migrate, then run the seed script (`npm run db:seed`) with `develop`'s own `ALLOWED_EMAIL`. That seeds only the user row; synthetic round data arrives with the slice that first needs it. Never branch it from `main` (§1).
+8. **Neon `develop` branch:** create it as **Schema only** from `main` (Neon has no empty-branch option; this copies no rows), then give it a role and database of its own — `suburi_develop`, owning database `suburi` — because a Schema only branch copies `main`'s roles *with their passwords*. Only `suburi_develop` goes in `develop`'s URLs, and `main` refuses it (`28P01`, checked 2026-09-19). Then migrate, then run the seed script (`npm run db:seed`) with `develop`'s own `ALLOWED_EMAIL`. That seeded only the user row; the CV slice adds one synthetic CV version per language with its documents and fixture claims (§1), and synthetic round data arrives with the slice that first needs it. Never branch it from `main` (§1).
+   > **Adding a variable to an existing environment is the same step, later.** `OPENAI_API_KEY` joins the `develop` branch's Preview scope when CV extraction lands — branch-scoped, like every other §2 variable for `develop` (step 7). Because `lib/config.ts` validates at boot and a missing variable fails the boot loudly, the deploy that first reads it must not land before the variable does.
 9. **Seed production:** migrations, then the single `users` row, the set-piece questions, and rubric `v1.2` for both `ja` and `en`. The user row is inserted by the hand-run seed script from `ALLOWED_EMAIL`, with `email_verified = true` — **not by migration**, which would commit the email to a public repository. `disableSignUp: true` means it cannot be created by signing in (`08` §2).
 10. **Verify the allowlist twice:** sign in with the allowlisted account (works), and confirm a second Google account is rejected. `08` §2 deliberately has two independent mechanisms; this checks both, before there is anything to protect.
 11. **Sentry:** project, DSN, and the scrubbing configuration in §7 — **configured before the first real error, not after.**
@@ -258,8 +276,10 @@ multiple of the expected $3–5 (`03` §6). A runaway loop then fails closed wit
 `03` §8's rule, restated here because a deployment adds three new places to break it: Vercel runtime
 logs, Sentry, and the cron emails.
 
-**Never:** transcript text, corrected text, CV text or claim text, company notes, prompt bodies, model
-response bodies, salary expectations. **Logs and reports carry ids, counts, durations and error
+**Never:** transcript text, corrected text, **CV document text**, CV text or claim text, **a document's
+`source_filename`**, company notes, prompt bodies, model response bodies, salary expectations. A
+rejected span's sliced text is CV text and is on this list; `spans_rejected` is a count, and a count is
+all that is ever logged or mailed about it (§6). **Logs and reports carry ids, counts, durations and error
 classes** — nothing else. `07` §2 applies the same rule to `error.detail`, and `11` §3.10 tests it with
 sentinel strings.
 

@@ -43,9 +43,9 @@ docs and the build.
 | **CV version** | An immutable snapshot of one language's whole CV. Changing any document makes a new version of the set. Labelled `応募書類 v{n}` / `CV v{n}`, numbered per language, never typed by the user. |
 | **Current CV version** | The newest CV version in a language. The only one a new round in that language can use; older versions stay readable, never selectable. |
 | **Claim** | One atomic, citable assertion extracted from a CV version, with a character **span** into that version's immutable text. Never drawn from a 履歴書's personal particulars. |
-| **Span** | `[start, end)` into `cv_versions.body`. Quotes are **sliced from stored text by span**, never taken from model output. |
+| **Span** | `[start, end)` into `cv_versions.body`. Quotes are **sliced from stored text by span**, never taken from model output. A span **may not cross a document boundary** — one that does is dropped and counted, never clamped. |
 | **Coverage** | Which CV claims have been cited, and which never have. Makes *"CV material never used"* expressible. |
-| **Carry-forward** | A claim in a new CV version whose normalised text exactly matches a claim in the previous version **of the same language**. It inherits that claim's coverage. |
+| **Carry-forward** | A claim in a new CV version whose normalised text exactly matches a claim in the **immediately previous** version **of the same language** — from any document in it. It inherits that claim's coverage. Two versions back never matches; the other language never matches. |
 | **Stamps** | The four version markers on every scored answer: **CV version, rubric version, generator prompt version, scoring model**. |
 | **Boundary** | The line Progress draws wherever a stamp changed. Makes drift visible instead of silent. |
 | **Drift** | The same answer scoring differently over time because the *scorer* changed. The central technical risk. |
@@ -101,7 +101,8 @@ follow the feedback language.
 
 Next.js (App Router) + TypeScript on Vercel · Tailwind CSS v4 · shadcn/ui on Base UI · Drizzle ·
 Postgres 18 + `pgvector` on Neon (Docker locally) · Better Auth with Google as the only IdP · AWS S3
-for audio · OpenAI `gpt-5.6-sol`, pinned, for all three model jobs.
+for audio · OpenAI `gpt-5.6-sol`, pinned, for all four model jobs — generation, follow-ups, scoring,
+CV claim extraction.
 
 **`docs/05-design-system.md` is the only palette.** Tailwind's defaults are wiped, shadcn's variables
 alias `05`'s tokens, and code outside `components/ui/` uses `05` names. `05`'s `--accent` is `--mark`
@@ -151,15 +152,25 @@ detail and the non-obvious consequences: `docs/12-deployment.md` §1 and §4.
 Carry these; do not silently decide them in a ticket.
 
 - **The bilingual chrome rule.** Does UI chrome follow the round's language, or the app's? Progress
-  localises version labels per panel (`職務経歴書 v3` vs `CV v3`), implying per-round; Home's English
+  localises version labels per panel (`応募書類 v3` vs `CV v3`), implying per-round; Home's English
   caption names round types in Japanese. Both defensible, neither decided. `/sign-in` shows both
   languages side by side (`10` §12) — it has no round, so it sidesteps the rule rather than setting a
-  precedent for it.
+  precedent for it. **The CV screen answers it for itself only** (`10` §13): each panel's chrome is in
+  its own language because each panel is about one language's documents. A screen showing both
+  languages at once does not settle the rule for screens showing one.
 - **The near-duplicate similarity threshold.** A guess until there is real data. Start strict, log
   every near-miss with its score, tune from the log.
-- **CV claim extraction quality.** Unmeasured. First thing to eyeball on a real CV.
-- **Two drawn-but-unspecified screens:** the `CV` nav item has no artboard, and practice mode's
-  record frames differ from realistic mode's. Listed in `docs/10-screen-specifications.md` §12.
+- **CV claim extraction quality.** Still unmeasured. The CV screen exists so it can be read off the
+  user's own text (`10` §13), and the check runs on the real CV locally, against Docker Postgres,
+  before anything is scored against it. Closes when that run is done, not when the screen ships.
+- **One drawn-but-unspecified screen:** practice mode's record frames differ from realistic mode's.
+  Listed in `docs/10-screen-specifications.md` §12. **The CV screen came off this list in #12** — it
+  still has no artboard, but it is specified in `10` §13 from `05` components, which is the whole of
+  what it needed, and `10` §12's own entry is struck through to say so.
+- **Japanese copy that has not had its native read.** `応募書類`, the 履歴書 personal-particulars hint,
+  every string on the CV screen, and the whole error catalogue — one read, one batch. Separately,
+  three *prose* strings on the feedback and Progress screens still say `職務経歴書` where they now mean
+  the whole set; every stamp already reads `応募書類 v{n}` (`05` §6, `10` §12).
 - **Who sends the alert mail.** `08` §2 rejected magic links specifically to avoid a transactional email
   vendor; §6 of `12` reintroduces one as a placeholder. Decide deliberately — an alert nobody receives
   is not monitoring.

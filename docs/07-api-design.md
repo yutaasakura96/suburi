@@ -48,7 +48,10 @@ by round end the scores are already rows.
    nothing (`03` §9).
 4. **No `403` anywhere.** There are no roles (`08` §4). Unauthenticated is `401`; not yours is `404`.
 5. **Rate-limited per session on every route that calls a model** — marked ⚡ below (`03` §9, second
-   worst thing an attacker could do).
+   worst thing an attacker could do). **One shared limiter**, not a rule re-implemented per route;
+   `429 rate_limited` carries `Retry-After`. It is built with `POST /api/cv-versions`, the first ⚡
+   route to exist, and its mechanism is chosen there against current platform documentation rather
+   than assumed here.
 6. **The client never chooses an S3 key, an object prefix, a `user_id`, a `position`, an
    `is_first_attempt`, or any version stamp.** All are server-derived. This is not defensive coding;
    it is what makes the four stamps and first-attempt uniqueness trustworthy.
@@ -134,6 +137,7 @@ that asserts the two lists match.
 | `pressure_required` | 422 | `complete` | screen 7 |
 | `round_already_complete` | 409 | `complete`, `answers` | — |
 | `round_not_complete` | 409 | `complete` | screen 7 |
+| `cv_unchanged` | 422 | `POST /api/cv-versions` | CV screen — the save is refused, nothing written |
 | `cv_extraction_failed` | 502 | `POST /api/cv-versions` | CV screen |
 | `upstream_s3` / `upstream_openai` | 502 | any | per the table in `03` §5 |
 
@@ -212,39 +216,95 @@ Screen 2 disables 開始 on `503` and says what is wrong. **It does not offer to
 
 ### 5.2 `POST /api/cv-versions` ⚡
 
-Upload a CV version and extract its claims. JSON, not multipart — the client extracts text from the
-file; a Vercel function caps bodies at 4.5 MB and a CV is text (`03` §3).
+Save one language's **whole CV** as a new version and extract its claims. JSON, not multipart — the
+client extracts text from the file in the browser; a Vercel function caps bodies at 4.5 MB and a CV is
+text (`03` §3). **The file itself never reaches the server**, only the text the user checked and
+approved.
 
 **Immutable on arrival.** There is no `PUT`, `PATCH` or `DELETE` for this resource, in this version or
-any later one: every `cv_claims.span_start/end` in the database indexes into `body`, and every quote
-ever rendered is a slice of it (`04`).
+any later one: every `cv_claims.span_start/end` and every `cv_documents.start/end` in the database
+indexes into `body`, and every quote ever rendered is a slice of it (`04`).
 
 ```http
 POST /api/cv-versions
-{ "version_label": "職務経歴書 v3", "language": "ja",
-  "body": "…経理システムの刷新を主導し、請求処理を40%短縮。チーム5名を統括…",
-  "source_filename": "keirekisho_v3.docx" }
+{ "language": "ja",
+  "documents": [
+    { "kind": "rirekisho", "text": "…" },
+    { "kind": "shokumu_keirekisho", "source_filename": "keirekisho_v3.docx",
+      "text": "…経理システムの刷新を主導し、請求処理を40%短縮。チーム5名を統括…" },
+    { "kind": "additional", "title": "Mercari SRE 提出用ポートフォリオ",
+      "source_filename": "portfolio.pdf", "text": "…" }
+  ] }
 ```
 ```json
 201
-{ "id": "3f2a91c4-…", "version_label": "職務経歴書 v3", "language": "ja",
+{ "id": "3f2a91c4-…", "version_label": "応募書類 v3", "language": "ja",
   "created_at": "2026-08-30T09:14:22Z",
   "extractor_model_id": "gpt-5.6-sol", "extractor_prompt_version": "cv-extract-ja-1.0",
+  "documents": [
+    { "id": "d001…", "kind": "rirekisho", "title": null, "start": 0, "end": 412 },
+    { "id": "d002…", "kind": "shokumu_keirekisho", "title": null, "start": 414, "end": 2860 },
+    { "id": "d003…", "kind": "additional", "title": "Mercari SRE 提出用ポートフォリオ",
+      "start": 2862, "end": 3401 }
+  ],
   "claims": { "total": 34, "carried_forward": 27, "new": 7 },
   "validation": { "spans_checked": 34, "spans_rejected": 0 } }
 ```
 
-**`carried_forward` is `04`'s exact-match rule and nothing more** — byte-identical
-`text_normalised` against the immediately previous version. No fuzzy matching, no threshold, no
-review step. A reworded claim is honestly a different thing to cite.
+**The client chooses none of the stamps.** `version_label`, `body`, every document's `start`/`end`,
+`extractor_model_id` and `extractor_prompt_version` are all derived server-side. The request carries
+text and structure; everything a later answer is stamped with is the server's (`04`, and §6's refusal
+of a model or rubric selector for the same reason).
 
-**`spans_rejected` is the anti-hallucination counter.** A claim whose span falls outside `body`, or
-whose sliced text does not match what the extractor said it extracted, is dropped — not stored,
-not shown. A non-zero count on a real CV is the first thing to look at, because CV extraction quality
-is explicitly unmeasured (`CONTEXT.md`).
+**Composition rules, checked by Zod at the boundary** and stated once in `04`:
 
-Failures: `502 cv_extraction_failed` — **nothing is written**, the version is not created, and the
-user re-uploads. A CV version with half its claims is worse than none.
+| `language` | Required | Optional | Refused |
+| --- | --- | --- | --- |
+| `ja` | exactly one `rirekisho` | ≤ 1 `shokumu_keirekisho`, 0–5 `additional` | any `cv` |
+| `en` | exactly one `cv` | 0–5 `additional` | any `rirekisho` or `shokumu_keirekisho` |
+
+`title` is required on `additional` and refused on every other kind. An `additional` document may be
+written in either language whatever the set's `language` is. A violation is `400 invalid_request`
+with the offending field, before any model call. **A total text-size cap belongs here and is set at
+implementation by measuring the extraction call** — guessing it in this document would produce a
+number that is defended rather than checked.
+
+**`version_label` is derived**, `応募書類 v{n}` / `CV v{n}`, numbered per language. `unique (user_id,
+language, version_label)` makes two concurrent saves safe: the loser retries with the next number
+rather than creating a second `v4` (`04`).
+
+**`carried_forward` is `04`'s exact-match rule and nothing more.** Stated there, once: this endpoint
+reports the count and decides none of it.
+
+**`spans_rejected` is the anti-hallucination counter.** A claim whose span falls outside `body`, whose
+sliced text does not match what the extractor said it extracted, or which **crosses a document
+boundary**, is dropped — not clamped, not stored, not shown. A non-zero count on a real CV is the
+first thing to look at, because CV extraction quality is explicitly unmeasured (`CONTEXT.md`).
+
+**Synchronous, one model call, one transaction.** The user is at the machine waiting; the version, its
+documents and its claims are written together or not at all.
+
+Failures:
+
+- **`422 cv_unchanged`** — every document in the request matches the current version of that language
+  exactly on `kind`, `title` and `text`, in the same order. **Nothing is written.** A double-click or a
+  no-op save would otherwise create a permanent duplicate version, a wasted extraction call, and a
+  Progress boundary line marking a change that did not happen (`04` §6, refusal #5). The client also
+  disables the save control while a save is in flight; this is the server-side half of the same rule.
+- **`502 cv_extraction_failed`** — the model call failed, **or zero claims survived the span
+  validator**. Nothing is written, the version is not created, and the user simply saves again. A CV
+  version with half its claims is worse than none, and one with no claims would make coverage and
+  every generated question silently empty for as long as it stayed current.
+- **`429 rate_limited`** with `Retry-After`, from the shared per-session limiter on every ⚡ route
+  (§1, rule 5). This endpoint is the first to need it, so it is where the limiter gets built.
+**There is no CV read endpoint, and none is needed.** The CV screen's reads — current version, its
+documents, the underlined spans, the version history — are Server Components reading Postgres directly
+(§1). Rule 2 scopes them by the session's `user_id` and rule 4 makes another user's version a `404`
+there exactly as it would be here.
+
+**Nothing in this endpoint's logs or error bodies carries CV text.** Not the documents, not the
+extracted claims, not a rejected span's slice. Ids, counts, durations and error classes only — `12`
+§7 is the list, and a document's text is on it.
 
 ### 5.3 `POST /api/role-contexts`
 
@@ -284,7 +344,7 @@ POST /api/rounds
     "id": "77af0b13-…", "round_type": "behavioural", "language": "ja", "mode": "realistic",
     "length": 5, "per_answer_cap_seconds": 240,
     "started_at": "2026-09-12T03:04:51Z", "completed_at": null,
-    "stamps": { "cv_version_label": "職務経歴書 v3", "rubric_version_label": "v1.2",
+    "stamps": { "cv_version_label": "応募書類 v3", "rubric_version_label": "v1.2",
                 "scoring_model_id": "gpt-5.6-sol", "scoring_prompt_version": "score-ja-1.0" } },
   "prompt": {
     "kind": "question", "position": 1, "question_id": "a17e…",
@@ -598,7 +658,7 @@ GET /api/rounds?limit=20&language=ja&round_type=behavioural
     { "id": "77af0b13-…", "round_type": "behavioural", "language": "ja", "mode": "realistic",
       "length": 5, "started_at": "2026-09-12T03:04:51Z", "completed_at": "2026-09-12T03:41:08Z",
       "answers": 10, "scoring": { "ok": 9, "pending": 1, "failed": 0 },
-      "stamps": { "cv_version_label": "職務経歴書 v3", "rubric_version_label": "v1.2",
+      "stamps": { "cv_version_label": "応募書類 v3", "rubric_version_label": "v1.2",
                   "scoring_model_id": "gpt-5.6-sol" } } ],
   "next_cursor": "eyJzIjoiMjAyNi0wOS0xMlQwMzowNDo1MVoiLCJpIjoiNzdhZiJ9" }
 ```
@@ -632,6 +692,8 @@ convert a guarantee in `04` §6 into a preference.
 | `DELETE` on anything | Nothing is hard-deleted (`04` §5). A scoring record you can quietly delete is one you will delete after a bad round, and the chart stops being honest (refusal #3, brief). |
 | `PATCH /api/answers/{id}` | The route by which `transcript_raw` gets overwritten by its correction (`04` §6). |
 | `PUT /api/cv-versions/{id}` | Every span in the database indexes into `body`. A change is a new version. |
+| Anything that edits or deletes a **document** or a **claim** | Same reason, one level down. `cv_documents` ranges and `cv_claims` spans both index into the same immutable `body` (`04`). A document is changed by saving a new version of the whole set. |
+| Anything that makes an older CV version current, or lets a round choose one | Current is `max(created_at)` per language and nothing else (`04`). A selectable CV version would make the CV stamp a user choice, which is the same failure as a model or rubric selector two rows down. |
 | Any endpoint returning a composite score | Refusal #1. No column, no view, no field. |
 | `POST /api/rounds/{id}/abandon` | `completed_at is null` is the record. Abandonment is data. |
 | A model or rubric selector on any request | The stamps would become user-chosen, making drift voluntary and biased (decision log). Both are config and resolved server-side. |
@@ -651,4 +713,13 @@ convert a guarantee in `04` §6 into a preference.
 - **User-facing copy for every code in §3.** The catalogue is closed and complete; the Japanese and
   English strings for it are not written, and **Japanese copy needs a native read**
   (`05-design-system.md` §6). `11-testing-plan.md` asserts the two lists match, which will fail
-  loudly until they do.
+  loudly until they do. **Being written now, whole** — not code by code as each endpoint lands —
+  because the Japanese half is one native read either way, and a catalogue written in instalments is
+  a catalogue with a different voice in each instalment (#13).
+- **The per-session rate limiter's mechanism.** Rule 5 in §1 fixes the behaviour — one shared
+  limiter, `429` with `Retry-After`. Which mechanism implements it is checked against current
+  platform documentation when `POST /api/cv-versions` is built (#18), not decided here: the
+  candidates are a Postgres-backed window as an expand-only migration and Vercel's own limiting if
+  Hobby offers it, and which is true this month is not something this document should assert.
+- **The text-size cap on `POST /api/cv-versions`.** §5.2 says a cap belongs there; the number comes
+  from measuring the extraction call on a real CV, not from this document.

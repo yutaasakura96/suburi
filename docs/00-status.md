@@ -2,10 +2,12 @@
 
 **Project:** **Suburi** (素振り) — a private, turn-based voice interview simulator for practising job
 interviews in Japanese and English, with rubric-scored feedback and tracked progress over time.
-**Phase:** 6 — build, in progress. **The foundation slice is specified and ticketed:** spec
-[#1](https://github.com/yutaasakura96/suburi/issues/1), tickets #2–#7. **All six have landed and are
-closed.** **`develop` is live at https://suburi-develop.vercel.app.**
-**Updated:** 2026-09-19
+**Phase:** 6 — build, in progress. **The foundation slice is done:** spec
+[#1](https://github.com/yutaasakura96/suburi/issues/1), tickets #2–#7, all closed. **`develop` is live
+at https://suburi-develop.vercel.app.** **The first feature — getting a CV in — is specified and
+ticketed:** spec [#11](https://github.com/yutaasakura96/suburi/issues/11), tickets #12–#21. #12 is
+done; #13 is next.
+**Updated:** 2026-09-20
 
 ## Done
 - Phase 1 — `docs/01-project-brief.md`, `docs/02-product-requirements.md`, `docs/06-decision-log.md`.
@@ -86,6 +88,25 @@ closed.** **`develop` is live at https://suburi-develop.vercel.app.**
   allowlisted account on `develop`, a second account refused (`signup_disabled` in the log), no
   pooled-connection errors, and `develop`'s credential refused by Neon `main` (`28P01`). Vercel's
   Deployment Protection stays on in front of `develop`. Four entries in `06`.
+- **The first feature is grilled, specified and ticketed — spec #11, tickets #12–#21**, with native
+  GitHub `blocked_by` edges: #12 (none) → #13 → #14 → #15/#17/#18 → #16/#19 → #20 → #21. #20 and #21
+  are `ready-for-human`. A CV becomes **a set of documents per language**: `ja` a required 履歴書, an
+  optional 職務経歴書 and up to five additional documents; `en` a required CV document and up to five.
+  One immutable `cv_versions.body` per version with a new `cv_documents` table carrying each
+  document's range; spans may not cross a document boundary; the Japanese stamp word becomes
+  **`応募書類 v{n}`**.
+- **#12 — the CV decisions are in the docs.** `CONTEXT.md` (vocabulary tightened: carry-forward is the
+  *immediately* previous version of the same language, from any document; spans may not cross a
+  boundary), `03` §4 (a fourth model job, CV extraction — synchronous, all-or-nothing, latency
+  measured on the first real run) and §10 (`lib/cv/`, the extraction port), `04` (`cv_documents`, the
+  unique `(user_id, language, version_label)` index, `source_filename` retired not dropped, three new
+  §6 refusals), `05` §6 (`応募書類`, with the three prose strings that still say `職務経歴書` recorded
+  rather than swapped), `07` §3 (`cv_unchanged`) and §5.2 (the `documents[]` request, composition
+  rules, derived label, `422`/`502`/`429`), **`10` §13 — the CV screen, specified from `05` components
+  with no artboard**, `12` (the synthetic CV seed described as it will be, `OPENAI_API_KEY`'s scope
+  step, `source_filename` added to the never-log list). Twenty entries in `06`. No code changed.
+  **One tension recorded rather than resolved:** #11 puts the extractor model string in code as a
+  pinned constant, while `12` §2 holds the other three model strings as env vars.
 - **Local machine gotcha:** npm 11.3.0 crashes on install (`edgesOut`); use `npx -y npm@latest install`.
 - **`next start` refuses to boot without the seven env vars**, so Playwright needs them locally; CI
   supplies well-formed placeholders in `.github/workflows/ci.yml`. Turbopack also emits stylesheets to
@@ -96,8 +117,11 @@ Page 1 is the screen set, page 2 the three exploration directions. **Working fil
 every change re-seeds from those — edit them, never the built `design/suburi-directions.html`.
 
 ## Next
-**The foundation slice is done.** Next is the first feature,
-by the per-feature flow below.
+**#13 — the full error envelope and the bilingual error catalogue.** `lib/api` grows from the single
+`unauthenticated` helper to the whole `07` §2 envelope and every `07` §3 code; **the entire catalogue's
+`ja` and `en` copy is written in one pass** and needs the user's native read, together with `応募書類`,
+the 履歴書 personal-particulars hint and every string on the CV screen (`10` §13). Then #14, the tracer
+bullet.
 
 **The three deploy fixes, #10, are closed:** `agentRules: false`; only `main` and `develop` deploy
 (`vercel.json`); remote database URLs must carry `sslmode=verify-full`, which `lib/config.ts` now
@@ -187,15 +211,19 @@ The error-code catalogue in `07` §3 is closed but **none of its copy is written
 in 4b):
 - **The bilingual chrome rule** — does chrome follow the round's language or the app's? Still a copy
   decision. `07` §2 routes every user-visible string through the copy layer so the API does not decide
-  it by accident.
+  it by accident. The CV screen answers it **for itself only** — each panel's chrome in its own
+  language, because each panel is about one language's documents (`10` §13).
 - **The near-duplicate similarity threshold** — a guess until there is real data. `12` §6 puts the
   near-miss log in the weekly digest so it is tunable from data.
-- **CV claim extraction quality** — unmeasured; eyeball it on a real CV first. `07` §5.2 returns
-  `spans_rejected` and `12` §6 alerts on it being non-zero.
+- **CV claim extraction quality** — still unmeasured. `07` §5.2 returns `spans_rejected` and `12` §6
+  alerts on it being non-zero; the CV screen renders claim spans underlined in the user's own text so
+  it can be read off directly (`10` §13). The check runs on the **real CV, locally** (#20) — that is
+  what closes this, not the screen shipping.
 - **Who sends the alert mail.** `08` §2 avoided an email vendor deliberately; `12` §6 reintroduces one
   as a placeholder.
-- **Two drawn-but-unspecified screens:** the `CV` nav item has no artboard, and practice mode's record
-  frames differ from realistic mode's. `10-screen-specifications.md` §12.
+- **One drawn-but-unspecified screen:** practice mode's record frames differ from realistic mode's.
+  `10-screen-specifications.md` §12. **The CV screen came off this list in #12** — still no artboard,
+  but specified in `10` §13 from `05` components.
 
 **The weakest link in the whole plan, named so it is not forgotten:** the backup restore is untested.
 `11` §9 says so and `12` §8 schedules the drill — restore into a Neon branch immediately after the

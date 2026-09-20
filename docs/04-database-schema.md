@@ -26,7 +26,8 @@ this document is the source of truth for *why*.
   nothing else would notice. The columns: `cv_versions.language`, `role_contexts.kind`,
   `rubric_versions.language`, `questions.language`, `questions.round_type`, `questions.origin`,
   `rounds.round_type`, `rounds.language`, `rounds.mode`, `answers.language`,
-  `scoring_attempts.status`, `round_feedback.language`, `claim_citations.relation`.
+  `scoring_attempts.status`, `round_feedback.language`, `claim_citations.relation`,
+  `cv_documents.kind`.
   `scores.dimension` is **not** checked here: its valid set depends on the rubric row (`keigo` is
   `ja` only), which a column check cannot see.
 - Every table holding user data carries `user_id` (tenancy decision, `03` §2).
@@ -41,7 +42,8 @@ this document is the source of truth for *why*.
 | --- | --- |
 | `users` | A person who may sign in. There is exactly one, inserted by the seed script. |
 | `sessions`, `accounts`, `verifications` | Better Auth's own tables. Shape owned by the library. |
-| `cv_versions` | One uploaded CV, frozen. Its text never changes after insert. |
+| `cv_versions` | One language's **whole CV**, frozen — every document in the set joined into one immutable text. |
+| `cv_documents` | One member of that set — a 履歴書, a 職務経歴書, a CV document or a titled additional document — and the range of `cv_versions.body` it occupies. |
 | `cv_claims` | One atomic, citable assertion from a CV version, with a span into that version's text. |
 | `role_contexts` | The company/role a round is pitched at — a posting, researched notes, or General practice. |
 | `rubric_versions` | One version of a rubric: its dimensions and their definitions, as data. |
@@ -85,22 +87,83 @@ verified, and fails with "account not linked" otherwise. The script is idempoten
 
 ### `cv_versions`
 
-**Immutable.** The text is never edited after insert; a change is a new version.
+**Immutable.** The text is never edited after insert; a change to **any** document in the set is a new
+version of the whole set.
 
 | Column | Type | Null | Default | Notes |
 | --- | --- | --- | --- | --- |
 | `id` | `uuid` | no | `gen_random_uuid()` | PK |
 | `user_id` | `text` | no | — | → `users.id` **restrict** |
-| `version_label` | `text` | no | — | `職務経歴書 v3` — the string screen 2 displays |
+| `version_label` | `text` | no | — | `応募書類 v3` / `CV v3` — **derived server-side**, never typed by the user |
 | `language` | `text` | no | — | `ja` \| `en` |
-| `body` | `text` | no | — | **immutable.** All spans index into this exact string. |
-| `source_filename` | `text` | yes | — | |
+| `body` | `text` | no | — | **immutable.** The set's documents joined server-side in `position` order with a fixed separator. All spans index into this exact string. |
+| `source_filename` | `text` | yes | — | **Retired.** Always null; not dropped — migrations are expand-only. A filename belongs to a document, not to the set: `cv_documents.source_filename`. |
 | `extractor_model_id` | `text` | yes | — | model that produced the claims |
 | `extractor_prompt_version` | `text` | yes | — | |
 | `created_at` | `timestamptz` | no | `now()` | this is the date screen 2 shows |
 
-> **Never run a migration that rewrites `body`.** Every `cv_claims.span_start/end` in the database
-> points into it, and every quote ever rendered is a slice of it.
+**`version_label` is derived, and numbering is per language.** `応募書類 v{n}` for `ja`, `CV v{n}` for
+`en`, `n` being one more than the highest existing version in that language. The client never sends
+it (`07` §5.2).
+
+**Constraint:** `unique (user_id, language, version_label)`. Two concurrent saves that both compute
+`v4` do not both succeed — the loser gets a constraint violation and retries, rather than producing
+two `v4` rows that later stamp different answers with the same string.
+
+**There is no `is_current` flag.** The **current CV version** in a language is the newest by
+`created_at` for that `(user_id, language)`. A flag would be a second source of truth that a failed
+transaction could leave pointing at the wrong row; the ordering cannot disagree with itself. Older
+versions stay readable and are never selectable for a new round (`07` §6).
+
+> **Never run a migration that rewrites `body`.** Every `cv_claims.span_start/end` **and every
+> `cv_documents.start/end`** in the database points into it, and every quote ever rendered is a slice
+> of it.
+
+---
+
+### `cv_documents`
+
+**Immutable, like its version.** One row is one document inside one CV version, and the range of that
+version's `body` it occupies. Written in the same transaction as the version; never updated, never
+deleted.
+
+| Column | Type | Null | Default | Notes |
+| --- | --- | --- | --- | --- |
+| `id` | `uuid` | no | `gen_random_uuid()` | PK |
+| `cv_version_id` | `uuid` | no | — | → `cv_versions.id` **restrict** |
+| `user_id` | `text` | no | — | → `users.id` **restrict** |
+| `kind` | `text` | no | — | `rirekisho` \| `shokumu_keirekisho` \| `cv` \| `additional` — value-checked |
+| `title` | `text` | yes | — | **required for `additional`**, null for every other kind. The user types it. |
+| `source_filename` | `text` | yes | — | the `.docx`/`.pdf` the text was imported from, if any. The file itself never leaves the browser (`07` §5.2). |
+| `position` | `integer` | no | — | order within the set; also the order `body` was joined in |
+| `start` | `integer` | no | — | inclusive index into `cv_versions.body` |
+| `end` | `integer` | no | — | exclusive |
+| `created_at` | `timestamptz` | no | `now()` | |
+
+**Composition, enforced server-side** (`07` §5.2 states the same rules at the boundary):
+
+| `language` | Required | Optional |
+| --- | --- | --- |
+| `ja` | exactly one `rirekisho` | at most one `shokumu_keirekisho`, zero–five `additional`. No `cv`. |
+| `en` | exactly one `cv` | zero–five `additional`. No `rirekisho`, no `shokumu_keirekisho`. |
+
+An `additional` document may be written **in either language** regardless of the set's `language`; an
+English portfolio inside a Japanese 応募書類 is normal. The set's `language` decides which rounds are
+scored against it, not which language its documents are written in.
+
+**Constraints:** `check (end > start)`; `check (kind in (…))`; `check ((kind = 'additional') = (title
+is not null))`; `unique (cv_version_id, position)`.
+
+> **A claim's span may not cross a document boundary.** Every `cv_claims` span lies inside exactly one
+> of these ranges. A "claim" spanning the join between a 履歴書 and a portfolio is an extraction
+> artefact, not an assertion the user made, and it is dropped and counted in `spans_rejected` rather
+> than clamped (`07` §5.2). This is the reason the ranges are stored rather than recomputed.
+
+**Why the whole set is one `body` and not one text per document.** Spans, the span validator, quote
+slicing and the CV-version stamp all predate this table and all work on a single immutable string
+(`03` §11). Splitting `body` per document would have meant a span type that carries a document id, a
+second validator, and a migration that rewrites `body` — which §5 forbids. Storing ranges beside the
+joined text buys the document boundary without touching any of it.
 
 ---
 
@@ -117,9 +180,22 @@ verified, and fails with "account not linked" otherwise. The script is idempoten
 | `supersedes_claim_id` | `uuid` | yes | — | → `cv_claims.id` **restrict**. Lineage. |
 | `created_at` | `timestamptz` | no | `now()` | |
 
-**Carry-forward rule.** On upload of a new CV version, a new claim whose `text_normalised` is
-byte-identical to a claim in the immediately previous version sets `supersedes_claim_id` to it and
-inherits its coverage history through that chain. Anything else is a new claim with empty coverage.
+**There is no `kind` column, and there never was meant to be one.** Claims are flat. Which document a
+claim came from is already answerable — its span falls inside exactly one `cv_documents` range — and a
+`kind` on the claim would be a second, copyable answer to the same question.
+
+**Personal particulars never become claims.** Birth date, address, telephone number, photograph and
+family details on a 履歴書 are excluded by the extraction prompt (`03` §4), and the CV screen hints
+that they can simply be left out of the pasted text (`10` §13). Nothing in this table distinguishes
+them, because nothing in this table should ever hold one: feedback that cites the user's address is
+the failure being designed out.
+
+**Carry-forward rule.** On saving a new CV version, a new claim whose `text_normalised` is
+byte-identical to a claim in the **immediately previous version of the same language** sets
+`supersedes_claim_id` to it and inherits its coverage history through that chain. The match is against
+that version's claims **from any document** — text moved out of a 職務経歴書 and into an additional
+document is the same assertion and carries forward. Two versions back never matches, and the other
+language never matches. Anything else is a new claim with empty coverage.
 **No fuzzy matching, no similarity threshold, no review step** — a reworded claim honestly reads as a
 different thing to cite, and comparability across CV versions is already handled by the CV version
 stamp and Progress's boundary lines (screen-spec refusal #5). Do not solve it twice here.
@@ -127,9 +203,10 @@ stamp and Progress's boundary lines (screen-spec refusal #5). Do not solve it tw
 **Constraint:** `check (span_end > span_start)`.
 
 > **The rendered quote is `substring(cv_versions.body, span_start, span_end - span_start)` — never
-> text returned by a model.** If a model returns a span outside the body, or a quote that does not
-> match its span, the citation is dropped rather than rendered. This is the anti-hallucination
-> mechanism from `03` §11.
+> text returned by a model.** If a model returns a span outside the body, a quote that does not match
+> its span, or a span that crosses a `cv_documents` boundary, the claim is dropped rather than stored
+> — never clamped to fit — and counted in `spans_rejected`. This is the anti-hallucination mechanism
+> from `03` §11.
 
 ---
 
@@ -387,6 +464,9 @@ never becomes the answer's displayed score.**
 | `claim_citations (cv_claim_id)` | **"Which claims have never been cited?"** — the coverage query. |
 | `cv_claims (cv_version_id)` | Load a version's claims. |
 | `cv_claims (text_normalised, cv_version_id)` | Carry-forward exact match on new CV upload. |
+| `cv_versions (user_id, language, created_at desc)` | **The current CV version in a language** — resolved server-side on round creation and on the CV screen, and the same index orders the version history below it. |
+| `cv_versions (user_id, language, version_label)` *(unique)* | Makes per-language `v{n}` numbering race-safe. Two concurrent saves cannot both land a `v4`. |
+| `cv_documents (cv_version_id, position)` *(unique)* | Render a version's documents in order, and locate the range a claim's span falls in. |
 
 **Why `language` is denormalised onto `answers`.** The six-month criterion is per-dimension trends
 across first attempts, **per language** — the single hottest query in the app. Keeping `language` on
@@ -400,9 +480,20 @@ remains authoritative: they are written together and must never diverge.
 
 **`cv_versions`**
 
-| id | version_label | language | body (truncated) | created_at |
-| --- | --- | --- | --- | --- |
-| `3f2a…` | `職務経歴書 v3` | `ja` | `…経理システムの刷新を主導し、請求処理を40%短縮。チーム5名を統括…` | `2026-08-30` |
+| id | version_label | language | body (truncated) | source_filename | created_at |
+| --- | --- | --- | --- | --- | --- |
+| `3f2a…` | `応募書類 v3` | `ja` | `…経理システムの刷新を主導し、請求処理を40%短縮。チーム5名を統括…` | `null` *(retired)* | `2026-08-30` |
+
+**`cv_documents`** — the three documents that version is joined from
+
+| id | cv_version_id | kind | title | source_filename | position | start | end |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `d001…` | `3f2a…` | `rirekisho` | `null` | `null` | `1` | `0` | `412` |
+| `d002…` | `3f2a…` | `shokumu_keirekisho` | `null` | `keirekisho_v3.docx` | `2` | `414` | `2860` |
+| `d003…` | `3f2a…` | `additional` | `Mercari SRE 提出用ポートフォリオ` | `portfolio.pdf` | `3` | `2862` | `3401` |
+
+*(The two-character gaps are the fixed separator. Every claim span below lies inside exactly one of
+these ranges.)*
 
 **`cv_claims`**
 
@@ -450,7 +541,7 @@ remains authoritative: they are written together and must never diverge.
 | `answers`, `scoring_attempts`, `scores` | Never deleted. Never updated. The measurement record. |
 | `transcript_raw` | **Never discarded**, even after correction (PRD §9). |
 | `questions` | Soft retire via `retired_at`. Never deleted — progress data is keyed by its id. |
-| `cv_versions`, `cv_claims` | Never deleted. Spans and citations point into them. |
+| `cv_versions`, `cv_documents`, `cv_claims` | Never deleted. **Never updated.** Spans, document ranges and citations all point into `body`. |
 | Audio in S3 | Retained; PRD §144 makes it replayable from History. Deleting a key leaves `audio_s3_key` dangling, so the play control must tolerate a missing object. |
 | `sessions` | Expire normally. The only genuinely ephemeral data here. |
 | `rounds` with `completed_at is null` | Abandoned rounds are **kept**. An abandoned round is evidence about pressure, not garbage. |
@@ -475,3 +566,12 @@ Stated so a later session recognises these as decisions, not oversights:
    foreign keys, two as strings).
 6. **Sharing.** No share, visibility, or export-target table (screen-spec refusal #6), despite the
    multi-tenant `user_id` columns. Tenancy is not permission to build a sharing surface.
+7. **Editing a document in place.** `cv_documents` has no `updated_at` and no update path. Changing a
+   document is a new `cv_versions` row with a fresh set of `cv_documents` beside it — which is what
+   makes one CV-version stamp mean one exact set of texts.
+8. **A CV version that is not the whole set.** There is no per-document version history and no
+   per-document version label. One save is one version of one language's whole CV, so an answer's CV
+   stamp can never be ambiguous about which 職務経歴書 was in play.
+9. **A "current" CV version that is not the newest one.** No flag, no pointer, no column. Current is
+   `max(created_at)` per `(user_id, language)`, so an older version cannot be made current again and
+   cannot be selected for a new round.

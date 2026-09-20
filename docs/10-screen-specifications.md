@@ -1,6 +1,7 @@
 # Screen specifications — Suburi
 
-Nine screens, extracted from the Direction B artboards in `design/`. Tokens referenced here are
+Nine screens, extracted from the Direction B artboards in `design/`, **and a tenth — the CV screen
+(§13) — specified from `05` components with no artboard behind it.** Tokens referenced here are
 defined in [`05-design-system.md`](05-design-system.md); this document specifies **what each screen
 contains, in what state, and what it must refuse to do**.
 
@@ -99,7 +100,7 @@ precedence: `求人票とAI調査の両方があります。ファイルを優�
 ### Rationale column
 - `WHY THESE DEFAULTS` → `行動面接・日本語は18日空いています。既定値はそこから決めました。` then
   `提案です。4つとも変えられます。` at `--ink-label`.
-- `SCORED AGAINST` → `職務経歴書 v3` with its date `2026-08-30` in mono.
+- `SCORED AGAINST` → `応募書類 v3` with its date `2026-08-30` in mono.
 - Solid primary `このラウンドを始める`, then an 11px mono stamp:
   `5問＋深掘り5問・最長 約40分` / `評価基準 v1.2・出題 v1.0`.
 
@@ -117,7 +118,7 @@ arithmetic already shown.
 One screen, three specified states (decision 21) — `RecordIdle`, `RecordActive`,
 `RecordTranscript`. All three share the round header (§5.2) and a footer:
 
-> `講評はラウンドが終わってからまとめて出ます。途中では何も出ません。` · `出題 v1.0・職務経歴書 v3`
+> `講評はラウンドが終わってからまとめて出ます。途中では何も出ません。` · `出題 v1.0・応募書類 v3`
 
 That sentence is the PRD's withheld-feedback requirement rendered as a promise on every frame. It is
 absent only from the transcript state, which substitutes:
@@ -204,7 +205,7 @@ visibly different numbers for the same edit.
 ### Commit
 Solid primary `この回答を送る`, caption
 `送ると、いま直した文から深掘りが1問つくられます。`, then `3:12・約250字/分` /
-`出題 v1.0・職務経歴書 v3`.
+`出題 v1.0・応募書類 v3`.
 
 **The follow-up is generated from the corrected text, not the raw text.** Both are stored.
 
@@ -244,7 +245,7 @@ Three lines at 12px/1.85 `--ink-4`:
 - **Nothing picked:** button is `--surface-inert` / `--ink-8` / `1px --rule-section`; hint
   `1つ選ぶと講評に進めます。`
 - **Picked:** button becomes solid `--ink-1` / `#fff`; hint `緊張度 4 をこのラウンドに記録します。`
-- Stamp: `評価基準 v1.2・出題 v1.0・職務経歴書 v3`.
+- Stamp: `評価基準 v1.2・出題 v1.0・応募書類 v3`.
 
 **This screen cannot be skipped, and it cannot be answered after the feedback is seen** — the whole
 point is that the reading is taken before the result is known. The value is recorded on the round and
@@ -282,9 +283,9 @@ read a Japanese round's feedback in English.
   3. `「〜っていう」が4回。「〜という」に置き換える。`
 - `良かったところ 1件` — one line, same size. **One, not three.** The asymmetry is the design.
 - `職務経歴書との照合` — callout rails (§5.8): `--attention-mark` for
-  `裏づけなし —「チーム全体の生産性を上げた」に対応する記述が職務経歴書 v3 にない。`, `--ink-9` for
+  `裏づけなし —「チーム全体の生産性を上げた」に対応する記述が応募書類 v3 にない。`, `--ink-9` for
   `未使用 —「2024 決済基盤の移行リード」「英語での顧客折衝」`.
-- Footer stamp: `評価基準 v1.2・出題 v1.0・職務経歴書 v3` / `緊張度 4 を講評前に記録`.
+- Footer stamp: `評価基準 v1.2・出題 v1.0・応募書類 v3` / `緊張度 4 を講評前に記録`.
 
 ### Refuses
 - **No composite.** No round total, no average, no per-answer aggregate, no letter, no percentage.
@@ -383,7 +384,7 @@ and the raw transcript for that row.
 ### Footer
 `深掘りは進捗に入りません。回答ごとの1〜5だけを残しています。` /
 `音声と未修正の文字起こしは、この行から開けます。` and right, the stamp
-`評価基準 v1.2・出題 v1.0` / `職務経歴書 v3`.
+`評価基準 v1.2・出題 v1.0` / `応募書類 v3`.
 
 ---
 
@@ -412,9 +413,141 @@ Restated from PRD §9 because a specification that omits them invites a build th
 - **Sign-in page.** `/sign-in` (`08` §5) has no artboard. The foundation slice builds it bare in `05`
   tokens — wordmark, one Google button, the refusal line — with both languages on the page, so it does
   not decide the open bilingual chrome rule. Its Japanese strings need a native read.
-- **CV screen.** The nav has a fourth item, `CV`, that no artboard draws. It needs CV upload, parsing
-  into individually citable units, and version history — Phase 4's inbox, then a design pass.
+- ~~**CV screen.**~~ **Closed — specified in §13.** The nav's fourth item now has a specification
+  built from `05` components rather than an artboard: two panels, one per language, each with an
+  empty state, a current version showing its documents with claim spans underlined, a prefilled
+  new-version form, and a version history. No artboard was drawn and none is needed — every element
+  it uses is already measured in `05`.
+- **Three prose strings still say `職務経歴書` where they now mean the whole set.** §8's section label
+  `職務経歴書との照合`, §8's round-level line `数値の裏づけが2か所ありません。職務経歴書の…`, and §9's
+  legend `縦線は評価基準・出題・職務経歴書が変わったところです。`. Every *stamp* in this document now
+  reads `応募書類 v3` (`05` §6), but these three are sentences, not labels: rewriting them is a copy
+  change that goes through a native read with the screens that carry them, not a find-and-replace.
+- **The `design/` artboards still draw `職務経歴書 v3`.** They are the extraction *input* for this
+  document, not what the build follows — `docs/` is the source (`CLAUDE.md`). Re-seeding them means
+  editing `design/*.dc.html` and rebuilding `design/suburi-directions.html`, which is a design-tool
+  pass, not a docs edit. The divergence is recorded rather than half-fixed — and **no ticket in #12–#21
+  covers it**, so it needs one before anyone reads the artboards as current.
 - **Practice mode's screens.** Practice differs at the record frames (no timer, `録り直し可`) and
   delivers feedback per answer rather than at round end. Only realistic mode is drawn.
 - **The four-round run.** Deferred as LATER and unshaped (decision log).
 - **Loading, error and offline states** beyond the two History statuses and the missing-follow-up row.
+
+---
+
+## 13. CV — `/cv`, no artboard
+
+**Purpose.** Put in, and read back, the material every round is scored against — and let extraction be
+checked against the user's own text before anything depends on it.
+
+Session-required like every other screen (`08` §5). Built entirely from `05` components; nothing here
+needed a new one, which is why no artboard was drawn.
+
+> **Every Japanese string in this section is proposed and has not had its native read.** So is
+> `応募書類` itself. They go through one read together with the error catalogue (`05` §6, #13), and
+> what that read settles is what ships.
+
+### Two panels, side by side
+
+`repeat(2, 1fr)` at the standard `14px` card gap, 1280px frame, `padding: 40px 44px` like every
+screen. Left panel is the Japanese CV, right is the English one. Each is headed by a §3.3 section
+label — `応募書類` and `CV` — and the two panels are independent: saving on one does nothing to the
+other, and either may be empty while the other is not.
+
+**Each panel's chrome is in its own language.** The Japanese panel's labels, hints, buttons and
+messages are Japanese; the English panel's are English, on the same screen at the same time. A panel
+is *about* one language's documents, so its chrome has an obvious language, which is not true of the
+round screens.
+
+> **This settles the bilingual chrome rule for this screen and no other.** The general question —
+> does chrome follow the round's language or the app's? — stays open (`CONTEXT.md`, `05` §9). A screen
+> that shows both languages at once side by side does not get to answer it for screens that show one.
+
+### Empty panel
+
+One action and nothing else: an outline button (`05` §5.7) reading `応募書類を追加する` / `Add your
+CV`, over a 12px `--ink-6` line naming what the set requires —
+`履歴書が1通必要です。職務経歴書と、補足資料を5つまで追加できます。` /
+`One CV document is required. You can add up to five supporting documents.`
+
+No placeholder version, no sample, no "get started" sequence. The panel states what is missing and
+offers the one move that fixes it.
+
+### Current version
+
+| Element | Spec |
+| --- | --- |
+| Version stamp | `05` §5.9, but **top-left of the panel rather than bottom-right** — here it labels the thing being read, it is not the provenance footer of a score. `応募書類 v3` / `CV v3`, with `2026-08-30` beside it in mono. |
+| Claim count | 11px mono, `--ink-label`: `主張 34件` / `34 claims`. **`件`, never `点`** (`05` §6). |
+| Documents | In `position` order. Each is a §3.3 section label — `履歴書` · `職務経歴書` · the user's own title for an additional document — over its text at 13px/1.9. |
+| Claim spans | Each surviving claim's span **underlined** in its document's text: `border-bottom: 1px solid var(--accent-mid)`. Nothing else — no numbering, no margin notes, no hover card. |
+
+**The underline is the whole point of this screen.** It is how extraction gets checked: the user reads
+their own CV and a wrong span is visible as a phrase underlined that is not an assertion, or an
+assertion left bare. That check is the answer to `CONTEXT.md`'s open question about extraction quality
+(#20), and it is why the text is rendered in full rather than summarised into a claim list.
+
+**Every underlined range is sliced from `cv_versions.body` by span** (`04`), never from model output,
+and every span lies inside exactly one document's range. A span that crossed a document boundary was
+dropped at save time and is not here to render.
+
+### New version
+
+An outline button `新しい版をつくる` / `Create a new version` opens a form **prefilled with the current
+version's documents** — same kinds, same titles, same text, same order. Changing one document does not
+mean retyping the others, and the prefill is also what makes `cv_unchanged` a real risk worth refusing
+server-side.
+
+| | |
+| --- | --- |
+| Per document | A title (fixed for the three known kinds; a text input for `additional`) over a monospaced-width textarea at 13px/1.9. |
+| Import | Beside each box, `ファイルから読み込む` / `Import from a file`, accepting `.docx` and `.pdf`. **The text is extracted in the browser and dropped into that box, which stays editable.** The file is never uploaded (`07` §5.2). |
+| After an import | A 12px `--ink-6` line: `読み込んだ文を確認して、必要なら直してください。保存した文がそのまま評価に使われます。` / `Check the imported text and fix anything wrong. What you save is what gets scored.` |
+| 履歴書 box only | An `--accent-mid` callout rail (`05` §5.8): `生年月日・住所・電話番号・顔写真・家族の情報は省いてかまいません。評価には使いません。` |
+| Add | `補足資料を追加` / `Add a supporting document`, disabled at five. Japanese panels also offer `職務経歴書を追加` until one exists. |
+| Save | Solid primary `この版を保存する` / `Save this version`, with the `05` §5.7 caption stating what it commits to: `保存すると、この内容で版が確定します。あとから直すことはできません。` |
+
+**The save control disables while a save is in flight**, and the panel states that extraction is
+running. This is the client half of `cv_unchanged` (`07` §5.2); the server refuses a duplicate whether
+or not the client got it right.
+
+**Imported text is never saved unread.** The box is the editable copy, and what the user leaves in it
+is what is sent — a PDF's broken line wraps and table columns get corrected before they become part of
+an immutable version, not after.
+
+### After a save
+
+The panel returns to the current-version view, now showing the new version, with a 12px `--ink-6`
+result line above it:
+
+`34件を抽出。27件は前の版から引き継ぎ、7件が新規。` /
+`34 claims extracted — 27 carried forward, 7 new.`
+
+**`spans_rejected` is shown whenever it is non-zero**, on an `--attention-mark` callout rail (`05`
+§5.8): `2件は本文と一致しなかったため除きました。` / `2 claims were dropped — their quotes did not
+match your text.` Zero is stated plainly in the result line rather than hidden, because a counter that
+only appears when it is bad is a counter nobody learns to read.
+
+On failure, nothing changes and the form keeps its contents: the version was not created (`07` §5.2),
+so there is nothing to reconcile. The message is the catalogue's copy for `cv_extraction_failed`,
+`cv_unchanged` or `rate_limited`, in that panel's language.
+
+### Version history
+
+Below the current version, in the same panel: one row per older version, newest first — label, date,
+claim count — at 12px, `--ink-6`, on `--rule-hairline` separators. A row opens that version read-only,
+in the same shape as the current-version view.
+
+**Readable, never selectable.** There is no control that makes an older version current and none that
+points a round at one (`07` §6). History here answers "what was I scored against in August?", which is
+what the CV stamp on an old answer means.
+
+### Refuses
+
+- **No coverage marks yet.** Nothing cites a claim until scoring exists, so "used" and "never used"
+  would both be false on every claim on this screen. They arrive with citations, not before.
+- **No edit and no delete** — not a document, not a claim, not a version (`04` §6, `07` §6).
+- **No version label input.** The label is derived, per language (`04`).
+- **No upload of the file itself.** The browser extracts text; the file does not leave it.
+- **No score, no quality figure, no "CV strength".** This screen shows what was extracted and where it
+  came from. Rating a CV is a different product.
