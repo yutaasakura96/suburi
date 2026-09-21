@@ -151,7 +151,6 @@
   "enabledPlugins": {
     "openai-developers@openai-developers": true,
     "mattpocock-skills@claude-plugins-official": true,
-    "superpowers@claude-plugins-official": false,
     "frontend-design@claude-plugins-official": false
   },
   "extraKnownMarketplaces": {

@@ -232,8 +232,9 @@ the only irreplaceable thing here.
 
 - Remote is `github.com/yutaasakura96/suburi` (public). Work on `develop`; release by PR into `main`.
 - **`mattpocock-skills` is now `true` in `.claude/settings.json`** — project scope beats the global
-  `false`, so the grill commands are available here. `superpowers` and `frontend-design` are pinned
-  `false` in the same file, deliberately; `06` records why for each.
+  `false`, so the grill commands are available here. `frontend-design` is pinned `false` in the same
+  file, deliberately; `06` records why. `superpowers` was uninstalled machine-wide on 2026-09-20 and
+  its key is gone from this file.
 - **No hooks, by decision.** Nothing blocks an edit or a push on `main`, so `12` §4's "nothing is
   committed straight to `main`" is a convention in `CLAUDE.md`, not a mechanism. What still guards the
   measurement record: manual expand-only migrations, and `drizzle-kit migrate`/`push`/`drop`, `psql`,

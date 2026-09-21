@@ -863,6 +863,10 @@ is not a guard. `git push:*` is therefore in `allow`, not `ask`.
 
 ### [2026-09-12] Four plugins named explicitly, two of them off
 
+> **Superseded in part, 2026-09-20:** `superpowers` was uninstalled machine-wide and its key removed
+> from `.claude/settings.json`. The reasoning below stands as the record of why it was never enabled
+> here; there is no longer a plugin for the entry to point at. `frontend-design` is unchanged.
+
 **Decided:** `.claude/settings.json` sets `openai-developers` and `mattpocock-skills` to `true`, and
 `superpowers` and `frontend-design` to `false` — the two `false` entries written out rather than left
 absent.
