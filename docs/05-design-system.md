@@ -306,6 +306,10 @@ Errors already made and fixed in this project. Each line below is a rule because
 - **Counters.** `件` for items of feedback (`直すところ 3件`), `問` for questions (`5問`), `字` for
   characters, `分`/`秒` for time. **Not `点`** — that counter implies marks awarded, which is exactly
   what this product refuses to do.
+  **The ban is on `点` as a counter, not on the character.** `採点`, `未採点` and `採点をやり直す` are
+  the established words for scoring and are already in `10`; what may never appear is a digit followed
+  by `点`. Narrowed in #13, where a blanket ban was written as a test and immediately failed on
+  `採点`.
 - **`録り直し`, not `撮り直し`.** `撮る` is for photography and video.
 - **Ideographic space after a question number** in a table label: `Q1　最も困難だった状況と対応`.
 - **Vocabulary settled by native read:** `深掘り` (not `追撃`) for a follow-up question; `緊張度`
@@ -326,6 +330,24 @@ Errors already made and fixed in this project. Each line below is a rule because
   rather than being swapped here. Recorded in `10` §12 so it is not lost.
 - **Never set Japanese in a Latin-only mono stack** (§3), and never rely on
   `text-transform: uppercase` for a Japanese label (§3.3).
+
+- **Rules the error catalogue enforces by test, added in #13.** `lib/copy/errors.test.ts` asserts
+  them for every code, so they are mechanical rather than a matter of care: every `ja` string ends in
+  `。`; no two codes share a sentence in either language (`03` §8 — "no generic sentence where a
+  specific one is available" is only real if two failures cannot read alike); and **no string contains
+  `{`, `}`, `$` or `%`**. The last is a privacy rule wearing a typography rule's clothes — a catalogue
+  with no placeholder has no slot for a value to arrive in, so `03` §8's never-log list is unreachable
+  from copy by construction.
+- **Mode words are `実戦` and `練習`, never `練習モード`.** `モード` appears nowhere in `10`, in this
+  document or in `CONTEXT.md`; the modes are written bare or as `練習ラウンド`. Caught in #13 on
+  `pressure_not_applicable`, where the English `practice mode` had been carried across literally.
+
+**#13's error catalogue is written and awaiting its native read.** All 24 codes in `07` §3 now have a
+`ja` and an `en` sentence in `lib/copy/errors.ts`. **The read has not happened**, and until it does
+every one of those strings is provisional. Four things to decide in it, none settled anywhere yet:
+`質問` or `出題` for a question as a noun; a Japanese word for **Claim** (`cv_extraction_failed`
+currently avoids needing one); `版` or `バージョン` in `cv_unchanged`; and `応募書類` itself. Any rule
+the read earns lands in this section.
 
 **Every new Japanese string needs a native read before it ships.** Five of the six rules above came
 from one review pass, not from care at authoring time.

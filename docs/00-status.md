@@ -6,8 +6,8 @@ interviews in Japanese and English, with rubric-scored feedback and tracked prog
 [#1](https://github.com/yutaasakura96/suburi/issues/1), tickets #2–#7, all closed. **`develop` is live
 at https://suburi-develop.vercel.app.** **The first feature — getting a CV in — is specified and
 ticketed:** spec [#11](https://github.com/yutaasakura96/suburi/issues/11), tickets #12–#21. #12 is
-done; #13 is next.
-**Updated:** 2026-09-20
+done; **#13 is built and awaiting only its native read.**
+**Updated:** 2026-09-21
 
 ## Done
 - Phase 1 — `docs/01-project-brief.md`, `docs/02-product-requirements.md`, `docs/06-decision-log.md`.
@@ -107,6 +107,32 @@ done; #13 is next.
   step, `source_filename` added to the never-log list). Twenty entries in `06`. No code changed.
   **One tension recorded rather than resolved:** #11 puts the extractor model string in code as a
   pinned constant, while `12` §2 holds the other three model strings as env vars.
+- **#13 — the error envelope and the bilingual catalogue, built; the native read is outstanding.**
+  `lib/api/errors.ts` is `07` §2 and §3 in code: `ERROR_STATUS` maps all **24** codes (`07` §3's 23
+  rows, the last expanding to `upstream_s3` *and* `upstream_openai`) to their statuses, `ErrorCode` is
+  `keyof` it, and `apiError(code, message, detail?)` reads the status from the table. `rateLimited()`
+  is separate only because 429 must carry `Retry-After`, which is `Math.max(1, ceil(...))` so a wait
+  never renders as "now". `unauthenticated()` moved onto the builder **byte-identical** — `proxy.ts`
+  and `lib/auth/session.ts` are untouched. **`lib/copy/errors.ts` is new**, holding the `ja`/`en`
+  sentence for every code and no status; `lib/api/` holds no user-visible string, so it cannot decide
+  the open bilingual chrome rule by accident. `03` §10's layout gained both directories.
+  **Units went 37 → 267.** Typecheck, lint and 38/38 integration all green.
+  **The two catalogue guards were mutation-checked and are not redundant:** removing a code's copy is
+  1 `tsc` error *and* 4 test failures; adding a copy key with no code is **0 `tsc` errors** and 2 test
+  failures — so `11` §3.10's runtime test is the only thing covering that direction, which is why the
+  doc says "both directions". Four decisions in `06`.
+  **Found by the review pass, and fixed:** `練習モード` was synonym drift (`モード` appears **zero**
+  times in `10`, `05` or `CONTEXT.md` — the modes are `実戦`/`練習`/`練習ラウンド`); `upstream_s3` and
+  `upstream_openai` read alike and now name the service; a blanket `点` ban failed immediately on
+  `採点`, so `05` §6's counter rule is narrowed to *a digit followed by* `点`. `05` §6 also gained the
+  three rules the catalogue now enforces by test.
+  **#13 cannot close until the read.** Four things it must settle, none decided anywhere: `質問` or
+  `出題` for a question as a noun; a Japanese word for **Claim**; `版` or `バージョン`; and `応募書類`
+  itself. Listed in `05` §6.
+- **Still deferred, not done:** `11` §3.10's third bullet — forcing each failure with sentinel text and
+  scanning every envelope for it — needs routes to exist. It belongs to #14 onward. What #13 gives is
+  structural: `ErrorDetailValue` is flat, so a nested object cannot be dropped into `detail`, and the
+  catalogue has no interpolation slot.
 - **Local machine gotcha:** npm 11.3.0 crashes on install (`edgesOut`); use `npx -y npm@latest install`.
 - **`next start` refuses to boot without the seven env vars**, so Playwright needs them locally; CI
   supplies well-formed placeholders in `.github/workflows/ci.yml`. Turbopack also emits stylesheets to
@@ -117,7 +143,11 @@ Page 1 is the screen set, page 2 the three exploration directions. **Working fil
 every change re-seeds from those — edit them, never the built `design/suburi-directions.html`.
 
 ## Next
-**#13 — the full error envelope and the bilingual error catalogue.** `lib/api` grows from the single
+**The native read of #13's catalogue — 24 codes, both languages — then #14, the tracer bullet.**
+The strings are in `lib/copy/errors.ts` and the four open questions are in `05` §6. Until that read,
+every one of those sentences is provisional.
+
+**#13, for the record — the full error envelope and the bilingual error catalogue.** `lib/api` grows from the single
 `unauthenticated` helper to the whole `07` §2 envelope and every `07` §3 code; **the entire catalogue's
 `ja` and `en` copy is written in one pass** and needs the user's native read, together with `応募書類`,
 the 履歴書 personal-particulars hint and every string on the CV screen (`10` §13). Then #14, the tracer

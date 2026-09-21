@@ -3,6 +3,90 @@
 Newest first. Every entry records what was chosen, why, and what was rejected.
 
 ---
+## Phase 6 — #13, the error envelope and the catalogue
+
+Decided while building #13, the prefactor every later ticket returns errors through. `07` §3's code
+set was already closed by #12; these four entries are about the shape the code takes.
+
+### [2026-09-21] The copy layer is `lib/copy/`, not a file inside `lib/api/`
+
+**Decided:** error copy lives in `lib/copy/errors.ts`, a new directory whose first occupant it is.
+`lib/api/errors.ts` holds the codes and their statuses and **no user-visible string**; `lib/copy/`
+holds the strings and **no status**. The dependency runs one way, copy → api, so the API layer cannot
+reach a Japanese sentence even by accident.
+**Alternatives considered:** `lib/api/errors-copy.ts` beside the envelope; a full i18n library
+(`next-intl` or similar) with locale files.
+
+**Reason:** `07` §2 routes every user-visible string away from the API precisely so
+this document does not decide the still-open bilingual chrome rule. A file inside `lib/api/` keeps the
+strings one import away from the thing that must not hold them, and it makes `11` §3.10's
+both-directions test compare two halves of one module rather than two modules.
+
+*Why not an i18n library:* the bilingual chrome rule is deliberately open in `CONTEXT.md`. Choosing a
+library now would answer it — every one of them has an opinion about where the active locale comes
+from — and it would put a dependency on a path that currently has none.
+
+**`03` §10's repo layout gained the `copy/` line in this ticket**, because code that diverges from the
+layout means the layout changes first.
+
+### [2026-09-21] One builder driven by a code→status table, not a function per code
+
+**Decided:** `ERROR_STATUS` maps all twenty-four `07` §3 codes to their statuses, `ErrorCode` is
+`keyof` it, and `apiError(code, message, detail?)` reads the status from it. Two named wrappers:
+`unauthenticated()`, moved onto the builder with its response unchanged to the byte, and
+`rateLimited(message, retryAfterSeconds, detail?)`, which is separate only because `07` §2 requires
+`Retry-After` on every 429.
+**Alternatives considered:** twenty-four exported functions, one per code; a thrown `ApiError` caught
+by a `withErrors()` route wrapper.
+
+**Reason:** it **is** the code list, as a value. `11` §3.10's
+test iterates it rather than a hand-kept array, so a code added without copy fails without anyone
+remembering to extend the test. Twenty-four declarations would have to be mirrored somewhere for the
+test to see them, and a mirror drifts.
+
+*Why not the thrown error:* `proxy.ts` returns a `Response` directly and has no wrapper to throw
+into, so `unauthenticated` would need both paths from day one. #13 is a prefactor — there are no deep
+call stacks yet to pay for it.
+
+### [2026-09-21] Catalogue entries are flat strings, with nothing interpolated
+
+**Decided:** `Record<ErrorCode, { ja, en }>`, every value a plain sentence. The two codes that render
+with a value — `rate_limited` ("inline, with wait") and `invalid_request` ("inline, per field") — are
+phrased so the screen renders the wait from `Retry-After` and the field marks from `detail` *beside*
+the sentence, rather than the catalogue splicing them in.
+**Alternatives considered:** a mixed `string | (params) => string`; every entry a function.
+
+**Reason:** a catalogue with no placeholder has no slot
+for a value to arrive in, so `03` §8's never-log list is unreachable from copy by construction. A test
+asserts no entry contains `{`, `}`, `$` or `%`, which closes that door before a screen opens it.
+
+*Why not the mixed shape:* the parameter shapes would be guesses until #18 and the CV screen exist,
+and a native read of a function body is harder than a native read of a string literal — which matters,
+because the native read is this ticket's acceptance criterion.
+
+### [2026-09-21] The type check and the catalogue test guard opposite directions, and both were mutation-checked
+
+**Decided:** the catalogue is declared `satisfies Record<string, ErrorCopy>` and then assigned to
+`Record<ErrorCode, ErrorCopy>`. That assignment fails `tsc` when a code has no copy. It does **not**
+fail when copy has no code — TypeScript permits the extra key — and that direction is caught only by
+`11` §3.10's runtime test. Both were mutation-checked rather than assumed:
+
+| Mutation | `tsc` | `vitest` |
+| --- | --- | --- |
+| `cv_unchanged` removed from the catalogue | 1 error, naming the property | 4 failures |
+| `cv_deleted` added with no code | **0 errors** | 2 failures |
+
+**Reason:** the measured zero is the whole reason `11` §3.10 says "both directions".
+A reader who assumes the type covers it would be right half the time, and would delete the test that
+covers the other half during a refactor.
+
+*One rule narrowed by measurement:* the test that enforces `05` §6's counter rule started as a blanket
+ban on `点` and was narrowed to a digit followed by `点`. `採点`, `未採点` and `採点をやり直す` are
+already established in `10`; the rule is about `3点` as a count of marks, not about the word for
+scoring.
+
+---
+
 ## Phase 6 — getting a CV in, decided before it was built
 
 Settled 2026-09-19 in the grilling for the first feature (spec #11, tickets #12–#21), and written into

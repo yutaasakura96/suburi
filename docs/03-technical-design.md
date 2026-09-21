@@ -367,6 +367,8 @@ suburi/
 │   └── seed.ts                seeded user row, set pieces
 ├── lib/
 │   ├── ai/                    ports: generate · transcribe · score · extract-cv-claims  ← one interface each
+│   ├── api/                   the 07 §2 envelope and the 07 §3 code table — no user-visible string
+│   ├── copy/                  every user-visible string, ja and en — no status, no logic
 │   ├── prompts/               versioned prompt files; the version is in the filename
 │   ├── cv/                    composition rules, body assembly, span validation, quote slicing
 │   ├── rubric/                rubric versions as data, not prose
@@ -374,6 +376,13 @@ suburi/
 ├── docs/                      01–10, this file among them
 └── design/                    Claude Design working files — re-seed from here, never edit the build
 ```
+
+**`lib/api/` and `lib/copy/` are split on purpose, and the dependency runs one way.** `lib/api/`
+holds the codes and their statuses and no user-visible string; `lib/copy/` holds the strings and no
+status, and imports `ErrorCode` from `lib/api/`. §8's rule that a server `message` can never be the
+Japanese one is what forces the split, and `07` §2 adds a second reason: the bilingual chrome rule is
+still open, and an API layer that cannot reach a rendered string cannot decide it by accident. It is
+also what makes `11` §3.10's both-directions test compare two modules rather than two halves of one.
 
 **`lib/ai/score.ts` is a port with one implementation.** That is deliberate: re-scoring a held-out
 set with a different model is the only way to detect scorer drift, and it is impossible if the
