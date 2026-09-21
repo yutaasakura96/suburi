@@ -160,8 +160,11 @@ bullet: an English CV pasted, saved and read back underlined.** Next is #15.
   **Counts:** units 37 → 328, integration 38 → 63, e2e 7 → 9.
   **Still open from #14:**
   - **Your local `.env.local` needs `OPENAI_API_KEY`:** `next start` and `drizzle-kit` both validate
-    the full config. `.env.example` has the line. The `.claude/settings.json` deny rule `.env.*` was
-    catching it too, so it now names the secret files instead (`.env`, `.env.local`, `.env.*.local`).
+    the full config. `.env.example` has the line. **The `.env` deny rules are gone from
+    `.claude/settings.json`** (2026-09-21, the user's call): Claude may read every `.env*` file and must
+    never echo a value into output, a log, a commit or a doc. **Rotate every value in them once the
+    project is signed off** — Google client secret, `BETTER_AUTH_SECRET`, Neon role passwords, the
+    OpenAI key.
   - **A database failure mid-write is a bare `500`, not the `07` §2 envelope.** The closed catalogue
     has no code for it. Decide whether to add one (with copy in both languages and a native read) or
     accept Next's `500`.

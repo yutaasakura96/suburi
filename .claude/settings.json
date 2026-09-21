@@ -140,12 +140,6 @@
       "mcp__*__presign_storage_object"
     ],
     "deny": [
-      "Read(./.env)",
-      "Read(./.env.local)",
-      "Read(./.env.*.local)",
-      "Read(./**/.env)",
-      "Read(./**/.env.local)",
-      "Read(./**/.env.*.local)",
       "Read(./private/**)",
       "Read(./**/*.cv.local.*)"
     ]
