@@ -136,7 +136,7 @@ deleted.
 | `title` | `text` | yes | — | **required for `additional`**, null for every other kind. The user types it. |
 | `source_filename` | `text` | yes | — | the `.docx`/`.pdf` the text was imported from, if any. The file itself never leaves the browser (`07` §5.2). |
 | `position` | `integer` | no | — | order within the set; also the order `body` was joined in |
-| `start` | `integer` | no | — | inclusive index into `cv_versions.body` |
+| `start` | `integer` | no | — | inclusive index into `cv_versions.body`, in characters (Unicode code points) |
 | `end` | `integer` | no | — | exclusive |
 | `created_at` | `timestamptz` | no | `now()` | |
 
@@ -175,7 +175,7 @@ joined text buys the document boundary without touching any of it.
 | `cv_version_id` | `uuid` | no | — | → `cv_versions.id` **restrict** |
 | `user_id` | `text` | no | — | → `users.id` **cascade** |
 | `text_normalised` | `text` | no | — | whitespace-collapsed; the carry-forward match key |
-| `span_start` | `integer` | no | — | inclusive index into `cv_versions.body` |
+| `span_start` | `integer` | no | — | inclusive index into `cv_versions.body`, in characters (Unicode code points, as `substring` counts) |
 | `span_end` | `integer` | no | — | exclusive |
 | `supersedes_claim_id` | `uuid` | yes | — | → `cv_claims.id` **restrict**. Lineage. |
 | `created_at` | `timestamptz` | no | `now()` | |
@@ -203,10 +203,11 @@ stamp and Progress's boundary lines (screen-spec refusal #5). Do not solve it tw
 **Constraint:** `check (span_end > span_start)`.
 
 > **The rendered quote is `substring(cv_versions.body, span_start, span_end - span_start)` — never
-> text returned by a model.** If a model returns a span outside the body, a quote that does not match
-> its span, or a span that crosses a `cv_documents` boundary, the claim is dropped rather than stored
-> — never clamped to fit — and counted in `spans_rejected`. This is the anti-hallucination mechanism
-> from `03` §11.
+> text returned by a model.** The extractor returns a quote and an approximate start; the server finds
+> the quote verbatim in its document and validates the span it finds. A quote that is not there, a
+> span outside the body, one that splits a grapheme, or one that crosses a `cv_documents` boundary is
+> dropped rather than stored — never clamped to fit — and counted in `spans_rejected`. This is the
+> anti-hallucination mechanism from `03` §11 (`06`, 2026-09-21).
 
 ---
 

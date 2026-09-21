@@ -276,13 +276,16 @@ rather than creating a second `v4` (`04`).
 **`carried_forward` is `04`'s exact-match rule and nothing more.** Stated there, once: this endpoint
 reports the count and decides none of it.
 
-**`spans_rejected` is the anti-hallucination counter.** A claim whose span falls outside `body`, whose
-sliced text does not match what the extractor said it extracted, or which **crosses a document
-boundary**, is dropped — not clamped, not stored, not shown. A non-zero count on a real CV is the
+**`spans_rejected` is the anti-hallucination counter.** The extractor returns each claim as a verbatim
+quote with an approximate start, and the server locates the quote in its document (`06`,
+2026-09-21). A claim whose quote is not in the document verbatim, whose span falls outside `body` or
+splits a grapheme, or which **crosses a document boundary**, is dropped — not clamped, not stored, not
+shown. A non-zero count on a real CV is the
 first thing to look at, because CV extraction quality is explicitly unmeasured (`CONTEXT.md`).
 
 **Synchronous, one model call, one transaction.** The user is at the machine waiting; the version, its
-documents and its claims are written together or not at all.
+documents and its claims are written together or not at all. The call runs before the transaction
+opens, so nothing is held open while the model works (`06`, 2026-09-21).
 
 Failures:
 

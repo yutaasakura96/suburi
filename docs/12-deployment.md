@@ -99,6 +99,7 @@ in this application is safe to ship to the browser**, and none is.
 | `GOOGLE_CLIENT_SECRET` | Google OAuth | Same |
 | `ALLOWED_EMAIL` | The allowlist assertion on session creation (`08` §2) | Vercel env. Not a secret, but environment-scoped |
 | `OPENAI_API_KEY` | **Every model call** — question generation, follow-ups, scoring, **CV claim extraction** (`03` §4), transcription, TTS | Vercel encrypted env. **Separate key per environment** with its own usage cap (§6). **First needed by CV claim extraction**, which is the first model call the app makes at all; added to the `develop` branch's Preview scope and to `.env.example` with that slice |
+| `OPENAI_BASE_URL` | **Playwright only.** Points the server under test at `e2e/mock-openai.ts` | Set by `playwright.config.ts` and nowhere else — **never in Vercel, never in `.env`**. The one optional variable: `lib/config.ts` refuses any host but `localhost`/`127.0.0.1`, so no value can send `OPENAI_API_KEY` to another server (`06`, 2026-09-21) |
 | `AWS_ACCESS_KEY_ID` | S3 presigning | Vercel encrypted env. Dedicated IAM user (§7) |
 | `AWS_SECRET_ACCESS_KEY` | S3 presigning | Same |
 | `AWS_REGION` | S3 region | Vercel env |
@@ -113,7 +114,7 @@ in this application is safe to ship to the browser**, and none is.
 **Rules, not preferences:**
 
 - Nothing in the repo. `.env.local` is gitignored; `.env.example` carries **names and comments only, never values.**
-- **A missing or malformed variable fails the boot, loudly.** Validated once at startup with Zod, in one module, and nothing reads `process.env` outside it. A `DATABASE_URL` that is empty must not silently become a dev default; an unset `OPENAI_API_KEY` must not silently skip a model call.
+- **A missing or malformed variable fails the boot, loudly.** Validated once at startup with Zod, in one module, and nothing reads `process.env` outside it — except `playwright.config.ts`, the test harness that builds the environment the server under test boots with (`06`, 2026-09-21). A `DATABASE_URL` that is empty must not silently become a dev default; an unset `OPENAI_API_KEY` must not silently skip a model call.
 - **No model string and no prompt version is an environment variable.** Model strings are constants in `lib/ai/models.ts` (`03` §4) and prompt versions come from the prompt filename in `lib/prompts/`. Both are **stamps** (`04`): changing one is a measurement event, not a config tweak, so it arrives as a reviewed commit and triggers §5's stamp-change procedure. The transcription model, `gpt-transcribe`, **requires API Tier 1+** — the Free tier does not serve it, which is a property of the `OPENAI_API_KEY`'s account.
 - Keys are distinct per environment. **Nothing deployed from `develop` or a feature branch may hold a credential that reaches Neon `main` or the `prod/` prefix.** That is the §1 mapping expressed as secrets rather than as a rule someone remembers.
 

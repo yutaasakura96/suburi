@@ -26,6 +26,7 @@ export const QUESTION_ORIGINS = ["set_piece", "generated"] as const;
 export const ROLE_CONTEXT_KINDS = ["posting", "researched", "general"] as const;
 export const SCORING_STATUSES = ["pending", "ok", "failed"] as const;
 export const CITATION_RELATIONS = ["supported_by", "contradicted_by"] as const;
+export const CV_DOCUMENT_KINDS = ["rirekisho", "shokumu_keirekisho", "cv", "additional"] as const;
 
 const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
 
@@ -112,12 +113,59 @@ export const cvVersions = pgTable(
     language: text("language", { enum: LANGUAGES }).notNull(),
     // Immutable. Every cv_claims span indexes into this exact string.
     body: text("body").notNull(),
+    // Retired (04): always null, not dropped — migrations are expand-only. See cv_documents.
     sourceFilename: text("source_filename"),
     extractorModelId: text("extractor_model_id"),
     extractorPromptVersion: text("extractor_prompt_version"),
     createdAt: createdAt(),
   },
-  (t) => [oneOf("cv_versions", "language", t.language, LANGUAGES)],
+  (t) => [
+    oneOf("cv_versions", "language", t.language, LANGUAGES),
+    // Per-language v{n} numbering is race-safe: two saves that both compute v4 cannot both land.
+    uniqueIndex("cv_versions_user_id_language_version_label_uniq").on(
+      t.userId,
+      t.language,
+      t.versionLabel,
+    ),
+    // The current CV version in a language, and the version history below it.
+    index("cv_versions_user_id_language_created_at_idx").on(
+      t.userId,
+      t.language,
+      t.createdAt.desc(),
+    ),
+  ],
+);
+
+// Immutable, like its version: written in the same transaction, never updated, never deleted.
+export const cvDocuments = pgTable(
+  "cv_documents",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    cvVersionId: uuid("cv_version_id")
+      .notNull()
+      .references(() => cvVersions.id, { onDelete: "restrict" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    kind: text("kind", { enum: CV_DOCUMENT_KINDS }).notNull(),
+    // Required for additional, null for every other kind. The user types it.
+    title: text("title"),
+    sourceFilename: text("source_filename"),
+    position: integer("position").notNull(),
+    // [start, end) into cv_versions.body, in characters (code points).
+    start: integer("start").notNull(),
+    end: integer("end").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    oneOf("cv_documents", "kind", t.kind, CV_DOCUMENT_KINDS),
+    check("cv_documents_range_order_check", sql`${t.end} > ${t.start}`),
+    check(
+      "cv_documents_title_check",
+      sql`(${t.kind} = 'additional') = (${t.title} is not null)`,
+    ),
+    unique("cv_documents_cv_version_id_position_unique").on(t.cvVersionId, t.position),
+  ],
 );
 
 export const cvClaims = pgTable(

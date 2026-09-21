@@ -84,6 +84,8 @@ auto-merged (`11` §7).
 | `pg` | 8.23.0 | The one driver, locally, in CI and on Vercel (`06`) |
 | `better-auth` | 1.7.4 | Latest stable |
 | `zod` | 4.6.5 | Latest stable |
+| `openai` | 7.20.0 | Latest stable, checked 2026-09-21. Lists `gpt-5.6-sol`, and its `zodTextFormat` takes Zod 4. Never auto-merged (`11` §7) |
+| `@next/env` | 16.3.5 | Pinned with `next`. Playwright loads env files with it exactly as `next start` does (`06`) |
 | `vitest`, `@playwright/test`, `vite` | 5.0.0, 1.63.0, 8.3.0 | Latest stable. `vite` is Vitest's peer, pinned so it is not left to resolution |
 | `eslint` | 10.10.0 | Latest stable. 9.x reached end-of-life 2026-08-06 |
 | `@next/eslint-plugin-next`, `eslint-plugin-react-hooks`, `typescript-eslint` | 16.3.5, 7.1.1, 8.70.0 | Assembled by hand in place of `eslint-config-next`, whose react, import and jsx-a11y plugins do not support ESLint 10 (`06`) |
@@ -175,8 +177,10 @@ Four distinct jobs, one pinned model:
 | CV claim extraction | `gpt-5.6-sol` | **measured on the first real run**, not budgeted in advance | High — every citation and every coverage count rests on it |
 
 **CV claim extraction is one synchronous call, all-or-nothing.** The user saves a CV version and waits;
-the call runs inside the same transaction as the insert, and if it fails — or if no claim survives the
-span validator — nothing is written and the user simply saves again (`07` §5.2). A version holding half
+the call runs first and the version, its documents and its claims are then written in one transaction,
+so if it fails — or if no claim survives the span validator — nothing is written and the user simply
+saves again (`07` §5.2). The call is deliberately outside the transaction: holding one open across a
+model call only pins a connection (`06`, 2026-09-21). A version holding half
 its claims would make *"CV material never used"* a lie for the rest of that version's life, which is
 worse than a save the user has to repeat. The latency is deliberately left unwritten here: a CV is a
 much longer prompt than an answer, the call is made a handful of times ever rather than once per
@@ -416,8 +420,10 @@ project's central technical risk and it is why `lib/ai/score.ts` is a port.
 Feedback quotes the CV by fragment. A quote of a line you never wrote would destroy trust in the
 instrument faster than a wrong score. *Plan:* claims are extracted once per CV version and frozen,
 each carrying a character span into immutable stored text; **the rendered quote is sliced from the
-stored text by span, never taken from model output.** A model that returns a span outside the
-document, or a quote that does not match its span, fails validation and the citation is dropped.
+stored text by span, never taken from model output.** The extractor returns a verbatim quote and an
+approximate start; the server finds the quote in the stored text and validates the span it finds. A
+quote that is not in the text verbatim, or a span that fails validation, is dropped and counted
+(`06`, 2026-09-21). Spans count Unicode code points, as Postgres `substring` does.
 Extraction quality itself is unmeasured — first thing to eyeball on real data.
 
 **3. Near-duplicate questions in a growing bank.**

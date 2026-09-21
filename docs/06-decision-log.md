@@ -3,6 +3,96 @@
 Newest first. Every entry records what was chosen, why, and what was rejected.
 
 ---
+## Phase 6 — #14, the tracer bullet
+
+Decided while building #14: an English CV pasted, saved and read back with its claims underlined.
+The first two came from grilling during the build; the rest are the shapes the code took.
+
+### [2026-09-21] The extractor returns a verbatim quote and a start hint; the server finds the span
+
+**Decided:** the extraction port returns, per claim, a document index, the quote copied verbatim, and
+an approximate start offset within that document. The server finds every exact occurrence of the quote
+in that document, takes the one nearest the hint, and runs the resulting span through the unchanged
+span validator (`lib/cv/spans.ts`). A quote that is not in the document verbatim has no span and is
+counted in `spans_rejected` as `not_found`. The hint picks between occurrences; it never moves one.
+**Alternatives considered:** the model returns `[start, end)` plus the text, as `04`, `07` §5.2 and
+`03` §11 first assumed, and anything that does not slice back exactly is dropped.
+**Reason:** models count characters badly, and worst of all in Japanese. On a 5,000-character CV most
+model-counted offsets would miss, get dropped, and push saves into `cv_extraction_failed`, and the
+first place anyone would find out is the real-CV check in #20. Locating the quote keeps everything the
+design relies on. The rendered quote is still sliced from stored text by span. A hallucinated quote is
+still dropped and counted, never clamped. The validator still checks range, graphemes and document
+boundaries. Only the source of the offset changes, and that is the part the model was worst at. One
+consequence: `mismatch` (a span whose slice differs from the claimed text) can no longer happen through
+the handler, because the span comes from finding that text. It stays in the validator, which is also
+what the seed runs its fixture spans through (#19).
+
+### [2026-09-21] A character is a Unicode code point
+
+**Decided:** every span, every `cv_documents.start/end` and every `cv_claims.span_start/end` counts
+Unicode code points. `lib/cv/spans.ts` works on `Array.from(body)`, and span boundaries must also fall
+on grapheme boundaries (`Intl.Segmenter`), or the span is dropped as `splits_grapheme`.
+**Alternatives considered:** JavaScript string indices (UTF-16 code units); bytes.
+**Reason:** the rendered quote is Postgres `substring(body, …)`, which counts code points. JavaScript
+indices would shift every quote after the first surrogate pair (𠮷, most emoji) by one. An integration
+test slices through Postgres to prove the two agree. Correcting `11` §3.3 in passing:
+`請求処理を40%短縮` is **10** characters and **24** UTF-8 bytes, not 9 and 27. The point of the
+example (characters are not bytes) stands.
+
+### [2026-09-21] Playwright answers OpenAI from a local mock, via a localhost-only `OPENAI_BASE_URL`
+
+**Decided:** `e2e/mock-openai.ts` is a small HTTP server that answers `POST /v1/responses` in the
+Responses API's shape and records what it was sent. `playwright.config.ts` boots the app with
+`OPENAI_BASE_URL` pointing at it and `OPENAI_API_KEY` set to a string that is not a key.
+`lib/config.ts` gains `OPENAI_BASE_URL` as its one optional variable, **refused unless the host is
+`localhost` or `127.0.0.1`**, and the extractor always passes a base URL to the SDK explicitly, so the
+SDK never reads `process.env.OPENAI_BASE_URL` itself.
+**Alternatives considered:** Next's `experimental.testProxy`, chosen first and dropped (below); an env
+switch that swaps the fake extractor into the route.
+**Reason:** the real extractor's request and parsing run end to end, and nothing the mock misses can
+spend money or reach OpenAI. The localhost rule means no value of this variable can send the key to
+anyone else's server. **Why the test proxy was dropped, measured on Next 16.3.5:** with `testProxy` on,
+a request carrying a valid session hung for over 20 seconds on the session lookup, and the same cookie
+worked on the same build with the proxy off. Its interceptors break node-postgres, so no signed-in page
+can run behind it. It also broke the sign-in Server Action's redirect to Google. The fake-extractor
+switch was rejected because it never exercises the real implementation, and it is a flag that could
+put a fake into production.
+
+### [2026-09-21] Playwright gets its own database, and loads env files the way `next start` does
+
+**Decided:** Playwright's global setup drops and recreates `suburi_e2e` on the local (or CI service)
+Postgres, runs the real migrations and seeds `ALLOWED_EMAIL`. The server under test is booted against
+it. `playwright.config.ts` loads env with `@next/env`'s `loadEnvConfig`, pinned at 16.3.5 with `next`.
+CI's separate "migrate the end-to-end database" step is gone.
+**Alternatives considered:** keep pointing e2e at `DATABASE_URL`, the local dev database.
+**Reason:** a spec that saves a CV must start from a real empty state, and nothing Playwright writes
+should land in the database where the real CV is checked (#20). `.env.local` exists locally and takes
+precedence over `.env` for `next start`; reading only `.env` in the test process would sign sessions
+against different values than the server verifies them with.
+
+### [2026-09-21] The extraction call runs before the transaction, not inside it
+
+**Decided:** the model call happens first. The version, its documents and its claims are then written
+in one transaction. A lost race on the label index retries that transaction with the next number,
+up to three times. **`03` §4 said the call "runs inside the same transaction as the insert"**; it now
+says the writes are one transaction and the call precedes them.
+**Alternatives considered:** open the transaction, call the model, write, commit.
+**Reason:** there is no observable difference. Nothing is written before the call either way, so
+`cv_extraction_failed` still leaves nothing behind. Holding a Postgres transaction open across a model
+call measured in tens of seconds only pins a pooled connection, idle in a transaction, for the whole
+wait. All-or-nothing is a property of the writes, and the writes are still atomic. An integration test
+breaks the claims insert after the version row lands and asserts that all three tables are empty.
+
+### [2026-09-21] #14 accepts English with exactly one `cv` document, and nothing else
+
+**Decided:** the request schema is strict and narrow: `language` must be `en`, `documents` is a
+one-element tuple of `{ kind: "cv", text, source_filename? }`, and unknown keys are refused. So a
+client-sent `version_label` is a `400`, not silently ignored. `400`s name fields by path, never values.
+**Reason:** #15 widens the schema to the `04` composition rules. A schema that is loose now would be
+discovered later rather than widened deliberately. Refusing unknown keys enforces `07` §1 rule 6 (the
+client chooses no stamp) at the boundary. Stripping them would only enforce it by accident.
+
+---
 ## Phase 6 — between #13 and #14
 
 ### [2026-09-21] Every model string is a constant in code; no model string or prompt version is an env var

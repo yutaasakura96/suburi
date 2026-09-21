@@ -9,6 +9,7 @@ const valid = {
   GOOGLE_CLIENT_ID: "client-id",
   GOOGLE_CLIENT_SECRET: "client-secret",
   ALLOWED_EMAIL: "me@example.com",
+  OPENAI_API_KEY: "sk-test-not-a-real-key",
 };
 
 function errorFrom(env: Record<string, string | undefined>): ConfigError {
@@ -74,6 +75,27 @@ describe("parseConfig", () => {
       const value = `postgresql://suburi:pw@${host}/suburi`;
       expect(parseConfig({ ...valid, [name]: value })[name as "DATABASE_URL"]).toBe(value);
     });
+  });
+
+  // Playwright's mock OpenAI (e2e/mock-openai.ts). Optional, and local only: a remote value would
+  // send OPENAI_API_KEY to whoever runs that host.
+  describe("OPENAI_BASE_URL", () => {
+    it("is absent unless set, and the SDK's own default stands", () => {
+      expect(parseConfig(valid).OPENAI_BASE_URL).toBeUndefined();
+    });
+
+    it.each(["http://localhost:3199/v1", "http://127.0.0.1:3199/v1"])("accepts %s", (value) => {
+      expect(parseConfig({ ...valid, OPENAI_BASE_URL: value }).OPENAI_BASE_URL).toBe(value);
+    });
+
+    it.each(["https://api.openai.com/v1", "https://evil.example/v1", "http://localhost.evil.example/v1", "not a url"])(
+      "refuses %s",
+      (value) => {
+        const error = errorFrom({ ...valid, OPENAI_BASE_URL: value });
+        expect(error.problems).toEqual([{ name: "OPENAI_BASE_URL", problem: "malformed" }]);
+        expect(error.message).not.toContain(value);
+      },
+    );
   });
 
   it("never echoes a secret value, even when another variable is wrong", () => {

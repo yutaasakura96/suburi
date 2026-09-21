@@ -3,12 +3,22 @@ import { redirect } from "next/navigation";
 import { unauthenticated } from "../api/errors";
 import { getAuth } from ".";
 
+// Only what a session read needs, so callers and tests are not typed against the whole instance.
+export interface SessionReader {
+  api: { getSession(options: { headers: Headers }): Promise<{ user: { id: string } } | null> };
+}
+
 // The server-side re-check behind the optimistic proxy (08 §5). Each returns the user_id every query
 // is scoped by.
 
-async function currentUserId() {
-  const session = await getAuth().api.getSession({ headers: await headers() });
+/** The session's user, read from request headers. Route handlers pass their own request's. */
+export async function sessionUserId(auth: SessionReader, requestHeaders: Headers) {
+  const session = await auth.api.getSession({ headers: requestHeaders });
   return session?.user.id;
+}
+
+async function currentUserId() {
+  return sessionUserId(getAuth(), await headers());
 }
 
 /** Pages and Server Actions. No session redirects to /sign-in. */

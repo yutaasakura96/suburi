@@ -28,7 +28,9 @@ export default defineConfig([
     },
   },
   {
-    files: ["lib/config.ts"],
+    // lib/config.ts is the reader. playwright.config.ts builds the environment the server under
+    // test boots with, so it has to write it.
+    files: ["lib/config.ts", "playwright.config.ts"],
     rules: { "no-restricted-properties": "off" },
   },
   globalIgnores([

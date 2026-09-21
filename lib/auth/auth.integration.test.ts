@@ -18,6 +18,7 @@ vi.stubEnv("BETTER_AUTH_URL", "http://localhost:3000");
 vi.stubEnv("GOOGLE_CLIENT_ID", "integration-client-id");
 vi.stubEnv("GOOGLE_CLIENT_SECRET", "integration-client-secret");
 vi.stubEnv("ALLOWED_EMAIL", "allowed@example.test");
+vi.stubEnv("OPENAI_API_KEY", "integration-not-a-real-key");
 
 const TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
 

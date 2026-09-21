@@ -35,6 +35,7 @@ jobs:
       GOOGLE_CLIENT_ID: ci-placeholder
       GOOGLE_CLIENT_SECRET: ci-placeholder
       ALLOWED_EMAIL: ci@example.com
+      OPENAI_API_KEY: ci-placeholder-not-a-real-key
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -52,11 +53,9 @@ jobs:
         run: npm run test:integration
       - name: Build
         run: npm run build
-      # The sign-in button's end-to-end test writes Better Auth's state row to DATABASE_URL.
-      - name: Migrate the end-to-end database
-        run: npm run db:migrate
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
+      # Playwright's global setup builds its own suburi_e2e database from the migrations.
       - name: End-to-end
         run: npm run test:e2e
       - name: Audit

@@ -15,6 +15,13 @@
       "when": 1789477273882,
       "tag": "0001_measurement-record",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789964851170,
+      "tag": "0002_cv-documents",
+      "breakpoints": true
     }
   ]
 }

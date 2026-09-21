@@ -6,8 +6,9 @@ interviews in Japanese and English, with rubric-scored feedback and tracked prog
 [#1](https://github.com/yutaasakura96/suburi/issues/1), tickets #2–#7, all closed. **`develop` is live
 at https://suburi-develop.vercel.app.** **The first feature — getting a CV in — is specified and
 ticketed:** spec [#11](https://github.com/yutaasakura96/suburi/issues/11), tickets #12–#21. #12 is
-done; **#13 is done — built, and its catalogue passed the native read.** Next is #14.
-**Updated:** 2026-09-21
+done; **#13 is done — built, and its catalogue passed the native read.** **#14 is done — the tracer
+bullet: an English CV pasted, saved and read back underlined.** Next is #15.
+**Updated:** 2026-09-21 (#14)
 
 ## Done
 - Phase 1 — `docs/01-project-brief.md`, `docs/02-product-requirements.md`, `docs/06-decision-log.md`.
@@ -131,6 +132,42 @@ done; **#13 is done — built, and its catalogue passed the native read.** Next 
   `版` → `バージョン`). Settled: `質問` is the noun for a question and `出題` only the generator's stamp
   word; `バージョン`, never `版`; `応募書類` stands; the Claim word is deferred to the first screen that
   lists claims (`記載事項` leads). The first two are now enforced by test. `05` §6 and one entry in `06`.
+- **#14 — the tracer bullet. Done.** `/cv` shows the English panel. It has an empty state, a paste box,
+  and save. The saved version is shown with its label, date, claim count and every surviving claim
+  underlined. `POST /api/cv-versions` accepts `en` with exactly one `cv` document. Its schema is strict,
+  so a client-sent `version_label` is a `400`. The server derives the body, the document range,
+  `CV v{n}` and both extractor stamps. The model call runs first, then one transaction writes
+  everything, and a lost label race retries. Migration `0002` adds `cv_documents` and two
+  `cv_versions` indexes: the label unique index and the current-version index. It is expand-only.
+  `lib/ai/` holds the port, `models.ts` and a fake. The prompt is `lib/prompts/cv-extract-en-1.0.ts`.
+  `lib/cv/` holds the span validator, body assembly, underline segments and `currentCvVersion`.
+  `openai` 7.20.0 and `@next/env` 16.3.5 are pinned. **Six entries in `06`, two of them grilled
+  during the build:**
+  - **The extractor returns a verbatim quote and a start hint; the server locates the span.**
+  - **Playwright fakes OpenAI with `e2e/mock-openai.ts` through a localhost-only `OPENAI_BASE_URL`.**
+    Next's `testProxy` was tried first and **measured broken**: it hangs node-postgres on a signed-in
+    request.
+  - Spans count **Unicode code points**, which is what Postgres `substring` counts.
+  - Playwright gets its own fresh `suburi_e2e` database.
+  - The model call runs before the transaction.
+
+  **Corrected in passing:** `11` §3.3's `請求処理を40%短縮` is 10 characters and 24 bytes, not 9 and 27.
+  **Found by review, and fixed:** a database failure during the write used to rethrow drizzle's
+  error. Its message carries the query params, so the CV body and claims would have reached the log.
+  Now only `pg_<SQLSTATE>` leaves the handler, and the test asserts the sentinel reaches neither the
+  log nor the thrown error. **`11` §3.10's sentinel bullet is now covered for this route**: success,
+  `400`, both `502` paths and the write failure.
+  **Counts:** units 37 → 328, integration 38 → 63, e2e 7 → 9.
+  **Still open from #14:**
+  - **`.env.example` lacks `OPENAI_API_KEY`.** A permission rule blocks reading the file, so it was
+    not edited. **Your local `.env` needs `OPENAI_API_KEY` too:** `next start` and `drizzle-kit`
+    both validate the full config.
+  - **A database failure mid-write is a bare `500`, not the `07` §2 envelope.** The closed catalogue
+    has no code for it. Decide whether to add one (with copy in both languages and a native read) or
+    accept Next's `500`.
+  - The `201` has no `Location`, because no GET exists.
+  - "`404` for another user's version" is covered as scoping (numbering and `currentCvVersion`),
+    because no route addresses a version by id.
 - **Still deferred, not done:** `11` §3.10's third bullet — forcing each failure with sentinel text and
   scanning every envelope for it — needs routes to exist. It belongs to #14 onward. What #13 gives is
   structural: `ErrorDetailValue` is flat, so a nested object cannot be dropped into `detail`, and the
@@ -145,8 +182,10 @@ Page 1 is the screen set, page 2 the three exploration directions. **Working fil
 every change re-seeds from those — edit them, never the built `design/suburi-directions.html`.
 
 ## Next
-**#14, the tracer bullet** — `/implement 14`. It inherits `11` §3.10's third bullet (sentinel text
-forced through every failure, every envelope and log line scanned), which needs routes to exist.
+**#15, the Japanese CV and additional documents** — `/implement 15`. The request schema in
+`lib/cv/post-cv-version.ts` is deliberately narrow and widens there, to `04`'s composition rules.
+`ExtractionDocument.kind`/`title` start being sent to the model, and the 応募書類 panel fills the
+empty left column of `/cv`.
 
 **Still waiting on a native read, with the screens that carry them (#14–#16):** the strings in `10`
 §13, the 履歴書 personal-particulars hint, the Japanese word for Claim, and the three prose strings

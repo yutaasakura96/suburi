@@ -23,7 +23,7 @@ export async function insertCvVersion(db: TestDb, userId: string) {
     .insert(s.cvVersions)
     .values({
       userId,
-      versionLabel: "職務経歴書 v1",
+      versionLabel: "応募書類 v1",
       language: "ja",
       body: "架空の株式会社で請求処理を40%短縮。",
     })

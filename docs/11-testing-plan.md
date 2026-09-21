@@ -104,7 +104,7 @@ The anti-hallucination mechanism (`03` §11, `04`). The most load-bearing pure f
 - A span outside `[0, length(body))` → citation **dropped**, not clamped, not stored.
 - A span whose sliced text does not match what the extractor claimed → **dropped**.
 - Inverted, zero-width, and off-by-one-at-the-end spans → dropped.
-- **Multibyte:** spans are character indices into Japanese text. A span that would split a surrogate pair or land mid-grapheme is a test case, not a hypothetical — `請求処理を40%短縮` is 9 characters and 27 UTF-8 bytes, and confusing the two silently shifts every quote in the document.
+- **Multibyte:** spans are character indices into Japanese text. A span that would split a surrogate pair or land mid-grapheme is a test case, not a hypothetical — `請求処理を40%短縮` is 10 characters and 24 UTF-8 bytes (corrected from 9 and 27 in #14), and confusing the two silently shifts every quote in the document.
 - A valid span round-trips byte-identically.
 
 ### 3.4 First-attempt computation

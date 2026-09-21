@@ -22,6 +22,7 @@ const ENUMERATED = [
   ["scoring_attempts", "status"],
   ["round_feedback", "language"],
   ["claim_citations", "relation"],
+  ["cv_documents", "kind"],
 ] as const;
 
 // One valid row in every table that has an enumerated column.
@@ -37,6 +38,14 @@ async function insertOneOfEach(db: TestDb) {
     language: "ja",
     modelId: "fixture-model-2026-01-01",
     promptVersion: "feedback-fixture",
+  });
+  await db.insert(s.cvDocuments).values({
+    cvVersionId: world.cvVersionId,
+    userId: world.userId,
+    kind: "rirekisho",
+    position: 0,
+    start: 0,
+    end: 18,
   });
   const [claim] = await db
     .insert(s.cvClaims)
