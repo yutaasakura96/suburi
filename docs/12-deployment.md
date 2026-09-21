@@ -99,11 +99,6 @@ in this application is safe to ship to the browser**, and none is.
 | `GOOGLE_CLIENT_SECRET` | Google OAuth | Same |
 | `ALLOWED_EMAIL` | The allowlist assertion on session creation (`08` §2) | Vercel env. Not a secret, but environment-scoped |
 | `OPENAI_API_KEY` | **Every model call** — question generation, follow-ups, scoring, **CV claim extraction** (`03` §4), transcription, TTS | Vercel encrypted env. **Separate key per environment** with its own usage cap (§6). **First needed by CV claim extraction**, which is the first model call the app makes at all; added to the `develop` branch's Preview scope and to `.env.example` with that slice |
-| `OPENAI_SCORING_MODEL` | Pinned scoring model | Vercel env — `gpt-5.6-sol`. **Exact string, never an alias** (`03` §4) |
-| `OPENAI_GENERATION_MODEL` | Question and follow-up generation | Vercel env — `gpt-5.6-sol` |
-| `OPENAI_TRANSCRIPTION_MODEL` | Speech-to-text | Vercel env — `gpt-transcribe`, $0.0045/min (`03` §4). **Requires API Tier 1+**; the Free tier does not serve this model |
-| `OPENAI_TTS_MODEL` | Realistic mode speaks the question | Vercel env |
-| `SCORING_PROMPT_VERSION` | Stamp 4 on every scoring attempt | Vercel env, or derived from the prompt filename in `lib/prompts/` |
 | `AWS_ACCESS_KEY_ID` | S3 presigning | Vercel encrypted env. Dedicated IAM user (§7) |
 | `AWS_SECRET_ACCESS_KEY` | S3 presigning | Same |
 | `AWS_REGION` | S3 region | Vercel env |
@@ -118,8 +113,8 @@ in this application is safe to ship to the browser**, and none is.
 **Rules, not preferences:**
 
 - Nothing in the repo. `.env.local` is gitignored; `.env.example` carries **names and comments only, never values.**
-- **A missing or malformed variable fails the boot, loudly.** Validated once at startup with Zod, in one module, and nothing reads `process.env` outside it. A `DATABASE_URL` that is empty must not silently become a dev default; an unset `OPENAI_SCORING_MODEL` must not silently become an alias.
-- `SCORING_PROMPT_VERSION` and `OPENAI_SCORING_MODEL` are **stamps** (`04`). Changing either is a measurement event, not a config tweak — it triggers §5's stamp-change procedure.
+- **A missing or malformed variable fails the boot, loudly.** Validated once at startup with Zod, in one module, and nothing reads `process.env` outside it. A `DATABASE_URL` that is empty must not silently become a dev default; an unset `OPENAI_API_KEY` must not silently skip a model call.
+- **No model string and no prompt version is an environment variable.** Model strings are constants in `lib/ai/models.ts` (`03` §4) and prompt versions come from the prompt filename in `lib/prompts/`. Both are **stamps** (`04`): changing one is a measurement event, not a config tweak, so it arrives as a reviewed commit and triggers §5's stamp-change procedure. The transcription model, `gpt-transcribe`, **requires API Tier 1+** — the Free tier does not serve it, which is a property of the `OPENAI_API_KEY`'s account.
 - Keys are distinct per environment. **Nothing deployed from `develop` or a feature branch may hold a credential that reaches Neon `main` or the `prod/` prefix.** That is the §1 mapping expressed as secrets rather than as a rule someone remembers.
 
 ---
@@ -204,11 +199,11 @@ migration. A column added in error is left in place until a later release drops 
 `scoring_attempts` row with `is_superseding` set (`04`) — the wrong row stays, visibly superseded.
 **Deleting it would be exactly the quiet deletion the brief names as the thing to prevent.**
 
-**A stamp change is not a rollback.** If a deploy changed `OPENAI_SCORING_MODEL` or
-`SCORING_PROMPT_VERSION` and the scores look wrong, reverting the variable does not un-stamp the
-attempts written in between — nor should it. Procedure:
+**A stamp change is not a rollback.** If a deploy changed the scoring model string or the scoring
+prompt version and the scores look wrong, reverting the change does not un-stamp the attempts written
+in between — nor should it. Procedure:
 
-1. Revert the variable.
+1. Revert the change: Vercel instant rollback, then fix forward on `develop` as above.
 2. Run `scripts/rescore-held-out.ts` (`11` §6) and read the drift table.
 3. Confirm Progress drew a boundary at the change (refusal #5).
 4. Leave every attempt written under the old stamps exactly where it is. **Drift made visible is the feature**; erasing the evidence is the failure.

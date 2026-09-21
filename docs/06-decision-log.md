@@ -3,6 +3,28 @@
 Newest first. Every entry records what was chosen, why, and what was rejected.
 
 ---
+## Phase 6 — between #13 and #14
+
+### [2026-09-21] Every model string is a constant in code; no model string or prompt version is an env var
+
+**Decided:** all model strings (scoring, generation, CV extraction, transcription, TTS) are pinned
+constants in `lib/ai/models.ts`, and prompt versions come from the prompt filename in `lib/prompts/`.
+`12` §2 loses `OPENAI_SCORING_MODEL`, `OPENAI_GENERATION_MODEL`, `OPENAI_TRANSCRIPTION_MODEL`,
+`OPENAI_TTS_MODEL` and `SCORING_PROMPT_VERSION`; `03` §4 and §10 name the file. **This resolves the
+divergence recorded in "The extraction model string is a pinned constant in code, not an env var"
+(2026-09-19)** by extending that entry's reasoning to the other strings rather than reversing it.
+**Alternatives considered:** all model strings as env vars, extraction included (`OPENAI_EXTRACTION_MODEL`);
+leaving the split until the scoring code lands.
+**Reason:** that entry's argument was never specific to extraction. A stamp that can be changed from
+the Vercel dashboard can be changed without a commit or a review, and invariant 8 says a change to the
+scoring model *is* the `12` §5 procedure. The boot-time Zod check could only have refused a malformed
+string, not a well-formed unreviewed one. Constants also make local, `develop` and production run the
+same models by construction. It is cheap now because nothing reads any of these variables yet: none is
+in `lib/config.ts`, and none was ever set in Vercel. TTS and the scoring prompt version were included
+even though the tension named only the three model strings. TTS is not a stamp, but leaving one model
+string in the environment would mean two ways to configure the same kind of thing. The prompt version
+*is* a stamp, so it is covered by exactly the same argument.
+
 ## Phase 6 — #13, the error envelope and the catalogue
 
 Decided while building #13, the prefactor every later ticket returns errors through. `07` §3's code

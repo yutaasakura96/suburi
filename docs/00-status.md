@@ -106,7 +106,8 @@ done; **#13 is done — built, and its catalogue passed the native read.** Next 
   with no artboard**, `12` (the synthetic CV seed described as it will be, `OPENAI_API_KEY`'s scope
   step, `source_filename` added to the never-log list). Twenty entries in `06`. No code changed.
   **One tension recorded rather than resolved:** #11 puts the extractor model string in code as a
-  pinned constant, while `12` §2 holds the other three model strings as env vars.
+  pinned constant, while `12` §2 holds the other three model strings as env vars. **Resolved
+  2026-09-21: every model string is a constant in `lib/ai/models.ts`** (`03` §4, `12` §2, `06`).
 - **#13 — the error envelope and the bilingual catalogue. Done.**
   `lib/api/errors.ts` is `07` §2 and §3 in code: `ERROR_STATUS` maps all **24** codes (`07` §3's 23
   rows, the last expanding to `upstream_s3` *and* `upstream_openai`) to their statuses, `ErrorCode` is

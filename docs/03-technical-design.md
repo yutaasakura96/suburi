@@ -198,8 +198,14 @@ volume, so quality and consistency decided it, not price.**
 
 **Never point at an alias.** OpenAI's own docs state the `gpt-daybreak-*-latest` aliases will be
 repointed at newer models as they ship. An alias in the scoring path would make the six-month chart
-measure OpenAI's release schedule. The scoring model is an exact string in config, and changing it
-is a migration (§8), not an edit.
+measure OpenAI's release schedule. The scoring model is an exact string, and changing it is a
+migration (§8), not an edit.
+
+**Every model string is a constant in code, in `lib/ai/models.ts` — never an environment variable.**
+Scoring, generation, CV extraction, transcription and TTS alike. A string that can be changed from the
+Vercel dashboard can be changed without a commit, a review or the `12` §5 stamp-change procedure, and
+invariant 8 says a change *is* that procedure. It also makes local, `develop` and production run the
+same models by construction rather than by care (§12).
 
 **Stamp every AI-touched row.** `model_id`, `prompt_version`, `tokens_in`, `tokens_out` — model and
 prompt versioned separately, because the same model with a revised prompt is a different experiment.
@@ -209,7 +215,7 @@ data rather than argued from memory.
 ### Speech-to-text
 
 **`gpt-transcribe`, $0.0045 per minute** (verified 2026-09-12 against the OpenAI pricing and model
-pages). Pinned in config alongside the scoring model. The alternatives at the time: `gpt-4o-transcribe`
+pages). Pinned in `lib/ai/models.ts` alongside the scoring model. The alternatives at the time: `gpt-4o-transcribe`
 $0.006, `gpt-4o-mini-transcribe` $0.003, Whisper $0.006. `gpt-transcribe` is both newer and cheaper
 than `gpt-4o-transcribe`, and it is the only one of the four that takes **keyword hints and multiple
 language hints** — which is the feature this app actually needs, because a Japanese answer about a
@@ -367,6 +373,7 @@ suburi/
 │   └── seed.ts                seeded user row, set pieces
 ├── lib/
 │   ├── ai/                    ports: generate · transcribe · score · extract-cv-claims  ← one interface each
+│   │   └── models.ts          every model string, pinned — the only place one is written
 │   ├── api/                   the 07 §2 envelope and the 07 §3 code table — no user-visible string
 │   ├── copy/                  every user-visible string, ja and en — no status, no logic
 │   ├── prompts/               versioned prompt files; the version is in the filename
