@@ -159,9 +159,9 @@ bullet: an English CV pasted, saved and read back underlined.** Next is #15.
   `400`, both `502` paths and the write failure.
   **Counts:** units 37 → 328, integration 38 → 63, e2e 7 → 9.
   **Still open from #14:**
-  - **`.env.example` lacks `OPENAI_API_KEY`.** A permission rule blocks reading the file, so it was
-    not edited. **Your local `.env` needs `OPENAI_API_KEY` too:** `next start` and `drizzle-kit`
-    both validate the full config.
+  - **Your local `.env.local` needs `OPENAI_API_KEY`:** `next start` and `drizzle-kit` both validate
+    the full config. `.env.example` has the line. The `.claude/settings.json` deny rule `.env.*` was
+    catching it too, so it now names the secret files instead (`.env`, `.env.local`, `.env.*.local`).
   - **A database failure mid-write is a bare `500`, not the `07` §2 envelope.** The closed catalogue
     has no code for it. Decide whether to add one (with copy in both languages and a native read) or
     accept Next's `500`.
