@@ -78,7 +78,7 @@ function savepointTransaction(db: TestDb) {
 
 async function setUp(
   db: TestDb,
-  respond: (documents: readonly ExtractionDocument[]) => readonly ExtractedClaim[] = () => CLAIMS,
+  respond: Parameters<typeof fakeCvClaimExtractor>[0] = () => CLAIMS,
 ) {
   await seedUser(db, getConfig().ALLOWED_EMAIL);
   const [user] = await db
@@ -141,11 +141,11 @@ describe("POST /api/cv-versions", () => {
 
   it.each([
     ["a body that is not JSON", "{not json", ["body"]],
-    ["the other language, until #15", { ...cvRequest(), language: "ja" }, ["language"]],
+    ["an unknown language", { ...cvRequest(), language: "fr" }, ["language"]],
     ["an empty document", cvRequest("  \n "), ["documents.0.text"]],
     ["a client-chosen version label", cvRequest(CV, { version_label: "CV v9" }), ["body"]],
     [
-      "a second document",
+      "a second cv document",
       { language: "en", documents: [{ kind: "cv", text: CV }, { kind: "cv", text: CV }] },
       ["documents"],
     ],
@@ -319,5 +319,203 @@ describe("POST /api/cv-versions", () => {
       expect(logged.length).toBeGreaterThan(0);
       for (const text of [...responses, ...logged]) expect(text).not.toContain(SENTINEL);
       for (const text of responses) expect(text).not.toContain("Cut invoicing");
+    }));
+});
+
+// 04 / 07 §5.2: the composition rules, and a set of several documents joined into one body.
+
+const RIREKISHO = [
+  "氏名 山田 花子",
+  "生年月日 1990年1月1日",
+  "2016年3月 架空大学 情報学部 卒業",
+  "基本情報技術者試験 合格",
+].join("\n");
+const SHOKUMU = "経理システムの刷新を主導し、請求処理を40%短縮。チーム5名を統括。";
+const PORTFOLIO = "Built an interview simulator in Next.js.";
+
+const rirekisho = { kind: "rirekisho", text: RIREKISHO };
+const shokumu = { kind: "shokumu_keirekisho", text: SHOKUMU };
+const additional = (title: string, text = PORTFOLIO) => ({ kind: "additional", title, text });
+const cv = { kind: "cv", text: CV };
+
+const JA_CLAIMS: ExtractedClaim[] = [
+  { document: 0, quote: "2016年3月 架空大学 情報学部 卒業", start_hint: 24 },
+  { document: 1, quote: "請求処理を40%短縮。", start_hint: 14 },
+  { document: 2, quote: PORTFOLIO, start_hint: 0 },
+];
+
+describe("POST /api/cv-versions composition", () => {
+  it.each([
+    ["an empty set", { language: "ja", documents: [] }, ["documents"]],
+    ["a 応募書類 with no 履歴書", { language: "ja", documents: [shokumu] }, ["documents"]],
+    ["two 履歴書", { language: "ja", documents: [rirekisho, rirekisho] }, ["documents"]],
+    ["two 職務経歴書", { language: "ja", documents: [rirekisho, shokumu, shokumu] }, ["documents"]],
+    ["a cv document in a 応募書類", { language: "ja", documents: [rirekisho, cv] }, ["documents.1.kind"]],
+    ["a 履歴書 in an English CV", { language: "en", documents: [cv, rirekisho] }, ["documents.1.kind"]],
+    [
+      "a 職務経歴書 in an English CV",
+      { language: "en", documents: [cv, shokumu] },
+      ["documents.1.kind"],
+    ],
+    ["an English CV with no cv document", { language: "en", documents: [additional("Portfolio")] }, ["documents"]],
+    [
+      "six additional documents",
+      { language: "en", documents: [cv, ...[1, 2, 3, 4, 5, 6].map((n) => additional(`Doc ${n}`))] },
+      ["documents"],
+    ],
+    ["an unknown kind", { language: "ja", documents: [rirekisho, { kind: "portfolio", text: PORTFOLIO }] }, ["documents.1.kind"]],
+    [
+      "an additional document with no title",
+      { language: "ja", documents: [rirekisho, { kind: "additional", text: PORTFOLIO }] },
+      ["documents.1.title"],
+    ],
+    ["an additional document with a blank title", { language: "ja", documents: [rirekisho, additional("  ")] }, ["documents.1.title"]],
+    ["a title on a 履歴書", { language: "ja", documents: [{ ...rirekisho, title: "履歴書" }] }, ["documents.0"]],
+    ["the 職務経歴書 before the 履歴書", { language: "ja", documents: [shokumu, rirekisho] }, ["documents"]],
+    [
+      "the 職務経歴書 after an additional document",
+      { language: "ja", documents: [rirekisho, additional("ポートフォリオ"), shokumu] },
+      ["documents"],
+    ],
+    ["an additional document before the cv", { language: "en", documents: [additional("Portfolio"), cv] }, ["documents"]],
+  ])("is 400 for %s, naming the field and calling no model", (_, body, fields) =>
+    inRolledBackTransaction(async (db) => {
+      const { post, extractor, userId } = await setUp(db);
+      const { status, json } = await post(body);
+      expect(status).toBe(400);
+      expect(json.error).toMatchObject({ code: "invalid_request", detail: { fields } });
+      expect(extractor.calls).toBe(0);
+      expect(await rowCounts(db, userId)).toEqual({ versions: 0, documents: 0, claims: 0 });
+    }));
+
+  it("saves 応募書類 v1 from all three kinds: joined in order, each range recorded, the ja prompt stamped", () =>
+    inRolledBackTransaction(async (db) => {
+      let sent: { language: string; documents: readonly ExtractionDocument[] } | undefined;
+      const { post } = await setUp(db, (documents, language) => {
+        sent = { language, documents };
+        return JA_CLAIMS;
+      });
+      const { status, json } = await post({
+        language: "ja",
+        documents: [rirekisho, shokumu, { ...additional("ポートフォリオ"), source_filename: "portfolio.pdf" }],
+      });
+
+      expect(status).toBe(201);
+      const [r, k, p] = [RIREKISHO, SHOKUMU, PORTFOLIO].map((text) => [...text].length);
+      expect(json).toMatchObject({
+        version_label: "応募書類 v1",
+        language: "ja",
+        extractor_prompt_version: "cv-extract-ja-fake",
+        documents: [
+          { kind: "rirekisho", title: null, start: 0, end: r },
+          { kind: "shokumu_keirekisho", title: null, start: r + 2, end: r + 2 + k },
+          { kind: "additional", title: "ポートフォリオ", start: r + k + 4, end: r + k + 4 + p },
+        ],
+        claims: { total: 3 },
+        validation: { spans_checked: 3, spans_rejected: 0 },
+      });
+
+      // The model is told what each document is, so it can leave a 履歴書's particulars alone.
+      expect(sent).toEqual({
+        language: "ja",
+        documents: [
+          { kind: "rirekisho", title: null, text: RIREKISHO },
+          { kind: "shokumu_keirekisho", title: null, text: SHOKUMU },
+          { kind: "additional", title: "ポートフォリオ", text: PORTFOLIO },
+        ],
+      });
+
+      const [version] = await db.select().from(s.cvVersions).where(eq(s.cvVersions.id, json.id));
+      expect(version.body).toBe([RIREKISHO, SHOKUMU, PORTFOLIO].join("\n\n"));
+      const documents = await db
+        .select()
+        .from(s.cvDocuments)
+        .where(eq(s.cvDocuments.cvVersionId, json.id));
+      expect(
+        documents
+          .sort((a, b) => a.position - b.position)
+          .map(({ kind, title, position, sourceFilename }) => ({ kind, title, position, sourceFilename })),
+      ).toEqual([
+        { kind: "rirekisho", title: null, position: 0, sourceFilename: null },
+        { kind: "shokumu_keirekisho", title: null, position: 1, sourceFilename: null },
+        { kind: "additional", title: "ポートフォリオ", position: 2, sourceFilename: "portfolio.pdf" },
+      ]);
+
+      const claims = await db.select().from(s.cvClaims).where(eq(s.cvClaims.cvVersionId, json.id));
+      expect(claims.map((claim) => sliceQuote(version.body, { start: claim.spanStart, end: claim.spanEnd })).sort())
+        .toEqual(JA_CLAIMS.map((claim) => claim.quote).sort());
+    }));
+
+  it("takes additional documents in either language, in either set's language", () =>
+    inRolledBackTransaction(async (db) => {
+      const { post } = await setUp(db, (documents) =>
+        documents.map((document, index) => ({ document: index, quote: document.text, start_hint: 0 })),
+      );
+      const ja = await post({ language: "ja", documents: [rirekisho, additional("Portfolio", PORTFOLIO)] });
+      const en = await post({
+        language: "en",
+        documents: [cv, additional("Portfolio"), additional("職務経歴書（日本語）", SHOKUMU)],
+      });
+
+      expect(ja.status).toBe(201);
+      expect(en.status).toBe(201);
+      expect(ja.json.version_label).toBe("応募書類 v1");
+      expect(en.json).toMatchObject({
+        version_label: "CV v1",
+        extractor_prompt_version: "cv-extract-en-fake",
+        documents: [{ kind: "cv" }, { kind: "additional", title: "Portfolio" }, { kind: "additional", title: "職務経歴書（日本語）" }],
+        claims: { total: 3 },
+      });
+    }));
+
+  it("accepts a 応募書類 with five additional documents and no 職務経歴書", () =>
+    inRolledBackTransaction(async (db) => {
+      const { post } = await setUp(db, () => [{ document: 0, quote: "基本情報技術者試験 合格", start_hint: 40 }]);
+      const { status, json } = await post({
+        language: "ja",
+        documents: [rirekisho, ...[1, 2, 3, 4, 5].map((n) => additional(`資料${n}`, `補足${n}`))],
+      });
+      expect(status).toBe(201);
+      expect(json.documents.map((document: { title: string | null }) => document.title)).toEqual([
+        null,
+        "資料1",
+        "資料2",
+        "資料3",
+        "資料4",
+        "資料5",
+      ]);
+    }));
+
+  it("drops and counts a claim whose quote runs from one document into the next", () =>
+    inRolledBackTransaction(async (db) => {
+      const { post, userId } = await setUp(db, () => [
+        ...JA_CLAIMS,
+        // The join between the 履歴書 and the 職務経歴書, attributed to either side.
+        { document: 0, quote: `基本情報技術者試験 合格\n\n経理システム`, start_hint: 40 },
+        { document: 1, quote: `基本情報技術者試験 合格\n\n経理システム`, start_hint: 0 },
+      ]);
+      const { status, json } = await post({ language: "ja", documents: [rirekisho, shokumu, additional("ポートフォリオ")] });
+
+      expect(status).toBe(201);
+      expect(json.claims.total).toBe(3);
+      expect(json.validation).toEqual({ spans_checked: 5, spans_rejected: 2 });
+      expect((await rowCounts(db, userId)).claims).toBe(3);
+
+      const [version] = await db.select().from(s.cvVersions).where(eq(s.cvVersions.id, json.id));
+      const ranges = json.documents as { start: number; end: number }[];
+      const claims = await db.select().from(s.cvClaims).where(eq(s.cvClaims.cvVersionId, version.id));
+      for (const claim of claims) {
+        expect(ranges.some((range) => range.start <= claim.spanStart && claim.spanEnd <= range.end)).toBe(true);
+      }
+    }));
+
+  it("numbers each language on its own: 応募書類 v1 beside CV v1, then 応募書類 v2", () =>
+    inRolledBackTransaction(async (db) => {
+      const { post } = await setUp(db, (documents) => [{ document: 0, quote: documents[0].text, start_hint: 0 }]);
+      expect((await post({ language: "en", documents: [cv] })).json.version_label).toBe("CV v1");
+      expect((await post({ language: "ja", documents: [rirekisho] })).json.version_label).toBe("応募書類 v1");
+      expect((await post({ language: "ja", documents: [rirekisho, shokumu] })).json.version_label).toBe(
+        "応募書類 v2",
+      );
     }));
 });

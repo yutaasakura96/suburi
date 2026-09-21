@@ -352,9 +352,11 @@ Errors already made and fixed in this project. Each line below is a rule because
   already says `v3`. `cv_unchanged` changed to `新しいバージョンは作成しませんでした。`
 - **`応募書類` passed.** It is the ordinary word for the 履歴書 + 職務経歴書 set, and the stamp stays
   `応募書類 v{n}`.
-- **No Japanese word for Claim yet, deliberately.** No string needs one: `cv_extraction_failed`
-  names the documents, not the claims. It is chosen on the first screen that lists claims, where it can
-  be read in place. The leading candidate is `記載事項`; `主張` is rejected because it reads as argument.
+- **Claim is `記載事項`, chosen in #15 — proposed until it is read in place in #20.** No catalogue
+  string needs one: `cv_extraction_failed` names the documents, not the claims. The CV screen is the
+  first that counts claims (`記載事項 34件`), so the word was chosen there, from #13's leading
+  candidate. `主張` is rejected because it reads as argument. `app/(app)/cv/copy.test.ts` fails any CV
+  screen string containing `主張` or `版`.
 
 The first two are enforced across the catalogue by `lib/copy/errors.test.ts`.
 

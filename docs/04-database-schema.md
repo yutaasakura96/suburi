@@ -147,6 +147,11 @@ deleted.
 | `ja` | exactly one `rirekisho` | at most one `shokumu_keirekisho`, zero–five `additional`. No `cv`. |
 | `en` | exactly one `cv` | zero–five `additional`. No `rirekisho`, no `shokumu_keirekisho`. |
 
+**One order, refused rather than repaired:** the required document first, then — `ja` only — the
+`shokumu_keirekisho`, then the `additional` documents in the order the user added them. `position` is
+that order and `body` is joined in it. A request in any other order is refused, never sorted (`06`,
+#15).
+
 An `additional` document may be written **in either language** regardless of the set's `language`; an
 English portfolio inside a Japanese 応募書類 is normal. The set's `language` decides which rounds are
 scored against it, not which language its documents are written in.

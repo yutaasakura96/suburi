@@ -3,6 +3,86 @@
 Newest first. Every entry records what was chosen, why, and what was rejected.
 
 ---
+## Phase 6 — #15, the Japanese CV and additional documents
+
+Decided while building #15. The first three came from grilling; the rest are the shapes the code took.
+
+### [2026-09-21] Document order is refused, not repaired
+
+**Decided:** a set's documents arrive in one order: the required document (`rirekisho` / `cv`), then,
+for `ja` only, at most one `shokumu_keirekisho`, then up to five `additional` documents in the order
+the user added them. `position` is the request index, and `body` is joined in that order. Any other
+order is `400 invalid_request` naming `documents`. A kind the language refuses is named at
+`documents.<i>.kind`.
+**Alternatives considered:** the server sorts whatever it receives into that order (stable for
+additional documents); no kind order at all, with `position` being whatever the client sent.
+**Reason:** it follows the endpoint's rule that anything outside the shape is refused rather than
+quietly fixed. With no reordering, request index, extractor document index and `cv_documents.position`
+are the same number, which keeps `survivingClaims` and #16's `cv_unchanged` "same order" comparison
+simple. The form always builds that order anyway: a 職務経歴書 added after a supporting document is
+placed straight after the 履歴書.
+
+### [2026-09-21] The total text-size cap is #20's, measured, not #15's, guessed
+
+**Decided:** #15 ships no size cap. #20 measures the real extraction call on the real CV and sets the
+cap there, with its own entry here. `07` §5.2 says so.
+**Alternatives considered:** a provisional generous cap now, replaced later; measuring in #15 on
+synthetic CVs with a real key.
+**Reason:** `07` §5.2 says the number is measured, not guessed, and measuring needs a real
+`OPENAI_API_KEY`, which `.env.local` does not have yet. A provisional number would get defended rather
+than checked. The 300s function ceiling still holds whatever the size, because the SDK timeout is 240s
+and a timeout is a `502` that writes nothing.
+
+### [2026-09-21] Claim is `記載事項` in Japanese
+
+**Decided:** the 応募書類 panel says `記載事項 34件`, `記載事項を抽出しています。…`. Proposed until
+#20's native read, where it is read in place on the screen.
+**Alternatives considered:** keeping `10` §13's `主張`; avoiding the noun (`抽出 34件`) and deferring
+again.
+**Reason:** #13's read rejected `主張` (it reads as argument) and deferred the word to "the first
+screen that lists claims". This panel is that screen. `記載事項` was #13's leading candidate. In the
+same pass `10` §13's `版` became `バージョン`, applying #13's rule rather than deciding anything new.
+`app/(app)/cv/copy.test.ts` now enforces both, as `lib/copy/errors.test.ts` does for the catalogue.
+
+### [2026-09-21] English prompt bumped to `cv-extract-en-1.1`; `1.0` is kept, unused
+
+**Decided:** each document's header now names its kind and, for an additional document, the user's
+title: `=== document 2: additional, titled: <title> ===`. `cv-extract-en-1.0` described the old
+header, so English moves to `cv-extract-en-1.1`, and Japanese starts at `cv-extract-ja-1.0`. The 1.0
+file stays, unedited.
+**Alternatives considered:** editing 1.0 in place, since no deployed database holds a 1.0 stamp.
+**Reason:** a prompt's version is its filename and a changed prompt is a new file (`03` §4). The
+safety of an in-place edit rested on no stamp existing anywhere, and that is not something to rely on.
+Keeping 1.0 means any 1.0 stamp still points at the text that produced it. The model needs the kind so
+it can treat a 履歴書's particulars differently from a portfolio's prose. A title's line breaks are
+collapsed so that it stays on its header line.
+
+### [2026-09-21] Both prompts are written in English; the Japanese one names Japanese sections
+
+**Decided:** `cv-extract-ja-1.0` gives its instructions in English and names the material in
+Japanese: 学歴, 職歴 (and the 職務経歴書's 職務要約 / 職務経歴 / 活かせる経験・知識・スキル), 免許・資格,
+志望動機, 自己PR. It lists the personal particulars by their 履歴書 headings, including 本人希望記入欄
+(salary expectations are on `12` §7's never-log list), 通勤時間 and 扶養家族数. It rules out 趣味・特技
+and the date written at the top of the form. It forbids converting between full- and half-width
+characters and between eras in a quote, because the server locates the quote verbatim.
+**Alternatives considered:** instructions written in Japanese.
+**Reason:** the rules are the same in both languages, so writing both prompts in one language keeps a
+diff between them readable. The section names are in Japanese because that is what the documents
+literally say. Whether this extracts well is #20's question, answered on the real CV, not here.
+
+### [2026-09-21] A quote across a document join is counted as `not_found`
+
+**Decided:** the integration test for a claim that runs from the 履歴書 into the 職務経歴書 asserts that
+it is dropped and counted in `spans_rejected`, with no stored span leaving its range. The reason
+logged is `not_found`, not `crosses_document`.
+**Alternatives considered:** widening `locate` to search the whole body, so that such a quote reaches
+the validator and is rejected as `crosses_document`.
+**Reason:** `locate` searches only the document the model named, so a quote containing the separator
+can never be found there. The validator's `crosses_document` check stays as the backstop, and its unit
+test proves it. Searching the whole body only to reject the result would add a code path that exists
+to produce a different log label.
+
+---
 ## Phase 6 — #14, the tracer bullet
 
 Decided while building #14: an English CV pasted, saved and read back with its claims underlined.

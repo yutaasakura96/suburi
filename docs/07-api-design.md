@@ -263,11 +263,15 @@ of a model or rubric selector for the same reason).
 | `ja` | exactly one `rirekisho` | ≤ 1 `shokumu_keirekisho`, 0–5 `additional` | any `cv` |
 | `en` | exactly one `cv` | 0–5 `additional` | any `rirekisho` or `shokumu_keirekisho` |
 
-`title` is required on `additional` and refused on every other kind. An `additional` document may be
+**Documents arrive in `04`'s one order** — the required document, then the `shokumu_keirekisho`, then
+the `additional` documents — and that order is `position`. Any other order is `400 invalid_request`
+naming `documents`; the server does not sort. A kind the language refuses is named at
+`documents.<i>.kind`. `title` is required on `additional` and refused on every other kind. An `additional` document may be
 written in either language whatever the set's `language` is. A violation is `400 invalid_request`
-with the offending field, before any model call. **A total text-size cap belongs here and is set at
-implementation by measuring the extraction call** — guessing it in this document would produce a
-number that is defended rather than checked.
+with the offending field, before any model call. **A total text-size cap belongs here and is set by
+measuring the extraction call** — guessing it in this document would produce a number that is
+defended rather than checked. **#20 measures it**, on the real call and the real CV; until then there
+is none (`06`, #15).
 
 **`version_label` is derived**, `応募書類 v{n}` / `CV v{n}`, numbered per language. `unique (user_id,
 language, version_label)` makes two concurrent saves safe: the loser retries with the next number

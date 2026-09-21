@@ -98,3 +98,83 @@ test("empty panel → paste → save shows CV v1, its underlined claims and the 
     await openAi.close();
   }
 });
+
+// #15: a Japanese set of all three kinds, in a panel whose chrome is Japanese beside one whose chrome
+// stays English.
+
+const RIREKISHO = ["氏名 山田 花子", "2016年3月 架空大学 情報学部 卒業", "基本情報技術者試験 合格"].join("\n");
+const SHOKUMU = "経理システムの刷新を主導し、請求処理を40%短縮。チーム5名を統括。";
+const PORTFOLIO = "Built an interview simulator in Next.js.";
+
+const JA_CLAIMS = [
+  { document: 0, quote: "2016年3月 架空大学 情報学部 卒業", start_hint: 9 },
+  { document: 1, quote: "請求処理を40%短縮。", start_hint: 14 },
+  { document: 2, quote: PORTFOLIO, start_hint: 0 },
+];
+
+test("each panel's chrome is in its own language", async ({ page }) => {
+  await signIn(page);
+  await page.goto("/cv");
+  const ja = page.getByRole("region", { name: "応募書類" });
+  const en = page.getByRole("region", { name: "CV", exact: true });
+
+  await expect(ja).toHaveAttribute("lang", "ja");
+  await expect(en).toHaveAttribute("lang", "en");
+  await ja.getByRole("button", { name: "応募書類を追加する" }).click();
+  await expect(ja.getByRole("button", { name: "このバージョンを保存する" })).toBeVisible();
+  await expect(ja.getByRole("button", { name: "職務経歴書を追加" })).toBeVisible();
+  await expect(ja.getByRole("button", { name: "補足資料を追加" })).toBeVisible();
+  await expect(
+    ja.getByText("生年月日・住所・電話番号・顔写真・家族の情報は省いてかまいません。評価には使いません。"),
+  ).toBeVisible();
+  // No English chrome in the Japanese panel. `CV` is excluded: it is the English panel's name, not
+  // a string the Japanese panel may show, so its absence is covered by the same check.
+  await expect(ja).not.toContainText(/[A-Za-z]/);
+
+  const english = await en.innerText();
+  expect(english).not.toMatch(/[぀-ヿ一-鿿]/);
+});
+
+test("a 応募書類 with a 履歴書, a 職務経歴書 and an additional document saves as 応募書類 v1", async ({
+  page,
+}) => {
+  await signIn(page);
+  const openAi = await startMockOpenAi({ claims: JA_CLAIMS });
+  try {
+    await page.goto("/cv");
+    const ja = page.getByRole("region", { name: "応募書類" });
+
+    await ja.getByRole("button", { name: "応募書類を追加する" }).click();
+    await ja.getByRole("textbox", { name: "履歴書" }).fill(RIREKISHO);
+    await ja.getByRole("button", { name: "補足資料を追加" }).click();
+    // Added after the additional document, the 職務経歴書 still takes its place after the 履歴書.
+    await ja.getByRole("button", { name: "職務経歴書を追加" }).click();
+    await expect(ja.getByRole("button", { name: "職務経歴書を追加" })).toHaveCount(0);
+    await ja.getByRole("textbox", { name: "職務経歴書" }).fill(SHOKUMU);
+    const supporting = ja.getByRole("group", { name: "補足資料" });
+    await supporting.getByRole("textbox", { name: "資料名" }).fill("ポートフォリオ");
+    await supporting.getByRole("textbox", { name: "本文" }).fill(PORTFOLIO);
+    await ja.getByRole("button", { name: "このバージョンを保存する" }).click();
+
+    await expect(ja.getByTestId("cv-version-label")).toHaveText("応募書類 v1");
+    await expect(ja.getByTestId("cv-claim-count")).toHaveText("記載事項 3件");
+    await expect(ja.getByText("3件を抽出。0件は前のバージョンから引き継ぎ、3件が新規。0件を除外。")).toBeVisible();
+    await expect(ja.getByRole("heading", { level: 3 })).toHaveText(["履歴書", "職務経歴書", "ポートフォリオ"]);
+    await expect(ja.locator("[data-claim]")).toHaveText(JA_CLAIMS.map((claim) => claim.quote));
+
+    // The Japanese prompt, and each document headed by its kind.
+    expect(openAi.requests).toHaveLength(1);
+    const input = String(openAi.requests[0].body.input);
+    expect(input).toContain("=== document 0: rirekisho ===");
+    expect(input).toContain("=== document 1: shokumu_keirekisho ===");
+    expect(input).toContain("=== document 2: additional, titled: ポートフォリオ ===");
+    expect(String(openAi.requests[0].body.instructions)).toContain("応募書類");
+
+    // A reload reads it back from Postgres, and the English panel shows none of it.
+    await page.reload();
+    await expect(ja.locator("[data-claim]")).toHaveCount(3);
+    await expect(page.getByRole("region", { name: "CV", exact: true })).not.toContainText("応募書類");
+  } finally {
+    await openAi.close();
+  }
+});

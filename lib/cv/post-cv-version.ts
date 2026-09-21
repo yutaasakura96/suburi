@@ -23,9 +23,11 @@ import {
  * `POST /api/cv-versions` (07 §5.2): save one language's whole CV as a new version and extract its
  * claims. Synchronous, one model call, all-or-nothing.
  *
- * **English with one `cv` document only, for now.** The Japanese set and additional documents are
- * #15; `cv_unchanged` and carry-forward are #16; the rate limiter is #18. Anything outside the
- * shape below is a 400, so a later ticket widens the schema rather than discovering it was loose.
+ * **Composition and order are refused, never repaired** (04, 07 §5.2). A set is its required
+ * document, then — Japanese only — at most one 職務経歴書, then up to five titled additional
+ * documents in the order sent. That order is `position` and the order `body` is joined in; a request
+ * in any other order is a 400 rather than being sorted. `cv_unchanged` and carry-forward are #16; the
+ * rate limiter is #18; the total size cap is #20's, measured on the real call.
  *
  * **The client chooses none of the stamps.** `version_label`, `body`, every document's range and
  * both extractor stamps are derived here. Unknown request keys are refused, so a client-sent
@@ -45,16 +47,72 @@ export interface PostCvVersionDeps {
   readonly extractor: CvClaimExtractor;
 }
 
-const requestSchema = z.strictObject({
-  language: z.literal("en"),
-  documents: z.tuple([
-    z.strictObject({
-      kind: z.literal("cv"),
-      source_filename: z.string().min(1).max(255).optional(),
-      text: z.string().refine((text) => text.trim() !== ""),
-    }),
-  ]),
-});
+const notBlank = (value: string) => value.trim() !== "";
+const sourceFilename = z.string().min(1).max(255).optional();
+const known = <K extends string>(kind: K) =>
+  z.strictObject({ kind: z.literal(kind), source_filename: sourceFilename, text: z.string().refine(notBlank) });
+
+const documentSchema = z.discriminatedUnion("kind", [
+  known("rirekisho"),
+  known("shokumu_keirekisho"),
+  known("cv"),
+  z.strictObject({
+    kind: z.literal("additional"),
+    title: z.string().max(200).refine(notBlank),
+    source_filename: sourceFilename,
+    text: z.string().refine(notBlank),
+  }),
+]);
+
+type Kind = z.infer<typeof documentSchema>["kind"];
+
+/**
+ * Each language's kinds in the one order a set may take (04): its required kind exactly once, first;
+ * then its optional kinds, each at most `max` times. `additional` is last in both, so it is the only
+ * kind whose members' relative order the client chooses.
+ */
+const COMPOSITION = {
+  ja: [
+    { kind: "rirekisho", min: 1, max: 1 },
+    { kind: "shokumu_keirekisho", min: 0, max: 1 },
+    { kind: "additional", min: 0, max: 5 },
+  ],
+  en: [
+    { kind: "cv", min: 1, max: 1 },
+    { kind: "additional", min: 0, max: 5 },
+  ],
+} as const satisfies Record<"ja" | "en", readonly { kind: Kind; min: number; max: number }[]>;
+
+const requestSchema = z
+  .strictObject({
+    language: z.enum(["ja", "en"]),
+    documents: z.array(documentSchema),
+  })
+  .superRefine(({ language, documents }, context) => {
+    const rules: readonly { kind: Kind; min: number; max: number }[] = COMPOSITION[language];
+    const rank = (kind: Kind) => rules.findIndex((rule) => rule.kind === kind);
+
+    let foreign = false;
+    documents.forEach((document, index) => {
+      if (rank(document.kind) !== -1) return;
+      foreign = true;
+      context.addIssue({ code: "custom", path: ["documents", index, "kind"], message: "wrong kind for language" });
+    });
+    if (foreign) return;
+
+    const counted = rules.every(({ kind, min, max }) => {
+      const n = documents.filter((document) => document.kind === kind).length;
+      return min <= n && n <= max;
+    });
+    const ordered = documents.every((document, index) => index === 0 || rank(documents[index - 1].kind) <= rank(document.kind));
+    if (!counted || !ordered) {
+      context.addIssue({ code: "custom", path: ["documents"], message: "composition" });
+    }
+  });
+
+function titleOf(document: z.infer<typeof documentSchema>) {
+  return document.kind === "additional" ? document.title : null;
+}
 
 const LABEL_PREFIX = { ja: "応募書類", en: "CV" } as const;
 
@@ -147,7 +205,8 @@ export function createPostCvVersion(deps: PostCvVersionDeps) {
     let extracted: readonly ExtractedClaim[];
     try {
       extracted = await deps.extractor.extract(
-        documents.map((document) => ({ kind: document.kind, title: null, text: document.text })),
+        language,
+        documents.map((document) => ({ kind: document.kind, title: titleOf(document), text: document.text })),
       );
     } catch (error) {
       const errorClass = error instanceof ExtractionFailed ? error.errorClass : "unexpected";
@@ -185,7 +244,7 @@ export function createPostCvVersion(deps: PostCvVersionDeps) {
             language,
             body,
             extractorModelId: deps.extractor.modelId,
-            extractorPromptVersion: deps.extractor.promptVersion,
+            extractorPromptVersion: deps.extractor.promptVersions[language],
           })
           .returning();
         const rows = await tx
@@ -195,7 +254,7 @@ export function createPostCvVersion(deps: PostCvVersionDeps) {
               cvVersionId: version.id,
               userId,
               kind: document.kind,
-              title: null,
+              title: titleOf(document),
               sourceFilename: document.source_filename ?? null,
               position,
               start: ranges[position].start,

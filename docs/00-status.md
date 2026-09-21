@@ -7,8 +7,9 @@ interviews in Japanese and English, with rubric-scored feedback and tracked prog
 at https://suburi-develop.vercel.app.** **The first feature — getting a CV in — is specified and
 ticketed:** spec [#11](https://github.com/yutaasakura96/suburi/issues/11), tickets #12–#21. #12 is
 done; **#13 is done — built, and its catalogue passed the native read.** **#14 is done — the tracer
-bullet: an English CV pasted, saved and read back underlined.** Next is #15.
-**Updated:** 2026-09-21 (#14)
+bullet: an English CV pasted, saved and read back underlined.** **#15 is done — the 応募書類 panel and
+additional documents in both languages.** Next is #16.
+**Updated:** 2026-09-21 (#15)
 
 ## Done
 - Phase 1 — `docs/01-project-brief.md`, `docs/02-product-requirements.md`, `docs/06-decision-log.md`.
@@ -159,8 +160,10 @@ bullet: an English CV pasted, saved and read back underlined.** Next is #15.
   `400`, both `502` paths and the write failure.
   **Counts:** units 37 → 328, integration 38 → 63, e2e 7 → 9.
   **Still open from #14:**
-  - **Your local `.env.local` needs `OPENAI_API_KEY`:** `next start` and `drizzle-kit` both validate
-    the full config. `.env.example` has the line. **The `.env` deny rules are gone from
+  - **Done 2026-09-21: `.env.local` has a real `OPENAI_API_KEY`**, from its own `suburi-local` OpenAI
+    project with a $20/month hard cap, verified against `gpt-5.6-sol`. **`12` §6 is wrong about the cap:**
+    a hard project limit returns `429 project_spend_limit_exceeded` (OpenAI's spend-limits guide), not
+    a `503 model_unavailable`; fix it with the round loop. **The `.env` deny rules are gone from
     `.claude/settings.json`** (2026-09-21, the user's call): Claude may read every `.env*` file and must
     never echo a value into output, a log, a commit or a doc. **Rotate every value in them once the
     project is signed off** — Google client secret, `BETTER_AUTH_SECRET`, Neon role passwords, the
@@ -171,6 +174,28 @@ bullet: an English CV pasted, saved and read back underlined.** Next is #15.
   - The `201` has no `Location`, because no GET exists.
   - "`404` for another user's version" is covered as scoping (numbering and `currentCvVersion`),
     because no route addresses a version by id.
+- **#15 — the Japanese CV and additional documents. Done.** `/cv` now has both panels, `応募書類` left
+  and `CV` right, each with its chrome in its own language (`lang` on the region). The Japanese form
+  has the 履歴書 box with the personal-particulars hint, `職務経歴書を追加` until one exists, and in both
+  panels up to five titled supporting documents, each removable with `外す` / `Remove`.
+  `POST /api/cv-versions` takes both languages and enforces `04`'s composition. It also enforces **one
+  order, refused rather than sorted**, so `position` is the request index. The port is now
+  `extract(language, documents)` with `promptVersions`. It sends each document's kind and title in its
+  header. Prompts: **`cv-extract-ja-1.0`** is new, and English moved to **`cv-extract-en-1.1`** because
+  the header changed. `1.0` is kept, unedited. The panel is one `CvPanel`, with its copy in
+  `app/(app)/cv/copy.ts`; `english-panel.tsx` is gone. **Six entries in `06`, three of them grilled:**
+  - order is refused, not repaired;
+  - the size cap is #20's, measured — **add it to #20's checklist**;
+  - **Claim is `記載事項`**. `10` §13's `版` became `バージョン` under #13's rule, and `copy.test.ts`
+    enforces both.
+
+  **New Japanese strings for #20's read:** `外す`, `資料名`, `本文`, `補足資料` (as the group name),
+  `記載事項 {n}件`, `記載事項を抽出しています。しばらくかかることがあります。`, the result line's
+  `{n}件を除外。`, and every `10` §13 string as amended (`このバージョンを保存する`,
+  `保存すると、この内容でバージョンが確定します。…`, `…前のバージョンから引き継ぎ…`).
+  **Counts:** units 328 → 387, integration 63 → 84, e2e 9 → 11.
+  **Not done here, by ticket:** `cv_unchanged`, prefill and history are #16. Import is #17. The rate
+  limiter is #18. The size cap is #20.
 - **Still deferred, not done:** `11` §3.10's third bullet — forcing each failure with sentinel text and
   scanning every envelope for it — needs routes to exist. It belongs to #14 onward. What #13 gives is
   structural: `ErrorDetailValue` is flat, so a nested object cannot be dropped into `detail`, and the
@@ -185,13 +210,14 @@ Page 1 is the screen set, page 2 the three exploration directions. **Working fil
 every change re-seeds from those — edit them, never the built `design/suburi-directions.html`.
 
 ## Next
-**#15, the Japanese CV and additional documents** — `/implement 15`. The request schema in
-`lib/cv/post-cv-version.ts` is deliberately narrow and widens there, to `04`'s composition rules.
-`ExtractionDocument.kind`/`title` start being sent to the model, and the 応募書類 panel fills the
-empty left column of `/cv`.
+**#16, next CV versions** — prefill, carry-forward, `cv_unchanged`, history. It is unblocked by
+#15. The form in `app/(app)/cv/cv-panel.tsx` starts from one empty required document, and #16 seeds
+it from the current version instead. `cv_unchanged` compares kind, title and text in order, and
+because order is refused rather than sorted (`06`, #15), that is a plain index-by-index comparison.
+#17 (import) and #18 (rate limiter) are also unblocked.
 
 **Still waiting on a native read, with the screens that carry them (#14–#16):** the strings in `10`
-§13, the 履歴書 personal-particulars hint, the Japanese word for Claim, and the three prose strings
+§13 (as amended in #15), the 履歴書 personal-particulars hint, `記載事項`, #15's new strings, and the three prose strings
 that still say `職務経歴書` where they mean the set (`05` §6).
 
 **The three deploy fixes, #10, are closed:** `agentRules: false`; only `main` and `develop` deploy

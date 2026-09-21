@@ -1,7 +1,8 @@
 import OpenAI from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
 import { z } from "zod";
-import * as en from "../prompts/cv-extract-en-1.0";
+import * as en from "../prompts/cv-extract-en-1.1";
+import * as ja from "../prompts/cv-extract-ja-1.0";
 import { CV_EXTRACTION_MODEL } from "./models";
 
 /**
@@ -13,6 +14,8 @@ import { CV_EXTRACTION_MODEL } from "./models";
  * **What comes back is untrusted.** A claim is a document index, a quote and a start hint; the
  * server finds the quote in the stored text and validates the span. Nothing here is ever rendered.
  */
+
+export type CvLanguage = "ja" | "en";
 
 export interface ExtractionDocument {
   readonly kind: string;
@@ -26,10 +29,14 @@ export interface ExtractedClaim {
   readonly start_hint: number;
 }
 
+/**
+ * One prompt per language (03 §4), so the stamp is chosen by the set's language:
+ * `promptVersions[language]` is the version `extract(language, …)` sends.
+ */
 export interface CvClaimExtractor {
   readonly modelId: string;
-  readonly promptVersion: string;
-  extract(documents: readonly ExtractionDocument[]): Promise<readonly ExtractedClaim[]>;
+  readonly promptVersions: Readonly<Record<CvLanguage, string>>;
+  extract(language: CvLanguage, documents: readonly ExtractionDocument[]): Promise<readonly ExtractedClaim[]>;
 }
 
 /**
@@ -52,9 +59,21 @@ const output = z.object({
   ),
 });
 
+/**
+ * Each document under a one-line header naming its index, its kind and, for an additional document,
+ * the user's title — kept to that line, so a title's line breaks never start a line of their own.
+ * The prompts describe exactly this header.
+ */
 export function renderDocuments(documents: readonly ExtractionDocument[]) {
-  return documents.map((document, index) => `=== document ${index} ===\n${document.text}`).join("\n\n");
+  return documents
+    .map((document, index) => {
+      const title = document.title === null ? "" : `, titled: ${document.title.replace(/\s+/gu, " ").trim()}`;
+      return `=== document ${index}: ${document.kind}${title} ===\n${document.text}`;
+    })
+    .join("\n\n");
 }
+
+const PROMPTS = { ja, en } as const;
 
 function errorClassOf(error: unknown) {
   if (error instanceof ExtractionFailed) return error.errorClass;
@@ -67,8 +86,8 @@ function errorClassOf(error: unknown) {
 const OPENAI_BASE_URL = "https://api.openai.com/v1";
 
 /**
- * English only until the Japanese prompt exists (#15). One call, no SDK retries: 07 §5.2 is one
- * model call, and the whole invocation shares Vercel Hobby's 300s (CONTEXT.md).
+ * One call, no SDK retries: 07 §5.2 is one model call, and the whole invocation shares Vercel
+ * Hobby's 300s (CONTEXT.md).
  *
  * `baseURL` is set only by Playwright, at its mock (`lib/config.ts` refuses anything but a local
  * host). It is passed explicitly either way, so the SDK never falls back to reading
@@ -83,13 +102,13 @@ export function openAiCvClaimExtractor({
 }): CvClaimExtractor {
   return {
     modelId: CV_EXTRACTION_MODEL,
-    promptVersion: en.version,
-    async extract(documents) {
+    promptVersions: { ja: ja.version, en: en.version },
+    async extract(language, documents) {
       const client = new OpenAI({ apiKey, baseURL, maxRetries: 0, timeout: 240_000 });
       try {
         const response = await client.responses.parse({
           model: CV_EXTRACTION_MODEL,
-          instructions: en.instructions,
+          instructions: PROMPTS[language].instructions,
           input: renderDocuments(documents),
           text: { format: zodTextFormat(output, "cv_claims") },
         });

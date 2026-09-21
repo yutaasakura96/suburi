@@ -446,6 +446,11 @@ needed a new one, which is why no artboard was drawn.
 > **Every Japanese string in this section is proposed and has not had its native read.** So is
 > `応募書類` itself. They go through one read together with the error catalogue (`05` §6, #13), and
 > what that read settles is what ships.
+>
+> **#13's read already changed two words here, applied in #15:** a version is `バージョン`, never `版`,
+> and Claim is `記載事項`, never `主張` (`05` §6). The strings below carry both. The strings #15 added —
+> `外す`, `資料名`, `本文`, the saving caption and the result line's dropped count — are proposed like
+> the rest and go to #20's read.
 
 ### Two panels, side by side
 
@@ -478,7 +483,7 @@ offers the one move that fixes it.
 | Element | Spec |
 | --- | --- |
 | Version stamp | `05` §5.9, but **top-left of the panel rather than bottom-right** — here it labels the thing being read, it is not the provenance footer of a score. `応募書類 v3` / `CV v3`, with `2026-08-30` beside it in mono. |
-| Claim count | 11px mono, `--ink-label`: `主張 34件` / `34 claims`. **`件`, never `点`** (`05` §6). |
+| Claim count | 11px mono, `--ink-label`: `記載事項 34件` / `34 claims`. **`件`, never `点`** (`05` §6). |
 | Documents | In `position` order. Each is a §3.3 section label — `履歴書` · `職務経歴書` · the user's own title for an additional document — over its text at 13px/1.9. |
 | Claim spans | Each surviving claim's span **underlined** in its document's text: `border-bottom: 1px solid var(--accent-mid)`. Nothing else — no numbering, no margin notes, no hover card. |
 
@@ -493,7 +498,7 @@ dropped at save time and is not here to render.
 
 ### New version
 
-An outline button `新しい版をつくる` / `Create a new version` opens a form **prefilled with the current
+An outline button `新しいバージョンをつくる` / `Create a new version` opens a form **prefilled with the current
 version's documents** — same kinds, same titles, same text, same order. Changing one document does not
 mean retyping the others, and the prefill is also what makes `cv_unchanged` a real risk worth refusing
 server-side.
@@ -505,7 +510,10 @@ server-side.
 | After an import | A 12px `--ink-6` line: `読み込んだ文を確認して、必要なら直してください。保存した文がそのまま評価に使われます。` / `Check the imported text and fix anything wrong. What you save is what gets scored.` |
 | 履歴書 box only | An `--accent-mid` callout rail (`05` §5.8): `生年月日・住所・電話番号・顔写真・家族の情報は省いてかまいません。評価には使いません。` |
 | Add | `補足資料を追加` / `Add a supporting document`, disabled at five. Japanese panels also offer `職務経歴書を追加` until one exists. |
-| Save | Solid primary `この版を保存する` / `Save this version`, with the `05` §5.7 caption stating what it commits to: `保存すると、この内容で版が確定します。あとから直すことはできません。` |
+| Remove | `外す` / `Remove` beside the 職務経歴書 and each additional document — never the required one. A text control in the §3.3 label style, not a §5.7 button: `05` draws no quiet variant, and a 48px outline beside every box outweighs the box. It removes a document from the unsaved form; nothing stored is touched. |
+| Additional document | The title input is labelled `資料名` / `Title`, its box `本文` / `Text`; the pair is grouped as `補足資料` / `Supporting document`. |
+| Order | Always the required document, then the 職務経歴書, then additional documents in the order added — `04`'s one order. A 職務経歴書 added after a supporting document still takes its place after the 履歴書. |
+| Save | Solid primary `このバージョンを保存する` / `Save this version`, with the `05` §5.7 caption stating what it commits to: `保存すると、この内容でバージョンが確定します。あとから直すことはできません。` / `Saving fixes this version as it is. It cannot be edited afterwards.` While saving, the caption reads `記載事項を抽出しています。しばらくかかることがあります。` / `Extracting claims from your CV. This can take a while.` |
 
 **The save control disables while a save is in flight**, and the panel states that extraction is
 running. This is the client half of `cv_unchanged` (`07` §5.2); the server refuses a duplicate whether
@@ -520,8 +528,8 @@ an immutable version, not after.
 The panel returns to the current-version view, now showing the new version, with a 12px `--ink-6`
 result line above it:
 
-`34件を抽出。27件は前の版から引き継ぎ、7件が新規。` /
-`34 claims extracted — 27 carried forward, 7 new.`
+`34件を抽出。27件は前のバージョンから引き継ぎ、7件が新規。0件を除外。` /
+`34 claims extracted — 27 carried forward, 7 new. 0 dropped.`
 
 **`spans_rejected` is shown whenever it is non-zero**, on an `--attention-mark` callout rail (`05`
 §5.8): `2件は本文と一致しなかったため除きました。` / `2 claims were dropped — their quotes did not
