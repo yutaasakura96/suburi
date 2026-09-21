@@ -104,7 +104,7 @@ const CATALOGUE = {
     en: "This round still has unanswered questions.",
   },
   cv_unchanged: {
-    ja: "応募書類に変更がありません。新しい版は作成しませんでした。",
+    ja: "応募書類に変更がありません。新しいバージョンは作成しませんでした。",
     en: "Nothing in the CV has changed. No new version was created.",
   },
   cv_extraction_failed: {

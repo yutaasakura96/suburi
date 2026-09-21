@@ -320,8 +320,7 @@ Errors already made and fixed in this project. Each line below is a rule because
   names one member of that set, so using it for the whole set made a stamp that pointed at the wrong
   thing. Every version label reads **`応募書類 v{n}`** in Japanese and **`CV v{n}`** in English, and
   both are derived by the app, never typed. `職務経歴書` stays in use where it means that one
-  document. **`応募書類` itself has not had its native read yet** — it is in the batch with the CV
-  screen's chrome and the error catalogue (#13).
+  document. **`応募書類` passed its native read with the error catalogue on 2026-09-21** (#13).
   **Not yet changed, deliberately:** three *prose* strings on the feedback and Progress screens still
   say `職務経歴書` where they now mean the set — §3.3's section label `職務経歴書との照合`, the
   round-level line `数値の裏づけが2か所ありません。職務経歴書の「請求処理を40%短縮」を使う。`, and
@@ -342,12 +341,22 @@ Errors already made and fixed in this project. Each line below is a rule because
   document or in `CONTEXT.md`; the modes are written bare or as `練習ラウンド`. Caught in #13 on
   `pressure_not_applicable`, where the English `practice mode` had been carried across literally.
 
-**#13's error catalogue is written and awaiting its native read.** All 24 codes in `07` §3 now have a
-`ja` and an `en` sentence in `lib/copy/errors.ts`. **The read has not happened**, and until it does
-every one of those strings is provisional. Four things to decide in it, none settled anywhere yet:
-`質問` or `出題` for a question as a noun; a Japanese word for **Claim** (`cv_extraction_failed`
-currently avoids needing one); `版` or `バージョン` in `cv_unchanged`; and `応募書類` itself. Any rule
-the read earns lands in this section.
+**#13's error catalogue passed its native read on 2026-09-21.** All 24 `ja` strings in
+`lib/copy/errors.ts` were read and accepted; one word changed. Four rules came out of it:
+
+- **`質問` is the noun for a question; `出題` is only the generator's stamp word** (`出題 v1.0`, and
+  the Progress legend `縦線は評価基準・出題・…`, which names the generator changing). An interviewer
+  asks a `質問`. Every `出題` in `10` was already a stamp, so no screen string changed. The counter
+  stays `問`.
+- **A version is `バージョン`, never `版`.** `版` reads as print, not software, and the stamp beside it
+  already says `v3`. `cv_unchanged` changed to `新しいバージョンは作成しませんでした。`
+- **`応募書類` passed.** It is the ordinary word for the 履歴書 + 職務経歴書 set, and the stamp stays
+  `応募書類 v{n}`.
+- **No Japanese word for Claim yet, deliberately.** No string needs one: `cv_extraction_failed`
+  names the documents, not the claims. It is chosen on the first screen that lists claims, where it can
+  be read in place. The leading candidate is `記載事項`; `主張` is rejected because it reads as argument.
+
+The first two are enforced across the catalogue by `lib/copy/errors.test.ts`.
 
 **Every new Japanese string needs a native read before it ships.** Five of the six rules above came
 from one review pass, not from care at authoring time.

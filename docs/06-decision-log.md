@@ -6,7 +6,23 @@ Newest first. Every entry records what was chosen, why, and what was rejected.
 ## Phase 6 — #13, the error envelope and the catalogue
 
 Decided while building #13, the prefactor every later ticket returns errors through. `07` §3's code
-set was already closed by #12; these four entries are about the shape the code takes.
+set was already closed by #12; these entries are about the shape the code takes, and the last is the
+native read that closed it.
+
+### [2026-09-21] The catalogue's native read: 質問, バージョン, 応募書類, and no word for Claim yet
+
+**Decided:** all 24 `ja` strings accepted as written except `cv_unchanged`, where `版` became
+`バージョン`. `質問` is the noun for a question and `出題` is only the generator's stamp word;
+`応募書類` stands; a Japanese word for **Claim** is deferred to the first screen that lists claims,
+with `記載事項` as the leading candidate. `05` §6 records the rules, and `lib/copy/errors.test.ts`
+now fails any catalogue string containing `出題` or `版`.
+**Alternatives considered:** `出題` for the noun, matching `10`, where it had been the only word;
+keeping `版`; choosing the Claim word now, with `主張` as the other candidate.
+**Reason:** an interviewer asks a `質問`, and every `出題` in `10` turned out to be a stamp, so
+splitting the two words costs no screen change. `版` reads as a print edition beside a stamp that
+already says `v3`. The Claim word is left open because no string needs it yet, and a word read on its
+own without the screen around it is the kind of choice the read exists to prevent. `主張` was rejected
+anyway: it reads as argument.
 
 ### [2026-09-21] The copy layer is `lib/copy/`, not a file inside `lib/api/`
 

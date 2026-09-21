@@ -6,7 +6,7 @@ interviews in Japanese and English, with rubric-scored feedback and tracked prog
 [#1](https://github.com/yutaasakura96/suburi/issues/1), tickets #2–#7, all closed. **`develop` is live
 at https://suburi-develop.vercel.app.** **The first feature — getting a CV in — is specified and
 ticketed:** spec [#11](https://github.com/yutaasakura96/suburi/issues/11), tickets #12–#21. #12 is
-done; **#13 is built and awaiting only its native read.**
+done; **#13 is done — built, and its catalogue passed the native read.** Next is #14.
 **Updated:** 2026-09-21
 
 ## Done
@@ -107,7 +107,7 @@ done; **#13 is built and awaiting only its native read.**
   step, `source_filename` added to the never-log list). Twenty entries in `06`. No code changed.
   **One tension recorded rather than resolved:** #11 puts the extractor model string in code as a
   pinned constant, while `12` §2 holds the other three model strings as env vars.
-- **#13 — the error envelope and the bilingual catalogue, built; the native read is outstanding.**
+- **#13 — the error envelope and the bilingual catalogue. Done.**
   `lib/api/errors.ts` is `07` §2 and §3 in code: `ERROR_STATUS` maps all **24** codes (`07` §3's 23
   rows, the last expanding to `upstream_s3` *and* `upstream_openai`) to their statuses, `ErrorCode` is
   `keyof` it, and `apiError(code, message, detail?)` reads the status from the table. `rateLimited()`
@@ -126,9 +126,10 @@ done; **#13 is built and awaiting only its native read.**
   `upstream_openai` read alike and now name the service; a blanket `点` ban failed immediately on
   `採点`, so `05` §6's counter rule is narrowed to *a digit followed by* `点`. `05` §6 also gained the
   three rules the catalogue now enforces by test.
-  **#13 cannot close until the read.** Four things it must settle, none decided anywhere: `質問` or
-  `出題` for a question as a noun; a Japanese word for **Claim**; `版` or `バージョン`; and `応募書類`
-  itself. Listed in `05` §6.
+  **Native read passed 2026-09-21.** All 24 `ja` strings accepted, one word changed (`cv_unchanged`:
+  `版` → `バージョン`). Settled: `質問` is the noun for a question and `出題` only the generator's stamp
+  word; `バージョン`, never `版`; `応募書類` stands; the Claim word is deferred to the first screen that
+  lists claims (`記載事項` leads). The first two are now enforced by test. `05` §6 and one entry in `06`.
 - **Still deferred, not done:** `11` §3.10's third bullet — forcing each failure with sentinel text and
   scanning every envelope for it — needs routes to exist. It belongs to #14 onward. What #13 gives is
   structural: `ErrorDetailValue` is flat, so a nested object cannot be dropped into `detail`, and the
@@ -143,15 +144,12 @@ Page 1 is the screen set, page 2 the three exploration directions. **Working fil
 every change re-seeds from those — edit them, never the built `design/suburi-directions.html`.
 
 ## Next
-**The native read of #13's catalogue — 24 codes, both languages — then #14, the tracer bullet.**
-The strings are in `lib/copy/errors.ts` and the four open questions are in `05` §6. Until that read,
-every one of those sentences is provisional.
+**#14, the tracer bullet** — `/implement 14`. It inherits `11` §3.10's third bullet (sentinel text
+forced through every failure, every envelope and log line scanned), which needs routes to exist.
 
-**#13, for the record — the full error envelope and the bilingual error catalogue.** `lib/api` grows from the single
-`unauthenticated` helper to the whole `07` §2 envelope and every `07` §3 code; **the entire catalogue's
-`ja` and `en` copy is written in one pass** and needs the user's native read, together with `応募書類`,
-the 履歴書 personal-particulars hint and every string on the CV screen (`10` §13). Then #14, the tracer
-bullet.
+**Still waiting on a native read, with the screens that carry them (#14–#16):** the strings in `10`
+§13, the 履歴書 personal-particulars hint, the Japanese word for Claim, and the three prose strings
+that still say `職務経歴書` where they mean the set (`05` §6).
 
 **The three deploy fixes, #10, are closed:** `agentRules: false`; only `main` and `develop` deploy
 (`vercel.json`); remote database URLs must carry `sslmode=verify-full`, which `lib/config.ts` now

@@ -61,6 +61,13 @@ describe("05 §6, the rules that are mechanical", () => {
     expect(ERROR_COPY.cv_extraction_failed.ja).toContain("応募書類");
   });
 
+  // 05 §6, settled by #13's native read: 出題 is the generator's stamp word only, and the catalogue
+  // carries no stamps, so a question here is always 質問. A version is バージョン, never 版.
+  it.each(codes)("writes 質問 for a question and バージョン for a version in %s", (code) => {
+    expect(ERROR_COPY[code].ja).not.toMatch(/出題/u);
+    expect(ERROR_COPY[code].ja).not.toMatch(/版/u);
+  });
+
   it("writes 深掘り for a follow-up and 緊張度 for felt pressure", () => {
     expect(ERROR_COPY.followup_generation_failed.ja).toContain("深掘り");
     expect(ERROR_COPY.pressure_required.ja).toContain("緊張度");
