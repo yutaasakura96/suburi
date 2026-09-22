@@ -10,9 +10,8 @@ done; **#13 is done — built, and its catalogue passed the native read.** **#14
 bullet: an English CV pasted, saved and read back underlined.** **#15 is done — the 応募書類 panel and
 additional documents in both languages.** **#16 is done — next versions: prefill, carry-forward,
 `cv_unchanged`, history.** **#17 is done — import from `.docx`/`.pdf` in the browser.** **#18 is done — the per-session rate
-limiter.** **#19's code is done — the synthetic CV seed, `npm run db:seed:develop`;** its deploy
-steps (user-only) are what is left of it.
-**Updated:** 2026-09-22 (#19, code)
+limiter.** **#19 is done — the synthetic CV seed, and the feature running on `develop`.** Next is #20.
+**Updated:** 2026-09-22 (#19)
 
 ## Done
 - Phase 1 — `docs/01-project-brief.md`, `docs/02-product-requirements.md`, `docs/06-decision-log.md`.
@@ -263,14 +262,21 @@ Page 1 is the screen set, page 2 the three exploration directions. **Working fil
 every change re-seeds from those — edit them, never the built `design/suburi-directions.html`.
 
 ## Next
-**#19's deploy steps** — the seed is built (`db/seed-cv.ts`, `scripts/seed-develop.mts`, four decisions
-in `06` under "Phase 6 — #19"); what `feat/11-cv-in` still waits on before it can merge into `develop`
-is only the user can do: `OPENAI_API_KEY` in `develop`'s Preview scope only, Neon `develop` **migrated
-through `0003`**, then `npm run db:seed:develop` against it (**not** `db:seed`, and never against
-`main`). Then merge, and verify on `develop`: both seeded CVs on the CV screen, one real save with
-synthetic text, no CV text in the runtime log. #20 now has #14–#18 to read and measure.
+**#20 — the real-CV extraction check, locally.** Real 履歴書/職務経歴書 and English CV through `/cv` against
+Docker Postgres (never Neon `develop`), `11` §5's eyeball and sampling, the text-size cap from the
+measured call, and the native-read batch. **One data point already:** `develop`'s first real save
+(synthetic English CV, 2 documents, 17 claims, 0 spans rejected) took **51.0 s** of the Function's 300 s —
+`03` §4 and the cap should start from there. Then #21, production setup.
 
-**Found 2026-09-22: `develop` had been running on the wrong database.** Neon `develop`'s `suburi` database
+**#19 verified on `develop` 2026-09-22 at `e24eb8c`:** Neon `develop`'s `suburi` database at `0003`, one
+user, `応募書類 v1` (3 documents, 9 claims) and `CV v1` (2, 7), stamps null. Google sign-in works; both
+panels render with their underlines, 𠮷 included; a real save made `CV v2` (`carried_forward` 1), after a
+`422 cv_unchanged` on an unedited resubmit. Every runtime log line in the window carries ids, counts,
+durations and event names only — no CV text. `develop`'s Vercel `DATABASE_URL`/`DATABASE_URL_UNPOOLED`
+are branch-scoped Secrets naming `suburi`; `OPENAI_API_KEY` is Preview-only, scoped to `develop`.
+`feat/11-cv-in` is merged into `develop`. **Never into `main` before #21.**
+
+**Found and fixed 2026-09-22: `develop` had been running on the wrong database.** Neon `develop`'s `suburi` database
 (owned by `suburi_develop`, as `12` §3 step 8 says) was empty; the deploy's URLs named the branch's
 `neondb`, which holds `main`'s schema-only copy owned by `main`'s copied `neondb_owner`. `suburi_develop`
 could read and write it through `neon_superuser` but not alter it, so `0002` failed there (rolled back
