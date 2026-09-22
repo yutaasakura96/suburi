@@ -1,18 +1,26 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { ErrorCode } from "@/lib/api/errors";
 import { ERROR_COPY } from "@/lib/copy/errors";
-import type { Segment } from "@/lib/cv/segments";
 import { COPY, REQUIRED_KIND, type Copy, type CvLanguage, type Kind, type SaveResult } from "./copy";
+import { CvVersionView, sectionLabel, type VersionView } from "./version-view";
 
-export interface CurrentVersion {
-  readonly label: string;
-  readonly date: string;
-  readonly claimCount: number;
-  readonly documents: readonly { id: string; heading: string; segments: readonly Segment[] }[];
+type Prefill = readonly {
+  readonly kind: Kind;
+  readonly title: string;
+  readonly text: string;
+  readonly sourceFilename: string | null;
+}[];
+
+/** A panel with a current version: its view, the form's starting point, and every older version. */
+export interface PanelData {
+  readonly view: VersionView;
+  readonly prefill: Prefill;
+  readonly history: readonly { id: string; label: string; date: string; claimCount: number }[];
 }
 
 interface Draft {
@@ -20,11 +28,11 @@ interface Draft {
   readonly kind: Kind;
   readonly title: string;
   readonly text: string;
+  readonly sourceFilename: string | null;
 }
 
 const MAX_ADDITIONAL = 5;
 
-const sectionLabel = "font-mono text-[11px] tracking-[0.16em] text-ink-label uppercase";
 const caption = "text-[12px] leading-[1.7] text-ink-6";
 const field =
   "border border-rule-frame bg-surface px-[14px] py-[12px] font-mono text-[13px] leading-[1.9] text-ink-2 outline-none focus:border-ink-4";
@@ -53,36 +61,27 @@ function SaveResultLine({ copy, result }: { copy: Copy; result: SaveResult }) {
   );
 }
 
-function CurrentVersionView({ copy, current }: { copy: Copy; current: CurrentVersion }) {
+/**
+ * Older versions, newest first (10 §13): readable at their own page, never selectable. Nothing here
+ * makes a version current or points a round at one (07 §6).
+ */
+function VersionHistory({ copy, history }: { copy: Copy; history: PanelData["history"] }) {
+  if (history.length === 0) return null;
   return (
-    <div className="flex flex-col gap-[22px]">
-      {/* 05 §5.9, top-left here: it labels the thing being read (10 §13). */}
-      <div className="flex items-baseline justify-between">
-        <p className="font-mono text-[10px] leading-[1.9] text-ink-8">
-          <span data-testid="cv-version-label">{current.label}</span>
-          <span className="ml-[10px]">{current.date}</span>
-        </p>
-        <p className="font-mono text-[11px] text-ink-label" data-testid="cv-claim-count">
-          {copy.claims(current.claimCount)}
-        </p>
-      </div>
-      {current.documents.map((document) => (
-        <section key={document.id} className="flex flex-col gap-[10px]">
-          <h3 className={sectionLabel}>{document.heading}</h3>
-          <p className="text-[13px] leading-[1.9] whitespace-pre-wrap text-ink-2">
-            {document.segments.map((segment, index) =>
-              segment.claim ? (
-                <span key={index} data-claim className="border-b border-mark-mid">
-                  {segment.text}
-                </span>
-              ) : (
-                segment.text
-              ),
-            )}
-          </p>
-        </section>
+    <ul className="flex flex-col border-t border-rule-hairline" data-testid="cv-version-history">
+      {history.map((row) => (
+        <li key={row.id} className="border-b border-rule-hairline">
+          <Link
+            href={`/cv/versions/${row.id}`}
+            className="flex gap-[14px] py-[9px] text-[12px] leading-[1.7] text-ink-6 hover:text-ink-2"
+          >
+            <span className="font-mono">{row.label}</span>
+            <span className="font-mono">{row.date}</span>
+            <span className="ml-auto font-mono">{copy.claims(row.claimCount)}</span>
+          </Link>
+        </li>
       ))}
-    </div>
+    </ul>
   );
 }
 
@@ -140,10 +139,24 @@ function DraftDocument({
   );
 }
 
-function NewVersionForm({ language, onSaved }: { language: CvLanguage; onSaved: (result: SaveResult) => void }) {
+// Prefilled from the current version when there is one (10 §13): changing one document does not mean
+// retyping the others. Without one, one empty required document.
+function NewVersionForm({
+  language,
+  prefill,
+  onSaved,
+}: {
+  language: CvLanguage;
+  prefill: Prefill | null;
+  onSaved: (result: SaveResult) => void;
+}) {
   const copy = COPY[language];
-  const nextKey = useRef(1);
-  const [drafts, setDrafts] = useState<Draft[]>([{ key: 0, kind: REQUIRED_KIND[language], title: "", text: "" }]);
+  const nextKey = useRef(prefill?.length ?? 1);
+  const [drafts, setDrafts] = useState<Draft[]>(() =>
+    prefill
+      ? prefill.map((document, key) => ({ key, ...document }))
+      : [{ key: 0, kind: REQUIRED_KIND[language], title: "", text: "", sourceFilename: null }],
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<ErrorCode | null>(null);
 
@@ -154,7 +167,7 @@ function NewVersionForm({ language, onSaved }: { language: CvLanguage; onSaved: 
   );
 
   function add(kind: "shokumu_keirekisho" | "additional") {
-    const draft = { key: nextKey.current++, kind, title: "", text: "" };
+    const draft = { key: nextKey.current++, kind, title: "", text: "", sourceFilename: null };
     // 04's one order: the 職務経歴書 goes straight after the 履歴書, additional documents last.
     setDrafts((current) => (kind === "additional" ? [...current, draft] : [current[0], draft, ...current.slice(1)]));
   }
@@ -178,9 +191,12 @@ function NewVersionForm({ language, onSaved }: { language: CvLanguage; onSaved: 
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           language,
-          documents: drafts.map(({ kind, title, text }) =>
-            kind === "additional" ? { kind, title, text } : { kind, text },
-          ),
+          documents: drafts.map(({ kind, title, text, sourceFilename }) => ({
+            kind,
+            ...(kind === "additional" ? { title } : {}),
+            ...(sourceFilename ? { source_filename: sourceFilename } : {}),
+            text,
+          })),
         }),
       });
       const json = await response.json();
@@ -243,7 +259,7 @@ function NewVersionForm({ language, onSaved }: { language: CvLanguage; onSaved: 
  * app decides. Empty → one action. Saving → the server derives every stamp; this sends text and
  * structure only, in the one order the server accepts.
  */
-export function CvPanel({ language, current }: { language: CvLanguage; current: CurrentVersion | null }) {
+export function CvPanel({ language, data }: { language: CvLanguage; data: PanelData | null }) {
   const copy = COPY[language];
   const router = useRouter();
   const [editing, setEditing] = useState(false);
@@ -266,9 +282,15 @@ export function CvPanel({ language, current }: { language: CvLanguage; current: 
       <div className="flex flex-col gap-[22px] px-[32px] pt-[26px] pb-[32px]">
         {result ? <SaveResultLine copy={copy} result={result} /> : null}
         {editing ? (
-          <NewVersionForm language={language} onSaved={saved} />
-        ) : current ? (
-          <CurrentVersionView copy={copy} current={current} />
+          <NewVersionForm language={language} prefill={data?.prefill ?? null} onSaved={saved} />
+        ) : data ? (
+          <>
+            <CvVersionView language={language} version={data.view} />
+            <Button variant="outline" className="self-start" onClick={() => setEditing(true)}>
+              {copy.newVersion}
+            </Button>
+            <VersionHistory copy={copy} history={data.history} />
+          </>
         ) : (
           <div className="flex flex-col gap-[12px]">
             <Button variant="outline" className="self-start" onClick={() => setEditing(true)}>

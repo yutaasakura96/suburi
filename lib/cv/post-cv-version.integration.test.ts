@@ -519,3 +519,152 @@ describe("POST /api/cv-versions composition", () => {
       );
     }));
 });
+
+// #16: next versions. The fake quotes every non-blank line of every document as one claim, so each
+// test states its claims as lines.
+
+function everyLine(documents: readonly ExtractionDocument[]): ExtractedClaim[] {
+  return documents.flatMap((document, index) =>
+    document.text
+      .split("\n")
+      .filter((line) => line.trim() !== "")
+      .map((quote) => ({ document: index, quote, start_hint: 0 })),
+  );
+}
+
+const en = (text: string, ...more: { title: string; text: string }[]) => ({
+  language: "en",
+  documents: [{ kind: "cv", text }, ...more.map(({ title, text: body }) => additional(title, body))],
+});
+
+async function claimsOf(db: TestDb, versionId: string) {
+  const rows = await db.select().from(s.cvClaims).where(eq(s.cvClaims.cvVersionId, versionId));
+  return rows.sort((a, b) => a.spanStart - b.spanStart);
+}
+
+describe("POST /api/cv-versions next versions", () => {
+  it("carries forward byte-identical claims from v1; one character different is new", () =>
+    inRolledBackTransaction(async (db) => {
+      const { post } = await setUp(db, everyLine);
+      const v1 = await post(en("Led a team of 5.\nCut invoicing time by 40%.\nBSc, 2016."));
+      const v2 = await post(en("Led a team of 5.\nCut invoicing time by 41%.\nBSc, 2016."));
+
+      expect(v2.status).toBe(201);
+      expect(v2.json.version_label).toBe("CV v2");
+      expect(v2.json.claims).toEqual({ total: 3, carried_forward: 2, new: 1 });
+      const [led, cut, bsc] = await claimsOf(db, v1.json.id);
+      expect((await claimsOf(db, v2.json.id)).map((claim) => claim.supersedesClaimId)).toEqual([led.id, null, bsc.id]);
+      expect(cut.supersedesClaimId).toBeNull();
+    }));
+
+  it("carries forward across a whitespace-only difference", () =>
+    inRolledBackTransaction(async (db) => {
+      const { post } = await setUp(db, everyLine);
+      const v1 = await post(en("Cut invoicing time by 40%."));
+      const v2 = await post(en("Cut  invoicing time\tby 40%."));
+
+      expect(v2.json.claims).toEqual({ total: 1, carried_forward: 1, new: 0 });
+      const [previous] = await claimsOf(db, v1.json.id);
+      expect((await claimsOf(db, v2.json.id))[0].supersedesClaimId).toBe(previous.id);
+    }));
+
+  it("never matches two versions back, and follows a three-version chain", () =>
+    inRolledBackTransaction(async (db) => {
+      const { post } = await setUp(db, everyLine);
+      const v1 = await post(en("Alpha.\nBeta."));
+      const v2 = await post(en("Alpha.\nGamma."));
+      const v3 = await post(en("Alpha.\nBeta."));
+
+      expect(v3.json.claims).toEqual({ total: 2, carried_forward: 1, new: 1 });
+      const [alpha1] = await claimsOf(db, v1.json.id);
+      const [alpha2] = await claimsOf(db, v2.json.id);
+      const [alpha3, beta3] = await claimsOf(db, v3.json.id);
+      expect(alpha3.supersedesClaimId).toBe(alpha2.id);
+      expect(alpha2.supersedesClaimId).toBe(alpha1.id);
+      expect(alpha1.supersedesClaimId).toBeNull();
+      expect(beta3.supersedesClaimId).toBeNull();
+    }));
+
+  it("carries forward a claim moved from the 職務経歴書 into a supporting document", () =>
+    inRolledBackTransaction(async (db) => {
+      const { post } = await setUp(db, everyLine);
+      const v1 = await post({ language: "ja", documents: [rirekisho, shokumu] });
+      const v2 = await post({ language: "ja", documents: [rirekisho, additional("職務の要約", SHOKUMU)] });
+
+      expect(v2.json.version_label).toBe("応募書類 v2");
+      expect(v2.json.claims.new).toBe(0);
+      const previous = await claimsOf(db, v1.json.id);
+      const moved = (await claimsOf(db, v2.json.id)).find((claim) => claim.textNormalised === SHOKUMU);
+      expect(moved?.supersedesClaimId).toBe(previous.find((claim) => claim.textNormalised === SHOKUMU)?.id);
+    }));
+
+  it("never carries forward from the other language", () =>
+    inRolledBackTransaction(async (db) => {
+      const { post } = await setUp(db, everyLine);
+      await post(en(PORTFOLIO));
+      const ja = await post({ language: "ja", documents: [rirekisho, additional("Portfolio")] });
+      expect(ja.json.claims.carried_forward).toBe(0);
+    }));
+
+  it("points duplicates at the previous claim with the lowest span_start, many-to-one", () =>
+    inRolledBackTransaction(async (db) => {
+      const { post } = await setUp(db, everyLine);
+      const v1 = await post(en("Led a team of 5.\nBSc, 2016.", { title: "Portfolio", text: "Led a team of 5." }));
+      const v2 = await post(en("Led a team of 5.\nMSc, 2020.", { title: "Summary", text: "Led a team of 5." }));
+
+      expect(v2.json.claims).toEqual({ total: 3, carried_forward: 2, new: 1 });
+      const [first] = await claimsOf(db, v1.json.id);
+      const led = (await claimsOf(db, v2.json.id)).filter((claim) => claim.textNormalised === "Led a team of 5.");
+      expect(led.map((claim) => claim.supersedesClaimId)).toEqual([first.id, first.id]);
+    }));
+
+  it("is 422 cv_unchanged for an identical set, calling no model and writing nothing", () =>
+    inRolledBackTransaction(async (db) => {
+      const { post, extractor, userId } = await setUp(db, everyLine);
+      const set = { language: "ja", documents: [rirekisho, shokumu, additional("ポートフォリオ")] };
+      const v1 = await post(set);
+      const before = await rowCounts(db, userId);
+
+      // source_filename is not part of the comparison (06, #16).
+      const again = await post({
+        ...set,
+        documents: set.documents.map((document) => ({ ...document, source_filename: "cv.docx" })),
+      });
+      expect(again.status).toBe(422);
+      expect(again.json.error).toMatchObject({ code: "cv_unchanged", detail: { language: "ja" } });
+      expect(extractor.calls).toBe(1);
+      expect(await rowCounts(db, userId)).toEqual(before);
+
+      // Any one change is a new version: a title, one space, a removed document.
+      const retitled = await post({ ...set, documents: [rirekisho, shokumu, additional("作品集")] });
+      expect(retitled.json.version_label).toBe("応募書類 v2");
+      expect(v1.json.version_label).toBe("応募書類 v1");
+    }));
+
+  it("is 422 cv_unchanged when an identical save commits while this one is extracting", () =>
+    inRolledBackTransaction(async (db) => {
+      let inner: Awaited<ReturnType<typeof post>> | undefined;
+      const { post, userId, extractor } = await setUp(db, async (documents) => {
+        // The second request's model call: the other tab's identical save lands meanwhile.
+        if (extractor.calls === 2) inner = await post(en("Led a team of 5.\nAWS certified."));
+        return everyLine(documents);
+      });
+      await post(en("Led a team of 5."));
+      const result = await post(en("Led a team of 5.\nAWS certified."));
+
+      expect(inner?.json.version_label).toBe("CV v2");
+      expect(result.status).toBe(422);
+      expect(result.json.error.code).toBe("cv_unchanged");
+      expect((await rowCounts(db, userId)).versions).toBe(2);
+    }));
+
+  it("dates each version by when it was written, so the newest label is the current version", () =>
+    inRolledBackTransaction(async (db) => {
+      // One test transaction: now() is the same instant for both saves, clock_timestamp() is not.
+      const { post, versionsOf } = await setUp(db, everyLine);
+      await post(en("Alpha."));
+      await post(en("Beta."));
+      const [v1, v2] = (await versionsOf()).sort((a, b) => a.versionLabel.localeCompare(b.versionLabel));
+      expect(v2.createdAt.getTime()).toBeGreaterThan(v1.createdAt.getTime());
+    }));
+});

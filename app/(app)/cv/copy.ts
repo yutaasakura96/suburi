@@ -30,6 +30,7 @@ export const COPY = {
   ja: {
     heading: "応募書類",
     start: "応募書類を追加する",
+    newVersion: "新しいバージョンをつくる",
     requires: "履歴書が1通必要です。職務経歴書と、補足資料を5つまで追加できます。",
     kinds: { rirekisho: "履歴書", shokumu_keirekisho: "職務経歴書", additional: "補足資料" } as Kinds,
     particulars: "生年月日・住所・電話番号・顔写真・家族の情報は省いてかまいません。評価には使いません。",
@@ -49,6 +50,7 @@ export const COPY = {
   en: {
     heading: "CV",
     start: "Add your CV",
+    newVersion: "Create a new version",
     requires: "One CV document is required. You can add up to five supporting documents.",
     kinds: { cv: "CV", additional: "Supporting document" } as Kinds,
     particulars: null,

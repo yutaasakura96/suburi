@@ -1,7 +1,5 @@
-import { and, eq } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { z } from "zod";
-import * as s from "../../db/schema";
 import { apiError, unauthenticated } from "../api/errors";
 import { sessionUserId, type SessionReader } from "../auth/session";
 import {
@@ -10,12 +8,15 @@ import {
   type ExtractedClaim,
 } from "../ai/extract-cv-claims";
 import { assembleBody } from "./body";
+import { currentCvVersion } from "./current-version";
+import { saveCvVersion } from "./save-cv-version";
 import {
   createSpanChecker,
   normaliseClaimText,
   type RejectionReason,
   type Span,
 } from "./spans";
+import { isUnchanged } from "./unchanged";
 
 // Relative imports: the integration tests load this file outside Next's path aliases.
 
@@ -26,8 +27,11 @@ import {
  * **Composition and order are refused, never repaired** (04, 07 §5.2). A set is its required
  * document, then — Japanese only — at most one 職務経歴書, then up to five titled additional
  * documents in the order sent. That order is `position` and the order `body` is joined in; a request
- * in any other order is a 400 rather than being sorted. `cv_unchanged` and carry-forward are #16; the
- * rate limiter is #18; the total size cap is #20's, measured on the real call.
+ * in any other order is a 400 rather than being sorted. The rate limiter is #18; the total size cap
+ * is #20's, measured on the real call.
+ *
+ * **`cv_unchanged` is checked twice** (07 §5.2): here, before the model call, and again under the
+ * write's lock (`saveCvVersion`), where carry-forward is also decided.
  *
  * **The client chooses none of the stamps.** `version_label`, `body`, every document's range and
  * both extractor stamps are derived here. Unknown request keys are refused, so a client-sent
@@ -37,7 +41,7 @@ import {
  * rejected quote. Ids, counts, durations and error classes only. Field names in a 400, never values.
  */
 
-type Db = Pick<NodePgDatabase, "select" | "insert">;
+type Db = Pick<NodePgDatabase, "select" | "insert" | "execute">;
 
 export interface PostCvVersionDeps {
   readonly auth: SessionReader;
@@ -114,32 +118,8 @@ function titleOf(document: z.infer<typeof documentSchema>) {
   return document.kind === "additional" ? document.title : null;
 }
 
-const LABEL_PREFIX = { ja: "応募書類", en: "CV" } as const;
-
-// A lost race on the unique label index retries with the next number (04). Three is generous: one
-// user, and the save button disables in flight.
-const LABEL_ATTEMPTS = 3;
-
 function log(level: "info" | "error", fields: Record<string, string | number>) {
   console[level](JSON.stringify(fields));
-}
-
-async function nextLabel(db: Db, userId: string, language: "ja" | "en") {
-  const rows = await db
-    .select({ label: s.cvVersions.versionLabel })
-    .from(s.cvVersions)
-    .where(and(eq(s.cvVersions.userId, userId), eq(s.cvVersions.language, language)));
-  const prefix = `${LABEL_PREFIX[language]} v`;
-  const highest = rows.reduce((max, { label }) => {
-    const n = label.startsWith(prefix) ? Number(label.slice(prefix.length)) : 0;
-    return Number.isInteger(n) ? Math.max(max, n) : max;
-  }, 0);
-  return `${prefix}${highest + 1}`;
-}
-
-function isLabelRace(error: unknown) {
-  const pg = ((error as { cause?: unknown }).cause ?? error) as { code?: string; constraint?: string };
-  return pg.code === "23505" && pg.constraint === "cv_versions_user_id_language_version_label_uniq";
 }
 
 function pgErrorClass(error: unknown) {
@@ -199,15 +179,23 @@ export function createPostCvVersion(deps: PostCvVersionDeps) {
     }
 
     const { language, documents } = parsed.data;
+    const requested = documents.map((document) => ({ kind: document.kind, title: titleOf(document), text: document.text }));
+    const unchanged = (versionLabel: string) => {
+      log("info", { event: "cv_unchanged", language });
+      return apiError("cv_unchanged", `No document differs from ${versionLabel}.`, { language });
+    };
+
+    const current = await currentCvVersion(deps.db, userId, language);
+    if (current && isUnchanged(current.version.body, current.documents, requested)) {
+      return unchanged(current.version.versionLabel);
+    }
+
     const started = performance.now();
     const elapsed = () => Math.round(performance.now() - started);
 
     let extracted: readonly ExtractedClaim[];
     try {
-      extracted = await deps.extractor.extract(
-        language,
-        documents.map((document) => ({ kind: document.kind, title: titleOf(document), text: document.text })),
-      );
+      extracted = await deps.extractor.extract(language, requested);
     } catch (error) {
       const errorClass = error instanceof ExtractionFailed ? error.errorClass : "unexpected";
       log("error", { event: "cv_extraction_failed", language, error_class: errorClass, duration_ms: elapsed() });
@@ -234,59 +222,33 @@ export function createPostCvVersion(deps: PostCvVersionDeps) {
       });
     }
 
-    const saveVersion = () =>
-      deps.transaction(async (tx) => {
-        const [version] = await tx
-          .insert(s.cvVersions)
-          .values({
-            userId,
-            versionLabel: await nextLabel(tx, userId, language),
-            language,
-            body,
-            extractorModelId: deps.extractor.modelId,
-            extractorPromptVersion: deps.extractor.promptVersions[language],
-          })
-          .returning();
-        const rows = await tx
-          .insert(s.cvDocuments)
-          .values(
-            documents.map((document, position) => ({
-              cvVersionId: version.id,
-              userId,
-              kind: document.kind,
-              title: titleOf(document),
-              sourceFilename: document.source_filename ?? null,
-              position,
-              start: ranges[position].start,
-              end: ranges[position].end,
-            })),
-          )
-          .returning();
-        await tx.insert(s.cvClaims).values(
-          claims.map((claim) => ({
-            cvVersionId: version.id,
-            userId,
-            textNormalised: claim.textNormalised,
-            spanStart: claim.span.start,
-            spanEnd: claim.span.end,
+    let saved;
+    try {
+      saved = await deps.transaction((tx) =>
+        saveCvVersion(tx, {
+          userId,
+          language,
+          documents: documents.map((document) => ({
+            kind: document.kind,
+            title: titleOf(document),
+            sourceFilename: document.source_filename ?? null,
+            text: document.text,
           })),
-        );
-        return { version, documents: rows };
-      });
-
-    let saved: Awaited<ReturnType<typeof saveVersion>> | undefined;
-    for (let attempt = 1; !saved; attempt += 1) {
-      try {
-        saved = await saveVersion();
-      } catch (error) {
-        if (isLabelRace(error) && attempt < LABEL_ATTEMPTS) continue;
-        // drizzle's message carries the query's params — the body and every claim — so the
-        // original never leaves this function: not to Next's error log, not to a report.
-        const errorClass = pgErrorClass(error);
-        log("error", { event: "cv_version_write_failed", language, error_class: errorClass, duration_ms: elapsed() });
-        throw new Error(`CV version write failed: ${errorClass}`);
-      }
+          body,
+          ranges,
+          claims,
+          extractorModelId: deps.extractor.modelId,
+          extractorPromptVersion: deps.extractor.promptVersions[language],
+        }),
+      );
+    } catch (error) {
+      // drizzle's message carries the query's params — the body and every claim — so the original
+      // never leaves this function: not to Next's error log, not to a report.
+      const errorClass = pgErrorClass(error);
+      log("error", { event: "cv_version_write_failed", language, error_class: errorClass, duration_ms: elapsed() });
+      throw new Error(`CV version write failed: ${errorClass}`);
     }
+    if (saved.unchanged) return unchanged(saved.versionLabel);
 
     const { version } = saved;
     log("info", {
@@ -295,6 +257,7 @@ export function createPostCvVersion(deps: PostCvVersionDeps) {
       language,
       documents: saved.documents.length,
       claims: claims.length,
+      carried_forward: saved.carriedForward,
       spans_checked: spansChecked,
       spans_rejected: spansRejected,
       ...Object.fromEntries(Object.entries(rejected).map(([reason, n]) => [`rejected_${reason}`, n])),
@@ -316,7 +279,11 @@ export function createPostCvVersion(deps: PostCvVersionDeps) {
           start: document.start,
           end: document.end,
         })),
-        claims: { total: claims.length, carried_forward: 0, new: claims.length },
+        claims: {
+          total: claims.length,
+          carried_forward: saved.carriedForward,
+          new: claims.length - saved.carriedForward,
+        },
         validation: { spans_checked: spansChecked, spans_rejected: spansRejected },
       },
       { status: 201 },

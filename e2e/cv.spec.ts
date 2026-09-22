@@ -178,3 +178,54 @@ test("a 応募書類 with a 履歴書, a 職務経歴書 and an additional docum
     await openAi.close();
   }
 });
+
+// #16: the next version. Continues from the CV v1 the first English test saved — tests in a file run
+// in order, on one worker, against one database.
+
+test("prefilled form → edit → CV v2 with carry-forward counts; an unchanged save is refused; v1 stays readable", async ({
+  page,
+}) => {
+  await signIn(page);
+  const openAi = await startMockOpenAi({
+    claims: [...CLAIMS, { document: 0, quote: "AWS Solutions Architect, 2025.", start_hint: 160 }],
+  });
+  try {
+    await page.goto("/cv");
+    const panel = page.getByRole("region", { name: "CV", exact: true });
+    await expect(panel.getByTestId("cv-version-label")).toHaveText("CV v1");
+
+    await panel.getByRole("button", { name: "Create a new version" }).click();
+    const box = panel.getByRole("textbox", { name: "CV" });
+    await expect(box).toHaveValue(CV);
+    await box.fill(`${CV}\nAWS Solutions Architect, 2025.`);
+    await panel.getByRole("button", { name: "Save this version" }).click();
+
+    await expect(panel.getByTestId("cv-version-label")).toHaveText("CV v2");
+    await expect(panel.getByText("3 claims extracted — 2 carried forward, 1 new. 1 dropped.")).toBeVisible();
+
+    // Saving the prefilled form untouched: refused before any model call, nothing written.
+    await panel.getByRole("button", { name: "Create a new version" }).click();
+    await panel.getByRole("button", { name: "Save this version" }).click();
+    await expect(panel.getByText("Nothing in the CV has changed. No new version was created.")).toBeVisible();
+    expect(openAi.requests).toHaveLength(1);
+
+    // History: v1 below the current version, readable at its own page, with no way to make it current.
+    await page.goto("/cv");
+    const history = panel.getByTestId("cv-version-history");
+    await expect(history.getByRole("link")).toHaveCount(1);
+    await history.getByRole("link", { name: /CV v1/ }).click();
+    await expect(page).toHaveURL(/\/cv\/versions\/[0-9a-f-]{36}$/);
+    await expect(page.getByTestId("cv-version-label")).toHaveText("CV v1");
+    await expect(page.locator("[data-claim]")).toHaveCount(2);
+    await expect(page.getByRole("button")).toHaveCount(0);
+  } finally {
+    await openAi.close();
+  }
+});
+
+test("a version id that is not the user's is a 404", async ({ page }) => {
+  await signIn(page);
+  const response = await page.goto("/cv/versions/00000000-0000-4000-8000-000000000000");
+  expect(response?.status()).toBe(404);
+  expect((await page.goto("/cv/versions/not-a-uuid"))?.status()).toBe(404);
+});

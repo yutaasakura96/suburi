@@ -8,8 +8,9 @@ at https://suburi-develop.vercel.app.** **The first feature — getting a CV in 
 ticketed:** spec [#11](https://github.com/yutaasakura96/suburi/issues/11), tickets #12–#21. #12 is
 done; **#13 is done — built, and its catalogue passed the native read.** **#14 is done — the tracer
 bullet: an English CV pasted, saved and read back underlined.** **#15 is done — the 応募書類 panel and
-additional documents in both languages.** Next is #16.
-**Updated:** 2026-09-21 (#15)
+additional documents in both languages.** **#16 is done — next versions: prefill, carry-forward,
+`cv_unchanged`, history.** Next is #17 or #18.
+**Updated:** 2026-09-22 (#16)
 
 ## Done
 - Phase 1 — `docs/01-project-brief.md`, `docs/02-product-requirements.md`, `docs/06-decision-log.md`.
@@ -174,6 +175,23 @@ additional documents in both languages.** Next is #16.
   - The `201` has no `Location`, because no GET exists.
   - "`404` for another user's version" is covered as scoping (numbering and `currentCvVersion`),
     because no route addresses a version by id.
+- **#16 — next CV versions. Done.** The panel with a version shows `新しいバージョンをつくる` /
+  `Create a new version`, which opens the form prefilled with every document's kind, title, text and
+  `source_filename`. Older versions are listed below, newest first, each linking to
+  **`/cv/versions/{id}`** (read-only, 404 for anyone else's id or a non-uuid). Save path, now in
+  `lib/cv/save-cv-version.ts`: **`pg_advisory_xact_lock` on `(user_id, language)` first**, then the
+  current version, a second `cv_unchanged` check, the label, and carry-forward (`lib/cv/carry-forward.ts`,
+  many-to-one, lowest `span_start` wins). **`created_at` is `clock_timestamp()`** — `now()` is the
+  transaction's start and would date a save that waited on the lock before the one it waited for, making
+  "current" wrong. The label retry loop is gone; the unique index is the backstop. `cv_unchanged` is
+  checked before the model call too (`lib/cv/unchanged.ts`). Five entries in `06`; `04`, `07` §5.2, `10`
+  §13 and `11` §3.8 amended. Mutation-checked: removing the lock or `clock_timestamp()` fails the
+  two-connection test in `lib/cv/save-cv-version.integration.test.ts`.
+  **Counts:** units 387 → 401, integration 84 → 98, e2e 11 → 13.
+  **No new Japanese string** — `新しいバージョンをつくる` is `10` §13's, already on #20's read; the
+  version page's back link reuses the panel heading (`← 応募書類`).
+  **Not done:** no cancel on the new-version form (`10` §13 draws none; a reload leaves it). Import is
+  #17, the rate limiter #18.
 - **#15 — the Japanese CV and additional documents. Done.** `/cv` now has both panels, `応募書類` left
   and `CV` right, each with its chrome in its own language (`lang` on the region). The Japanese form
   has the 履歴書 box with the personal-particulars hint, `職務経歴書を追加` until one exists, and in both
@@ -210,11 +228,9 @@ Page 1 is the screen set, page 2 the three exploration directions. **Working fil
 every change re-seeds from those — edit them, never the built `design/suburi-directions.html`.
 
 ## Next
-**#16, next CV versions** — prefill, carry-forward, `cv_unchanged`, history. It is unblocked by
-#15. The form in `app/(app)/cv/cv-panel.tsx` starts from one empty required document, and #16 seeds
-it from the current version instead. `cv_unchanged` compares kind, title and text in order, and
-because order is refused rather than sorted (`06`, #15), that is a plain index-by-index comparison.
-#17 (import) and #18 (rate limiter) are also unblocked.
+**#17 (import) or #18 (rate limiter)** — both unblocked. #16 is done; #19 (develop's deploy steps)
+is what `feat/11-cv-in` still waits on before it can merge into `develop`, and #20 now has all of
+#14–#16 to read and measure.
 
 **Still waiting on a native read, with the screens that carry them (#14–#16):** the strings in `10`
 §13 (as amended in #15), the 履歴書 personal-particulars hint, `記載事項`, #15's new strings, and the three prose strings
