@@ -282,7 +282,7 @@ are branch-scoped Secrets naming `suburi`; `OPENAI_API_KEY` is Preview-only, sco
 could read and write it through `neon_superuser` but not alter it, so `0002` failed there (rolled back
 cleanly — drizzle migrates in one transaction). Decision: move `develop` onto `suburi` as documented —
 migrate it from `0000`, seed it, and repoint `develop`'s `DATABASE_URL`/`DATABASE_URL_UNPOOLED` at it.
-`neondb` on `develop` is then unused; it still carries `main`'s copied role and password.
+`neondb` on `develop` was dropped the same day, after checking it held only the old synthetic user and two sessions. So was the branch's copied `neondb_owner` role, which carried `main`'s password; `develop` now has one role, `suburi_develop`, and one database, `suburi`.
 
 **`lib/cv`'s value imports now carry `.ts`** (`body`, `unchanged`, `current-version`,
 `save-cv-version`), because the seed script runs under plain `node`, which does not resolve extensionless
