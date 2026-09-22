@@ -1,6 +1,6 @@
 import { and, asc, count, desc, eq } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
-import * as s from "../../db/schema";
+import * as s from "../../db/schema.ts";
 
 type Db = Pick<NodePgDatabase, "select">;
 

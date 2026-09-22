@@ -1,10 +1,10 @@
 import { and, eq, sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
-import * as s from "../../db/schema";
-import { carryForward } from "./carry-forward";
-import { currentCvVersion } from "./current-version";
+import * as s from "../../db/schema.ts";
+import { carryForward } from "./carry-forward.ts";
+import { currentCvVersion } from "./current-version.ts";
 import type { Span } from "./spans";
-import { isUnchanged } from "./unchanged";
+import { isUnchanged } from "./unchanged.ts";
 
 // Relative imports: the integration tests load this file outside Next's path aliases.
 
@@ -26,8 +26,9 @@ export interface NewCvVersion {
   readonly body: string;
   readonly ranges: readonly Span[];
   readonly claims: readonly { readonly span: Span; readonly textNormalised: string }[];
-  readonly extractorModelId: string;
-  readonly extractorPromptVersion: string;
+  /** Null only for the synthetic seed's fixture claims, which no model produced (06, #19). */
+  readonly extractorModelId: string | null;
+  readonly extractorPromptVersion: string | null;
 }
 
 export type SaveOutcome =
@@ -54,6 +55,11 @@ async function nextLabel(db: Db, userId: string, language: Language) {
   return `${prefix}${highest + 1}`;
 }
 
+/** The transaction-scoped advisory lock on `(user_id, language)` that serialises saves (04). */
+export async function lockCvLanguage(tx: Db, userId: string, language: Language) {
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`cv_versions:${userId}:${language}`}, 0))`);
+}
+
 /**
  * Writes one CV version, its documents and its claims. Call it inside a transaction: the first
  * statement takes a transaction-scoped advisory lock on `(user_id, language)`, so saves in a language
@@ -67,7 +73,7 @@ async function nextLabel(db: Db, userId: string, language: Language) {
  */
 export async function saveCvVersion(tx: Db, input: NewCvVersion): Promise<SaveOutcome> {
   const { userId, language } = input;
-  await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`cv_versions:${userId}:${language}`}, 0))`);
+  await lockCvLanguage(tx, userId, language);
 
   const previous = await currentCvVersion(tx, userId, language);
   if (previous && isUnchanged(previous.version.body, previous.documents, input.documents)) {

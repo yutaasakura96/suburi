@@ -1,4 +1,4 @@
-import { sliceQuote, type Span } from "./spans";
+import { sliceQuote, type Span } from "./spans.ts";
 
 export interface RequestedDocument {
   readonly kind: string;

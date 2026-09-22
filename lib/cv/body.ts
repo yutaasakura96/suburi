@@ -1,4 +1,4 @@
-import { characterLength, type Span } from "./spans";
+import { characterLength, type Span } from "./spans.ts";
 
 /**
  * The fixed separator between documents in `cv_versions.body` (04). Never changed: every stored
