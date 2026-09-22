@@ -96,27 +96,30 @@ async function setUp(
   });
 
   const responses: string[] = [];
-  async function post(body: unknown, { signedIn = true } = {}) {
+  async function post(body: unknown, { signedIn = true, as = cookie } = {}) {
     const response = await handler(
       new Request("http://localhost:3000/api/cv-versions", {
         method: "POST",
         headers: {
           "content-type": "application/json",
-          ...(signedIn ? { cookie: `${cookie.name}=${cookie.value}` } : {}),
+          ...(signedIn ? { cookie: `${as.name}=${as.value}` } : {}),
         },
         body: typeof body === "string" ? body : JSON.stringify(body),
       }),
     );
     const text = await response.text();
     responses.push(text);
-    return { status: response.status, json: JSON.parse(text) };
+    return { status: response.status, json: JSON.parse(text), retryAfter: response.headers.get("Retry-After") };
   }
+
+  /** A second sign-in by the same user: a different session, so a different rate-limit bucket. */
+  const anotherSession = () => mintSessionCookie(auth, user.id);
 
   async function versionsOf(userId = user.id) {
     return db.select().from(s.cvVersions).where(eq(s.cvVersions.userId, userId));
   }
 
-  return { userId: user.id, extractor, post, responses, versionsOf };
+  return { userId: user.id, extractor, post, responses, versionsOf, anotherSession };
 }
 
 async function rowCounts(db: TestDb, userId: string) {
@@ -666,5 +669,39 @@ describe("POST /api/cv-versions next versions", () => {
       await post(en("Beta."));
       const [v1, v2] = (await versionsOf()).sort((a, b) => a.versionLabel.localeCompare(b.versionLabel));
       expect(v2.createdAt.getTime()).toBeGreaterThan(v1.createdAt.getTime());
+    }));
+});
+
+describe("POST /api/cv-versions rate limit", () => {
+  it("is 429 rate_limited with Retry-After on the seventh request in the window, calling no model", () =>
+    inRolledBackTransaction(async (db) => {
+      const { post, extractor, userId } = await setUp(db);
+      // Refused requests count too: the limiter runs before the body is parsed (07 §1 rule 5).
+      for (let i = 0; i < 6; i++) expect((await post("not json")).status).toBe(400);
+
+      const { status, json, retryAfter } = await post(cvRequest());
+      expect(status).toBe(429);
+      expect(json.error.code).toBe("rate_limited");
+      expect(Number(retryAfter)).toBeGreaterThan(590);
+      expect(Number(retryAfter)).toBeLessThanOrEqual(600);
+      expect(extractor.calls).toBe(0);
+      expect((await rowCounts(db, userId)).versions).toBe(0);
+    }));
+
+  it("does not count or limit a request with no session", () =>
+    inRolledBackTransaction(async (db) => {
+      const { post } = await setUp(db);
+      for (let i = 0; i < 7; i++) expect((await post(cvRequest(), { signedIn: false })).status).toBe(401);
+      expect((await post(cvRequest())).status).toBe(201);
+    }));
+
+  it("leaves another session unaffected", () =>
+    inRolledBackTransaction(async (db) => {
+      const { post, anotherSession } = await setUp(db);
+      for (let i = 0; i < 7; i++) await post("not json");
+      expect((await post(cvRequest())).status).toBe(429);
+
+      const { status } = await post(cvRequest(), { as: await anotherSession() });
+      expect(status).toBe(201);
     }));
 });

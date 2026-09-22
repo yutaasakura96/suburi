@@ -22,6 +22,13 @@
       "when": 1789964851170,
       "tag": "0002_cv-documents",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1790056466486,
+      "tag": "0003_rate-limit-windows",
+      "breakpoints": true
     }
   ]
 }

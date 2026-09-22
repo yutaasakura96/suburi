@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { COPY } from "./copy";
+import { COPY, retryClock } from "./copy";
 
 // 05 §6's mechanical rules over the 応募書類 panel's chrome, as lib/copy/errors.test.ts holds them
 // over the catalogue. Whether a person would write the sentence is #20's native read, not a test.
@@ -31,5 +31,28 @@ describe("the 応募書類 panel's Japanese chrome", () => {
 
   it("counts claims in 件 and names them 記載事項", () => {
     expect(COPY.ja.claims(34)).toBe("記載事項 34件");
+  });
+});
+
+describe("the time a rate-limited save can be retried (10 §13)", () => {
+  const at = (hms: string) => new Date(`2026-09-22T${hms}`);
+
+  it("is local HH:MM, 24-hour", () => {
+    expect(retryClock(600, at("14:22:00"))).toBe("14:32");
+    expect(retryClock(60, at("09:05:00"))).toBe("09:06");
+  });
+
+  it("rounds up to the next minute, so it never names a time that is still too early", () => {
+    expect(retryClock(1, at("14:31:30"))).toBe("14:32");
+    expect(retryClock(590, at("14:22:10"))).toBe("14:32");
+  });
+
+  it("wraps past midnight", () => {
+    expect(retryClock(120, at("23:59:30"))).toBe("00:02");
+  });
+
+  it("is written into the sentence in both languages", () => {
+    expect(COPY.ja.savableAt("14:32")).toBe("14:32 から保存できます。");
+    expect(COPY.en.savableAt("14:32")).toBe("You can save again at 14:32.");
   });
 });

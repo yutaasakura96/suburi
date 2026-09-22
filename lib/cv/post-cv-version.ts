@@ -1,7 +1,8 @@
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { z } from "zod";
-import { apiError, unauthenticated } from "../api/errors";
-import { sessionUserId, type SessionReader } from "../auth/session";
+import { apiError, rateLimited, unauthenticated } from "../api/errors";
+import { takeRateLimit } from "../api/rate-limit";
+import { sessionOf, type SessionReader } from "../auth/session";
 import {
   ExtractionFailed,
   type CvClaimExtractor,
@@ -27,8 +28,11 @@ import { isUnchanged } from "./unchanged";
  * **Composition and order are refused, never repaired** (04, 07 §5.2). A set is its required
  * document, then — Japanese only — at most one 職務経歴書, then up to five titled additional
  * documents in the order sent. That order is `position` and the order `body` is joined in; a request
- * in any other order is a 400 rather than being sorted. The rate limiter is #18; the total size cap
- * is #20's, measured on the real call.
+ * in any other order is a 400 rather than being sorted. The total size cap is #20's, measured on the
+ * real call.
+ *
+ * **Rate-limited before anything else is read** (07 §1 rule 5): 6 per 10 minutes per session, and a
+ * request refused for any later reason still counts.
  *
  * **`cv_unchanged` is checked twice** (07 §5.2): here, before the model call, and again under the
  * write's lock (`saveCvVersion`), where carry-forward is also decided.
@@ -163,8 +167,12 @@ function survivingClaims(body: string, ranges: readonly Span[], claims: readonly
 
 export function createPostCvVersion(deps: PostCvVersionDeps) {
   return async function POST(request: Request): Promise<Response> {
-    const userId = await sessionUserId(deps.auth, request.headers);
-    if (!userId) return unauthenticated();
+    const session = await sessionOf(deps.auth, request.headers);
+    if (!session) return unauthenticated();
+    const { userId, sessionId } = session;
+
+    const wait = await takeRateLimit(deps.db, { userId, sessionId, route: "cv-versions" });
+    if (wait !== null) return rateLimited("Too many CV saves in this window.", wait);
 
     let json: unknown;
     try {

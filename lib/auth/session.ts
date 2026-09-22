@@ -5,20 +5,29 @@ import { getAuth } from ".";
 
 // Only what a session read needs, so callers and tests are not typed against the whole instance.
 export interface SessionReader {
-  api: { getSession(options: { headers: Headers }): Promise<{ user: { id: string } } | null> };
+  api: {
+    getSession(options: {
+      headers: Headers;
+    }): Promise<{ user: { id: string }; session: { id: string } } | null>;
+  };
 }
 
 // The server-side re-check behind the optimistic proxy (08 §5). Each returns the user_id every query
 // is scoped by.
 
-/** The session's user, read from request headers. Route handlers pass their own request's. */
-export async function sessionUserId(auth: SessionReader, requestHeaders: Headers) {
+/**
+ * The session's user and the session itself, read from request headers — route handlers pass their
+ * own request's. ⚡ routes need both: the per-session rate limiter keys on the session (07 §1 rule 5),
+ * every query on the user.
+ */
+export async function sessionOf(auth: SessionReader, requestHeaders: Headers) {
   const session = await auth.api.getSession({ headers: requestHeaders });
-  return session?.user.id;
+  if (!session) return undefined;
+  return { userId: session.user.id, sessionId: session.session.id };
 }
 
 async function currentUserId() {
-  return sessionUserId(getAuth(), await headers());
+  return (await sessionOf(getAuth(), await headers()))?.userId;
 }
 
 /** Pages and Server Actions. No session redirects to /sign-in. */

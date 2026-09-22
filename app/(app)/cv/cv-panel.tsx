@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import type { ErrorCode } from "@/lib/api/errors";
 import { ERROR_COPY } from "@/lib/copy/errors";
 import type { ImportResult } from "@/lib/cv/import/extract";
-import { COPY, REQUIRED_KIND, type Copy, type CvLanguage, type Kind, type SaveResult } from "./copy";
+import { COPY, REQUIRED_KIND, retryClock, type Copy, type CvLanguage, type Kind, type SaveResult } from "./copy";
 import { CvVersionView, sectionLabel, type VersionView } from "./version-view";
 
 type Prefill = readonly {
@@ -233,6 +233,8 @@ function NewVersionForm({
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<ErrorCode | null>(null);
+  // Set only with a rate_limited error: the clock time Retry-After names (06, #18).
+  const [retryAt, setRetryAt] = useState<string | null>(null);
 
   const additionalCount = drafts.filter((draft) => draft.kind === "additional").length;
   const hasShokumu = drafts.some((draft) => draft.kind === "shokumu_keirekisho");
@@ -259,6 +261,7 @@ function NewVersionForm({
     if (saving || !complete) return;
     setSaving(true);
     setError(null);
+    setRetryAt(null);
     try {
       const response = await fetch("/api/cv-versions", {
         method: "POST",
@@ -276,6 +279,8 @@ function NewVersionForm({
       const json = await response.json();
       if (!response.ok) {
         setError(json.error?.code in ERROR_COPY ? json.error.code : "cv_extraction_failed");
+        const retryAfter = Number(response.headers.get("Retry-After"));
+        if (response.status === 429 && retryAfter > 0) setRetryAt(retryClock(retryAfter, new Date()));
         return;
       }
       onSaved({
@@ -322,7 +327,12 @@ function NewVersionForm({
           {copy.save}
         </Button>
         <p className={caption}>{saving ? copy.saving : copy.commits}</p>
-        {error ? <CalloutRail tone="attention">{ERROR_COPY[error][language]}</CalloutRail> : null}
+        {error ? (
+          <CalloutRail tone="attention">
+            {ERROR_COPY[error][language]}
+            {retryAt ? <span className="block">{copy.savableAt(retryAt)}</span> : null}
+          </CalloutRail>
+        ) : null}
       </div>
     </form>
   );

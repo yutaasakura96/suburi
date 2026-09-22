@@ -359,3 +359,30 @@ test("a file with no text, or one that cannot be opened, says so and leaves the 
   ).toBeVisible();
   await expect(box).toHaveValue(before);
 });
+
+// Continues from CV v2 above. The limiter counts before the body is parsed (07 §1 rule 5), so six
+// malformed posts from this session use up its window without calling a model.
+test("a seventh save in ten minutes is refused inline with the time it can be retried", async ({
+  page,
+}) => {
+  await signIn(page);
+  await page.goto("/cv");
+  const statuses = await page.evaluate(async () => {
+    const out: number[] = [];
+    for (let i = 0; i < 6; i++) {
+      const response = await fetch("/api/cv-versions", { method: "POST", body: "not json" });
+      out.push(response.status);
+    }
+    return out;
+  });
+  expect(statuses).toEqual([400, 400, 400, 400, 400, 400]);
+
+  const panel = page.getByRole("region", { name: "CV" });
+  await panel.getByRole("button", { name: "Create a new version" }).click();
+  await panel.getByRole("textbox").first().fill(`${CV}\nRate-limited edit.`);
+  await panel.getByRole("button", { name: "Save this version" }).click();
+
+  await expect(panel.getByText("Too many requests in a row. Wait a moment and try again.")).toBeVisible();
+  await expect(panel.getByText(/^You can save again at \d{2}:\d{2}\.$/)).toBeVisible();
+  await expect(panel.getByRole("textbox").first()).toHaveValue(`${CV}\nRate-limited edit.`);
+});

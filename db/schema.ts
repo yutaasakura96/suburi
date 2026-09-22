@@ -27,6 +27,8 @@ export const ROLE_CONTEXT_KINDS = ["posting", "researched", "general"] as const;
 export const SCORING_STATUSES = ["pending", "ok", "failed"] as const;
 export const CITATION_RELATIONS = ["supported_by", "contradicted_by"] as const;
 export const CV_DOCUMENT_KINDS = ["rirekisho", "shokumu_keirekisho", "cv", "additional"] as const;
+// Every ⚡ route (07 §1 rule 5). A new one extends this list in its own migration.
+export const RATE_LIMITED_ROUTES = ["cv-versions"] as const;
 
 const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
 
@@ -468,3 +470,25 @@ export const heldOutRescores = pgTable("held_out_rescores", {
     .references(() => scoringAttempts.id, { onDelete: "restrict" }),
   createdAt: createdAt(),
 });
+
+// 07 §1 rule 5: one fixed window per (session, route), advanced by one upsert (lib/api/rate-limit.ts).
+// session_id is deliberately not a foreign key: Better Auth deletes expired sessions (04 §2).
+export const rateLimitWindows = pgTable(
+  "rate_limit_windows",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    sessionId: text("session_id").notNull(),
+    route: text("route", { enum: RATE_LIMITED_ROUTES }).notNull(),
+    windowStartedAt: timestamp("window_started_at", { withTimezone: true }).notNull(),
+    count: integer("count").notNull(),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    oneOf("rate_limit_windows", "route", t.route, RATE_LIMITED_ROUTES),
+    unique("rate_limit_windows_session_id_route_unique").on(t.sessionId, t.route),
+  ],
+);

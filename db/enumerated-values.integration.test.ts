@@ -23,6 +23,7 @@ const ENUMERATED = [
   ["round_feedback", "language"],
   ["claim_citations", "relation"],
   ["cv_documents", "kind"],
+  ["rate_limit_windows", "route"],
 ] as const;
 
 // One valid row in every table that has an enumerated column.
@@ -60,6 +61,13 @@ async function insertOneOfEach(db: TestDb) {
   await db
     .insert(s.claimCitations)
     .values({ answerId: answer, cvClaimId: claim.id, relation: "supported_by" });
+  await db.insert(s.rateLimitWindows).values({
+    userId: world.userId,
+    sessionId: "fixture-session",
+    route: "cv-versions",
+    windowStartedAt: new Date(),
+    count: 1,
+  });
 }
 
 describe("an enumerated column refuses a value outside its list", () => {
