@@ -42,3 +42,6 @@ Thumbs.db
 # never commit real user material — see docs/11-testing-plan.md §8
 /private/
 *.cv.local.*
+
+# pdf.js CMaps, copied from node_modules by scripts/copy-pdfjs-assets.mjs
+public/pdfjs/

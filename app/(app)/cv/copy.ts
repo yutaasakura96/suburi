@@ -24,7 +24,8 @@ type Kinds = Partial<Record<Kind, string>>;
  * this screen only (CONTEXT.md). **Every Japanese string here is proposed until its native read
  * (#20).** 10 §13's own strings are applied with #13's rules (05 §6): `バージョン`, never `版`, and
  * `記載事項` for Claim, never `主張`. The ones 10 §13 does not give — `外す`, `資料名`, `本文`, the
- * saving caption and the dropped count in the result line — are listed in #15's PR for that read.
+ * saving caption and the dropped count in the result line — are listed in #15's PR for that read;
+ * #17's two import failures, which 10 §13 does not give either, wait for the same read (#20).
  */
 export const COPY = {
   ja: {
@@ -39,6 +40,12 @@ export const COPY = {
     title: "資料名",
     text: "本文",
     remove: "外す",
+    importFile: "ファイルから読み込む",
+    imported: "読み込んだ文を確認して、必要なら直してください。保存した文がそのまま評価に使われます。",
+    importNoText:
+      "このファイルからは文字を読み取れませんでした。スキャンした画像のファイルは読み込めないため、本文を貼り付けてください。",
+    importUnreadable:
+      "このファイルは開けませんでした。破損しているか、パスワードで保護されている可能性があります。本文を貼り付けてください。",
     save: "このバージョンを保存する",
     commits: "保存すると、この内容でバージョンが確定します。あとから直すことはできません。",
     saving: "記載事項を抽出しています。しばらくかかることがあります。",
@@ -59,6 +66,11 @@ export const COPY = {
     title: "Title",
     text: "Text",
     remove: "Remove",
+    importFile: "Import from a file",
+    imported: "Check the imported text and fix anything wrong. What you save is what gets scored.",
+    importNoText: "No text could be read from this file. A scanned file has none — paste the text instead.",
+    importUnreadable:
+      "This file could not be opened. It may be damaged or password-protected — paste the text instead.",
     save: "Save this version",
     commits: "Saving fixes this version as it is. It cannot be edited afterwards.",
     saving: "Extracting claims from your CV. This can take a while.",

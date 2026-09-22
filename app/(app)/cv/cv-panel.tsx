@@ -6,6 +6,7 @@ import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { ErrorCode } from "@/lib/api/errors";
 import { ERROR_COPY } from "@/lib/copy/errors";
+import type { ImportResult } from "@/lib/cv/import/extract";
 import { COPY, REQUIRED_KIND, type Copy, type CvLanguage, type Kind, type SaveResult } from "./copy";
 import { CvVersionView, sectionLabel, type VersionView } from "./version-view";
 
@@ -32,6 +33,19 @@ interface Draft {
 }
 
 const MAX_ADDITIONAL = 5;
+/** `07` §5.2's cap on `source_filename`, in UTF-16 units as Zod counts it. */
+const MAX_FILENAME = 255;
+
+/** Cut to the cap without leaving half a surrogate pair at the end. */
+function capFilename(name: string) {
+  const cut = name.slice(0, MAX_FILENAME);
+  return /[\uD800-\uDBFF]$/u.test(cut) ? cut.slice(0, -1) : cut;
+}
+// Extensions and MIME types both: a picker filters on either, depending on the platform.
+const IMPORT_ACCEPT =
+  ".docx,.pdf,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+type Edit = Partial<Pick<Draft, "title" | "text" | "sourceFilename">>;
 
 const caption = "text-[12px] leading-[1.7] text-ink-6";
 const field =
@@ -86,14 +100,55 @@ function VersionHistory({ copy, history }: { copy: Copy; history: PanelData["his
 }
 
 // A text control, not a 05 §5.7 button: 05 draws no quiet variant, and a 48px outline beside every
-// box would outweigh the box. Removing a document from an unsaved draft deletes nothing stored.
-function RemoveButton({ label, onClick }: { label: string; onClick: () => void }) {
+// box would outweigh the box. Used for `外す` and for import. Removing a document from an unsaved
+// draft deletes nothing stored.
+function TextButton({ label, onClick, disabled }: { label: string; onClick: () => void; disabled?: boolean }) {
   return (
-    <button type="button" onClick={onClick} className={`${sectionLabel} hover:text-ink-2 hover:underline`}>
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={`${sectionLabel} hover:text-ink-2 hover:underline disabled:opacity-50 disabled:hover:no-underline`}
+    >
       {label}
     </button>
   );
 }
+
+/**
+ * `ファイルから読み込む` / `Import from a file` (10 §13): the text is extracted **in the browser** and
+ * replaces the box's text, which stays editable; the file itself is never sent (07 §5.2). What is
+ * saved is whatever the user leaves in the box.
+ */
+function ImportControl({ label, onResult }: { label: string; onResult: (result: ImportResult, name: string) => void }) {
+  const input = useRef<HTMLInputElement>(null);
+  const [reading, setReading] = useState(false);
+
+  async function picked(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    // Cleared so picking the same file again is a new import.
+    event.target.value = "";
+    if (!file) return;
+    setReading(true);
+    try {
+      const { extractText } = await import("@/lib/cv/import/extract");
+      onResult(await extractText(file), file.name);
+    } catch {
+      onResult({ ok: false, reason: "unreadable" }, file.name);
+    } finally {
+      setReading(false);
+    }
+  }
+
+  return (
+    <>
+      <TextButton label={label} disabled={reading} onClick={() => input.current?.click()} />
+      <input ref={input} type="file" accept={IMPORT_ACCEPT} onChange={picked} hidden tabIndex={-1} />
+    </>
+  );
+}
+
+type ImportState = "imported" | "no_text" | "unreadable" | null;
 
 function DraftDocument({
   language,
@@ -103,11 +158,24 @@ function DraftDocument({
 }: {
   language: CvLanguage;
   draft: Draft;
-  onChange: (next: Partial<Pick<Draft, "title" | "text">>) => void;
+  onChange: (next: Edit) => void;
   onRemove: (() => void) | null;
 }) {
   const copy = COPY[language];
   const heading = copy.kinds[draft.kind] ?? "";
+  const [imported, setImported] = useState<ImportState>(null);
+
+  function importResult(result: ImportResult, name: string) {
+    if (!result.ok) {
+      // A failed import leaves the box as it was.
+      setImported(result.reason);
+      return;
+    }
+    // Replaces the box's text and the filename it came from; nothing is appended (06, #17).
+    onChange({ text: result.text, sourceFilename: capFilename(name) });
+    setImported("imported");
+  }
+
   return (
     <div role="group" aria-label={heading} className="flex flex-col gap-[10px]">
       <div className="flex items-baseline justify-between gap-[14px]">
@@ -123,7 +191,10 @@ function DraftDocument({
         ) : (
           <span className={sectionLabel}>{heading}</span>
         )}
-        {onRemove ? <RemoveButton label={copy.remove} onClick={onRemove} /> : null}
+        <div className="flex items-baseline gap-[14px]">
+          <ImportControl label={copy.importFile} onResult={importResult} />
+          {onRemove ? <TextButton label={copy.remove} onClick={onRemove} /> : null}
+        </div>
       </div>
       {draft.kind === "rirekisho" && copy.particulars ? (
         <CalloutRail tone="information">{copy.particulars}</CalloutRail>
@@ -135,6 +206,9 @@ function DraftDocument({
         rows={draft.kind === "additional" ? 8 : 16}
         className={field}
       />
+      {imported === "imported" ? <p className={caption}>{copy.imported}</p> : null}
+      {imported === "no_text" ? <CalloutRail tone="attention">{copy.importNoText}</CalloutRail> : null}
+      {imported === "unreadable" ? <CalloutRail tone="attention">{copy.importUnreadable}</CalloutRail> : null}
     </div>
   );
 }
@@ -172,7 +246,7 @@ function NewVersionForm({
     setDrafts((current) => (kind === "additional" ? [...current, draft] : [current[0], draft, ...current.slice(1)]));
   }
 
-  function update(key: number, next: Partial<Pick<Draft, "title" | "text">>) {
+  function update(key: number, next: Edit) {
     setDrafts((current) => current.map((draft) => (draft.key === key ? { ...draft, ...next } : draft)));
   }
 

@@ -1,6 +1,6 @@
-import { eq } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import * as s from "../db/schema";
 import { createAuth } from "../lib/auth/auth";
 import { mintSessionCookie } from "../lib/auth/test/session";
@@ -228,4 +228,134 @@ test("a version id that is not the user's is a 404", async ({ page }) => {
   const response = await page.goto("/cv/versions/00000000-0000-4000-8000-000000000000");
   expect(response?.status()).toBe(404);
   expect((await page.goto("/cv/versions/not-a-uuid"))?.status()).toBe(404);
+});
+
+// #17: import. Continues from the 応募書類 v1 the Japanese test saved. The fixtures are written by
+// scripts/make-import-fixtures.mts; rirekisho.pdf's font is not embedded, so its text comes through
+// only if the pdf.js CMaps are served from /pdfjs/cmaps/.
+
+const IMPORTED_SHOKUMU = [
+  "職務経歴書",
+  "職務要約",
+  "架空物流株式会社にて経理システムの刷新を主導し、請求処理を40%短縮しました。",
+  "活かせる経験",
+  "チーム5名の統括、要件定義から運用までの一貫した担当。",
+].join("\n\n");
+const IMPORTED_RIREKISHO = RIREKISHO; // the PDF holds the same three lines
+const EDITED_RIREKISHO = IMPORTED_RIREKISHO.replace("基本情報技術者試験", "応用情報技術者試験");
+
+async function importInto(page: Page, group: Locator, label: string, file: string) {
+  const chooser = page.waitForEvent("filechooser");
+  await group.getByRole("button", { name: label }).click();
+  await (await chooser).setFiles(file);
+}
+
+async function importBuffer(page: Page, group: Locator, label: string, name: string, buffer: Buffer) {
+  const chooser = page.waitForEvent("filechooser");
+  await group.getByRole("button", { name: label }).click();
+  await (await chooser).setFiles({ name, mimeType: "application/octet-stream", buffer });
+}
+
+test("import a Japanese .docx and .pdf, edit a line, save: the saved body is the edited text", async ({
+  page,
+}) => {
+  await signIn(page);
+  const openAi = await startMockOpenAi({
+    claims: [
+      { document: 0, quote: "応用情報技術者試験 合格", start_hint: 30 },
+      { document: 1, quote: "請求処理を40%短縮しました。", start_hint: 40 },
+    ],
+  });
+  // Every request the page sends that is not a plain read: the file's bytes must go nowhere.
+  const writes: { url: string; contentType: string | null; body: string | null }[] = [];
+  page.on("request", (request) => {
+    if (request.method() === "GET") return;
+    writes.push({ url: request.url(), contentType: request.headers()["content-type"] ?? null, body: request.postData() });
+  });
+  try {
+    await page.goto("/cv");
+    const ja = page.getByRole("region", { name: "応募書類" });
+    await expect(ja.getByTestId("cv-version-label")).toHaveText("応募書類 v1");
+    await ja.getByRole("button", { name: "新しいバージョンをつくる" }).click();
+
+    const shokumu = ja.getByRole("group", { name: "職務経歴書" });
+    await importInto(page, shokumu, "ファイルから読み込む", "e2e/fixtures/shokumu.docx");
+    // Replaces the prefilled text; blank paragraphs collapse to one blank line.
+    await expect(shokumu.getByRole("textbox", { name: "職務経歴書" })).toHaveValue(IMPORTED_SHOKUMU);
+    await expect(
+      shokumu.getByText("読み込んだ文を確認して、必要なら直してください。保存した文がそのまま評価に使われます。"),
+    ).toBeVisible();
+
+    const rirekisho = ja.getByRole("group", { name: "履歴書" });
+    const box = rirekisho.getByRole("textbox", { name: "履歴書" });
+    await box.fill("");
+    await importInto(page, rirekisho, "ファイルから読み込む", "e2e/fixtures/rirekisho.pdf");
+    await expect(box).toHaveValue(IMPORTED_RIREKISHO);
+    // The box stays editable, and what is saved is what is left in it.
+    await box.fill(EDITED_RIREKISHO);
+
+    await ja.getByRole("button", { name: "このバージョンを保存する" }).click();
+    await expect(ja.getByTestId("cv-version-label")).toHaveText("応募書類 v2");
+
+    // One write, #14's JSON shape: text and filenames, never the file.
+    expect(writes).toHaveLength(1);
+    expect(writes[0].url).toMatch(/\/api\/cv-versions$/);
+    expect(writes[0].contentType).toBe("application/json");
+    const sent = JSON.parse(writes[0].body ?? "{}");
+    expect(sent.documents.map((d: { kind: string }) => d.kind)).toEqual(["rirekisho", "shokumu_keirekisho", "additional"]);
+    expect(sent.documents[0]).toEqual({ kind: "rirekisho", source_filename: "rirekisho.pdf", text: EDITED_RIREKISHO });
+    expect(sent.documents[1]).toEqual({ kind: "shokumu_keirekisho", source_filename: "shokumu.docx", text: IMPORTED_SHOKUMU });
+    expect(writes[0].body).not.toContain("%PDF");
+
+    // Read back from Postgres: the edit is in the immutable body, each filename on its document.
+    const db = drizzle(E2E_URL);
+    try {
+      const [version] = await db
+        .select({ id: s.cvVersions.id, body: s.cvVersions.body })
+        .from(s.cvVersions)
+        .where(and(eq(s.cvVersions.language, "ja"), eq(s.cvVersions.versionLabel, "応募書類 v2")))
+        .orderBy(desc(s.cvVersions.createdAt));
+      expect(version.body).toContain("応用情報技術者試験 合格");
+      expect(version.body).not.toContain("基本情報技術者試験");
+      const documents = await db
+        .select({ kind: s.cvDocuments.kind, sourceFilename: s.cvDocuments.sourceFilename })
+        .from(s.cvDocuments)
+        .where(eq(s.cvDocuments.cvVersionId, version.id))
+        .orderBy(asc(s.cvDocuments.position));
+      expect(documents).toEqual([
+        { kind: "rirekisho", sourceFilename: "rirekisho.pdf" },
+        { kind: "shokumu_keirekisho", sourceFilename: "shokumu.docx" },
+        { kind: "additional", sourceFilename: null },
+      ]);
+    } finally {
+      await db.$client.end();
+    }
+  } finally {
+    await openAi.close();
+  }
+});
+
+test("a file with no text, or one that cannot be opened, says so and leaves the box as it was", async ({
+  page,
+}) => {
+  await signIn(page);
+  await page.goto("/cv");
+  const en = page.getByRole("region", { name: "CV", exact: true });
+  await en.getByRole("button", { name: "Create a new version" }).click();
+  const document = en.getByRole("group", { name: "CV" });
+  const box = document.getByRole("textbox", { name: "CV" });
+  const before = await box.inputValue();
+
+  await importInto(page, document, "Import from a file", "e2e/fixtures/blank.pdf");
+  await expect(
+    document.getByText("No text could be read from this file. A scanned file has none — paste the text instead."),
+  ).toBeVisible();
+  await expect(box).toHaveValue(before);
+
+  // A legacy Word file renamed to .docx: an OLE header, not a zip.
+  await importBuffer(page, document, "Import from a file", "cv.docx", Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1]));
+  await expect(
+    document.getByText("This file could not be opened. It may be damaged or password-protected — paste the text instead."),
+  ).toBeVisible();
+  await expect(box).toHaveValue(before);
 });

@@ -1,0 +1,48 @@
+%PDF-1.7
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>
+endobj
+4 0 obj
+<< /Length 221 >>
+stream
+BT
+/F1 14 Tf
+72 760 Td
+<6C0F540D00205C717530002082B15B50> Tj
+0 -28 Td
+<00320030003100365E7400336708002067B67A7A59275B66002060C558315B6690E800205352696D> Tj
+0 -28 Td
+<57FA672C60C558316280885380058A669A1300205408683C> Tj
+ET
+endstream
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type0 /BaseFont /HeiseiMin-W3 /Encoding /UniJIS-UCS2-H /DescendantFonts [6 0 R] >>
+endobj
+6 0 obj
+<< /Type /Font /Subtype /CIDFontType0 /BaseFont /HeiseiMin-W3 /CIDSystemInfo << /Registry (Adobe) /Ordering (Japan1) /Supplement 2 >> /FontDescriptor 7 0 R /DW 1000 >>
+endobj
+7 0 obj
+<< /Type /FontDescriptor /FontName /HeiseiMin-W3 /Flags 6 /FontBBox [-123 -257 1001 910] /ItalicAngle 0 /Ascent 723 /Descent -241 /CapHeight 709 /StemV 69 >>
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000241 00000 n 
+0000000513 00000 n 
+0000000636 00000 n 
+0000000819 00000 n 
+trailer
+<< /Size 8 /Root 1 0 R >>
+startxref
+992
+%%EOF
