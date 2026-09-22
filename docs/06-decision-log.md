@@ -3,6 +3,62 @@
 Newest first. Every entry records what was chosen, why, and what was rejected.
 
 ---
+## Phase 6 — #16, next CV versions
+
+Decided while building #16. The first four came from grilling.
+
+### [2026-09-22] Carry-forward is many-to-one, lowest `span_start` wins a tie
+
+**Decided:** each new claim whose `text_normalised` matches a claim in the immediately previous version
+points at the match with the lowest `span_start`. Several new claims may point at one previous claim.
+`carried_forward` is the count of new claims with a parent.
+**Alternatives considered:** one-to-one pairing in position order, a surplus duplicate counting as new.
+**Reason:** `04`'s exact-match rule stays the only rule, with a deterministic tie-break and no pairing
+logic for an edge case (the same sentence in two documents). A forked lineage is harmless: coverage
+asks whether anything in the chain was ever cited.
+
+### [2026-09-22] Older CV versions open at `/cv/versions/{id}`
+
+**Decided:** a history row links to a server-rendered read-only page in the current-version view's
+shape, with a link back. Another user's id or a bad id is a 404.
+**Alternatives considered:** expanding the row inline in the panel.
+**Reason:** `/cv` loads only label, date and count for history, not every old body, and needs no new
+`GET` endpoint. Each version gets a URL, which a CV stamp on an old answer will link to.
+
+### [2026-09-22] `cv_unchanged` is checked twice
+
+**Decided:** once before the model call against the current version, and again inside the write
+transaction, under the lock, against what is current then. Either match is `422 cv_unchanged`,
+nothing written.
+**Alternatives considered:** the pre-extraction check only.
+**Reason:** two tabs saving the same edit both pass the first check, and the loser would otherwise
+write a permanent duplicate and a false Progress boundary. The second check costs one wasted
+extraction in a rare case.
+
+### [2026-09-22] Saves in one language are serialised by an advisory lock; `created_at` is `clock_timestamp()`
+
+**Decided:** the write transaction starts with `pg_advisory_xact_lock` on `(user_id, language)`. The
+version row's `created_at` is set to `clock_timestamp()`. The unique label index stays as a backstop;
+the retry-with-the-next-number loop is removed, so a violation fails the save.
+**Alternatives considered:** keeping `now()` and the retry loop; ordering "current" by label number
+instead of `created_at`.
+**Reason:** `now()` is the transaction's start. A save that began first but read second would become
+`v3` dated before `v2`, and "current" — `max(created_at)` — would name `v2` while `v3` exists: rounds
+stamped against the wrong version, carry-forward from the wrong one. The unique index does not catch
+it. The lock also makes the in-transaction `cv_unchanged` check and "immediately previous" exact.
+Checked against Neon's pooling docs (2026-09-22): PgBouncer transaction mode refuses session-level
+advisory locks only. Ordering by label would have rewritten `04` §6 #9 and its index.
+
+### [2026-09-22] The prefilled form carries each document's `source_filename`
+
+**Decided:** the new-version form is seeded with every document's kind, title, text and
+`source_filename`, and sends the filename back unless the document is removed. Import (#17) replaces
+it.
+**Alternatives considered:** dropping the filename on prefill; dropping it once the text is edited.
+**Reason:** the text still came from that file. `cv_unchanged` ignores the filename, so it cannot make
+an unchanged save look changed.
+
+---
 ## Phase 6 — #15, the Japanese CV and additional documents
 
 Decided while building #15. The first three came from grilling; the rest are the shapes the code took.

@@ -154,6 +154,10 @@ With a stubbed embedder returning fixed vectors, so the test is about the decisi
 - One character different → **new claim, empty coverage.** No fuzzy match, no threshold.
 - A match two versions back, absent from the immediately previous one → does **not** carry forward.
 - Coverage inheritance follows a chain of three versions correctly.
+- A claim moved from one document to another between versions → carries forward (`04`: from any document).
+- Two previous claims with one `text_normalised` → the new claim points at the lower `span_start`; two new claims with one text both point at it.
+- `cv_unchanged` is refused before the model call, and again inside the write when an identical save committed in between.
+- Two saves in one language on two connections are serialised: the second waits for the first's lock, becomes `v{n+1}`, carries forward from it, and is dated after it.
 
 ### 3.9 Derived measures
 

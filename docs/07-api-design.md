@@ -274,8 +274,9 @@ defended rather than checked. **#20 measures it**, on the real call and the real
 is none (`06`, #15).
 
 **`version_label` is derived**, `応募書類 v{n}` / `CV v{n}`, numbered per language. `unique (user_id,
-language, version_label)` makes two concurrent saves safe: the loser retries with the next number
-rather than creating a second `v4` (`04`).
+language, version_label)` is the backstop; saves in one language are serialised by a
+transaction-scoped advisory lock, so two concurrent saves become `v4` then `v5`, never two `v4`s, and
+`created_at` order matches label order (`04`).
 
 **`carried_forward` is `04`'s exact-match rule and nothing more.** Stated there, once: this endpoint
 reports the count and decides none of it.
@@ -298,6 +299,10 @@ Failures:
   no-op save would otherwise create a permanent duplicate version, a wasted extraction call, and a
   Progress boundary line marking a change that did not happen (`04` §6, refusal #5). The client also
   disables the save control while a save is in flight; this is the server-side half of the same rule.
+  **Checked twice:** before the model call, against the current version — the cheap refusal, no
+  extraction spent — and again inside the write transaction, under the lock, against whatever is
+  current *then*. Two tabs saving the same edit both pass the first check; the second to take the lock
+  is refused by the second check rather than writing a duplicate `v{n+1}` (`06`, #16).
 - **`502 cv_extraction_failed`** — the model call failed, **or zero claims survived the span
   validator**. Nothing is written, the version is not created, and the user simply saves again. A CV
   version with half its claims is worse than none, and one with no claims would make coverage and

@@ -100,15 +100,23 @@ version of the whole set.
 | `source_filename` | `text` | yes | — | **Retired.** Always null; not dropped — migrations are expand-only. A filename belongs to a document, not to the set: `cv_documents.source_filename`. |
 | `extractor_model_id` | `text` | yes | — | model that produced the claims |
 | `extractor_prompt_version` | `text` | yes | — | |
-| `created_at` | `timestamptz` | no | `now()` | this is the date screen 2 shows |
+| `created_at` | `timestamptz` | no | `now()` | this is the date screen 2 shows. **Written as `clock_timestamp()`** by the save, not left to the default — see below. |
 
 **`version_label` is derived, and numbering is per language.** `応募書類 v{n}` for `ja`, `CV v{n}` for
 `en`, `n` being one more than the highest existing version in that language. The client never sends
 it (`07` §5.2).
 
-**Constraint:** `unique (user_id, language, version_label)`. Two concurrent saves that both compute
-`v4` do not both succeed — the loser gets a constraint violation and retries, rather than producing
-two `v4` rows that later stamp different answers with the same string.
+**Saves in one language are serialised.** The write transaction's first statement is
+`pg_advisory_xact_lock` on `(user_id, language)`; everything after it — reading the current version,
+the `cv_unchanged` re-check, the label, carry-forward — sees every earlier save committed. Transaction
+scope, not session scope: Neon's pooler runs PgBouncer in transaction mode, which refuses only
+session-level advisory locks. The version row's `created_at` is `clock_timestamp()`, taken after the
+lock. **The default `now()` is the transaction's start**, so a save that began first but took the lock
+second would be labelled `v3` and dated before `v2` — and "current" is ordered by `created_at`.
+
+**Constraint:** `unique (user_id, language, version_label)` — **the backstop, not the mechanism.** With
+the lock, two saves never compute the same label; a violation here is a bug, and it fails the save
+rather than retrying under the next number (`06`, #16).
 
 **There is no `is_current` flag.** The **current CV version** in a language is the newest by
 `created_at` for that `(user_id, language)`. A flag would be a second source of truth that a failed
@@ -201,6 +209,11 @@ byte-identical to a claim in the **immediately previous version of the same lang
 that version's claims **from any document** — text moved out of a 職務経歴書 and into an additional
 document is the same assertion and carries forward. Two versions back never matches, and the other
 language never matches. Anything else is a new claim with empty coverage.
+**Many-to-one, with one tie-break.** The same sentence in two documents is two claims with one
+`text_normalised`. A new claim points at the matching previous claim with the **lowest `span_start`**,
+and several new claims may point at the same previous one; `carried_forward` counts new claims with a
+parent. The lineage may fork; coverage ("was anything in this chain ever cited?") reads the same
+either way (`06`, #16).
 **No fuzzy matching, no similarity threshold, no review step** — a reworded claim honestly reads as a
 different thing to cite, and comparability across CV versions is already handled by the CV version
 stamp and Progress's boundary lines (screen-spec refusal #5). Do not solve it twice here.

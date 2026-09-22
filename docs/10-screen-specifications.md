@@ -499,7 +499,8 @@ dropped at save time and is not here to render.
 ### New version
 
 An outline button `新しいバージョンをつくる` / `Create a new version` opens a form **prefilled with the current
-version's documents** — same kinds, same titles, same text, same order. Changing one document does not
+version's documents** — same kinds, same titles, same text, same order, and each document's
+`source_filename` if it had one. Changing one document does not
 mean retyping the others, and the prefill is also what makes `cv_unchanged` a real risk worth refusing
 server-side.
 
@@ -543,8 +544,11 @@ so there is nothing to reconcile. The message is the catalogue's copy for `cv_ex
 ### Version history
 
 Below the current version, in the same panel: one row per older version, newest first — label, date,
-claim count — at 12px, `--ink-6`, on `--rule-hairline` separators. A row opens that version read-only,
-in the same shape as the current-version view.
+claim count — at 12px, `--ink-6`, on `--rule-hairline` separators. A row is a link to that version at
+**`/cv/versions/{id}`**, a server-rendered page in the same shape as the current-version view — stamp,
+date, count, documents with their underlines — with no new-version action and a link back to `/cv`
+(`06`, #16). An id that is not the user's, or not a version at all, is a 404. The page is also what a
+CV stamp on an old answer will link to.
 
 **Readable, never selectable.** There is no control that makes an older version current and none that
 points a round at one (`07` §6). History here answers "what was I scored against in August?", which is
