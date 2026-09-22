@@ -270,6 +270,14 @@ through `0003`**, then `npm run db:seed:develop` against it (**not** `db:seed`, 
 `main`). Then merge, and verify on `develop`: both seeded CVs on the CV screen, one real save with
 synthetic text, no CV text in the runtime log. #20 now has #14–#18 to read and measure.
 
+**Found 2026-09-22: `develop` had been running on the wrong database.** Neon `develop`'s `suburi` database
+(owned by `suburi_develop`, as `12` §3 step 8 says) was empty; the deploy's URLs named the branch's
+`neondb`, which holds `main`'s schema-only copy owned by `main`'s copied `neondb_owner`. `suburi_develop`
+could read and write it through `neon_superuser` but not alter it, so `0002` failed there (rolled back
+cleanly — drizzle migrates in one transaction). Decision: move `develop` onto `suburi` as documented —
+migrate it from `0000`, seed it, and repoint `develop`'s `DATABASE_URL`/`DATABASE_URL_UNPOOLED` at it.
+`neondb` on `develop` is then unused; it still carries `main`'s copied role and password.
+
 **`lib/cv`'s value imports now carry `.ts`** (`body`, `unchanged`, `current-version`,
 `save-cv-version`), because the seed script runs under plain `node`, which does not resolve extensionless
 imports. `next build` accepts them. A new `lib/cv` import that a script reaches needs the same.
