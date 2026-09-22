@@ -49,9 +49,12 @@ by round end the scores are already rows.
 4. **No `403` anywhere.** There are no roles (`08` §4). Unauthenticated is `401`; not yours is `404`.
 5. **Rate-limited per session on every route that calls a model** — marked ⚡ below (`03` §9, second
    worst thing an attacker could do). **One shared limiter**, not a rule re-implemented per route;
-   `429 rate_limited` carries `Retry-After`. It is built with `POST /api/cv-versions`, the first ⚡
-   route to exist, and its mechanism is chosen there against current platform documentation rather
-   than assumed here.
+   `429 rate_limited` carries `Retry-After`. **Mechanism (#18): a fixed window per `(session, route)`
+   in Postgres** — `rate_limit_windows`, one atomic upsert (`04` §2), `lib/api/rate-limit.ts`. Each ⚡
+   route has its own bucket, with its limit and window as a constant beside the limiter. **The count is
+   taken right after the session check and before the body is parsed**, so every authenticated
+   request counts, a refused one included, and a flood never reaches Zod or the database's real work.
+   `POST /api/cv-versions`: **6 per 10 minutes.** Why not Vercel's WAF: `06` "Phase 6 — #18".
 6. **The client never chooses an S3 key, an object prefix, a `user_id`, a `position`, an
    `is_first_attempt`, or any version stamp.** All are server-derived. This is not defensive coding;
    it is what makes the four stamps and first-attempt uniqueness trustworthy.
@@ -309,6 +312,8 @@ Failures:
   every generated question silently empty for as long as it stayed current.
 - **`429 rate_limited`** with `Retry-After`, from the shared per-session limiter on every ⚡ route
   (§1, rule 5). This endpoint is the first to need it, so it is where the limiter gets built.
+  **6 per 10 minutes per session**, counted before anything else in the body is looked at: a seventh
+  request inside the window is `429` even if it would have been a `400` or a `cv_unchanged`.
 **There is no CV read endpoint, and none is needed.** The CV screen's reads — current version, its
 documents, the underlined spans, the version history — are Server Components reading Postgres directly
 (§1). Rule 2 scopes them by the session's `user_id` and rule 4 makes another user's version a `404`
@@ -728,10 +733,7 @@ convert a guarantee in `04` §6 into a preference.
   loudly until they do. **Being written now, whole** — not code by code as each endpoint lands —
   because the Japanese half is one native read either way, and a catalogue written in instalments is
   a catalogue with a different voice in each instalment (#13).
-- **The per-session rate limiter's mechanism.** Rule 5 in §1 fixes the behaviour — one shared
-  limiter, `429` with `Retry-After`. Which mechanism implements it is checked against current
-  platform documentation when `POST /api/cv-versions` is built (#18), not decided here: the
-  candidates are a Postgres-backed window as an expand-only migration and Vercel's own limiting if
-  Hobby offers it, and which is true this month is not something this document should assert.
+- ~~**The per-session rate limiter's mechanism.**~~ **Decided in #18** (2026-09-22): a Postgres fixed
+  window per `(session, route)`, checked against Vercel's current WAF documentation first. §1 rule 5.
 - **The text-size cap on `POST /api/cv-versions`.** §5.2 says a cap belongs there; the number comes
   from measuring the extraction call on a real CV, not from this document.

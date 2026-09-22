@@ -3,6 +3,54 @@
 Newest first. Every entry records what was chosen, why, and what was rejected.
 
 ---
+## Phase 6 — #18, the per-session rate limiter
+
+Decided while building #18. All four came from grilling, after the platform docs were checked.
+
+### [2026-09-22] The limiter is a Postgres fixed window, not Vercel's WAF
+
+**Decided:** `rate_limit_windows` (`04` §2), one row per `(session_id, route)`, advanced by a single
+`insert … on conflict do update` that restarts the window when it has lapsed and otherwise increments
+`count`, returning the window start so `Retry-After` is the exact remainder. An expand-only migration.
+**Alternatives considered:** Vercel WAF Rate Limiting through the `@vercel/firewall` SDK's
+`checkRateLimit(id, { request, rateLimitKey })`.
+**Reason:** checked against Vercel's docs (last updated 2026-08-28) on 2026-09-22. WAF rate limiting
+*is* on Hobby — one rule per project, fixed window 10s–10 min, 1,000,000 allowed requests included —
+and the SDK does take a custom key, so per-session keying was possible. Against it: the documented
+result is only `rateLimited: boolean`, so `Retry-After` would be a guess at the window rather than the
+real remainder, and `07` §2 exists so the screen can say how long; the rule lives in the dashboard,
+outside review, and is published to the production deployment, with previews (`develop`) needing
+Protection Bypass; and it cannot run against the Docker database, so #18's integration test could not
+exist. Postgres behaves identically locally, on `develop` and on `main`, and its limit is in the repo.
+The cost is one write per ⚡ request, which is nothing beside the model call it guards.
+
+### [2026-09-22] Each ⚡ route has its own bucket
+
+**Decided:** the key is `(session, route)`, and each route's limit and window are a constant beside
+the limiter. One module, many buckets.
+**Alternatives considered:** one budget per session across every ⚡ route.
+**Reason:** a round will make many model calls in minutes and a CV save makes one; one number cannot
+fit both, and a round's legitimate burst must not lock the CV screen (or the reverse).
+
+### [2026-09-22] `POST /api/cv-versions` is limited to 6 per 10 minutes
+
+**Decided:** 6 requests per 10-minute fixed window, per session.
+**Alternatives considered:** 3 per 10 minutes; 20 per hour.
+**Reason:** a real editing burst — save, see a typo, save again — fits with room to spare, while a
+runaway loop or a stolen cookie is held to about 36 extraction calls an hour. The longest wait the
+screen can show is under ten minutes; an hour-long window could show one near sixty.
+
+### [2026-09-22] The count is taken after the session check, before the body is parsed
+
+**Decided:** every authenticated request to a ⚡ route counts, including those later refused as `400`
+or `422 cv_unchanged`. Unauthenticated requests are `401` before the limiter and are not counted.
+**Alternatives considered:** counting only requests about to make a model call.
+**Reason:** the same position on every ⚡ route, so the shared limiter is one line at the same place
+rather than placed per route; a flood of malformed bodies is turned away before Zod or the database's
+real work. Client-side validation already stops most `400`s being sent, so honest use rarely pays for
+a refusal. Keyed by session, not user, as `07` §1 rule 5 states it; with one allowlisted account a
+second session means the account itself is in someone else's hands, which no limiter answers.
+
 ## Phase 6 — #17, importing a document
 
 Decided while building #17. The first four came from grilling.

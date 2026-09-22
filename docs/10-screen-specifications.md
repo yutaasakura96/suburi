@@ -540,7 +540,11 @@ only appears when it is bad is a counter nobody learns to read.
 
 On failure, nothing changes and the form keeps its contents: the version was not created (`07` §5.2),
 so there is nothing to reconcile. The message is the catalogue's copy for `cv_extraction_failed`,
-`cv_unchanged` or `rate_limited`, in that panel's language.
+`cv_unchanged` or `rate_limited`, in that panel's language. **`rate_limited` adds a second line with
+the clock time the save can be retried**, from `Retry-After`, in local 24-hour `HH:MM` rounded up to
+the minute: `14:32 から保存できます。` / `You can save again at 14:32.` A clock time rather than a
+countdown, because it stays true however long the callout is on screen (`06`, #18). The Japanese
+awaits the native read (#20).
 
 ### Version history
 

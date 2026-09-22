@@ -9,8 +9,9 @@ ticketed:** spec [#11](https://github.com/yutaasakura96/suburi/issues/11), ticke
 done; **#13 is done — built, and its catalogue passed the native read.** **#14 is done — the tracer
 bullet: an English CV pasted, saved and read back underlined.** **#15 is done — the 応募書類 panel and
 additional documents in both languages.** **#16 is done — next versions: prefill, carry-forward,
-`cv_unchanged`, history.** **#17 is done — import from `.docx`/`.pdf` in the browser.** Next is #18.
-**Updated:** 2026-09-22 (#17)
+`cv_unchanged`, history.** **#17 is done — import from `.docx`/`.pdf` in the browser.** **#18 is done — the per-session rate
+limiter.** Next is #19.
+**Updated:** 2026-09-22 (#18)
 
 ## Done
 - Phase 1 — `docs/01-project-brief.md`, `docs/02-product-requirements.md`, `docs/06-decision-log.md`.
@@ -175,6 +176,21 @@ additional documents in both languages.** **#16 is done — next versions: prefi
   - The `201` has no `Location`, because no GET exists.
   - "`404` for another user's version" is covered as scoping (numbering and `currentCvVersion`),
     because no route addresses a version by id.
+- **#18 — the per-session rate limiter. Done.** Vercel's WAF docs were checked first (2026-09-22):
+  rate limiting is on Hobby (one rule, fixed window, `@vercel/firewall` takes a custom key), but the
+  SDK returns only a boolean, so `Retry-After` would be a guess, and it cannot run in the integration
+  test. **Chosen: a Postgres fixed window.** Migration **`0003`** adds `rate_limit_windows`, one row
+  per `(session_id, route)` advanced by one upsert (`lib/api/rate-limit.ts`, `takeRateLimit`). It is
+  expand-only. `session_id` is deliberately not a foreign key (`04` §2). **Per-route buckets**;
+  `cv-versions` is **6 per 10 minutes**. **Counted after the session check and before parsing**, so
+  refused requests count. `lib/auth/session.ts`: `sessionUserId` became `sessionOf`, returning
+  `{ userId, sessionId }`. The CV panel shows a second line under the `rate_limited` sentence with
+  the clock time from `Retry-After`, rounded up (`retryClock` in `app/(app)/cv/copy.ts`). Four
+  entries in `06`, all grilled; `03` §9–10, `04`, `07` §1 rule 5 and §5.2, and `10` §13 amended.
+  Mutation-checked: loosening the limit fails 4 tests, and never resetting the window fails 1.
+  **Counts:** units 423 → 430, integration 98 → 108, e2e 15 → 16.
+  **New strings for #20's read:** `{HH:MM} から保存できます。` / `You can save again at {HH:MM}.`
+  **Deploy note:** Neon `develop` and later `main` now need migrations through **`0003`**, not `0002`.
 - **#17 — importing a document. Done.** Beside each box, `ファイルから読み込む` / `Import from a file`
   (a text control like `外す`) reads a `.docx` with **mammoth 1.12.3** or a `.pdf` with **pdfjs-dist
   6.3.289**, in the browser, both loaded only when a file is picked (`lib/cv/import/extract.ts`). The
@@ -246,12 +262,12 @@ Page 1 is the screen set, page 2 the three exploration directions. **Working fil
 every change re-seeds from those — edit them, never the built `design/suburi-directions.html`.
 
 ## Next
-**#18 (rate limiter)** — unblocked. #17 is done; #19 (develop's deploy steps)
-is what `feat/11-cv-in` still waits on before it can merge into `develop`, and #20 now has all of
-#14–#16 to read and measure.
+**#19 (develop's deploy steps)** — what `feat/11-cv-in` still waits on before it can merge into
+`develop`: `OPENAI_API_KEY` in `develop`'s Preview scope, Neon `develop` **migrated through `0003`** and
+reseeded. #20 now has #14–#18 to read and measure.
 
-**Still waiting on a native read, with the screens that carry them (#14–#17):** the strings in `10`
-§13 (as amended in #15 and #17), the 履歴書 personal-particulars hint, `記載事項`, #15's new strings, #17's two import failures, and the three prose strings
+**Still waiting on a native read, with the screens that carry them (#14–#18):** the strings in `10`
+§13 (as amended in #15 and #17), the 履歴書 personal-particulars hint, `記載事項`, #15's new strings, #17's two import failures, #18's retry-time line, and the three prose strings
 that still say `職務経歴書` where they mean the set (`05` §6).
 
 **The three deploy fixes, #10, are closed:** `agentRules: false`; only `main` and `develop` deploy

@@ -359,7 +359,8 @@ exists, sign-in is a single allowlisted Google account, every data route require
 bucket is private with no public objects, and nothing sensitive is in a log.
 
 Second worst: burning the OpenAI key. It is server-side only, never shipped to the client, and the
-AI routes are rate-limited per session.
+AI routes are rate-limited per session — a Postgres fixed window per `(session, route)`, shared across
+serverless instances (`07` §1 rule 5, `04` §2 `rate_limit_windows`).
 
 ---
 
@@ -381,6 +382,7 @@ suburi/
 │   ├── ai/                    ports: generate · transcribe · score · extract-cv-claims  ← one interface each
 │   │   └── models.ts          every model string, pinned — the only place one is written
 │   ├── api/                   the 07 §2 envelope and the 07 §3 code table — no user-visible string
+│   │   └── rate-limit.ts      the one per-session limiter every ⚡ route calls, and each route's limit
 │   ├── copy/                  every user-visible string, ja and en — no status, no logic
 │   ├── prompts/               versioned prompt files; the version is in the filename
 │   ├── cv/                    composition rules, body assembly, span validation, quote slicing

@@ -27,7 +27,7 @@ this document is the source of truth for *why*.
   `rubric_versions.language`, `questions.language`, `questions.round_type`, `questions.origin`,
   `rounds.round_type`, `rounds.language`, `rounds.mode`, `answers.language`,
   `scoring_attempts.status`, `round_feedback.language`, `claim_citations.relation`,
-  `cv_documents.kind`.
+  `cv_documents.kind`, `rate_limit_windows.route`.
   `scores.dimension` is **not** checked here: its valid set depends on the rubric row (`keigo` is
   `ja` only), which a column check cannot see.
 - Every table holding user data carries `user_id` (tenancy decision, `03` §2).
@@ -55,6 +55,7 @@ this document is the source of truth for *why*.
 | `round_feedback` | The round-level narrative: what to fix, what worked. |
 | `claim_citations` | A CV claim was cited when evaluating an answer. This is the coverage record. |
 | `held_out_rescores` | A past answer re-scored under new stamps, to make drift visible. |
+| `rate_limit_windows` | One session's current fixed window on one ⚡ route: when it began and how many requests it has counted (`07` §1 rule 5). Not measurement. |
 
 ---
 
@@ -464,6 +465,34 @@ Both sides are ordinary `scoring_attempts` rows, so a re-score is stamped exactl
 and the comparison is apples to apples. `is_superseding = false` on these — **a held-out re-score
 never becomes the answer's displayed score.**
 
+### `rate_limit_windows`
+
+The shared per-session limiter on every ⚡ route (`07` §1 rule 5, `06` "Phase 6 — #18"). One row per
+`(session_id, route)`, **updated in place**: a request inside the window increments `count`; the first
+request after it restarts the window at `now()` with `count = 1`. One `insert … on conflict do update`,
+so concurrent requests on different serverless instances cannot both slip under the limit.
+
+| Column | Type | Null | Default | Notes |
+| --- | --- | --- | --- | --- |
+| `id` | `uuid` | no | `gen_random_uuid()` | PK |
+| `user_id` | `text` | no | — | → `users.id` **restrict** |
+| `session_id` | `text` | no | — | `sessions.id`, **deliberately not a foreign key** — see below |
+| `route` | `text` | no | — | Checked: `cv-versions`. A new ⚡ route extends the list in its own migration |
+| `window_started_at` | `timestamptz` | no | — | Database clock, never the function's |
+| `count` | `integer` | no | — | Requests counted in this window, **refused ones included** |
+| `created_at` | `timestamptz` | no | `now()` | |
+| `updated_at` | `timestamptz` | no | `now()` | The one application table that is mutated as a matter of course |
+
+Unique `(session_id, route)` is the upsert's conflict target.
+
+**Why `session_id` is not a foreign key.** Better Auth deletes expired sessions. `restrict` would make
+that delete fail; `cascade` would be a cascade from a table other than `users`, which §0 rules out.
+A row whose session is gone is inert — nothing can present that session again — and one row per
+sign-in per ⚡ route is too small to be worth a cleanup job. **It is not deleted** (§5).
+
+The limit and window per route are constants in `lib/api/rate-limit.ts`, not rows: changing one is a
+reviewed code change, and a bucket's window is only ever read against the constant in force.
+
 ---
 
 ## 3. Indexes, each with the query that justifies it
@@ -486,6 +515,7 @@ never becomes the answer's displayed score.**
 | `cv_versions (user_id, language, created_at desc)` | **The current CV version in a language** — resolved server-side on round creation and on the CV screen, and the same index orders the version history below it. |
 | `cv_versions (user_id, language, version_label)` *(unique)* | Makes per-language `v{n}` numbering race-safe. Two concurrent saves cannot both land a `v4`. |
 | `cv_documents (cv_version_id, position)` *(unique)* | Render a version's documents in order, and locate the range a claim's span falls in. |
+| `rate_limit_windows (session_id, route)` *(unique)* | The limiter's upsert on every ⚡ request — its conflict target. |
 
 **Why `language` is denormalised onto `answers`.** The six-month criterion is per-dimension trends
 across first attempts, **per language** — the single hottest query in the app. Keeping `language` on
@@ -563,6 +593,7 @@ these ranges.)*
 | `cv_versions`, `cv_documents`, `cv_claims` | Never deleted. **Never updated.** Spans, document ranges and citations all point into `body`. |
 | Audio in S3 | Retained; PRD §144 makes it replayable from History. Deleting a key leaves `audio_s3_key` dangling, so the play control must tolerate a missing object. |
 | `sessions` | Expire normally. The only genuinely ephemeral data here. |
+| `rate_limit_windows` | Updated in place, never deleted. A row outlives its session and is then inert (§2). |
 | `rounds` with `completed_at is null` | Abandoned rounds are **kept**. An abandoned round is evidence about pressure, not garbage. |
 
 There is no "delete my round" feature and screen-spec refusal #3 is the reason: a scoring record you
