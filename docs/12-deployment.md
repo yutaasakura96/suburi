@@ -55,9 +55,15 @@ synthetic rounds; only the user row was ever seeded (§3 step 8). What the CV sl
 - **Claims written directly as fixtures — no model call.** A seed that calls OpenAI is a seed that
   costs money, needs a key, and produces different rows every time it runs, which makes `develop`'s
   data unreproducible and a test against it unrepeatable.
-- **Every seeded span run through the span validator**, so a hand-typed fixture that does not slice
-  back to its text fails the seed rather than sitting in `develop` as a wrong underline.
-- **Idempotent**, like the user seed: running it twice leaves one CV version per language, not two.
+- **Every seeded span run through the span validator.** Fixture claims are verbatim quotes; the seed
+  locates each one, and a quote that is not in its document exactly once fails the seed rather than
+  sitting in `develop` as a wrong underline. Their extractor stamps are `null`: no model produced them.
+- **Idempotent**, like the user seed, and stricter: a language is seeded only if it has **no** CV
+  version, seeded or saved. Running it twice leaves one version per language, and running it after a
+  real save on `develop` adds nothing. To reseed, reset the branch.
+- **Its own command, `npm run db:seed:develop`** — the user row, then the CV. `db:seed` stays
+  user-row-only, because production runs it (§3 step 9) and a synthetic CV in Neon `main` would be the
+  version the first real rounds are scored against. Fixtures: `db/seed-cv.ts`.
 
 Synthetic questions and rounds still arrive with the slice that first needs them.
 
@@ -134,7 +140,7 @@ In this order. Steps 3 and 4 are the ones that fail silently if skipped.
 6. **OpenAI:** one key per environment, each with a monthly usage cap (§6).
 7. **Vercel:** import the repo. **Production branch = `main`.** Give `develop` a stable domain and point the Preview scope's `DATABASE_URL` at Neon `develop`. Populate §2 per scope. **Leave the import form's environment variables empty** — it scopes them to Production and Preview at once. A variable added after this step follows the same rule: branch-scoped in Preview, before the deploy that first reads it (`OPENAI_API_KEY`, step 8). Importing deploys `main` immediately, and that build fails without Production variables; that is expected until production is set up. Vercel's Deployment Protection is on for Preview by default and stays on: `develop` asks for a Vercel login before the app's own sign-in.
    > **Per-branch environment variables — available on Hobby** (verified 2026-09-14 against Vercel's environment-variable and environments docs). A Preview variable can be scoped to one Git branch, and it overrides the general Preview value. Assigning a stable domain to a branch, with branch-specific variables, is marked "All plans, including Hobby". Custom Environments are Pro and Enterprise only and are not needed. **So:** every §2 variable for `develop` is scoped to the `develop` branch in Preview. General Preview holds nothing; feature branches are not deployed (§1).
-8. **Neon `develop` branch:** create it as **Schema only** from `main` (Neon has no empty-branch option; this copies no rows), then give it a role and database of its own — `suburi_develop`, owning database `suburi` — because a Schema only branch copies `main`'s roles *with their passwords*. Only `suburi_develop` goes in `develop`'s URLs, and `main` refuses it (`28P01`, checked 2026-09-19). Then migrate, then run the seed script (`npm run db:seed`) with `develop`'s own `ALLOWED_EMAIL`. That seeded only the user row; the CV slice adds one synthetic CV version per language with its documents and fixture claims (§1), and synthetic round data arrives with the slice that first needs it. Never branch it from `main` (§1).
+8. **Neon `develop` branch:** create it as **Schema only** from `main` (Neon has no empty-branch option; this copies no rows), then give it a role and database of its own — `suburi_develop`, owning database `suburi` — because a Schema only branch copies `main`'s roles *with their passwords*. Only `suburi_develop` goes in `develop`'s URLs, and `main` refuses it (`28P01`, checked 2026-09-19). Then migrate, then run `npm run db:seed:develop` with `develop`'s own `ALLOWED_EMAIL` — never `db:seed` alone here, and never `db:seed:develop` against `main`. It seeds the user row and one synthetic CV version per language with its documents and fixture claims (§1); synthetic round data arrives with the slice that first needs it. Never branch it from `main` (§1).
    > **Adding a variable to an existing environment is the same step, later.** `OPENAI_API_KEY` joins the `develop` branch's Preview scope when CV extraction lands — branch-scoped, like every other §2 variable for `develop` (step 7). Because `lib/config.ts` validates at boot and a missing variable fails the boot loudly, the deploy that first reads it must not land before the variable does.
 9. **Seed production:** migrations, then the single `users` row, the set-piece questions, and rubric `v1.2` for both `ja` and `en`. The user row is inserted by the hand-run seed script from `ALLOWED_EMAIL`, with `email_verified = true` — **not by migration**, which would commit the email to a public repository. `disableSignUp: true` means it cannot be created by signing in (`08` §2).
 10. **Verify the allowlist twice:** sign in with the allowlisted account (works), and confirm a second Google account is rejected. `08` §2 deliberately has two independent mechanisms; this checks both, before there is anything to protect.

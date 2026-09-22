@@ -3,6 +3,58 @@
 Newest first. Every entry records what was chosen, why, and what was rejected.
 
 ---
+## Phase 6 — #19, the synthetic CV seed
+
+Decided while building #19. All four came from grilling; `12` §1 had already fixed the rest (an
+invented person, fixture claims, no model call, every span validated, idempotent).
+
+### [2026-09-22] The CV seed is its own script, `npm run db:seed:develop`
+
+**Decided:** `scripts/seed-develop.mts` seeds the user row, then the synthetic CV in each language.
+`db:seed` stays user-row-only and is still the only seed `12` §3 step 9 names for production.
+**Alternatives considered:** folding the CV into `db:seed`; a `--cv` flag on it; a guard that refuses
+when the URL's role or host looks like `main`.
+**Reason:** production runs `db:seed`, and a synthetic CV in Neon `main` would become the current CV
+version the first real rounds are scored against. A flag is one mistyped runbook line from that, and
+the script cannot reliably tell which Neon branch it is connected to; a guard keyed on naming breaks
+silently on the first new role name. Two commands make the production one incapable of the mistake.
+
+### [2026-09-22] The seed writes a language only if that language has no CV version at all
+
+**Decided:** under the same advisory lock the save takes (`lockCvLanguage`), the seed checks for any
+current version in the language — seeded or saved — and skips the language if there is one. The write
+itself is `saveCvVersion`, so the label, `clock_timestamp()` and document ranges come from the same
+code as a real save. The seed is therefore always `応募書類 v1` / `CV v1`.
+**Alternatives considered:** relying on `saveCvVersion`'s own `cv_unchanged` check.
+**Reason:** #19's own verification makes a real save on `develop`. After it, `cv_unchanged` would let a
+rerun append the seed again as `v3`, and "one version per language" would hold only until the first
+save. Refreshing `develop` is a reset and a fresh seed, never a seed on top (`12` §1).
+
+### [2026-09-22] Fixture claims carry null extractor stamps
+
+**Decided:** the seeded versions' `extractor_model_id` and `extractor_prompt_version` are `null`.
+`NewCvVersion`'s two fields widen to `string | null`; the real save path still always passes strings.
+**Alternatives considered:** the production values (`gpt-5.6-sol`, `cv-extract-*`); a marker string
+such as `fixture`.
+**Reason:** no model produced these claims, and a null stamp says exactly that. The production values
+would record an extraction that never happened, in the record the open extraction-quality check will
+trust; a marker would be an invented value in a column of model ids, turning up in any "which model
+extracted what" query as if it were one.
+
+### [2026-09-22] Fixture claims are verbatim quotes, located and validated
+
+**Decided:** each claim is written as a quote tagged with its document. The seed locates it with the
+span checker's `locate` and runs the span through `validate`; a quote that is not in its document
+exactly once fails the whole seed before anything is written. Errors name positions, never text.
+**Alternatives considered:** hand-typed `[start, end)` numbers plus the expected text.
+**Reason:** counting code points by hand in Japanese is the very error the validator exists to catch,
+and every edit to a fixture document would mean recounting. "Exactly once" also refuses a repeated
+quote that `locate` would otherwise resolve by position, underlining whichever occurrence came first.
+The 履歴書 fixture puts 𠮷 — one code point, two UTF-16 units — before every claim, so a span counted
+in UTF-16 fails the test.
+
+---
+
 ## Phase 6 — #18, the per-session rate limiter
 
 Decided while building #18. All four came from grilling, after the platform docs were checked.

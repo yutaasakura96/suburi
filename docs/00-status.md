@@ -10,8 +10,9 @@ done; **#13 is done — built, and its catalogue passed the native read.** **#14
 bullet: an English CV pasted, saved and read back underlined.** **#15 is done — the 応募書類 panel and
 additional documents in both languages.** **#16 is done — next versions: prefill, carry-forward,
 `cv_unchanged`, history.** **#17 is done — import from `.docx`/`.pdf` in the browser.** **#18 is done — the per-session rate
-limiter.** Next is #19.
-**Updated:** 2026-09-22 (#18)
+limiter.** **#19's code is done — the synthetic CV seed, `npm run db:seed:develop`;** its deploy
+steps (user-only) are what is left of it.
+**Updated:** 2026-09-22 (#19, code)
 
 ## Done
 - Phase 1 — `docs/01-project-brief.md`, `docs/02-product-requirements.md`, `docs/06-decision-log.md`.
@@ -262,9 +263,16 @@ Page 1 is the screen set, page 2 the three exploration directions. **Working fil
 every change re-seeds from those — edit them, never the built `design/suburi-directions.html`.
 
 ## Next
-**#19 (develop's deploy steps)** — what `feat/11-cv-in` still waits on before it can merge into
-`develop`: `OPENAI_API_KEY` in `develop`'s Preview scope, Neon `develop` **migrated through `0003`** and
-reseeded. #20 now has #14–#18 to read and measure.
+**#19's deploy steps** — the seed is built (`db/seed-cv.ts`, `scripts/seed-develop.mts`, four decisions
+in `06` under "Phase 6 — #19"); what `feat/11-cv-in` still waits on before it can merge into `develop`
+is only the user can do: `OPENAI_API_KEY` in `develop`'s Preview scope only, Neon `develop` **migrated
+through `0003`**, then `npm run db:seed:develop` against it (**not** `db:seed`, and never against
+`main`). Then merge, and verify on `develop`: both seeded CVs on the CV screen, one real save with
+synthetic text, no CV text in the runtime log. #20 now has #14–#18 to read and measure.
+
+**`lib/cv`'s value imports now carry `.ts`** (`body`, `unchanged`, `current-version`,
+`save-cv-version`), because the seed script runs under plain `node`, which does not resolve extensionless
+imports. `next build` accepts them. A new `lib/cv` import that a script reaches needs the same.
 
 **Still waiting on a native read, with the screens that carry them (#14–#18):** the strings in `10`
 §13 (as amended in #15 and #17), the 履歴書 personal-particulars hint, `記載事項`, #15's new strings, #17's two import failures, #18's retry-time line, and the three prose strings

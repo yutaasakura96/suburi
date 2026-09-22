@@ -99,8 +99,8 @@ version of the whole set.
 | `language` | `text` | no | — | `ja` \| `en` |
 | `body` | `text` | no | — | **immutable.** The set's documents joined server-side in `position` order with a fixed separator. All spans index into this exact string. |
 | `source_filename` | `text` | yes | — | **Retired.** Always null; not dropped — migrations are expand-only. A filename belongs to a document, not to the set: `cv_documents.source_filename`. |
-| `extractor_model_id` | `text` | yes | — | model that produced the claims |
-| `extractor_prompt_version` | `text` | yes | — | |
+| `extractor_model_id` | `text` | yes | — | model that produced the claims. **Null only on `develop`'s synthetic seed**, whose claims are fixtures no model produced (`12` §1) |
+| `extractor_prompt_version` | `text` | yes | — | null exactly when `extractor_model_id` is |
 | `created_at` | `timestamptz` | no | `now()` | this is the date screen 2 shows. **Written as `clock_timestamp()`** by the save, not left to the default — see below. |
 
 **`version_label` is derived, and numbering is per language.** `応募書類 v{n}` for `ja`, `CV v{n}` for
