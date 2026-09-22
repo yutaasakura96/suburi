@@ -85,6 +85,8 @@ auto-merged (`11` §7).
 | `better-auth` | 1.7.4 | Latest stable |
 | `zod` | 4.6.5 | Latest stable |
 | `openai` | 7.20.0 | Latest stable, checked 2026-09-21. Lists `gpt-5.6-sol`, and its `zodTextFormat` takes Zod 4. Never auto-merged (`11` §7) |
+| `mammoth` | 1.12.3 | Latest stable, checked 2026-09-22. `.docx` → text in the browser (`extractRawText`), loaded only when a file is picked (`06`) |
+| `pdfjs-dist` | 6.3.289 | Latest stable, checked 2026-09-22. `.pdf` → text in the browser. Its worker is bundled by Next; its CMaps are copied to `public/pdfjs/cmaps/` at build, because a Japanese PDF with a non-embedded font cannot be read without them (`06`) |
 | `@next/env` | 16.3.5 | Pinned with `next`. Playwright loads env files with it exactly as `next start` does (`06`) |
 | `vitest`, `@playwright/test`, `vite` | 5.0.0, 1.63.0, 8.3.0 | Latest stable. `vite` is Vitest's peer, pinned so it is not left to resolution |
 | `eslint` | 10.10.0 | Latest stable. 9.x reached end-of-life 2026-08-06 |

@@ -32,7 +32,9 @@ code away from the measurement record.
 **Feature branches** are cut from `develop` and merge back into it. **They are not deployed:**
 `vercel.json` sets `git.deploymentEnabled` to `"**": false` with `main` and `develop` set `true` (a
 branch deploys if any matching rule is `true`). A feature preview would hold no configuration and could
-not sign in (§3 step 2), and CI already builds and tests each branch. Feature work integrates against
+not sign in (§3 step 2), and CI already builds and tests each branch. `vercel.json` also sets
+`buildCommand` to `npm run build`, whose first step copies pdf.js's CMaps into `public/pdfjs/cmaps/` —
+a deploy that ran `next build` alone would ship a CV screen that cannot read a Japanese PDF (`06`, #17). Feature work integrates against
 the **Neon `develop` branch** — locally, or on `develop` once merged — not one branch per feature. At
 this scale a database per feature is bookkeeping without a payoff. If a feature needs a destructive schema experiment, cut it a throwaway Neon
 branch from `develop` by hand and delete it afterwards.

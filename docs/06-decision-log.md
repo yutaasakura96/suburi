@@ -3,6 +3,75 @@
 Newest first. Every entry records what was chosen, why, and what was rejected.
 
 ---
+## Phase 6 — #17, importing a document
+
+Decided while building #17. The first four came from grilling.
+
+### [2026-09-22] `.docx` is read with mammoth, `.pdf` with pdfjs-dist, both in the browser
+
+**Decided:** `mammoth` 1.12.3 (`extractRawText`) for `.docx` and `pdfjs-dist` 6.3.289
+(`getTextContent`) for `.pdf`, pinned in `03` §1. Both are loaded by dynamic `import()` only when a
+file is picked, so `/cv`'s bundle carries neither until then.
+**Alternatives considered:** `unpdf` 1.8.1 over pdf.js; one library for both formats.
+**Reason:** both are the maintained first-party choice, checked against current docs 2026-09-22.
+`unpdf` wraps pdf.js for serverless runtimes, and extraction here runs in the browser, so it adds a
+layer and no benefit. No mainstream library reads both formats in a browser.
+
+### [2026-09-22] pdf.js's worker and CMaps are served from our own origin
+
+**Decided:** the worker is bundled by Next from `new Worker(new URL("pdfjs-dist/build/pdf.worker.min.mjs",
+import.meta.url))` and handed to pdf.js as `workerPort`. `scripts/copy-pdfjs-assets.mjs` copies
+`pdfjs-dist/cmaps/` to a git-ignored `public/pdfjs/cmaps/` before `next dev` and `next build`, and
+`vercel.json` sets `buildCommand: "npm run build"` so a deploy cannot skip it.
+**Alternatives considered:** a version-pinned jsDelivr URL; committing the CMaps.
+**Reason:** a Japanese PDF with a non-embedded font cannot be read without the Adobe CMaps — measured:
+the #17 fixture gives its three lines with them and an empty string without. Same-origin keeps the
+CMaps at exactly the installed version, adds no third party to the moment of import, and survives a
+future CSP. Committing 1.6 MB of CMaps would drift from the package on the next bump.
+
+### [2026-09-22] An import replaces the box's text, without a confirm
+
+**Decided:** the extracted text replaces whatever the box held, and `source_filename` becomes the new
+file's name (capped at 255 characters, `07` §5.2).
+**Alternatives considered:** a confirm before overwriting a non-empty box; appending.
+**Reason:** `10` §13 says the text is dropped into the box. The only thing an import can lose is unsaved
+edits in that one box — the saved text is still the current version. Appending would mix two sources
+under one filename.
+
+### [2026-09-22] A failed import says which of two things went wrong, and leaves the box alone
+
+**Decided:** `no_text` (the file opened but held no text — a scanned PDF) and `unreadable` (corrupt,
+password-protected, or not really a `.docx`/`.pdf`, judged by leading bytes as well as extension) each
+have their own line under the box. No OCR.
+**Alternatives considered:** one generic line; OCR with `tesseract.js`.
+**Reason:** the two have different next steps, and a scanned PDF reported as a generic failure looks
+like a bug. OCR is a heavy dependency whose Japanese quality is unmeasured, and pasting is always
+available. The two lines are client-side copy in `app/(app)/cv/copy.ts`, not error codes: no request is
+made, so `07` §3's catalogue is untouched.
+
+### [2026-09-22] The import fixtures are generated, and the PDF's font is not embedded
+
+**Decided:** `scripts/make-import-fixtures.mts` writes `e2e/fixtures/{shokumu.docx,rirekisho.pdf,blank.pdf}`
+from Node built-ins, deterministically; script and output are both committed. The PDF uses
+`HeiseiMin-W3` under `UniJIS-UCS2-H`, not embedded.
+**Alternatives considered:** authoring the files in Word; adding a Word-exported PDF beside the
+generated one.
+**Reason:** a Word-exported PDF embeds its font with a ToUnicode map and passes whether or not the CMaps
+are served, so it cannot catch the failure that matters. Verified: with `public/pdfjs/` hidden, the
+import test fails on the PDF's box.
+
+### [2026-09-22] Imported text is tidied, never unwrapped
+
+**Decided:** every import gets LF line endings, no control characters, no trailing spaces (including
+U+3000), at most one blank line in a row and no blank ends (`lib/cv/import/text.ts`). Line wraps are
+left as they are.
+**Alternatives considered:** keeping mammoth's two newlines per paragraph as-is; joining a PDF's wrapped
+lines.
+**Reason:** mammoth's empty paragraphs stack into runs of blank lines nobody wants. Unwrapping is a
+guess that would join lines meant apart, and fixing a PDF's wraps is exactly the correction `10` §13
+asks the user to make before saving.
+
+---
 ## Phase 6 — #16, next CV versions
 
 Decided while building #16. The first four came from grilling.

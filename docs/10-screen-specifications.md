@@ -507,8 +507,9 @@ server-side.
 | | |
 | --- | --- |
 | Per document | A title (fixed for the three known kinds; a text input for `additional`) over a monospaced-width textarea at 13px/1.9. |
-| Import | Beside each box, `ファイルから読み込む` / `Import from a file`, accepting `.docx` and `.pdf`. **The text is extracted in the browser and dropped into that box, which stays editable.** The file is never uploaded (`07` §5.2). |
-| After an import | A 12px `--ink-6` line: `読み込んだ文を確認して、必要なら直してください。保存した文がそのまま評価に使われます。` / `Check the imported text and fix anything wrong. What you save is what gets scored.` |
+| Import | Beside each box, `ファイルから読み込む` / `Import from a file`, accepting `.docx` and `.pdf` — a text control in the §3.3 label style beside `外す`, for the same reason. **The text is extracted in the browser and dropped into that box, which stays editable.** The file is never uploaded (`07` §5.2). |
+| After an import | The extracted text **replaces** the box's text, and the document's `source_filename` becomes the file's name. A 12px `--ink-6` line: `読み込んだ文を確認して、必要なら直してください。保存した文がそのまま評価に使われます。` / `Check the imported text and fix anything wrong. What you save is what gets scored.` |
+| A failed import | An `--attention-mark` callout rail (`05` §5.8) under the box, which is left as it was. No text in the file (a scanned PDF): `このファイルからは文字を読み取れませんでした。スキャンした画像のファイルは読み込めないため、本文を貼り付けてください。` / `No text could be read from this file. A scanned file has none — paste the text instead.` Anything else — damaged, password-protected, not really `.docx`/`.pdf`: `このファイルは開けませんでした。破損しているか、パスワードで保護されている可能性があります。本文を貼り付けてください。` / `This file could not be opened. It may be damaged or password-protected — paste the text instead.` Both Japanese strings await the native read (#20). |
 | 履歴書 box only | An `--accent-mid` callout rail (`05` §5.8): `生年月日・住所・電話番号・顔写真・家族の情報は省いてかまいません。評価には使いません。` |
 | Add | `補足資料を追加` / `Add a supporting document`, disabled at five. Japanese panels also offer `職務経歴書を追加` until one exists. |
 | Remove | `外す` / `Remove` beside the 職務経歴書 and each additional document — never the required one. A text control in the §3.3 label style, not a §5.7 button: `05` draws no quiet variant, and a 48px outline beside every box outweighs the box. It removes a document from the unsaved form; nothing stored is touched. |

@@ -9,8 +9,8 @@ ticketed:** spec [#11](https://github.com/yutaasakura96/suburi/issues/11), ticke
 done; **#13 is done — built, and its catalogue passed the native read.** **#14 is done — the tracer
 bullet: an English CV pasted, saved and read back underlined.** **#15 is done — the 応募書類 panel and
 additional documents in both languages.** **#16 is done — next versions: prefill, carry-forward,
-`cv_unchanged`, history.** Next is #17 or #18.
-**Updated:** 2026-09-22 (#16)
+`cv_unchanged`, history.** **#17 is done — import from `.docx`/`.pdf` in the browser.** Next is #18.
+**Updated:** 2026-09-22 (#17)
 
 ## Done
 - Phase 1 — `docs/01-project-brief.md`, `docs/02-product-requirements.md`, `docs/06-decision-log.md`.
@@ -175,6 +175,24 @@ additional documents in both languages.** **#16 is done — next versions: prefi
   - The `201` has no `Location`, because no GET exists.
   - "`404` for another user's version" is covered as scoping (numbering and `currentCvVersion`),
     because no route addresses a version by id.
+- **#17 — importing a document. Done.** Beside each box, `ファイルから読み込む` / `Import from a file`
+  (a text control like `外す`) reads a `.docx` with **mammoth 1.12.3** or a `.pdf` with **pdfjs-dist
+  6.3.289**, in the browser, both loaded only when a file is picked (`lib/cv/import/extract.ts`). The
+  text **replaces** the box's text and the filename becomes `source_filename`; the request is #14's JSON
+  shape, and the e2e test asserts the page sends nothing else. Format is judged by extension **and**
+  leading bytes (`lib/cv/import/text.ts`), and every import is tidied, never unwrapped. A failure leaves
+  the box alone and says which of two things went wrong: no text (a scan; no OCR) or unreadable.
+  **pdf.js's CMaps are served from our origin:** `scripts/copy-pdfjs-assets.mjs` copies them to the
+  git-ignored `public/pdfjs/cmaps/` as the first step of `npm run dev` and `npm run build`, and
+  `vercel.json` now sets `buildCommand: "npm run build"` so a deploy cannot skip it. The worker is
+  bundled by Next. **Fixtures are generated** (`npm run fixtures:import` →
+  `e2e/fixtures/{shokumu.docx,rirekisho.pdf,blank.pdf}`, deterministic, committed); the PDF's font is
+  deliberately not embedded. **Negative control run:** with `public/pdfjs/` hidden, the import test
+  fails on the PDF's box (`""`). Six entries in `06`, four grilled; `03` §1, `10` §13 and `12` §1 amended.
+  **Counts:** units 401 → 423, integration 98, e2e 13 → 15.
+  **New Japanese strings for #20's read:** the two failure lines in `10` §13 (`このファイルからは文字を
+  読み取れませんでした。…`, `このファイルは開けませんでした。…`). `ファイルから読み込む` and the
+  after-import line were already `10` §13's.
 - **#16 — next CV versions. Done.** The panel with a version shows `新しいバージョンをつくる` /
   `Create a new version`, which opens the form prefilled with every document's kind, title, text and
   `source_filename`. Older versions are listed below, newest first, each linking to
@@ -228,12 +246,12 @@ Page 1 is the screen set, page 2 the three exploration directions. **Working fil
 every change re-seeds from those — edit them, never the built `design/suburi-directions.html`.
 
 ## Next
-**#17 (import) or #18 (rate limiter)** — both unblocked. #16 is done; #19 (develop's deploy steps)
+**#18 (rate limiter)** — unblocked. #17 is done; #19 (develop's deploy steps)
 is what `feat/11-cv-in` still waits on before it can merge into `develop`, and #20 now has all of
 #14–#16 to read and measure.
 
-**Still waiting on a native read, with the screens that carry them (#14–#16):** the strings in `10`
-§13 (as amended in #15), the 履歴書 personal-particulars hint, `記載事項`, #15's new strings, and the three prose strings
+**Still waiting on a native read, with the screens that carry them (#14–#17):** the strings in `10`
+§13 (as amended in #15 and #17), the 履歴書 personal-particulars hint, `記載事項`, #15's new strings, #17's two import failures, and the three prose strings
 that still say `職務経歴書` where they mean the set (`05` §6).
 
 **The three deploy fixes, #10, are closed:** `agentRules: false`; only `main` and `develop` deploy
