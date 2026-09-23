@@ -141,6 +141,7 @@ that asserts the two lists match.
 | `round_already_complete` | 409 | `complete`, `answers` | — |
 | `round_not_complete` | 409 | `complete` | screen 7 |
 | `cv_unchanged` | 422 | `POST /api/cv-versions` | CV screen — the save is refused, nothing written |
+| `cv_too_large` | 422 | `POST /api/cv-versions` | CV screen — before any model call |
 | `cv_extraction_failed` | 502 | `POST /api/cv-versions` | CV screen |
 | `upstream_s3` / `upstream_openai` | 502 | any | per the table in `03` §5 |
 

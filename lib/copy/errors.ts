@@ -107,6 +107,10 @@ const CATALOGUE = {
     ja: "応募書類に変更がありません。新しいバージョンは作成しませんでした。",
     en: "Nothing in the CV has changed. No new version was created.",
   },
+  cv_too_large: {
+    ja: "応募書類が長すぎます。短くしてからもう一度保存してください。",
+    en: "The CV is too long. Shorten it and save again.",
+  },
   cv_extraction_failed: {
     ja: "応募書類の読み取りに失敗しました。もう一度お試しください。",
     en: "The CV could not be read. Try again.",

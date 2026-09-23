@@ -35,6 +35,7 @@ describe("the error code table", () => {
       "round_already_complete",
       "round_not_complete",
       "cv_unchanged",
+      "cv_too_large",
       "cv_extraction_failed",
       "upstream_s3",
       "upstream_openai",
