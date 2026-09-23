@@ -160,9 +160,14 @@ Carry these; do not silently decide them in a ticket.
   languages at once does not settle the rule for screens showing one.
 - **The near-duplicate similarity threshold.** A guess until there is real data. Start strict, log
   every near-miss with its score, tune from the log.
-- **CV claim extraction quality.** Still unmeasured. The CV screen exists so it can be read off the
-  user's own text (`10` §13), and the check runs on the real CV locally, against Docker Postgres,
-  before anything is scored against it. Closes when that run is done, not when the screen ships.
+- **CV claim extraction quality.** **The run is done; the judgment is not.** The real 履歴書 +
+  職務経歴書 and the real English CV went through `/cv` locally against Docker Postgres on 2026-09-23
+  (#20, `03` §4): `spans_rejected` **0** in both languages, so every claim is verbatim in its document
+  and none crossed a boundary. **181 claims from 9,202 characters** (one per 51) in Japanese and
+  **126 from 14,607** (one per 116) in English. What those numbers do not say is whether that is a good
+  reading or the model shredding the CV into fragments — `11` §5's eyeball and five-quote sample are a
+  human check and are still open. Stays open until they are done; the measurement is recorded so the
+  next session does not re-run it.
 - **One drawn-but-unspecified screen:** practice mode's record frames differ from realistic mode's.
   Listed in `docs/10-screen-specifications.md` §12. **The CV screen came off this list in #12** — it
   still has no artboard, but it is specified in `10` §13 from `05` components, which is the whole of

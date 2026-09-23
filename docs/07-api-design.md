@@ -272,10 +272,13 @@ the `additional` documents — and that order is `position`. Any other order is 
 naming `documents`; the server does not sort. A kind the language refuses is named at
 `documents.<i>.kind`. `title` is required on `additional` and refused on every other kind. An `additional` document may be
 written in either language whatever the set's `language` is. A violation is `400 invalid_request`
-with the offending field, before any model call. **A total text-size cap belongs here and is set by
-measuring the extraction call** — guessing it in this document would produce a number that is
-defended rather than checked. **#20 measures it**, on the real call and the real CV; until then there
-is none (`06`, #15).
+with the offending field, before any model call. **The total text-size cap is per language** —
+`ja` **30,000** code points, `en` **45,000** — held in `lib/cv/limits.ts` and checked **before the
+database is read and before any model call**. Over it is `422 cv_too_large`, whose `detail` carries
+`body_chars` and `max_body_chars`. The unit is code points, the unit of every span and range, so the
+number a refusal names is the number the record counts in. **Both numbers were measured** on the real
+documents, not guessed: duration tracks claims rather than characters, and claim density differs about
+2.3x between the languages (`03` §4, `06`, #20). Raising one is a measurement on a set that size.
 
 **`version_label` is derived**, `応募書類 v{n}` / `CV v{n}`, numbered per language. `unique (user_id,
 language, version_label)` is the backstop; saves in one language are serialised by a
@@ -736,5 +739,6 @@ convert a guarantee in `04` §6 into a preference.
   a catalogue with a different voice in each instalment (#13).
 - ~~**The per-session rate limiter's mechanism.**~~ **Decided in #18** (2026-09-22): a Postgres fixed
   window per `(session, route)`, checked against Vercel's current WAF documentation first. §1 rule 5.
-- **The text-size cap on `POST /api/cv-versions`.** §5.2 says a cap belongs there; the number comes
-  from measuring the extraction call on a real CV, not from this document.
+- ~~**The text-size cap on `POST /api/cv-versions`.**~~ **Decided in #20** (2026-09-23), from the
+  measured call on the real documents: `ja` 30,000 and `en` 45,000 code points, refused as
+  `422 cv_too_large` before any model call. §5.2, and `03` §4 for the measurement.

@@ -222,8 +222,12 @@ either irreducibly human or need a real human ear.
 
 **Per CV upload:**
 
-- [ ] Claims on a **real** CV: eyeball extraction quality, and check `spans_rejected` is zero. Explicitly unmeasured (`CONTEXT.md`) — this checkbox is where it first gets measured.
+- [ ] Claims on a **real** CV: eyeball extraction quality, and check `spans_rejected` is zero. Explicitly unmeasured (`CONTEXT.md`) — this checkbox is where it first gets measured. **First run 2026-09-23 (#20):** `spans_rejected` 0 on both languages, 181 claims from a 9,202-character 応募書類 and 126 from a 14,607-character CV; the eyeball itself is still open.
 - [ ] Every rendered quote is genuinely in the CV. Sample five.
+
+**The CV feature's native read** is collected as one batch in `docs/checklists/native-read-cv.md`: every
+Japanese string #14–#18 added, the new `cv_too_large` sentence, and the three prose strings that still
+say `職務経歴書` where they mean the set.
 
 **Per stamp change** — model, rubric, prompt or CV version:
 

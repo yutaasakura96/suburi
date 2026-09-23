@@ -10,8 +10,10 @@ done; **#13 is done — built, and its catalogue passed the native read.** **#14
 bullet: an English CV pasted, saved and read back underlined.** **#15 is done — the 応募書類 panel and
 additional documents in both languages.** **#16 is done — next versions: prefill, carry-forward,
 `cv_unchanged`, history.** **#17 is done — import from `.docx`/`.pdf` in the browser.** **#18 is done — the per-session rate
-limiter.** **#19 is done — the synthetic CV seed, and the feature running on `develop`.** Next is #20.
-**Updated:** 2026-09-22 (#19)
+limiter.** **#19 is done — the synthetic CV seed, and the feature running on `develop`.** **#20 is in progress —
+the real CVs are through `/cv` locally, the text-size cap is measured and enforced, and the native-read
+batch is collected; the native read and the extraction eyeball are the user's and still open.**
+**Updated:** 2026-09-23 (#20)
 
 ## Done
 - Phase 1 — `docs/01-project-brief.md`, `docs/02-product-requirements.md`, `docs/06-decision-log.md`.
@@ -262,11 +264,27 @@ Page 1 is the screen set, page 2 the three exploration directions. **Working fil
 every change re-seeds from those — edit them, never the built `design/suburi-directions.html`.
 
 ## Next
-**#20 — the real-CV extraction check, locally.** Real 履歴書/職務経歴書 and English CV through `/cv` against
-Docker Postgres (never Neon `develop`), `11` §5's eyeball and sampling, the text-size cap from the
-measured call, and the native-read batch. **One data point already:** `develop`'s first real save
-(synthetic English CV, 2 documents, 17 claims, 0 spans rejected) took **51.0 s** of the Function's 300 s —
-`03` §4 and the cap should start from there. Then #21, production setup.
+**#20 — the real-CV extraction check. The machine half is done; two human checks remain.**
+
+**Done 2026-09-23, locally against Docker Postgres (the real CVs never touched Neon `develop`):**
+- Both real sets saved through `/cv`: `応募書類 v1` (履歴書 + 職務経歴書, 9,202 chars, **181 claims**,
+  `spans_rejected` **0**, **59.5 s**) and `CV v1` (one document, 14,607 chars, **126 claims**, 0, **48.0 s**).
+- **Duration does not track input size** — it tracks claims, at ~`21.5 s + 0.21 s × claims`, and claim
+  density is ~20 per 1,000 characters in Japanese against 8.6 in English. Recorded in `03` §4.
+- **The cap is measured and enforced:** `lib/cv/limits.ts`, `ja` 30,000 / `en` 45,000 code points,
+  refused as **`422 cv_too_large`** before the database is read or any model call. It is the catalogue's
+  25th code, with copy in both languages. `07` §5.2 and §7 updated; four entries in `06`.
+- Every extraction log line now carries **`body_chars`** (code points) beside `duration_ms`.
+- The native-read batch is collected as one checklist: `docs/checklists/native-read-cv.md`.
+
+**Still open, and the user's to do:**
+1. **The native read** of `docs/checklists/native-read-cv.md` — 22 panel strings, the new
+   `cv_too_large` sentence, the three prose `職務経歴書` strings. Rules earned go into `05` §6.
+2. **`11` §5's eyeball and five-quote sample** on the real claims. `spans_rejected` 0 says every claim
+   is verbatim; it does not say 181 claims from 9,202 characters is a good reading. `CONTEXT.md`'s
+   "CV claim extraction quality" stays open until this is done, with the findings beside it.
+
+Then #21, production setup.
 
 **#19 verified on `develop` 2026-09-22 at `e24eb8c`:** Neon `develop`'s `suburi` database at `0003`, one
 user, `応募書類 v1` (3 documents, 9 claims) and `CV v1` (2, 7), stamps null. Google sign-in works; both

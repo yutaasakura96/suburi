@@ -449,6 +449,59 @@ describe("POST /api/cv-versions composition", () => {
         .toEqual(JA_CLAIMS.map((claim) => claim.quote).sort());
     }));
 
+  // 07 §5.2, measured in #20: the cap is per language, because Japanese yields about 20 claims per
+  // 1,000 characters against English's 8.6, and the call's duration tracks claims.
+  it.each([
+    ["ja", 30_000, () => ({ language: "ja", documents: [{ kind: "rirekisho", text: "あ".repeat(30_001) }] })],
+    ["en", 45_000, () => ({ language: "en", documents: [{ kind: "cv", text: "a".repeat(45_001) }] })],
+  ])("is 422 cv_too_large for %s over the cap, before any model call", (_, max, body) =>
+    inRolledBackTransaction(async (db) => {
+      const { post, extractor, userId } = await setUp(db);
+      const { status, json } = await post(body());
+
+      expect(status).toBe(422);
+      expect(json.error).toMatchObject({
+        code: "cv_too_large",
+        detail: { body_chars: max + 1, max_body_chars: max },
+      });
+      expect(extractor.calls).toBe(0);
+      expect(await rowCounts(db, userId)).toEqual({ versions: 0, documents: 0, claims: 0 });
+    }));
+
+  it.each([
+    ["ja", 30_000, "あ", "rirekisho"],
+    ["en", 45_000, "a", "cv"],
+  ])("saves %s at exactly the cap: the boundary is inclusive", (language, max, char, kind) =>
+    inRolledBackTransaction(async (db) => {
+      // Two documents, so the separator counts toward the cap the way the body does.
+      const text = char.repeat(max - 2 - 10);
+      const { post } = await setUp(db, () => [{ document: 0, quote: char.repeat(20), start_hint: 0 }]);
+      const { status } = await post({
+        language,
+        documents: [
+          { kind, text },
+          { kind: "additional", title: "補足", text: char.repeat(10) },
+        ],
+      });
+
+      expect(status).toBe(201);
+      const lines = logged.map((text) => JSON.parse(text) as Record<string, unknown>);
+      expect(lines.find((line) => line.event === "cv_version_created")).toMatchObject({ body_chars: max });
+    }));
+
+  it("counts a surrogate pair as one character against the cap, as every span does", () =>
+    inRolledBackTransaction(async (db) => {
+      // 𠮷 is two UTF-16 units and one code point: counted as UTF-16, this set would be refused.
+      const { post, extractor } = await setUp(db, () => [{ document: 0, quote: "𠮷", start_hint: 0 }]);
+      const { status } = await post({
+        language: "ja",
+        documents: [{ kind: "rirekisho", text: "𠮷".repeat(30_000) }],
+      });
+
+      expect(status).toBe(201);
+      expect(extractor.calls).toBe(1);
+    }));
+
   it("logs the body's size in code points and its document count, on success and on both extraction failures", () =>
     inRolledBackTransaction(async (db) => {
       // #20 sets the size cap from these lines: a duration is only measurable beside a size.

@@ -3,6 +3,68 @@
 Newest first. Every entry records what was chosen, why, and what was rejected.
 
 ---
+## Phase 6 — #20, the real-CV extraction check
+
+Decided while running the real CVs through `/cv` locally against Docker Postgres. The measurement came
+first and the cap second, because a cap guessed in advance would have refused the save it was supposed
+to be measured from.
+
+### [2026-09-23] Every CV extraction log line carries the body's size in code points
+
+**Decided:** `cv_version_created` and both `cv_extraction_failed` paths log `body_chars`, and the
+failure paths gained `documents` too. `body` is assembled before the model call so the size is on the
+failure lines as well.
+**Alternatives considered:** counting the characters by hand beside each duration; logging the size
+only on success; UTF-16 `length`.
+**Reason:** a duration with nothing to divide it by is not a measurement, and #20's cap had to come
+from a real pair. Code points, because that is the unit of every `cv_claims.span_start/end` and every
+`cv_documents.start/end` — a cap counted in UTF-16 would refuse a Japanese CV about 6,000 characters
+shorter than the number it names, and `𠮷` would count twice. A count is what `12` §7 allows in a log
+line; the text is not.
+
+### [2026-09-23] An over-cap CV is `422 cv_too_large`, not a `400`
+
+**Decided:** a twenty-fifth code in the `07` §3 catalogue, `422`, with `body_chars` and
+`max_body_chars` in `detail`. #20's acceptance criterion said `400`; the criterion was wrong and was
+amended.
+**Alternatives considered:** `400 invalid_request` naming `documents`; a new code that returns `400`.
+**Reason:** `07` §2's status table says every `400` is `invalid_request`, and §5.2 reserves that for
+composition and order — a request over the cap is well-formed and correctly composed. The catalogue
+already holds the exact analogue: `upload_too_large`, a `422` checked before the expensive step. And
+`invalid_request`'s sentence does not tell the user to shorten anything, so reusing it would have
+pushed a copy decision into the screen and out of `lib/copy/errors.ts`. The cap is a stated limit
+beside `max_body_chars`, not a new invariant — nothing in `CLAUDE.md`'s list grew.
+
+### [2026-09-23] The text-size cap is per language: `ja` 30,000 and `en` 45,000 code points
+
+**Decided:** `lib/cv/limits.ts` holds `MAX_BODY_CHARS`, checked in `postCvVersion` before the database
+is read and long before the model call. Closes `07` §7's TBD.
+**Alternatives considered:** one cap for both languages; tokens, via a tokenizer; `ja` 20,000 /
+`en` 30,000; `ja` 60,000 / `en` 90,000.
+**Reason:** the three measured calls — 1,500 characters in 51.0 s, 9,202 in 59.5 s, 14,607 in 48.0 s —
+show duration does **not** track input size across a ten-fold range. It tracks **claims**, at roughly
+`21.5 s + 0.21 s × claims`, and claim density is a property of the language: about 20 claims per 1,000
+characters in Japanese against 8.6 in English. One number would therefore have meant two different
+calls: sized for Japanese it would refuse English CVs three times shorter than they could safely be.
+A tokenizer tracks latency most closely but adds a dependency whose encoding would have to be verified
+against the pinned model, and a token limit is not a number the user can reason about. The two numbers
+are a little over three times the real sets, so a 履歴書 plus a 職務経歴書 plus five supporting
+documents fits; at the cap the predicted call is ~145 s (`ja`) and ~105 s (`en`), inside the OpenAI
+client's 240 s timeout with margin. `gpt-5.6-sol`'s own limits were checked and are not binding here:
+922,000 input tokens and 128,000 output against ~24,000 output at the cap.
+**Rejected in passing:** enforcing it before the measurement. A cap guessed from the synthetic CV's
+51.0 s would have been set near 7,000 characters and refused the real 応募書類 unread.
+
+### [2026-09-23] Extraction quality is measured; the human judgment of it is not yet in
+
+**Decided:** `CONTEXT.md`'s "CV claim extraction quality" stays open with the findings written beside
+it, rather than closing on the numbers alone.
+**Alternatives considered:** closing it on `spans_rejected` being 0.
+**Reason:** `spans_rejected` 0 proves every claim is verbatim in the document — it says nothing about
+whether 181 claims from a 9,202-character 応募書類 is a good reading or a shredding. `11` §5's eyeball
+and five-quote sample are a human check by design, and they are not done.
+
+---
 ## Phase 6 — #19, the synthetic CV seed
 
 Decided while building #19. All four came from grilling; `12` §1 had already fixed the rest (an
