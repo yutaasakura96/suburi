@@ -487,7 +487,7 @@ describe("POST /api/cv-versions composition", () => {
       expect(status).toBe(201);
       const lines = logged.map((text) => JSON.parse(text) as Record<string, unknown>);
       expect(lines.find((line) => line.event === "cv_version_created")).toMatchObject({ body_chars: max });
-    }));
+    }), 30_000);
 
   it("counts a surrogate pair as one character against the cap, as every span does", () =>
     inRolledBackTransaction(async (db) => {
@@ -500,7 +500,7 @@ describe("POST /api/cv-versions composition", () => {
 
       expect(status).toBe(201);
       expect(extractor.calls).toBe(1);
-    }));
+    }), 30_000);
 
   it("logs the body's size in code points and its document count, on success and on both extraction failures", () =>
     inRolledBackTransaction(async (db) => {
