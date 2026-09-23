@@ -12,6 +12,7 @@ import { assembleBody } from "./body";
 import { currentCvVersion } from "./current-version";
 import { saveCvVersion } from "./save-cv-version";
 import {
+  characterLength,
   createSpanChecker,
   normaliseClaimText,
   type RejectionReason,
@@ -198,6 +199,11 @@ export function createPostCvVersion(deps: PostCvVersionDeps) {
       return unchanged(current.version.versionLabel);
     }
 
+    // Assembled before the call only so every line below can carry its size (#20's cap is measured
+    // from them): a count in code points, the unit of every span and range, never the text.
+    const { body, ranges } = assembleBody(documents.map((document) => document.text));
+    const size = { documents: documents.length, body_chars: characterLength(body) };
+
     const started = performance.now();
     const elapsed = () => Math.round(performance.now() - started);
 
@@ -206,18 +212,18 @@ export function createPostCvVersion(deps: PostCvVersionDeps) {
       extracted = await deps.extractor.extract(language, requested);
     } catch (error) {
       const errorClass = error instanceof ExtractionFailed ? error.errorClass : "unexpected";
-      log("error", { event: "cv_extraction_failed", language, error_class: errorClass, duration_ms: elapsed() });
+      log("error", { event: "cv_extraction_failed", language, ...size, error_class: errorClass, duration_ms: elapsed() });
       return apiError("cv_extraction_failed", "CV extraction failed; nothing was written.", {
         error_class: errorClass,
       });
     }
 
-    const { body, ranges } = assembleBody(documents.map((document) => document.text));
     const { claims, spansChecked, spansRejected, rejected } = survivingClaims(body, ranges, extracted);
     if (claims.length === 0) {
       log("error", {
         event: "cv_extraction_failed",
         language,
+        ...size,
         error_class: "no_claims_survived",
         spans_checked: spansChecked,
         spans_rejected: spansRejected,
@@ -264,6 +270,7 @@ export function createPostCvVersion(deps: PostCvVersionDeps) {
       cv_version_id: version.id,
       language,
       documents: saved.documents.length,
+      body_chars: size.body_chars,
       claims: claims.length,
       carried_forward: saved.carriedForward,
       spans_checked: spansChecked,

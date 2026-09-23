@@ -449,6 +449,32 @@ describe("POST /api/cv-versions composition", () => {
         .toEqual(JA_CLAIMS.map((claim) => claim.quote).sort());
     }));
 
+  it("logs the body's size in code points and its document count, on success and on both extraction failures", () =>
+    inRolledBackTransaction(async (db) => {
+      // #20 sets the size cap from these lines: a duration is only measurable beside a size.
+      let mode: "ok" | "throw" | "none" = "ok";
+      const { post } = await setUp(db, () => {
+        if (mode === "throw") throw new ExtractionFailed("upstream_500");
+        if (mode === "none") return [{ document: 0, quote: "not in the document", start_hint: 0 }];
+        return JA_CLAIMS;
+      });
+      const documents = [rirekisho, shokumu, additional("ポートフォリオ", `${PORTFOLIO} 𠮷`)];
+      const expected = [RIREKISHO, SHOKUMU, `${PORTFOLIO} 𠮷`].map((text) => [...text].length).reduce((a, b) => a + b) + 4;
+
+      await post({ language: "ja", documents });
+      mode = "throw";
+      await post({ language: "ja", documents: [rirekisho, shokumu, additional("ポートフォリオ", `${PORTFOLIO} 𠮷!`)] });
+      mode = "none";
+      await post({ language: "ja", documents: [rirekisho, shokumu, additional("ポートフォリオ", `${PORTFOLIO} 𠮷?`)] });
+
+      const lines = logged.map((text) => JSON.parse(text) as Record<string, unknown>);
+      expect(lines.filter((line) => /^cv_(version_created|extraction_failed)$/.test(String(line.event)))).toEqual([
+        expect.objectContaining({ event: "cv_version_created", documents: 3, body_chars: expected }),
+        expect.objectContaining({ event: "cv_extraction_failed", error_class: "upstream_500", documents: 3, body_chars: expected + 1 }),
+        expect.objectContaining({ event: "cv_extraction_failed", error_class: "no_claims_survived", documents: 3, body_chars: expected + 1 }),
+      ]);
+    }));
+
   it("takes additional documents in either language, in either set's language", () =>
     inRolledBackTransaction(async (db) => {
       const { post } = await setUp(db, (documents) =>
