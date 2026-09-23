@@ -9,6 +9,61 @@ Decided while running the real CVs through `/cv` locally against Docker Postgres
 first and the cap second, because a cap guessed in advance would have refused the save it was supposed
 to be measured from.
 
+### [2026-09-23] The extraction is judged, and it is not good enough
+
+**Decided:** `CONTEXT.md`'s "CV claim extraction quality" closes with a verdict of **inadequate**.
+The defect is the extractor prompt in `lib/ai/extract-cv-claims.ts`, not spans, not the schema and not
+the screen; it gets its own ticket rather than a fix inside #20, and the CV feature does not reach
+`main` with the prompt as it stands.
+**Alternatives considered:** accepting the reading on `spans_rejected` 0 and 307/307 verbatim slices;
+treating it as a Japanese-only density problem; raising it as a note against #21.
+**Reason:** three things were measured against the real 応募書類 and CV, and each one fails a different
+promise the docs make.
+
+- **Clause-splitting.** 172 of 181 Japanese claims and 113 of 126 English ones sit in runs of
+  consecutive spans separated by nothing but punctuation — a single sentence cut at its 連用形 hinges.
+  「開発用成果物の混入を特定し」, `including rollback strategies` and `ensuring safety and quality
+  compliance` are subordinate fragments. A Claim is defined in `CONTEXT.md` as an atomic, **citable**
+  assertion; a fragment that cannot stand alone cannot be quoted back as evidence, which is the whole
+  job.
+- **A whole section missed.** **3,875 code points — 27% of the English CV, the entire `PROJECTS`
+  block — produced zero claims**, while the 17 certification lines were extracted twice over, once
+  from the 履歴書's table and once from the 職務経歴書's list. The most quantified, most citable
+  material in the document is invisible to Coverage, and a keyword list is over-represented in it.
+  Japanese has no unclaimed stretch of 400 code points anywhere.
+- **Table rows are captured with their cell breaks inside the span**, e.g.
+  `"2021\n\n5\n\n普通自動車第一種運転免許（AT限定）取得"`. Quotes are sliced from stored text by span
+  and never from model output (`04`), so that is what would render verbatim in feedback.
+
+**What this also settles, and is the more serious half:** **every one of these failures reports
+`spans_rejected` 0.** `07` §5.2 returns that counter and `12` §6 alerts on it being non-zero, and both
+are blind here — the instrument that was meant to catch bad extraction reads perfect health. That is
+an `11` §1 silent failure in the class the testing plan exists to name, and it is why the check had to
+be a human one.
+
+**And the screen's own check is defeated at this granularity.** `10` §13 argues the underline is how
+extraction gets read: "a wrong span is visible as a phrase underlined that is not an assertion, or an
+assertion left bare." Measured in the DOM against the real documents, the 履歴書 is **83.1%**
+underlined, the 職務経歴書 **85.0%** and the English CV **57.8%**, with unbroken underlined runs of
+**993, 977 and 710 characters**. An underline covering six-sevenths of a page is a highlight, not a
+marker. The screen is not wrong — it did its job, by making this visible the moment a real CV was in
+it — but it cannot be the check while the extractor segments this finely.
+
+**Rejected in passing:** tightening the near-duplicate threshold, or dropping short claims by a
+character floor. Both treat the symptom at the wrong layer; the 7-character 「CI/CD構築」 and the
+fragment 「プール設定とタイムアウトを見直し」 are both short, and only one of them is wrong.
+
+### [2026-09-23] No claim is drawn from the 履歴書's personal particulars, verified against a real one
+
+**Decided:** recorded as verified rather than asserted. The first claim in `応募書類 v1` starts at code
+point **239**, immediately after the `学歴` header at 228; name, ふりがな, date of birth, address,
+telephone and Email are entirely unclaimed, and no claim in the version matches a telephone, `〒`,
+`@`, ふりがな or date-of-birth pattern.
+**Reason:** `CONTEXT.md` defines a Claim as "never drawn from a 履歴書's personal particulars", and
+until #20 that had only ever been checked against the synthetic seed, which has no real particulars in
+it to draw from. The hint string tells the user those fields may be omitted; this user did not omit
+them, which is what made the check meaningful.
+
 ### [2026-09-23] Every CV extraction log line carries the body's size in code points
 
 **Decided:** `cv_version_created` and both `cv_extraction_failed` paths log `body_chars`, and the

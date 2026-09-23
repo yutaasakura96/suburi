@@ -46,6 +46,33 @@ error sentence ends in `。`; no two error codes share a sentence.
 `記載事項` itself is on trial here: `05` §6 recorded it as the leading candidate for Claim and
 deferred the decision to the first screen that lists claims. This is that screen.
 
+### A reviewed draft, 2026-09-23 — proposals only, boxes stay unticked
+
+Produced in-session by Claude, at the user's request. **This is a review, not a native read**, and
+nothing below is applied: the point of `11` §5's rule is a native ear, and a record that says
+otherwise would be the kind of dishonest instrument this project exists not to build. Kept here so the
+reading is not redone from scratch.
+
+| Row | Why | Proposed |
+| --- | --- | --- |
+| `応募書類を追加する` | It is the **empty** panel; `追加` means adding to a set that already exists. Also clashes in register with `つくる` on the very next button. | `応募書類を登録する` |
+| `履歴書が1通必要です。職務経歴書と、補足資料を5つまで追加できます。` | The 読点 after `と` lets `5つまで` read as governing both. It does not — the 職務経歴書 is one or none. | `履歴書が1通必要です。ほかに職務経歴書を1通と、補足資料を5つまで追加できます。` |
+| `読み込んだ文を確認して…保存した文が…` | `文` alone is "a sentence". The box beside it is labelled `本文`. | `読み込んだ本文を確認して、必要なら直してください。保存した本文がそのまま評価に使われます。` |
+| `${clock} から保存できます。` | A space between a Latin numeral and a Japanese particle — the same family as §6's nakaguro rule. Lives in the template literal in `copy.ts`, not in the checklist row. | `14:32から保存できます。` |
+| `34件を抽出。27件は前のバージョンから引き継ぎ、7件が新規。0件を除外。` | Three noun-stops and an unmotivated `は`/`が` alternation; reads as machine output. | `34件を抽出しました。うち27件は前のバージョンから引き継ぎ、7件が新規です。除外は0件でした。` |
+| `スキャンした画像のファイルは読み込めないため` | Clunky, and it states the wrong reason — the image carries no text, the app does not refuse it. | `スキャンした画像には文字情報がないため` |
+
+**Accepted as written in the same pass:** the other 16 panel strings, `cv_too_large`'s sentence, and
+all three §3 strings as straight `職務経歴書` → `応募書類` swaps. Two worth stating a reason for:
+**`記載事項` passes** — in `記載事項 181件` it reads as the ordinary word for what a document states,
+carries none of `主張`'s argument sense, and this is the screen `05` §6 deferred the choice to.
+**`外す` should stay** — `削除` is the natural Japanese word and is exactly the one invariant 7 cannot
+have.
+
+**Two rules would generalise into `05` §6 if the native read keeps them:** no space between a Latin
+numeral and a following Japanese particle, and `本文` not `文` when the referent is a document's body.
+Both are testable in `app/(app)/cv/copy.test.ts`.
+
 ## 2. Error sentences — `lib/copy/errors.ts`
 
 The other 24 passed on 2026-09-21. One is new:
@@ -72,8 +99,24 @@ code renders them yet.
 
 ## 4. While the real CV is on screen — `11` §5
 
-Not copy, but the same sitting:
+**Done 2026-09-23. It failed — see [#27](https://github.com/yutaasakura96/suburi/issues/27).**
 
-- ☐ The extraction looks right against the underlined text.
-- ☐ `spans_rejected` is 0.
-- ☐ Five underlined quotes sampled, each genuinely in the CV.
+- ☑ `spans_rejected` is 0 — and independently, **307 of 307 claims slice back verbatim** from
+  `cv_versions.body`, re-checked in Node against `normaliseClaimText` itself rather than trusted from
+  the counter.
+- ☑ Five quotes sampled per language, by even stride across each document rather than from the top.
+  Each is genuinely in the CV. Verbatim is not the problem.
+- ☒ **The extraction does not look right against the underlined text.** Sentences are cut at their
+  連用形 hinges into fragments that cannot be cited; 27% of the English CV — the whole `PROJECTS`
+  block — produced no claims while the 17 certification lines were extracted twice; table rows carry
+  their cell breaks inside the span.
+- ☑ **Bonus, and it passes:** no claim is drawn from the 履歴書's personal particulars. First claim at
+  code point 239, after the `学歴` header at 228 — on a 履歴書 that does carry a real address, telephone
+  and date of birth, which the synthetic seed never did.
+
+**A note for whoever re-runs this after #27.** Do not read the underlines by eye and call it checked.
+At this granularity the underline covers 83.1% of the 履歴書, 85.0% of the 職務経歴書 and 57.8% of the
+English CV, in unbroken runs of 993, 977 and 710 characters — it looks like a highlighted page, and
+nothing stands out because almost nothing is bare. What made the defects visible was measuring the
+coverage and the gaps, not looking at them. `10` §13's argument for the underline holds for a good
+reading; it cannot diagnose a bad one.

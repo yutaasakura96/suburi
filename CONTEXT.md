@@ -160,14 +160,23 @@ Carry these; do not silently decide them in a ticket.
   languages at once does not settle the rule for screens showing one.
 - **The near-duplicate similarity threshold.** A guess until there is real data. Start strict, log
   every near-miss with its score, tune from the log.
-- **CV claim extraction quality.** **The run is done; the judgment is not.** The real 履歴書 +
-  職務経歴書 and the real English CV went through `/cv` locally against Docker Postgres on 2026-09-23
-  (#20, `03` §4): `spans_rejected` **0** in both languages, so every claim is verbatim in its document
-  and none crossed a boundary. **181 claims from 9,202 characters** (one per 51) in Japanese and
-  **126 from 14,607** (one per 116) in English. What those numbers do not say is whether that is a good
-  reading or the model shredding the CV into fragments — `11` §5's eyeball and five-quote sample are a
-  human check and are still open. Stays open until they are done; the measurement is recorded so the
-  next session does not re-run it.
+- **CV claim extraction quality — judged, and the answer is no.** The real 履歴書 + 職務経歴書 and the
+  real English CV went through `/cv` locally against Docker Postgres on 2026-09-23 (#20, `03` §4), and
+  `11` §5's check was run on the result. **What passes:** 307 of 307 claims slice back **verbatim**
+  from `cv_versions.body`, `spans_rejected` is **0** in both languages, and **no claim is drawn from
+  the 履歴書's personal particulars** — the first claim starts at code point 239, after the `学歴`
+  header at 228, on a 履歴書 that does carry a real address, telephone and date of birth. **What
+  fails:** the reading. Single sentences are cut at their 連用形 hinges into fragments that cannot be
+  cited (172 of 181 `ja` claims and 113 of 126 `en` sit in consecutive runs); **27% of the English CV,
+  the whole `PROJECTS` block, produced no claims at all** while the 17 certification lines were
+  extracted twice; and table rows carry their cell breaks inside the span. **The defect is the
+  extractor prompt** — [#27](https://github.com/yutaasakura96/suburi/issues/27), which blocks #21. Two
+  consequences to carry: **`spans_rejected` is 0 for every one of these**, so `12` §6's alert is blind
+  to bad extraction and #27 owes a counter that is not; and **the screen cannot be the check at this
+  granularity** — measured in the DOM, the 履歴書 is 83.1% underlined, the 職務経歴書 85.0% and the
+  English CV 57.8%, in unbroken runs of 993, 977 and 710 characters. `10` §13's argument for the
+  underline is sound and the screen did its job — it is what made this visible — but a marker covering
+  six-sevenths of a page marks nothing.
 - **One drawn-but-unspecified screen:** practice mode's record frames differ from realistic mode's.
   Listed in `docs/10-screen-specifications.md` §12. **The CV screen came off this list in #12** — it
   still has no artboard, but it is specified in `10` §13 from `05` components, which is the whole of
