@@ -14,13 +14,24 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { crc32, deflateRawSync } from "node:zlib";
 
-const SHOKUMU_PARAGRAPHS = [
+/**
+ * A paragraph, or a table as rows of cells. The table is why #27 touched this file: Word writes a
+ * 職歴 table one cell per paragraph, and the importer used to flatten it into a line per cell.
+ */
+type Block = string | readonly (readonly string[])[];
+
+const SHOKUMU_BLOCKS: readonly Block[] = [
   "職務経歴書",
   "",
   "職務要約",
   "架空物流株式会社にて経理システムの刷新を主導し、請求処理を40%短縮しました。",
   "",
   "",
+  "職務経歴",
+  [
+    ["2016年4月", "架空物流株式会社 入社"],
+    ["2019年10月", "経理システム刷新プロジェクトのリーダーを担当"],
+  ],
   "活かせる経験",
   "チーム5名の統括、要件定義から運用までの一貫した担当。",
 ];
@@ -31,10 +42,16 @@ const RIREKISHO_LINES = ["氏名 山田 花子", "2016年3月 架空大学 情�
 
 const xmlEscape = (text: string) => text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-function docx(paragraphs: readonly string[]) {
-  const body = paragraphs
-    .map((text) => (text === "" ? "<w:p/>" : `<w:p><w:r><w:t xml:space="preserve">${xmlEscape(text)}</w:t></w:r></w:p>`))
-    .join("");
+const paragraph = (text: string) =>
+  text === "" ? "<w:p/>" : `<w:p><w:r><w:t xml:space="preserve">${xmlEscape(text)}</w:t></w:r></w:p>`;
+
+const table = (rows: readonly (readonly string[])[]) =>
+  `<w:tbl>${rows
+    .map((cells) => `<w:tr>${cells.map((cell) => `<w:tc>${paragraph(cell)}</w:tc>`).join("")}</w:tr>`)
+    .join("")}</w:tbl>`;
+
+function docx(blocks: readonly Block[]) {
+  const body = blocks.map((block) => (typeof block === "string" ? paragraph(block) : table(block))).join("");
   return zip([
     [
       "[Content_Types].xml",
@@ -150,6 +167,6 @@ function pdf(lines: readonly string[]) {
 
 const directory = join(import.meta.dirname, "..", "e2e", "fixtures");
 await mkdir(directory, { recursive: true });
-await writeFile(join(directory, "shokumu.docx"), docx(SHOKUMU_PARAGRAPHS));
+await writeFile(join(directory, "shokumu.docx"), docx(SHOKUMU_BLOCKS));
 await writeFile(join(directory, "rirekisho.pdf"), pdf(RIREKISHO_LINES));
 await writeFile(join(directory, "blank.pdf"), pdf([]));

@@ -11,6 +11,7 @@ import {
 import { assembleBody } from "./body";
 import { currentCvVersion } from "./current-version";
 import { MAX_BODY_CHARS } from "./limits";
+import { readClaims, type ValidatedClaim } from "./reading";
 import { saveCvVersion } from "./save-cv-version";
 import {
   characterLength,
@@ -134,19 +135,18 @@ function pgErrorClass(error: unknown) {
   return typeof pg.code === "string" && /^[0-9A-Z]{5}$/.test(pg.code) ? `pg_${pg.code}` : "unexpected";
 }
 
-interface SurvivingClaim {
-  readonly span: Span;
-  readonly textNormalised: string;
-}
-
 /**
  * Every extracted claim is located in its document and then validated. A claim that fails either is
- * dropped and counted, never clamped. Two claims landing on the same span are one claim, checked
- * once, so `spans_checked` is always `claims.total + spans_rejected`.
+ * dropped and counted, never clamped — that is the anti-hallucination guard, and it answers only
+ * whether the quote is really in the stored text.
+ *
+ * What survives goes to `readClaims`, which drops the repeats and measures **how the model read**
+ * (`reading.ts`, #27). Both sets of numbers are reported, and
+ * `spans_checked === claims.total + spans_rejected + claims_duplicated`.
  */
 function survivingClaims(body: string, ranges: readonly Span[], claims: readonly ExtractedClaim[]) {
   const checker = createSpanChecker(body, ranges);
-  const surviving = new Map<string, SurvivingClaim>();
+  const validated: ValidatedClaim[] = [];
   const rejected: Partial<Record<RejectionReason | "not_found", number>> = {};
 
   for (const claim of claims) {
@@ -157,15 +157,12 @@ function survivingClaims(body: string, ranges: readonly Span[], claims: readonly
       rejected[reason] = (rejected[reason] ?? 0) + 1;
       continue;
     }
-    surviving.set(`${span.start}:${span.end}`, {
-      span,
-      textNormalised: normaliseClaimText(verdict.quote),
-    });
+    validated.push({ span, textNormalised: normaliseClaimText(verdict.quote) });
   }
 
   const spansRejected = Object.values(rejected).reduce((sum, n) => sum + n, 0);
-  const spansChecked = surviving.size + spansRejected;
-  return { claims: [...surviving.values()], spansChecked, spansRejected, rejected };
+  const reading = readClaims(body, ranges, validated);
+  return { ...reading, spansChecked: validated.length + spansRejected, spansRejected, rejected };
 }
 
 export function createPostCvVersion(deps: PostCvVersionDeps) {
@@ -228,7 +225,15 @@ export function createPostCvVersion(deps: PostCvVersionDeps) {
       });
     }
 
-    const { claims, spansChecked, spansRejected, rejected } = survivingClaims(body, ranges, extracted);
+    const { claims, claimsSplit, claimsDuplicated, unclaimedRunMax, spansChecked, spansRejected, rejected } =
+      survivingClaims(body, ranges, extracted);
+    // Never a refusal, in either direction: the counters say how the reading went, and a bad reading
+    // is the model's judgement rather than an invariant the user could edit their way past (07 §5.2).
+    const reading = {
+      claims_split: claimsSplit,
+      claims_duplicated: claimsDuplicated,
+      unclaimed_run_max: unclaimedRunMax,
+    };
     if (claims.length === 0) {
       log("error", {
         event: "cv_extraction_failed",
@@ -237,6 +242,7 @@ export function createPostCvVersion(deps: PostCvVersionDeps) {
         error_class: "no_claims_survived",
         spans_checked: spansChecked,
         spans_rejected: spansRejected,
+        ...reading,
         duration_ms: elapsed(),
       });
       return apiError("cv_extraction_failed", "No extracted claim survived span validation.", {
@@ -285,6 +291,7 @@ export function createPostCvVersion(deps: PostCvVersionDeps) {
       carried_forward: saved.carriedForward,
       spans_checked: spansChecked,
       spans_rejected: spansRejected,
+      ...reading,
       ...Object.fromEntries(Object.entries(rejected).map(([reason, n]) => [`rejected_${reason}`, n])),
       duration_ms: elapsed(),
     });
@@ -309,7 +316,7 @@ export function createPostCvVersion(deps: PostCvVersionDeps) {
           carried_forward: saved.carriedForward,
           new: claims.length - saved.carriedForward,
         },
-        validation: { spans_checked: spansChecked, spans_rejected: spansRejected },
+        validation: { spans_checked: spansChecked, spans_rejected: spansRejected, ...reading },
       },
       { status: 201 },
     );

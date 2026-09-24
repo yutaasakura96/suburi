@@ -160,23 +160,35 @@ Carry these; do not silently decide them in a ticket.
   languages at once does not settle the rule for screens showing one.
 - **The near-duplicate similarity threshold.** A guess until there is real data. Start strict, log
   every near-miss with its score, tune from the log.
-- **CV claim extraction quality — judged, and the answer is no.** The real 履歴書 + 職務経歴書 and the
-  real English CV went through `/cv` locally against Docker Postgres on 2026-09-23 (#20, `03` §4), and
-  `11` §5's check was run on the result. **What passes:** 307 of 307 claims slice back **verbatim**
-  from `cv_versions.body`, `spans_rejected` is **0** in both languages, and **no claim is drawn from
-  the 履歴書's personal particulars** — the first claim starts at code point 239, after the `学歴`
-  header at 228, on a 履歴書 that does carry a real address, telephone and date of birth. **What
-  fails:** the reading. Single sentences are cut at their 連用形 hinges into fragments that cannot be
-  cited (172 of 181 `ja` claims and 113 of 126 `en` sit in consecutive runs); **27% of the English CV,
-  the whole `PROJECTS` block, produced no claims at all** while the 17 certification lines were
-  extracted twice; and table rows carry their cell breaks inside the span. **The defect is the
-  extractor prompt** — [#27](https://github.com/yutaasakura96/suburi/issues/27), which blocks #21. Two
-  consequences to carry: **`spans_rejected` is 0 for every one of these**, so `12` §6's alert is blind
-  to bad extraction and #27 owes a counter that is not; and **the screen cannot be the check at this
-  granularity** — measured in the DOM, the 履歴書 is 83.1% underlined, the 職務経歴書 85.0% and the
-  English CV 57.8%, in unbroken runs of 993, 977 and 710 characters. `10` §13's argument for the
-  underline is sound and the screen did its job — it is what made this visible — but a marker covering
-  six-sevenths of a page marks nothing.
+- **CV claim extraction quality — judged no on 2026-09-23, fixed and re-measured on 2026-09-24.**
+  The real 履歴書 + 職務経歴書 and the real English CV went through `/cv` locally against Docker
+  Postgres (#20, `03` §4) and `11` §5's check was run. **What passed:** 307 of 307 claims sliced back
+  **verbatim**, `spans_rejected` **0** in both languages, and **no claim drawn from the 履歴書's
+  personal particulars** — the first claim started at code point 239, after the `学歴` header at 228,
+  on a 履歴書 that does carry a real address, telephone and date of birth. **What failed was the
+  reading:** sentences cut at their 連用形 hinges into fragments that cannot be cited, **27% of the
+  English CV — the whole `PROJECTS` block — with no claims at all** while the 17 certification lines
+  were extracted twice, and table rows carrying their cell breaks inside the span.
+  [#27](https://github.com/yutaasakura96/suburi/issues/27) fixed all three and is closed; three things
+  it settled are worth carrying:
+  - **`spans_rejected` is blind to a bad reading, and three counters now are not.** It was 0 for every
+    defect above, because each one slices back verbatim. `claims_split`, `claims_duplicated` and
+    `unclaimed_run_max` (`lib/cv/reading.ts`, `07` §5.2) measured 63/68, 5/0 and 239/3,875 on the bad
+    reading and **0, 0 and 1,071/956** after. `12` §6 alerts on all three. **None of them refuses a
+    save:** a bad reading is the model's judgement, not an invariant the user could edit past.
+  - **The screen cannot be the check at this granularity, in either direction.** The 履歴書 went from
+    83.1% underlined to 69.6% and the 職務経歴書 from 85.0% to 41.2% — but the English CV went **up**,
+    from 57.8% to 88.7%, in an unbroken run of 2,668 characters, because an English CV is very nearly
+    all assertions and whole-sentence claims cover almost all of it. `10` §13's argument is sound and
+    the screen is what made the defect visible; it is still not a measurement.
+  - **Defect 3 was never the prompt.** `mammoth.extractRawText` gives every table cell its own
+    paragraph, so the real 履歴書 arrived as 62 lines holding nothing but a year or a month. The
+    importer now reads `.docx` through HTML and joins a row's cells with a tab (`lib/cv/import/`).
+- **A new extractor prompt cannot reach a CV whose documents have not changed.** Found while
+  re-measuring #27: the English CV has no tables, so re-importing it produced byte-identical text and
+  the save was refused `422 cv_unchanged` before any model call — correct behaviour, and a dead end if
+  a better prompt should ever be applied to an unchanged set. Nothing depends on it yet, because no
+  answer has been scored. Decide it deliberately if a third prompt version ever ships.
 - **One drawn-but-unspecified screen:** practice mode's record frames differ from realistic mode's.
   Listed in `docs/10-screen-specifications.md` §12. **The CV screen came off this list in #12** — it
   still has no artboard, but it is specified in `10` §13 from `05` components, which is the whole of
@@ -208,6 +220,6 @@ Carry these; do not silently decide them in a ticket.
 | `docs/06-decision-log.md` | **Append-only.** The answer to every "why is it like this?" |
 | `docs/08` | Auth and permissions. |
 | `docs/07` | **The API surface.** Every endpoint, the one error envelope, and §6 — the endpoints that must never exist. |
-| `docs/11` | Testing plan. §1 names the four silent failures everything else in it guards. |
+| `docs/11` | Testing plan. §1 names the five silent failures everything else in it guards. |
 | `docs/12` | Deployment — environments, every env var, migrations, rollback, monitoring, backups. |
 | `design/` | Claude Design working files. **Edit these; never the built `suburi-directions.html`.** |

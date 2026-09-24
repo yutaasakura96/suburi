@@ -244,7 +244,7 @@ POST /api/cv-versions
 201
 { "id": "3f2a91c4-…", "version_label": "応募書類 v3", "language": "ja",
   "created_at": "2026-08-30T09:14:22Z",
-  "extractor_model_id": "gpt-5.6-sol", "extractor_prompt_version": "cv-extract-ja-1.0",
+  "extractor_model_id": "gpt-5.6-sol", "extractor_prompt_version": "cv-extract-ja-1.1",
   "documents": [
     { "id": "d001…", "kind": "rirekisho", "title": null, "start": 0, "end": 412 },
     { "id": "d002…", "kind": "shokumu_keirekisho", "title": null, "start": 414, "end": 2860 },
@@ -252,7 +252,8 @@ POST /api/cv-versions
       "start": 2862, "end": 3401 }
   ],
   "claims": { "total": 34, "carried_forward": 27, "new": 7 },
-  "validation": { "spans_checked": 34, "spans_rejected": 0 } }
+  "validation": { "spans_checked": 35, "spans_rejected": 0,
+                  "claims_split": 0, "claims_duplicated": 1, "unclaimed_run_max": 118 } }
 ```
 
 **The client chooses none of the stamps.** `version_label`, `body`, every document's `start`/`end`,
@@ -292,8 +293,34 @@ reports the count and decides none of it.
 quote with an approximate start, and the server locates the quote in its document (`06`,
 2026-09-21). A claim whose quote is not in the document verbatim, whose span falls outside `body` or
 splits a grapheme, or which **crosses a document boundary**, is dropped — not clamped, not stored, not
-shown. A non-zero count on a real CV is the
-first thing to look at, because CV extraction quality is explicitly unmeasured (`CONTEXT.md`).
+shown.
+
+**The other three say how the model *read*, which `spans_rejected` cannot** (`lib/cv/reading.ts`,
+[#27](https://github.com/yutaasakura96/suburi/issues/27)). Measured against the real documents on
+2026-09-23, `spans_rejected` was **0** in both languages while a quarter of the English CV went
+unread, sentences were cut into uncitable fragments, and a 履歴書's qualifications were extracted
+twice. Every one of those slices back verbatim, so a guard that asks only whether the quote is real is
+blind to all of them.
+
+| field | is | on a bad reading (2026-09-23) | after #27 (2026-09-24) |
+| --- | --- | --- | --- |
+| `claims_split` | claims abutting another claim on the same line, with no sentence ending between them | 63 `ja`, 68 `en` | **0**, **0** |
+| `claims_duplicated` | claims dropped for repeating a claim this version already carries | 5 `ja`, 0 `en` | 0, 0 |
+| `unclaimed_run_max` | the longest stretch of one document, in code points, that no claim covers | 239 `ja`, **3,875** `en` | 1,071, 956 |
+
+`spans_checked` counts every located claim plus every rejection, so
+`spans_checked = claims.total + spans_rejected + claims_duplicated`.
+
+**None of the four refuses a save.** `spans_rejected` does not, and neither do the three reading
+counters: a bad reading is the model's judgement rather than an invariant, and there is no edit the
+user could make that would clear it. They are logged, returned here, and alerted on (`12` §6). The one
+case that still fails is every claim being rejected, which leaves nothing to store —
+`502 cv_extraction_failed` with `no_claims_survived`.
+
+`unclaimed_run_max` is the loosest of the three and is read with that in mind: a document that
+deliberately repeats another's qualifications now leaves that whole block unclaimed, which is the
+extractor obeying the one-claim-per-assertion rule rather than a section being skipped. Its threshold
+is set from the measurement, not at zero.
 
 **Synchronous, one model call, one transaction.** The user is at the machine waiting; the version, its
 documents and its claims are written together or not at all. The call runs before the transaction

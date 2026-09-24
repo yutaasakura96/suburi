@@ -12,11 +12,14 @@ additional documents in both languages.** **#16 is done — next versions: prefi
 `cv_unchanged`, history.** **#17 is done — import from `.docx`/`.pdf` in the browser.** **#18 is done — the per-session rate
 limiter.** **#19 is done — the synthetic CV seed, and the feature running on `develop`.** **#20 is in progress —
 the real CVs are through `/cv` locally, the text-size cap is measured and enforced, and `11` §5's
-extraction check is done. It failed: the extractor prompt over-segments and skips whole sections, which
-is now [#27](https://github.com/yutaasakura96/suburi/issues/27), and #27 blocks #21. The native read of
-the 22 panel strings is the one thing still owed on #20, and it is the user's — six of them now carry
-an applied Claude review (2026-09-24), which is what the read judges, not what it replaces.**
-**Updated:** 2026-09-24 (#20)
+extraction check is done. It failed, which became
+[#27](https://github.com/yutaasakura96/suburi/issues/27).** **#27 is done — the extractor prompt is
+rewritten in both languages, the `.docx` importer reads tables, three reading counters replace a blind
+`spans_rejected`, and the real CVs are re-measured. The three machine defects are gone.** **The two
+human checks are all that is left on #20:** the native read of the 22 panel strings — six of them now
+carry an applied Claude review (2026-09-24), which is what the read judges, not what it replaces — and
+the eyeball of #27's new claims.
+**Updated:** 2026-09-24 (#27)
 
 ## Done
 - Phase 1 — `docs/01-project-brief.md`, `docs/02-product-requirements.md`, `docs/06-decision-log.md`.
@@ -253,6 +256,19 @@ an applied Claude review (2026-09-24), which is what the read judges, not what i
   **Counts:** units 328 → 387, integration 63 → 84, e2e 9 → 11.
   **Not done here, by ticket:** `cv_unchanged`, prefill and history are #16. Import is #17. The rate
   limiter is #18. The size cap is #20.
+- **#27 — the extractor prompt, the importer, and three reading counters.** Prompts
+  `cv-extract-ja-1.1` and `cv-extract-en-1.2`: a claim must read as a finished assertion rather than
+  stop at a 連用形 or a participial hinge; every section must be read; an assertion two documents both
+  make is one claim; a bare skills inventory is not a claim; a table row is one tab-separated line.
+  **`lib/cv/import/`** reads `.docx` through `mammoth.convertToHtml` and walks the HTML, so a table
+  row is one line instead of a line per cell — the real 履歴書 had been arriving as 62 lines holding
+  nothing but a year or a month. **`lib/cv/reading.ts`** adds `claims_split`, `claims_duplicated` and
+  `unclaimed_run_max`, logged, returned in the 201 and alerted on in `12` §6; a repeated assertion is
+  now one claim per version. **Re-measured against the real CVs, 2026-09-24** (`03` §4): 86 claims
+  each, `claims_split` **63 → 0** (`ja`) and **68 → 0** (`en`), `claims_duplicated` 5 → 0 and 0 → 0,
+  `unclaimed_run_max` 239 → 1,071 and **3,875 → 956**. `spans_rejected` stayed 0 throughout, which is
+  the point: it was 0 on the bad reading too, and `11` §1 now names a fifth silent failure.
+  **Counts:** units 513 → 522, integration 54 → 55 on the CV route, e2e 16 unchanged.
 - **Still deferred, not done:** `11` §3.10's third bullet — forcing each failure with sentinel text and
   scanning every envelope for it — needs routes to exist. It belongs to #14 onward. What #13 gives is
   structural: `ErrorDetailValue` is flat, so a nested object cannot be dropped into `detail`, and the
@@ -267,7 +283,34 @@ Page 1 is the screen set, page 2 the three exploration directions. **Working fil
 every change re-seeds from those — edit them, never the built `design/suburi-directions.html`.
 
 ## Next
-**#20 — the real-CV extraction check. The machine half is done; two human checks remain.**
+**Two human checks on #20, then #21. The machine half of both #20 and #27 is done.**
+
+**1. The native read** of `docs/checklists/native-read-cv.md` — 22 panel strings, the new
+`cv_too_large` sentence, the three prose `職務経歴書` strings. Rules earned go into `05` §6.
+**The six-change draft was applied on 2026-09-24**, on Claude's recommendation after the user declined
+to rule on the rows one at a time — `app/(app)/cv/copy.ts`, and through to `10` §13 and
+`e2e/cv.spec.ts` where the same sentences are quoted. Its two mechanical rules are in `05` §6 and
+asserted over every `ja` string in `app/(app)/cv/copy.test.ts`. **It is still a review, not a native
+read: every box stays ☐ and the read is still owed** — now on the amended strings, with the originals
+kept in the checklist so it can overturn them. §3's three prose strings were not applied.
+
+**2. The eyeball on #27's new claims** — `11` §5's per-CV-upload box. The three counters say the
+machine defects are gone; no counter can say whether what is left reads as the applicant's claims.
+**Start with the 職務経歴書 at 41.2% underlined** (`03` §4). About 2,800 of its 6,733 characters are
+unclaimed by design — the 保有資格 and education blocks the 履歴書 already states, the title-and-date
+block, and a 技術スタック inventory — which leaves roughly a sixth genuinely unread. **The English CV
+went the other way, to 88.7% in a 2,668-character unbroken run**, because an English CV is very nearly
+all assertions and the claims are now whole sentences. Both readings are in the local database beside
+their baselines; nothing was deleted.
+
+**Then #21.** #27 no longer blocks it: the CV feature can reach `main` without stamping every scored
+answer with a reading already known to be bad. **Never merge into `main` before #21.**
+
+**#27's record:** `03` §4 (the measurement, old beside new), `07` §5.2 (the `validation` block),
+`12` §6 (three alert rows), `11` §1/§3.3/§5, five entries in `06`, and `CONTEXT.md`. One new open item
+went into `CONTEXT.md` with it: **a new extractor prompt cannot reach a CV whose documents have not
+changed** — re-importing the English CV produced byte-identical text and the save was refused
+`422 cv_unchanged` before any model call.
 
 **Done 2026-09-23, locally against Docker Postgres (the real CVs never touched Neon `develop`):**
 - Both real sets saved through `/cv`: `応募書類 v1` (履歴書 + 職務経歴書, 9,202 chars, **181 claims**,
@@ -279,37 +322,6 @@ every change re-seeds from those — edit them, never the built `design/suburi-d
   25th code, with copy in both languages. `07` §5.2 and §7 updated; four entries in `06`.
 - Every extraction log line now carries **`body_chars`** (code points) beside `duration_ms`.
 - The native-read batch is collected as one checklist: `docs/checklists/native-read-cv.md`.
-
-**`11` §5's extraction check is done, 2026-09-23 — and it failed.** `CONTEXT.md`'s "CV claim extraction
-quality" is closed with a verdict of **inadequate**, and the defect is the extractor prompt:
-[#27](https://github.com/yutaasakura96/suburi/issues/27).
-
-- **What passes:** 307 of 307 claims slice back verbatim from `cv_versions.body`; `spans_rejected` 0 in
-  both languages; **no claim is drawn from the 履歴書's personal particulars** — first claim at code
-  point 239, after the `学歴` header at 228, on a 履歴書 that does carry a real address, telephone and
-  date of birth. That invariant had only ever been checked against the synthetic seed before.
-- **What fails:** single sentences cut at their 連用形 hinges into uncitable fragments (172 of 181 `ja`
-  and 113 of 126 `en` claims sit in consecutive runs); **27% of the English CV — the whole `PROJECTS`
-  block — produced no claims** while the 17 certification lines were extracted twice; table rows carry
-  their cell breaks inside the span.
-- **Both instruments meant to catch this are blind.** Every defect reports `spans_rejected` 0, so
-  `12` §6's alert never fires; and the screen's underline, measured in the DOM, covers **83.1%** of the
-  履歴書, **85.0%** of the 職務経歴書 and **57.8%** of the English CV in unbroken runs of **993, 977 and
-  710 characters**. #27 owes a counter that is non-zero when the reading is bad.
-
-**Still open, and the user's to do:**
-1. **The native read** of `docs/checklists/native-read-cv.md` — 22 panel strings, the new
-   `cv_too_large` sentence, the three prose `職務経歴書` strings. Rules earned go into `05` §6.
-   **The six-change draft was applied on 2026-09-24**, on Claude's recommendation after the user
-   declined to rule on the rows one at a time — `app/(app)/cv/copy.ts`, and through to `10` §13 and
-   `e2e/cv.spec.ts` where the same sentences are quoted. Its two mechanical rules are in `05` §6 and
-   asserted over every `ja` string in `app/(app)/cv/copy.test.ts`. **It is still a review, not a
-   native read: every box stays ☐ and the read is still owed** — now on the amended strings, with the
-   originals kept in the checklist so it can overturn them. §3's three prose strings were not applied.
-
-Then **#27**, then #21. **#27 blocks #21:** shipping the CV feature to `main` as it extracts now would
-stamp every scored answer with a `cv_version` whose reading is already known to be bad, and invariant 8
-makes that a re-score and a boundary later rather than an edit.
 
 **#19 verified on `develop` 2026-09-22 at `e24eb8c`:** Neon `develop`'s `suburi` database at `0003`, one
 user, `応募書類 v1` (3 documents, 9 claims) and `CV v1` (2, 7), stamps null. Google sign-in works; both
