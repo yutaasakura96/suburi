@@ -10,8 +10,10 @@ import {
 } from "../ai/extract-cv-claims";
 import { assembleBody } from "./body";
 import { currentCvVersion } from "./current-version";
+import { MAX_BODY_CHARS } from "./limits";
 import { saveCvVersion } from "./save-cv-version";
 import {
+  characterLength,
   createSpanChecker,
   normaliseClaimText,
   type RejectionReason,
@@ -28,8 +30,9 @@ import { isUnchanged } from "./unchanged";
  * **Composition and order are refused, never repaired** (04, 07 §5.2). A set is its required
  * document, then — Japanese only — at most one 職務経歴書, then up to five titled additional
  * documents in the order sent. That order is `position` and the order `body` is joined in; a request
- * in any other order is a 400 rather than being sorted. The total size cap is #20's, measured on the
- * real call.
+ * in any other order is a 400 rather than being sorted. **The total size cap is per language**
+ * (`limits.ts`, measured in #20): over it is a 422 `cv_too_large`, refused before the database is read
+ * and before any model call.
  *
  * **Rate-limited before anything else is read** (07 §1 rule 5): 6 per 10 minutes per session, and a
  * request refused for any later reason still counts.
@@ -193,6 +196,19 @@ export function createPostCvVersion(deps: PostCvVersionDeps) {
       return apiError("cv_unchanged", `No document differs from ${versionLabel}.`, { language });
     };
 
+    // Assembled here, before the database is read and long before the model call, so the size the
+    // cap refuses is the size the record would have counted (07 §5.2, measured in #20).
+    const { body, ranges } = assembleBody(documents.map((document) => document.text));
+    const size = { documents: documents.length, body_chars: characterLength(body) };
+    const maxBodyChars = MAX_BODY_CHARS[language];
+    if (size.body_chars > maxBodyChars) {
+      log("error", { event: "cv_too_large", language, ...size, max_body_chars: maxBodyChars });
+      return apiError("cv_too_large", "The CV is longer than this language's cap.", {
+        body_chars: size.body_chars,
+        max_body_chars: maxBodyChars,
+      });
+    }
+
     const current = await currentCvVersion(deps.db, userId, language);
     if (current && isUnchanged(current.version.body, current.documents, requested)) {
       return unchanged(current.version.versionLabel);
@@ -206,18 +222,18 @@ export function createPostCvVersion(deps: PostCvVersionDeps) {
       extracted = await deps.extractor.extract(language, requested);
     } catch (error) {
       const errorClass = error instanceof ExtractionFailed ? error.errorClass : "unexpected";
-      log("error", { event: "cv_extraction_failed", language, error_class: errorClass, duration_ms: elapsed() });
+      log("error", { event: "cv_extraction_failed", language, ...size, error_class: errorClass, duration_ms: elapsed() });
       return apiError("cv_extraction_failed", "CV extraction failed; nothing was written.", {
         error_class: errorClass,
       });
     }
 
-    const { body, ranges } = assembleBody(documents.map((document) => document.text));
     const { claims, spansChecked, spansRejected, rejected } = survivingClaims(body, ranges, extracted);
     if (claims.length === 0) {
       log("error", {
         event: "cv_extraction_failed",
         language,
+        ...size,
         error_class: "no_claims_survived",
         spans_checked: spansChecked,
         spans_rejected: spansRejected,
@@ -264,6 +280,7 @@ export function createPostCvVersion(deps: PostCvVersionDeps) {
       cv_version_id: version.id,
       language,
       documents: saved.documents.length,
+      body_chars: size.body_chars,
       claims: claims.length,
       carried_forward: saved.carriedForward,
       spans_checked: spansChecked,

@@ -176,7 +176,7 @@ Four distinct jobs, one pinned model:
 | Question generation | `gpt-5.6-sol` | before round / between answers | High — banked permanently |
 | Follow-up generation | `gpt-5.6-sol` | user is waiting | Low — never scored, never banked |
 | Answer scoring | `gpt-5.6-sol` | during the next answer | **The instrument** |
-| CV claim extraction | `gpt-5.6-sol` | **measured on the first real run**, not budgeted in advance | High — every citation and every coverage count rests on it |
+| CV claim extraction | `gpt-5.6-sol` | **measured: 48–60 s on real documents** (#20, 2026-09-23) | High — every citation and every coverage count rests on it |
 
 **CV claim extraction is one synchronous call, all-or-nothing.** The user saves a CV version and waits;
 the call runs first and the version, its documents and its claims are then written in one transaction,
@@ -188,6 +188,21 @@ worse than a save the user has to repeat. The latency is deliberately left unwri
 much longer prompt than an answer, the call is made a handful of times ever rather than once per
 answer, and a budget guessed now would be a number later sessions defend instead of measure. The first
 real run records it (`11` §5).
+
+**Measured on the real documents, 2026-09-23 (#20), locally against Docker Postgres:**
+
+| set | documents | chars (code points) | claims | `spans_rejected` | duration |
+| --- | --- | --- | --- | --- | --- |
+| `応募書類 v1` — 履歴書 + 職務経歴書 | 2 | 9,202 | 181 | 0 | **59.5 s** |
+| `CV v1` — one document | 1 | 14,607 | 126 | 0 | **48.0 s** |
+| synthetic `CV v2` on `develop` (#19) | 2 | ~1,500 | 17 | 0 | 51.0 s |
+
+**Duration does not track input size.** Across a ten-fold range of text it stayed inside a minute. It
+tracks **claims**, at roughly `21.5 s + 0.21 s × claims`, and claim density is a property of the
+language: about 20 claims per 1,000 characters in Japanese against 8.6 in English. That is what makes
+the `07` §5.2 cap per language rather than one number, and it is why the budget column above is a
+measured range and not a promise: a set at the cap is predicted at ~145 s (`ja`) and ~105 s (`en`),
+against the OpenAI client's 240 s timeout and the route's 300 s `maxDuration`.
 
 **Its prompt is versioned per language** — `cv-extract-ja-…`, `cv-extract-en-…` in `lib/prompts/` —
 and recorded on the version as `extractor_prompt_version`. It is *not* a fifth **stamp**: that word is

@@ -32,6 +32,15 @@ describe("the 応募書類 panel's Japanese chrome", () => {
   it("counts claims in 件 and names them 記載事項", () => {
     expect(COPY.ja.claims(34)).toBe("記載事項 34件");
   });
+
+  // #20's reviewed draft (05 §6), applied ahead of the native read and testable without an ear.
+  it.each(ja)("%s sets a Japanese particle tight against a Latin numeral", (_, text) => {
+    expect(text).not.toMatch(/[0-9][ 　]+[ぁ-んァ-ヿ一-龯]/u);
+  });
+
+  it.each(ja)("%s calls a document's body 本文, never a bare 文", (_, text) => {
+    expect(text).not.toMatch(/(?<!本)文(?!字)/u);
+  });
 });
 
 describe("the time a rate-limited save can be retried (10 §13)", () => {
@@ -52,7 +61,7 @@ describe("the time a rate-limited save can be retried (10 §13)", () => {
   });
 
   it("is written into the sentence in both languages", () => {
-    expect(COPY.ja.savableAt("14:32")).toBe("14:32 から保存できます。");
+    expect(COPY.ja.savableAt("14:32")).toBe("14:32から保存できます。");
     expect(COPY.en.savableAt("14:32")).toBe("You can save again at 14:32.");
   });
 });

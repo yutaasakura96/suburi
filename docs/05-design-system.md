@@ -360,6 +360,17 @@ Errors already made and fixed in this project. Each line below is a rule because
 
 The first two are enforced across the catalogue by `lib/copy/errors.test.ts`.
 
+**Two mechanical rules from #20's reviewed draft, applied 2026-09-24 — and *not* a native read.**
+`docs/checklists/native-read-cv.md` §1's boxes are still unticked and #20 still owes the read; these
+two are recorded here early only because they are mechanical enough to be tested, and
+`app/(app)/cv/copy.test.ts` asserts both. The read may still overturn them.
+
+- **No space between a Latin numeral and the Japanese that follows it.** `14:32から保存できます。`, not
+  `14:32 から`. The same family as the nakaguro rule — the space is Latin typography, and Japanese
+  sets the particle tight against the numeral.
+- **A document's body is `本文`, never a bare `文`.** `文` alone is one sentence. The import caption
+  read `読み込んだ文を確認して…` while the box beside it was labelled `本文`. `文字` is unaffected.
+
 **Every new Japanese string needs a native read before it ships.** Five of the six rules above came
 from one review pass, not from care at authoring time.
 

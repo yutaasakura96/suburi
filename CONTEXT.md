@@ -160,15 +160,32 @@ Carry these; do not silently decide them in a ticket.
   languages at once does not settle the rule for screens showing one.
 - **The near-duplicate similarity threshold.** A guess until there is real data. Start strict, log
   every near-miss with its score, tune from the log.
-- **CV claim extraction quality.** Still unmeasured. The CV screen exists so it can be read off the
-  user's own text (`10` §13), and the check runs on the real CV locally, against Docker Postgres,
-  before anything is scored against it. Closes when that run is done, not when the screen ships.
+- **CV claim extraction quality — judged, and the answer is no.** The real 履歴書 + 職務経歴書 and the
+  real English CV went through `/cv` locally against Docker Postgres on 2026-09-23 (#20, `03` §4), and
+  `11` §5's check was run on the result. **What passes:** 307 of 307 claims slice back **verbatim**
+  from `cv_versions.body`, `spans_rejected` is **0** in both languages, and **no claim is drawn from
+  the 履歴書's personal particulars** — the first claim starts at code point 239, after the `学歴`
+  header at 228, on a 履歴書 that does carry a real address, telephone and date of birth. **What
+  fails:** the reading. Single sentences are cut at their 連用形 hinges into fragments that cannot be
+  cited (172 of 181 `ja` claims and 113 of 126 `en` sit in consecutive runs); **27% of the English CV,
+  the whole `PROJECTS` block, produced no claims at all** while the 17 certification lines were
+  extracted twice; and table rows carry their cell breaks inside the span. **The defect is the
+  extractor prompt** — [#27](https://github.com/yutaasakura96/suburi/issues/27), which blocks #21. Two
+  consequences to carry: **`spans_rejected` is 0 for every one of these**, so `12` §6's alert is blind
+  to bad extraction and #27 owes a counter that is not; and **the screen cannot be the check at this
+  granularity** — measured in the DOM, the 履歴書 is 83.1% underlined, the 職務経歴書 85.0% and the
+  English CV 57.8%, in unbroken runs of 993, 977 and 710 characters. `10` §13's argument for the
+  underline is sound and the screen did its job — it is what made this visible — but a marker covering
+  six-sevenths of a page marks nothing.
 - **One drawn-but-unspecified screen:** practice mode's record frames differ from realistic mode's.
   Listed in `docs/10-screen-specifications.md` §12. **The CV screen came off this list in #12** — it
   still has no artboard, but it is specified in `10` §13 from `05` components, which is the whole of
   what it needed, and `10` §12's own entry is struck through to say so.
 - **Japanese copy that has not had its native read.** `応募書類`, the 履歴書 personal-particulars hint,
-  every string on the CV screen, and the whole error catalogue — one read, one batch. Separately,
+  every string on the CV screen, and the whole error catalogue — one read, one batch. **Six CV-screen
+  strings were amended on 2026-09-24 from a Claude review**, with the two mechanical rules it earned
+  now in `05` §6 and under test; the read is owed on the amended strings and every box in
+  `docs/checklists/native-read-cv.md` §1 is still ☐. An applied review does not discharge `11` §5. Separately,
   three *prose* strings on the feedback and Progress screens still say `職務経歴書` where they now mean
   the whole set; every stamp already reads `応募書類 v{n}` (`05` §6, `10` §12).
 - **Who sends the alert mail.** `08` §2 rejected magic links specifically to avoid a transactional email

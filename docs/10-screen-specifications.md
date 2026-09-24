@@ -470,9 +470,9 @@ round screens.
 
 ### Empty panel
 
-One action and nothing else: an outline button (`05` §5.7) reading `応募書類を追加する` / `Add your
+One action and nothing else: an outline button (`05` §5.7) reading `応募書類を登録する` / `Add your
 CV`, over a 12px `--ink-6` line naming what the set requires —
-`履歴書が1通必要です。職務経歴書と、補足資料を5つまで追加できます。` /
+`履歴書が1通必要です。ほかに職務経歴書を1通と、補足資料を5つまで追加できます。` /
 `One CV document is required. You can add up to five supporting documents.`
 
 No placeholder version, no sample, no "get started" sequence. The panel states what is missing and
@@ -508,8 +508,8 @@ server-side.
 | --- | --- |
 | Per document | A title (fixed for the three known kinds; a text input for `additional`) over a monospaced-width textarea at 13px/1.9. |
 | Import | Beside each box, `ファイルから読み込む` / `Import from a file`, accepting `.docx` and `.pdf` — a text control in the §3.3 label style beside `外す`, for the same reason. **The text is extracted in the browser and dropped into that box, which stays editable.** The file is never uploaded (`07` §5.2). |
-| After an import | The extracted text **replaces** the box's text, and the document's `source_filename` becomes the file's name. A 12px `--ink-6` line: `読み込んだ文を確認して、必要なら直してください。保存した文がそのまま評価に使われます。` / `Check the imported text and fix anything wrong. What you save is what gets scored.` |
-| A failed import | An `--attention-mark` callout rail (`05` §5.8) under the box, which is left as it was. No text in the file (a scanned PDF): `このファイルからは文字を読み取れませんでした。スキャンした画像のファイルは読み込めないため、本文を貼り付けてください。` / `No text could be read from this file. A scanned file has none — paste the text instead.` Anything else — damaged, password-protected, not really `.docx`/`.pdf`: `このファイルは開けませんでした。破損しているか、パスワードで保護されている可能性があります。本文を貼り付けてください。` / `This file could not be opened. It may be damaged or password-protected — paste the text instead.` Both Japanese strings await the native read (#20). |
+| After an import | The extracted text **replaces** the box's text, and the document's `source_filename` becomes the file's name. A 12px `--ink-6` line: `読み込んだ本文を確認して、必要なら直してください。保存した本文がそのまま評価に使われます。` / `Check the imported text and fix anything wrong. What you save is what gets scored.` |
+| A failed import | An `--attention-mark` callout rail (`05` §5.8) under the box, which is left as it was. No text in the file (a scanned PDF): `このファイルからは文字を読み取れませんでした。スキャンした画像には文字情報がないため、本文を貼り付けてください。` / `No text could be read from this file. A scanned file has none — paste the text instead.` Anything else — damaged, password-protected, not really `.docx`/`.pdf`: `このファイルは開けませんでした。破損しているか、パスワードで保護されている可能性があります。本文を貼り付けてください。` / `This file could not be opened. It may be damaged or password-protected — paste the text instead.` Both Japanese strings await the native read (#20). |
 | 履歴書 box only | An `--accent-mid` callout rail (`05` §5.8): `生年月日・住所・電話番号・顔写真・家族の情報は省いてかまいません。評価には使いません。` |
 | Add | `補足資料を追加` / `Add a supporting document`, disabled at five. Japanese panels also offer `職務経歴書を追加` until one exists. |
 | Remove | `外す` / `Remove` beside the 職務経歴書 and each additional document — never the required one. A text control in the §3.3 label style, not a §5.7 button: `05` draws no quiet variant, and a 48px outline beside every box outweighs the box. It removes a document from the unsaved form; nothing stored is touched. |
@@ -530,7 +530,7 @@ an immutable version, not after.
 The panel returns to the current-version view, now showing the new version, with a 12px `--ink-6`
 result line above it:
 
-`34件を抽出。27件は前のバージョンから引き継ぎ、7件が新規。0件を除外。` /
+`34件を抽出しました。うち27件は前のバージョンから引き継ぎ、7件が新規です。除外は0件でした。` /
 `34 claims extracted — 27 carried forward, 7 new. 0 dropped.`
 
 **`spans_rejected` is shown whenever it is non-zero**, on an `--attention-mark` callout rail (`05`
@@ -542,7 +542,7 @@ On failure, nothing changes and the form keeps its contents: the version was not
 so there is nothing to reconcile. The message is the catalogue's copy for `cv_extraction_failed`,
 `cv_unchanged` or `rate_limited`, in that panel's language. **`rate_limited` adds a second line with
 the clock time the save can be retried**, from `Retry-After`, in local 24-hour `HH:MM` rounded up to
-the minute: `14:32 から保存できます。` / `You can save again at 14:32.` A clock time rather than a
+the minute: `14:32から保存できます。` / `You can save again at 14:32.` A clock time rather than a
 countdown, because it stays true however long the callout is on screen (`06`, #18). The Japanese
 awaits the native read (#20).
 

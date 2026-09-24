@@ -449,6 +449,85 @@ describe("POST /api/cv-versions composition", () => {
         .toEqual(JA_CLAIMS.map((claim) => claim.quote).sort());
     }));
 
+  // 07 §5.2, measured in #20: the cap is per language, because Japanese yields about 20 claims per
+  // 1,000 characters against English's 8.6, and the call's duration tracks claims.
+  it.each([
+    ["ja", 30_000, () => ({ language: "ja", documents: [{ kind: "rirekisho", text: "あ".repeat(30_001) }] })],
+    ["en", 45_000, () => ({ language: "en", documents: [{ kind: "cv", text: "a".repeat(45_001) }] })],
+  ])("is 422 cv_too_large for %s over the cap, before any model call", (_, max, body) =>
+    inRolledBackTransaction(async (db) => {
+      const { post, extractor, userId } = await setUp(db);
+      const { status, json } = await post(body());
+
+      expect(status).toBe(422);
+      expect(json.error).toMatchObject({
+        code: "cv_too_large",
+        detail: { body_chars: max + 1, max_body_chars: max },
+      });
+      expect(extractor.calls).toBe(0);
+      expect(await rowCounts(db, userId)).toEqual({ versions: 0, documents: 0, claims: 0 });
+    }));
+
+  it.each([
+    ["ja", 30_000, "あ", "rirekisho"],
+    ["en", 45_000, "a", "cv"],
+  ])("saves %s at exactly the cap: the boundary is inclusive", (language, max, char, kind) =>
+    inRolledBackTransaction(async (db) => {
+      // Two documents, so the separator counts toward the cap the way the body does.
+      const text = char.repeat(max - 2 - 10);
+      const { post } = await setUp(db, () => [{ document: 0, quote: char.repeat(20), start_hint: 0 }]);
+      const { status } = await post({
+        language,
+        documents: [
+          { kind, text },
+          { kind: "additional", title: "補足", text: char.repeat(10) },
+        ],
+      });
+
+      expect(status).toBe(201);
+      const lines = logged.map((text) => JSON.parse(text) as Record<string, unknown>);
+      expect(lines.find((line) => line.event === "cv_version_created")).toMatchObject({ body_chars: max });
+    }), 30_000);
+
+  it("counts a surrogate pair as one character against the cap, as every span does", () =>
+    inRolledBackTransaction(async (db) => {
+      // 𠮷 is two UTF-16 units and one code point: counted as UTF-16, this set would be refused.
+      const { post, extractor } = await setUp(db, () => [{ document: 0, quote: "𠮷", start_hint: 0 }]);
+      const { status } = await post({
+        language: "ja",
+        documents: [{ kind: "rirekisho", text: "𠮷".repeat(30_000) }],
+      });
+
+      expect(status).toBe(201);
+      expect(extractor.calls).toBe(1);
+    }), 30_000);
+
+  it("logs the body's size in code points and its document count, on success and on both extraction failures", () =>
+    inRolledBackTransaction(async (db) => {
+      // #20 sets the size cap from these lines: a duration is only measurable beside a size.
+      let mode: "ok" | "throw" | "none" = "ok";
+      const { post } = await setUp(db, () => {
+        if (mode === "throw") throw new ExtractionFailed("upstream_500");
+        if (mode === "none") return [{ document: 0, quote: "not in the document", start_hint: 0 }];
+        return JA_CLAIMS;
+      });
+      const documents = [rirekisho, shokumu, additional("ポートフォリオ", `${PORTFOLIO} 𠮷`)];
+      const expected = [RIREKISHO, SHOKUMU, `${PORTFOLIO} 𠮷`].map((text) => [...text].length).reduce((a, b) => a + b) + 4;
+
+      await post({ language: "ja", documents });
+      mode = "throw";
+      await post({ language: "ja", documents: [rirekisho, shokumu, additional("ポートフォリオ", `${PORTFOLIO} 𠮷!`)] });
+      mode = "none";
+      await post({ language: "ja", documents: [rirekisho, shokumu, additional("ポートフォリオ", `${PORTFOLIO} 𠮷?`)] });
+
+      const lines = logged.map((text) => JSON.parse(text) as Record<string, unknown>);
+      expect(lines.filter((line) => /^cv_(version_created|extraction_failed)$/.test(String(line.event)))).toEqual([
+        expect.objectContaining({ event: "cv_version_created", documents: 3, body_chars: expected }),
+        expect.objectContaining({ event: "cv_extraction_failed", error_class: "upstream_500", documents: 3, body_chars: expected + 1 }),
+        expect.objectContaining({ event: "cv_extraction_failed", error_class: "no_claims_survived", documents: 3, body_chars: expected + 1 }),
+      ]);
+    }));
+
   it("takes additional documents in either language, in either set's language", () =>
     inRolledBackTransaction(async (db) => {
       const { post } = await setUp(db, (documents) =>

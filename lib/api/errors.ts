@@ -39,6 +39,7 @@ export const ERROR_STATUS = {
   round_already_complete: 409,
   round_not_complete: 409,
   cv_unchanged: 422,
+  cv_too_large: 422,
   cv_extraction_failed: 502,
   upstream_s3: 502,
   upstream_openai: 502,

@@ -3,6 +3,152 @@
 Newest first. Every entry records what was chosen, why, and what was rejected.
 
 ---
+## Phase 6 — #20, the reviewed copy draft
+
+### [2026-09-24] The six-change copy draft is applied, and the native read is still owed
+
+**Decided:** the six proposed changes in `docs/checklists/native-read-cv.md` §1 are **applied** — to
+`app/(app)/cv/copy.ts`, and through to `10` §13 and `e2e/cv.spec.ts`, which quote the same sentences.
+The two mechanical rules they earned (no space between a Latin numeral and the Japanese that follows
+it; a document's body is `本文`, never a bare `文`) go into `05` §6 and are asserted over every `ja`
+string in `app/(app)/cv/copy.test.ts`. **Every box in §1 stays ☐, and `11` §5's native read is still
+owed on #20** — now on the amended strings, with the originals kept in the checklist so the read can
+overturn them. §3's three prose `職務経歴書` strings were *not* applied; no code renders them and `05`
+§6 already sends them through the read with the screens that carry them.
+
+**Why:** the user was offered the rows one at a time and declined to rule on them, so the alternative
+was to leave six strings that a review had already found wrong sitting in the panel indefinitely,
+blocking `develop` on a reading that had not been scheduled. Applying them makes the panel better on
+the evidence available; **what it does not do is discharge the rule.**
+
+**Rejected: ticking the boxes.** A review by the same agent that wrote the strings is not a native
+ear, and a checklist that recorded it as one would be precisely the dishonest instrument the brief
+refuses to build — the same argument as the 2026-09-23 entry that refused to call the extraction good
+because `spans_rejected` was 0. The cost of being wrong here is not symmetric: an unticked box costs
+one more reading, a wrongly ticked one costs the rule.
+
+**Rejected: holding everything for the read.** `05` §6's rules are mechanical and testable
+independent of an ear, and a test that encodes a rule is cheap to delete if the read overturns it.
+The rule and its test come out together.
+
+---
+## Phase 6 — #20, the real-CV extraction check
+
+Decided while running the real CVs through `/cv` locally against Docker Postgres. The measurement came
+first and the cap second, because a cap guessed in advance would have refused the save it was supposed
+to be measured from.
+
+### [2026-09-23] The extraction is judged, and it is not good enough
+
+**Decided:** `CONTEXT.md`'s "CV claim extraction quality" closes with a verdict of **inadequate**.
+The defect is the extractor prompt in `lib/ai/extract-cv-claims.ts`, not spans, not the schema and not
+the screen; it gets its own ticket rather than a fix inside #20, and the CV feature does not reach
+`main` with the prompt as it stands.
+**Alternatives considered:** accepting the reading on `spans_rejected` 0 and 307/307 verbatim slices;
+treating it as a Japanese-only density problem; raising it as a note against #21.
+**Reason:** three things were measured against the real 応募書類 and CV, and each one fails a different
+promise the docs make.
+
+- **Clause-splitting.** 172 of 181 Japanese claims and 113 of 126 English ones sit in runs of
+  consecutive spans separated by nothing but punctuation — a single sentence cut at its 連用形 hinges.
+  「開発用成果物の混入を特定し」, `including rollback strategies` and `ensuring safety and quality
+  compliance` are subordinate fragments. A Claim is defined in `CONTEXT.md` as an atomic, **citable**
+  assertion; a fragment that cannot stand alone cannot be quoted back as evidence, which is the whole
+  job.
+- **A whole section missed.** **3,875 code points — 27% of the English CV, the entire `PROJECTS`
+  block — produced zero claims**, while the 17 certification lines were extracted twice over, once
+  from the 履歴書's table and once from the 職務経歴書's list. The most quantified, most citable
+  material in the document is invisible to Coverage, and a keyword list is over-represented in it.
+  Japanese has no unclaimed stretch of 400 code points anywhere.
+- **Table rows are captured with their cell breaks inside the span**, e.g.
+  `"2021\n\n5\n\n普通自動車第一種運転免許（AT限定）取得"`. Quotes are sliced from stored text by span
+  and never from model output (`04`), so that is what would render verbatim in feedback.
+
+**What this also settles, and is the more serious half:** **every one of these failures reports
+`spans_rejected` 0.** `07` §5.2 returns that counter and `12` §6 alerts on it being non-zero, and both
+are blind here — the instrument that was meant to catch bad extraction reads perfect health. That is
+an `11` §1 silent failure in the class the testing plan exists to name, and it is why the check had to
+be a human one.
+
+**And the screen's own check is defeated at this granularity.** `10` §13 argues the underline is how
+extraction gets read: "a wrong span is visible as a phrase underlined that is not an assertion, or an
+assertion left bare." Measured in the DOM against the real documents, the 履歴書 is **83.1%**
+underlined, the 職務経歴書 **85.0%** and the English CV **57.8%**, with unbroken underlined runs of
+**993, 977 and 710 characters**. An underline covering six-sevenths of a page is a highlight, not a
+marker. The screen is not wrong — it did its job, by making this visible the moment a real CV was in
+it — but it cannot be the check while the extractor segments this finely.
+
+**Rejected in passing:** tightening the near-duplicate threshold, or dropping short claims by a
+character floor. Both treat the symptom at the wrong layer; the 7-character 「CI/CD構築」 and the
+fragment 「プール設定とタイムアウトを見直し」 are both short, and only one of them is wrong.
+
+### [2026-09-23] No claim is drawn from the 履歴書's personal particulars, verified against a real one
+
+**Decided:** recorded as verified rather than asserted. The first claim in `応募書類 v1` starts at code
+point **239**, immediately after the `学歴` header at 228; name, ふりがな, date of birth, address,
+telephone and Email are entirely unclaimed, and no claim in the version matches a telephone, `〒`,
+`@`, ふりがな or date-of-birth pattern.
+**Reason:** `CONTEXT.md` defines a Claim as "never drawn from a 履歴書's personal particulars", and
+until #20 that had only ever been checked against the synthetic seed, which has no real particulars in
+it to draw from. The hint string tells the user those fields may be omitted; this user did not omit
+them, which is what made the check meaningful.
+
+### [2026-09-23] Every CV extraction log line carries the body's size in code points
+
+**Decided:** `cv_version_created` and both `cv_extraction_failed` paths log `body_chars`, and the
+failure paths gained `documents` too. `body` is assembled before the model call so the size is on the
+failure lines as well.
+**Alternatives considered:** counting the characters by hand beside each duration; logging the size
+only on success; UTF-16 `length`.
+**Reason:** a duration with nothing to divide it by is not a measurement, and #20's cap had to come
+from a real pair. Code points, because that is the unit of every `cv_claims.span_start/end` and every
+`cv_documents.start/end` — a cap counted in UTF-16 would refuse a Japanese CV about 6,000 characters
+shorter than the number it names, and `𠮷` would count twice. A count is what `12` §7 allows in a log
+line; the text is not.
+
+### [2026-09-23] An over-cap CV is `422 cv_too_large`, not a `400`
+
+**Decided:** a twenty-fifth code in the `07` §3 catalogue, `422`, with `body_chars` and
+`max_body_chars` in `detail`. #20's acceptance criterion said `400`; the criterion was wrong and was
+amended.
+**Alternatives considered:** `400 invalid_request` naming `documents`; a new code that returns `400`.
+**Reason:** `07` §2's status table says every `400` is `invalid_request`, and §5.2 reserves that for
+composition and order — a request over the cap is well-formed and correctly composed. The catalogue
+already holds the exact analogue: `upload_too_large`, a `422` checked before the expensive step. And
+`invalid_request`'s sentence does not tell the user to shorten anything, so reusing it would have
+pushed a copy decision into the screen and out of `lib/copy/errors.ts`. The cap is a stated limit
+beside `max_body_chars`, not a new invariant — nothing in `CLAUDE.md`'s list grew.
+
+### [2026-09-23] The text-size cap is per language: `ja` 30,000 and `en` 45,000 code points
+
+**Decided:** `lib/cv/limits.ts` holds `MAX_BODY_CHARS`, checked in `postCvVersion` before the database
+is read and long before the model call. Closes `07` §7's TBD.
+**Alternatives considered:** one cap for both languages; tokens, via a tokenizer; `ja` 20,000 /
+`en` 30,000; `ja` 60,000 / `en` 90,000.
+**Reason:** the three measured calls — 1,500 characters in 51.0 s, 9,202 in 59.5 s, 14,607 in 48.0 s —
+show duration does **not** track input size across a ten-fold range. It tracks **claims**, at roughly
+`21.5 s + 0.21 s × claims`, and claim density is a property of the language: about 20 claims per 1,000
+characters in Japanese against 8.6 in English. One number would therefore have meant two different
+calls: sized for Japanese it would refuse English CVs three times shorter than they could safely be.
+A tokenizer tracks latency most closely but adds a dependency whose encoding would have to be verified
+against the pinned model, and a token limit is not a number the user can reason about. The two numbers
+are a little over three times the real sets, so a 履歴書 plus a 職務経歴書 plus five supporting
+documents fits; at the cap the predicted call is ~145 s (`ja`) and ~105 s (`en`), inside the OpenAI
+client's 240 s timeout with margin. `gpt-5.6-sol`'s own limits were checked and are not binding here:
+922,000 input tokens and 128,000 output against ~24,000 output at the cap.
+**Rejected in passing:** enforcing it before the measurement. A cap guessed from the synthetic CV's
+51.0 s would have been set near 7,000 characters and refused the real 応募書類 unread.
+
+### [2026-09-23] Extraction quality is measured; the human judgment of it is not yet in
+
+**Decided:** `CONTEXT.md`'s "CV claim extraction quality" stays open with the findings written beside
+it, rather than closing on the numbers alone.
+**Alternatives considered:** closing it on `spans_rejected` being 0.
+**Reason:** `spans_rejected` 0 proves every claim is verbatim in the document — it says nothing about
+whether 181 claims from a 9,202-character 応募書類 is a good reading or a shredding. `11` §5's eyeball
+and five-quote sample are a human check by design, and they are not done.
+
+---
 ## Phase 6 — #19, the synthetic CV seed
 
 Decided while building #19. All four came from grilling; `12` §1 had already fixed the rest (an

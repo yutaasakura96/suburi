@@ -10,8 +10,13 @@ done; **#13 is done — built, and its catalogue passed the native read.** **#14
 bullet: an English CV pasted, saved and read back underlined.** **#15 is done — the 応募書類 panel and
 additional documents in both languages.** **#16 is done — next versions: prefill, carry-forward,
 `cv_unchanged`, history.** **#17 is done — import from `.docx`/`.pdf` in the browser.** **#18 is done — the per-session rate
-limiter.** **#19 is done — the synthetic CV seed, and the feature running on `develop`.** Next is #20.
-**Updated:** 2026-09-22 (#19)
+limiter.** **#19 is done — the synthetic CV seed, and the feature running on `develop`.** **#20 is in progress —
+the real CVs are through `/cv` locally, the text-size cap is measured and enforced, and `11` §5's
+extraction check is done. It failed: the extractor prompt over-segments and skips whole sections, which
+is now [#27](https://github.com/yutaasakura96/suburi/issues/27), and #27 blocks #21. The native read of
+the 22 panel strings is the one thing still owed on #20, and it is the user's — six of them now carry
+an applied Claude review (2026-09-24), which is what the read judges, not what it replaces.**
+**Updated:** 2026-09-24 (#20)
 
 ## Done
 - Phase 1 — `docs/01-project-brief.md`, `docs/02-product-requirements.md`, `docs/06-decision-log.md`.
@@ -262,11 +267,49 @@ Page 1 is the screen set, page 2 the three exploration directions. **Working fil
 every change re-seeds from those — edit them, never the built `design/suburi-directions.html`.
 
 ## Next
-**#20 — the real-CV extraction check, locally.** Real 履歴書/職務経歴書 and English CV through `/cv` against
-Docker Postgres (never Neon `develop`), `11` §5's eyeball and sampling, the text-size cap from the
-measured call, and the native-read batch. **One data point already:** `develop`'s first real save
-(synthetic English CV, 2 documents, 17 claims, 0 spans rejected) took **51.0 s** of the Function's 300 s —
-`03` §4 and the cap should start from there. Then #21, production setup.
+**#20 — the real-CV extraction check. The machine half is done; two human checks remain.**
+
+**Done 2026-09-23, locally against Docker Postgres (the real CVs never touched Neon `develop`):**
+- Both real sets saved through `/cv`: `応募書類 v1` (履歴書 + 職務経歴書, 9,202 chars, **181 claims**,
+  `spans_rejected` **0**, **59.5 s**) and `CV v1` (one document, 14,607 chars, **126 claims**, 0, **48.0 s**).
+- **Duration does not track input size** — it tracks claims, at ~`21.5 s + 0.21 s × claims`, and claim
+  density is ~20 per 1,000 characters in Japanese against 8.6 in English. Recorded in `03` §4.
+- **The cap is measured and enforced:** `lib/cv/limits.ts`, `ja` 30,000 / `en` 45,000 code points,
+  refused as **`422 cv_too_large`** before the database is read or any model call. It is the catalogue's
+  25th code, with copy in both languages. `07` §5.2 and §7 updated; four entries in `06`.
+- Every extraction log line now carries **`body_chars`** (code points) beside `duration_ms`.
+- The native-read batch is collected as one checklist: `docs/checklists/native-read-cv.md`.
+
+**`11` §5's extraction check is done, 2026-09-23 — and it failed.** `CONTEXT.md`'s "CV claim extraction
+quality" is closed with a verdict of **inadequate**, and the defect is the extractor prompt:
+[#27](https://github.com/yutaasakura96/suburi/issues/27).
+
+- **What passes:** 307 of 307 claims slice back verbatim from `cv_versions.body`; `spans_rejected` 0 in
+  both languages; **no claim is drawn from the 履歴書's personal particulars** — first claim at code
+  point 239, after the `学歴` header at 228, on a 履歴書 that does carry a real address, telephone and
+  date of birth. That invariant had only ever been checked against the synthetic seed before.
+- **What fails:** single sentences cut at their 連用形 hinges into uncitable fragments (172 of 181 `ja`
+  and 113 of 126 `en` claims sit in consecutive runs); **27% of the English CV — the whole `PROJECTS`
+  block — produced no claims** while the 17 certification lines were extracted twice; table rows carry
+  their cell breaks inside the span.
+- **Both instruments meant to catch this are blind.** Every defect reports `spans_rejected` 0, so
+  `12` §6's alert never fires; and the screen's underline, measured in the DOM, covers **83.1%** of the
+  履歴書, **85.0%** of the 職務経歴書 and **57.8%** of the English CV in unbroken runs of **993, 977 and
+  710 characters**. #27 owes a counter that is non-zero when the reading is bad.
+
+**Still open, and the user's to do:**
+1. **The native read** of `docs/checklists/native-read-cv.md` — 22 panel strings, the new
+   `cv_too_large` sentence, the three prose `職務経歴書` strings. Rules earned go into `05` §6.
+   **The six-change draft was applied on 2026-09-24**, on Claude's recommendation after the user
+   declined to rule on the rows one at a time — `app/(app)/cv/copy.ts`, and through to `10` §13 and
+   `e2e/cv.spec.ts` where the same sentences are quoted. Its two mechanical rules are in `05` §6 and
+   asserted over every `ja` string in `app/(app)/cv/copy.test.ts`. **It is still a review, not a
+   native read: every box stays ☐ and the read is still owed** — now on the amended strings, with the
+   originals kept in the checklist so it can overturn them. §3's three prose strings were not applied.
+
+Then **#27**, then #21. **#27 blocks #21:** shipping the CV feature to `main` as it extracts now would
+stamp every scored answer with a `cv_version` whose reading is already known to be bad, and invariant 8
+makes that a re-score and a boundary later rather than an edit.
 
 **#19 verified on `develop` 2026-09-22 at `e24eb8c`:** Neon `develop`'s `suburi` database at `0003`, one
 user, `応募書類 v1` (3 documents, 9 claims) and `CV v1` (2, 7), stamps null. Google sign-in works; both
@@ -282,7 +325,7 @@ are branch-scoped Secrets naming `suburi`; `OPENAI_API_KEY` is Preview-only, sco
 could read and write it through `neon_superuser` but not alter it, so `0002` failed there (rolled back
 cleanly — drizzle migrates in one transaction). Decision: move `develop` onto `suburi` as documented —
 migrate it from `0000`, seed it, and repoint `develop`'s `DATABASE_URL`/`DATABASE_URL_UNPOOLED` at it.
-`neondb` on `develop` is then unused; it still carries `main`'s copied role and password.
+`neondb` on `develop` was dropped the same day, after checking it held only the old synthetic user and two sessions. So was the branch's copied `neondb_owner` role, which carried `main`'s password; `develop` now has one role, `suburi_develop`, and one database, `suburi`.
 
 **`lib/cv`'s value imports now carry `.ts`** (`body`, `unchanged`, `current-version`,
 `save-cv-version`), because the seed script runs under plain `node`, which does not resolve extensionless
@@ -308,7 +351,7 @@ local markdown because Backlog (Nulab) is unsupported, but that overlooked the w
 in `06` under Phase 5b, along with why `docs/adr/` is deliberately not created.
 
 **Then, per feature:** `/grill-with-docs` → `/to-spec` → `/to-tickets` → `/implement`. Small changes
-collapse to grill → implement. The flow is in `~/Documents/GitHub/claude-setup-inventory/mattpocock-skills-guide.md`;
+collapse to grill → implement. The flow is in `~/Documents/GitHub/claude-agentic-setup/mattpocock-skills-guide.md`;
 keep grill → spec → tickets inside one unbroken window.
 
 **The pre-build verifications are done** — this list is closed, and nothing here blocks a ticket:
