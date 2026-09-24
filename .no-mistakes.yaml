@@ -1,0 +1,20 @@
+# no-mistakes gate config. commands/agent/pr.base_branch are read only from the
+# default branch (main), so this file must exist there too.
+allow_repo_commands: true
+
+commands:
+  # The run worktree has tracked files only; copy the local, gitignored env files in.
+  prepare: 'for f in .env .env.local .env.develop.local; do [ -f "$HOME/Documents/GitHub/suburi/$f" ] && cp "$HOME/Documents/GitHub/suburi/$f" .; done; true && npm ci --prefer-offline'
+  lint: "npm run lint && npm run typecheck"
+  test: "npm test"
+
+pr:
+  base_branch: develop
+
+test:
+  instructions: |
+    Start Postgres with `npm run db:up`, apply migrations with `npm run db:migrate`,
+    then run `npm run dev` and open http://localhost:3000. Drive the changed flow in
+    a browser the way a user would. Playwright end-to-end tests: `npm run test:e2e`.
+  evidence:
+    attach_media: true

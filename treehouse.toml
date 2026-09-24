@@ -1,0 +1,2 @@
+# treehouse worktree pool config. Worktrees are cut from the integration branch.
+base_branch = "develop"
