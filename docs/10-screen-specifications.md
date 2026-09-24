@@ -423,11 +423,12 @@ Restated from PRD §9 because a specification that omits them invites a build th
   legend `縦線は評価基準・出題・職務経歴書が変わったところです。`. Every *stamp* in this document now
   reads `応募書類 v3` (`05` §6), but these three are sentences, not labels: rewriting them is a copy
   change that goes through a native read with the screens that carry them, not a find-and-replace.
-- **The `design/` artboards still draw `職務経歴書 v3`.** They are the extraction *input* for this
-  document, not what the build follows — `docs/` is the source (`CLAUDE.md`). Re-seeding them means
-  editing `design/*.dc.html` and rebuilding `design/suburi-directions.html`, which is a design-tool
-  pass, not a docs edit. The divergence is recorded rather than half-fixed — and **no ticket in #12–#21
-  covers it**, so it needs one before anyone reads the artboards as current.
+- ~~**The `design/` artboards still draw `職務経歴書 v3`.**~~ **Closed — re-seeded in #22.** Every
+  stamp in `design/*.dc.html` now reads `応募書類 v{n}` (`CV v{n}` in English), the rejected
+  explorations DirectionA and DirectionC included for consistent terminology, and
+  `design/suburi-directions.html` was rebuilt from those working files. Only the stamps changed: the
+  three prose strings in the item above still say `職務経歴書` in the artboards too, and wait on the
+  same native read.
 - **Practice mode's screens.** Practice differs at the record frames (no timer, `録り直し可`) and
   delivers feedback per answer rather than at round end. Only realistic mode is drawn.
 - **The four-round run.** Deferred as LATER and unshaped (decision log).
