@@ -346,7 +346,7 @@ local markdown because Backlog (Nulab) is unsupported, but that overlooked the w
 in `06` under Phase 5b, along with why `docs/adr/` is deliberately not created.
 
 **Then, per feature:** `/grill-with-docs` → `/to-spec` → `/to-tickets` → `/implement`. Small changes
-collapse to grill → implement. The flow is in `~/Documents/GitHub/claude-setup-inventory/mattpocock-skills-guide.md`;
+collapse to grill → implement. The flow is in `~/Documents/GitHub/claude-agentic-setup/mattpocock-skills-guide.md`;
 keep grill → spec → tickets inside one unbroken window.
 
 **The pre-build verifications are done** — this list is closed, and nothing here blocks a ticket:
