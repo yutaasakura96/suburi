@@ -238,13 +238,25 @@ retry loop or a prompt that doubled in size shows up on a bill, not on a screen.
 | `scoring_attempts` in `failed`, not superseded by an `ok` attempt | any | email |
 | Week-to-date OpenAI tokens | > 3× the eight-round baseline | email |
 | `spans_rejected > 0` on a CV upload | any | email — the anti-hallucination guard actually firing (`07` §5.2) |
+| `claims_split > 0` on a CV upload | any | email — the extractor is cutting sentences into fragments again (`07` §5.2) |
+| `claims_duplicated > 0` on a CV upload | any | email — the same assertion returned more than once |
+| `unclaimed_run_max` on a CV upload | > **2,000** code points | email — a section of the CV may have gone unread |
 | Near-duplicate near-misses | weekly count and score distribution | the weekly digest — this is the log the threshold gets tuned from (`03` §11) |
 | Unhandled exception | any | Sentry, scrubbed per §7 |
 | App down | — | **not alerted.** You will know. |
 
+**The three reading counters are why this table is not blind to a bad extraction** (#27). Measured
+against the real documents on 2026-09-23, `spans_rejected` was **0** on a reading that cut sentences
+into uncitable fragments and skipped 27% of the English CV, so that row alone would never have fired.
+The first two are strict because the measured separation is clean — 63 and 68 on the bad reading, **0
+and 0** after #27. The third is a threshold rather than zero, and deliberately loose: a document that
+repeats another's qualifications now leaves that whole block unclaimed by design, which measured
+1,071 code points, while the skipped `PROJECTS` block that started #27 measured 3,875. Tighten it when
+there is more than one CV's worth of readings to tune from, the way §6's near-duplicate row is tuned.
+
 **Implementation:** two Vercel Cron routes under `/api/cron/`, authenticated with `CRON_SECRET`,
-returning `401` without it. `self-check` (daily) covers the first four rows **and writes the daily
-`pg_dump`** (§8); `digest` (weekly) covers the fifth and reports the week's rounds, tokens and spend.
+returning `401` without it. `self-check` (daily) covers the first seven rows **and writes the daily
+`pg_dump`** (§8); `digest` (weekly) covers the last and reports the week's rounds, tokens and spend.
 
 **Vercel Hobby cron, verified 2026-09-12:** 100 cron jobs per project, **minimum interval once per
 day**, **per-hour scheduling precision** — a job set to `0 1 * * *` fires somewhere between 01:00 and

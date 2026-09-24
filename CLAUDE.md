@@ -16,7 +16,7 @@ is in and what is next.
 | `@docs/03-technical-design.md` | Stack, architecture, the three hard problems. |
 | `@docs/04-database-schema.md` | Every table. §6 is what the schema must not express. |
 | `@docs/07-api-design.md` | Every endpoint, the error envelope. §6 is the endpoints that must never exist. |
-| `@docs/11-testing-plan.md` | §1 names the four silent failures the rest guards. |
+| `@docs/11-testing-plan.md` | §1 names the five silent failures the rest guards. |
 | `@docs/12-deployment.md` | Environments, env vars, migrations, rollback, backups. |
 | `@docs/06-decision-log.md` | Append-only. The answer to every "why is it like this?" |
 

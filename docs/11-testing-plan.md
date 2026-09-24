@@ -16,7 +16,7 @@ auth path, and **no deletion at all** — so the list transfers badly. Here the 
 > The app keeps working, the charts keep drawing, and the numbers stop meaning what they claim to
 > mean.
 
-Four ways that happens, and every one of them is a test in §3:
+Five ways that happens, and every one of them is a test in §3:
 
 1. **A first attempt gets overwritten**, so the chart shows a practised answer as a cold one.
 2. **A score lands without its full stamp set**, so a boundary Progress should draw is invisible.
@@ -24,8 +24,12 @@ Four ways that happens, and every one of them is a test in §3:
    discipline the brief is built on quietly collapses into one number.
 4. **A CV quote is rendered from model output** instead of sliced from stored text, and the instrument
    cites a line that was never written.
+5. **A CV is read badly and every counter says it is fine**, so Coverage is computed over a set that
+   omits the applicant's best material and is padded with lines no answer will cite. Found for real in
+   [#27](https://github.com/yutaasakura96/suburi/issues/27): `spans_rejected` was **0** on a reading
+   that skipped 27% of the English CV and cut sentences into uncitable fragments.
 
-None of these throws. All four are enforced by things a unit test with a mocked database cannot see —
+None of these throws. The first four are enforced by things a unit test with a mocked database cannot see —
 Postgres constraints, partial unique indexes, the absence of a column. That is why §2 puts a real
 database in the loop.
 
@@ -106,6 +110,19 @@ The anti-hallucination mechanism (`03` §11, `04`). The most load-bearing pure f
 - Inverted, zero-width, and off-by-one-at-the-end spans → dropped.
 - **Multibyte:** spans are character indices into Japanese text. A span that would split a surrogate pair or land mid-grapheme is a test case, not a hypothetical — `請求処理を40%短縮` is 10 characters and 24 UTF-8 bytes (corrected from 9 and 27 in #14), and confusing the two silently shifts every quote in the document.
 - A valid span round-trips byte-identically.
+
+**The validator is not a quality check, and §1's fifth failure is why** (#27). It answers one
+question — is this quote really in the stored text — and a reading can pass it completely while being
+useless. `lib/cv/reading.ts` answers the other question, and its tests are the ones that may not be
+deleted:
+
+- A sentence cut at a 連用形 or a participial hinge counts **both halves** in `claims_split`.
+- Two claims on **consecutive lines** — a 学歴・職歴 table, a bullet list — count **zero**.
+- Two **finished sentences sharing one line** count zero. A `.docx` paragraph is one line, so without
+  this the counter calls every well-read 職務要約 a fragment.
+- **Overlapping spans** count, whatever punctuation surrounds them: one assertion read twice.
+- The same normalised text twice in one version is **one claim**, and the drop is counted.
+- `unclaimed_run_max` is measured **per document**, never across the join, and in code points.
 
 ### 3.4 First-attempt computation
 

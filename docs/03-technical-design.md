@@ -204,6 +204,47 @@ the `07` §5.2 cap per language rather than one number, and it is why the budget
 measured range and not a promise: a set at the cap is predicted at ~145 s (`ja`) and ~105 s (`en`),
 against the OpenAI client's 240 s timeout and the route's 300 s `maxDuration`.
 
+**Re-measured after [#27](https://github.com/yutaasakura96/suburi/issues/27), 2026-09-24.** The
+2026-09-23 numbers above stay: they are the baseline the new reading is judged against, and the
+versions they came from are still in the database. What changed is the extractor prompt
+(`cv-extract-ja-1.1`, `cv-extract-en-1.2`) and, for `.docx`, the importer — which now reads a table as
+one tab-separated line per row instead of flattening every cell onto a line of its own.
+
+| reading | chars | claims | `spans_rejected` | `claims_split` | `claims_duplicated` | `unclaimed_run_max` | duration |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `応募書類 v1` — `ja-1.0`, baseline | 9,202 | 181 (176 distinct) | 0 | **63** | **5** | 239 | 59.5 s |
+| `応募書類 v2` — `ja-1.1`, re-imported | 9,077 | **86** | 0 | **0** | **0** | 1,071 | 53.1 s |
+| `CV v1` — `en-1.1`, baseline | 14,607 | 126 | 0 | **68** | 0 | **3,875** | 48.0 s |
+| `CV v1`'s body re-read by `en-1.2` | 14,607 | **86** | 0 | **0** | 0 | 956 | 44.1 s |
+
+The English row is the same stored body read by the new prompt, not a new version: the English CV has
+no tables, so re-importing it produced byte-identical text and the save was refused `422 cv_unchanged`
+before any model call. That is the endpoint behaving correctly, and it is also a gap worth naming —
+**a new extractor prompt cannot be applied to a CV whose documents have not changed.** Nothing
+depends on it yet, because no answer has been scored.
+
+**What the underline looks like now**, measured from the stored spans (the method reproduces `#27`'s
+DOM numbers exactly, so the two are comparable):
+
+| document | covered, before → after | longest unbroken run, before → after |
+| --- | --- | --- |
+| 履歴書 | 83.1% → **69.6%** | 993 → 943 |
+| 職務経歴書 | 85.0% → **41.2%** | 977 → **447** |
+| CV (en) | 57.8% → **88.7%** | 710 → **2,668** |
+
+**English coverage went up, not down, and that is the honest result.** The claims are now whole
+sentences rather than fragments, and an English CV is very nearly all assertions, so whole-sentence
+claims cover nine-tenths of it in runs thousands of characters long. `10` §13's argument that the
+underline is how extraction gets read is still sound as far as it goes, but it cannot be the check at
+this granularity in either direction — which is why `#27` asked for a counter instead of a better
+screen.
+
+**The 職務経歴書 at 41.2% is the number to look at first** at the next eyeball (`11` §5). Roughly 2,800
+of its 6,733 characters are unclaimed **by design** — the 保有資格 block the 履歴書 already states
+(1,071), an education entry the 履歴書 already states (657), the document's own title and date block
+(391), and a 技術スタック inventory that names tools without saying where they were used (371). That
+leaves about a sixth of the document genuinely unread, which no counter can rule on.
+
 **Its prompt is versioned per language** — `cv-extract-ja-…`, `cv-extract-en-…` in `lib/prompts/` —
 and recorded on the version as `extractor_prompt_version`. It is *not* a fifth **stamp**: that word is
 reserved for the four markers on a scored answer (`CONTEXT.md`), and this one draws no Progress

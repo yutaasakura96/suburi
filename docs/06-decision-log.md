@@ -3,6 +3,116 @@
 Newest first. Every entry records what was chosen, why, and what was rejected.
 
 ---
+## Phase 6 — #27, the extractor prompt
+
+### [2026-09-24] Defect 3 is the importer, not the prompt: `.docx` tables are read as tables
+
+**Decided:** `lib/cv/import/extract.ts` goes through `mammoth.convertToHtml` and walks the HTML
+(`docxHtmlToText`) instead of calling `extractRawText`. A table row becomes **one line with its cells
+joined by a tab**; everything outside a table is byte-for-byte what raw text produced.
+
+**Why:** #27 filed "table rows are captured with their cell breaks inside the span" against the
+prompt. It is not a prompt defect. `extractRawText` ends every paragraph with a blank line and knows
+nothing of tables, and a table cell **is** a paragraph — so the real 履歴書 reached the database as
+**62 lines holding nothing but a year or a month**, out of 249. No prompt wording can produce a claim
+that carries its own date out of three separate lines, and the ja prompt's existing rule — quote a
+line such as 「2016年4月 株式会社〇〇 入社」 whole — described a line shape that document never had.
+Fixing it at the importer makes that rule true again and makes a cell break inside a span impossible
+rather than discouraged.
+
+**Alternatives considered:** quoting only the assertion cell, which satisfies the acceptance box
+literally but throws the date out of every 学歴・職歴 and 免許・資格 claim; a separate ticket, which
+would have shipped a reading to `main` that was still known bad. A tab rather than a space because it
+is an unambiguous cell separator that survives `tidyImported` and renders as a space in the DOM, so
+the quote reads naturally wherever it is shown.
+
+**Consequence:** a `.docx` with no tables imports byte-identically, which is why re-importing the
+English CV was refused `422 cv_unchanged` — correct, and recorded in `CONTEXT.md` as a gap.
+
+### [2026-09-24] Three reading counters, none of which refuses a save
+
+**Decided:** `lib/cv/reading.ts` computes **`claims_split`**, **`claims_duplicated`** and
+**`unclaimed_run_max`** from the surviving spans, on every save. All three are logged, returned in the
+201's `validation` block and alerted on (`12` §6). None refuses a save.
+
+**Why three and not one:** each names one of #27's defects, so the alert says *which* reading went
+wrong instead of only that one did. A single summed counter would need re-deriving by hand every time
+it fired.
+
+**Why not `spans_rejected`:** it is the anti-hallucination guard and answers one question — is this
+quote really in the stored text. It was **0** for every defect #27 measured, because all of them slice
+back verbatim. `12` §6's alert was therefore blind, and `11` §1 gains a fifth silent failure.
+
+**Why `claims_split` is defined the way it is.** Two claims count as one sentence cut in half when
+nothing but punctuation separates them, **no line break does**, and **no sentence ends between them**.
+Each condition rules out a reading that is fine, and the last one was learned from the real data: a
+`.docx` paragraph is one line, so two finished sentences of a 職務要約 sit on the same line with 「。」
+between them. Without that condition the counter read 25 on a 応募書類 whose claims were all whole —
+29% — which would have made any threshold a coin toss. With it, the measured separation is clean:
+**63 `ja` and 68 `en` on the bad reading, 0 and 0 after.** Overlapping spans count unconditionally;
+one assertion read twice is a defect whatever the punctuation.
+
+**Why a save is never refused.** A `422` is "an invariant refused this", and a bad reading is the
+model's judgement. There is no edit the user could make that would clear it, so refusing twice on the
+same paste is a dead end with no remedy. Rejected with it: storing the counters on `cv_versions`,
+which #27 puts out of scope as a schema change.
+
+**Rejected at the wrong layer**, as #27 says: a minimum claim length and a tighter near-duplicate
+threshold. 「CI/CD構築」 is 7 characters and fine; 「プール設定とタイムアウトを見直し」 is 16 and wrong.
+
+### [2026-09-24] A repeated assertion is one claim per version, dropped and counted
+
+**Decided:** `readClaims` keeps one claim per distinct `text_normalised` per version, in body order,
+and counts the rest as `claims_duplicated`. `spans_checked` therefore becomes
+`claims.total + spans_rejected + claims_duplicated`.
+
+**Why:** #27's acceptance — an enumerated list contributes each entry once per version, not once per
+document that repeats it. Carry-forward and Coverage both key on the normalised text, so a second row
+double-counts the same material and pads Coverage with lines no answer will cite.
+
+**What actually fixed it was the prompt, and the numbers say so.** Exact-text dedupe caught only 5 of
+the 34 doubled Japanese claims, because the 履歴書's table row carries year and month cells that the
+職務経歴書's line does not. After `cv-extract-ja-1.1` the model stops returning them at all:
+`claims_duplicated` is **0**, and the 職務経歴書's 保有資格 block — 1,071 code points — now sits
+unclaimed because the 履歴書 already states it. The dedupe is the backstop, not the fix.
+
+**Consequence for carry-forward:** many-to-one can no longer arise from a version saved after #27,
+since no two claims in one version share a normalised text. The tie-break on the **previous** version
+stays live and necessary — every version saved before #27 can hold the same assertion twice.
+
+### [2026-09-24] `unclaimed_run_max` alerts on a measured threshold, not on zero
+
+**Decided:** `12` §6 alerts when `unclaimed_run_max` exceeds **2,000 code points**, while
+`claims_split` and `claims_duplicated` alert at any non-zero value.
+
+**Why:** the counter cannot be strict, and the reason is the rule above. A 職務経歴書 that repeats the
+履歴書's qualifications now leaves that whole block unclaimed **by design** — 1,071 code points — and
+a `TECHNICAL SKILLS` section that names tools without saying where they were used is 956 and is
+correctly left alone (`03` §4). The gap that started #27, the skipped English `PROJECTS` block, was
+3,875. 2,000 separates them with room, and it is the only one of the three thresholds that is a
+judgement rather than a measurement. Tune it when there is more than one CV's worth of readings, the
+way `12` §6's near-duplicate row is tuned.
+
+**Carried, not hidden:** the Japanese number went **up**, from 239 to 1,071. Read alone this counter
+would call the old reading the better one. That is what it costs to have a counter that catches a
+skipped section, and it is why there are three.
+
+### [2026-09-24] A bare inventory of skills is not a claim, and its section stays unclaimed
+
+**Decided:** both prompts say so explicitly. The English CV's `TECHNICAL SKILLS` block — a heading and
+six `Label: comma-separated list` lines, 968 code points — yields no claims, by design.
+
+**Why:** `CONTEXT.md` defines a Claim as an atomic **citable** assertion, and the prompts already said
+"a skill used somewhere specific". A 149-character line of comma-separated tokens quoted back as
+evidence proves nothing about where or how any of them was used; the skill becomes a claim where
+`EXPERIENCE` and `PROJECTS` say what it was used on. #27 listed the gap among its defects but its
+acceptance boxes demanded only that `PROJECTS` yield claims, which it now does — `unclaimed_run_max`
+fell to 956 on a 3,875-character block.
+
+**Rejected:** one claim per skills line, which closes the gap and lets the threshold be tight, but
+puts an inventory into Coverage — the same complaint #27 makes about the doubled certifications.
+
+---
 ## Phase 6 — #20, the reviewed copy draft
 
 ### [2026-09-24] The six-change copy draft is applied, and the native read is still owed
