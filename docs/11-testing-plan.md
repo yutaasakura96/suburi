@@ -168,6 +168,8 @@ With a stubbed embedder returning fixed vectors, so the test is about the decisi
 
 - Byte-identical `text_normalised` in the immediately previous version → `supersedes_claim_id` set, coverage inherited through the chain.
 - Whitespace-only difference → normalises to identical → carries forward.
+- Full-width-only difference (`４０％`/`40%`, `（AT限定）`/`(AT限定)`) → `NFKC` makes it identical → carries forward; `validate` still refuses the same quote one full-width character off (#28).
+- `0004_claim-text-nfkc` rewrites every stored `text_normalised` to what `normaliseClaimText` returns, touches nothing else, and a version saved after it carries forward from one saved before it.
 - One character different → **new claim, empty coverage.** No fuzzy match, no threshold.
 - A match two versions back, absent from the immediately previous one → does **not** carry forward.
 - Coverage inheritance follows a chain of three versions correctly.

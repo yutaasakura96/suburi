@@ -223,16 +223,18 @@ than solved twice.
 | | Track Record | Here |
 | --- | --- | --- |
 | Verbatim anchoring | `src/pipeline/quote.ts` — `indexOf`, first occurrence, exact match | `lib/cv/spans.ts` — every occurrence, nearest the model's `start_hint`, plus the grapheme and document-boundary rules |
-| Same-assertion matching | `src/pipeline/dedupe.ts` — `NFKC` + whitespace + lowercase, hashed, permanent | `normaliseClaimText` — whitespace only, per version |
+| Same-assertion matching | `src/pipeline/dedupe.ts` — `NFKC` + whitespace + lowercase, hashed, permanent | `normaliseClaimText` — `NFKC` + whitespace, case kept, per version (#28) |
 | "One claim per assertion" | `EXTRACTION_SYSTEM_PROMPT` | `lib/prompts/cv-extract-*` |
 | Section coverage | chunks at ~2,400 characters on paragraph boundaries | one call for the whole document |
 
 **Three things that follow, and they do not all point the same way.**
 
-- **Its normalisation is better than ours, and #28 is open to take it.** `NFKC` would have caught the
-  doubled 免許・資格 lines that whitespace collapse missed — 5 of 34 in the #27 measurement. Take the
-  split its comment states, too: anchoring decides whether a quote is *real* and is exact;
-  normalisation decides whether two candidates are the *same claim* and is deliberately forgiving.
+- **Its normalisation was better than ours, and #28 took it — without the lowercase.** Anchoring
+  decides whether a quote is *real* and is exact; normalisation decides whether two candidates are the
+  *same claim* and is deliberately forgiving. `NFKC` did **not** catch the 29 doubled 免許・資格 lines
+  whitespace collapse missed in the #27 measurement: re-run on the stored readings it merged none
+  (`03` §4). Those differ by the 履歴書's date cells, not by width. What it does fix is a claim whose
+  only change between versions is a full-width form, which used to lose its coverage history.
 - **Its chunking makes #27's worst failure impossible, and #29 asks whether to adopt it.** A model
   reading 2,400 characters has nowhere to skip to. Our `unclaimed_run_max` detects that failure; its
   architecture prevents it. The one-call design has four live reasons behind it, so this is a

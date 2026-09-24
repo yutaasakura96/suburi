@@ -19,7 +19,7 @@ rewritten in both languages, the `.docx` importer reads tables, three reading co
 human checks are all that is left on #20:** the native read of the 22 panel strings — six of them now
 carry an applied Claude review (2026-09-24), which is what the read judges, not what it replaces — and
 the eyeball of #27's new claims.
-**Updated:** 2026-09-24 (#27)
+**Updated:** 2026-09-24 (#28)
 
 ## Done
 - Phase 1 — `docs/01-project-brief.md`, `docs/02-product-requirements.md`, `docs/06-decision-log.md`.
@@ -269,6 +269,13 @@ the eyeball of #27's new claims.
   `unclaimed_run_max` 239 → 1,071 and **3,875 → 956**. `spans_rejected` stayed 0 throughout, which is
   the point: it was 0 on the bad reading too, and `11` §1 now names a fifth silent failure.
   **Counts:** units 513 → 522, integration 54 → 55 on the CV route, e2e 16 unchanged.
+- **#28 — the claim key under `NFKC`.** `normaliseClaimText` applies `NFKC` before the whitespace
+  collapse and keeps case (`06`); `validate` stays byte-exact. **`db/migrations/0004_claim-text-nfkc.sql`**
+  rewrites every stored `text_normalised` and nothing else — **apply it to Neon `develop`, then `main`,
+  by hand (`12` §4) before the code that needs it deploys.** Re-counted on the stored real readings
+  (`03` §4): 67 keys rewritten, `claims_duplicated` **5, 0, 0 unchanged** — `NFKC` merged none of the
+  29 doubled lines #27 left, which differ by date cells, not width. What it fixes is carry-forward
+  across a full-width-only change. **Counts:** units 516 → 520, integration 119 → 122.
 - **Still deferred, not done:** `11` §3.10's third bullet — forcing each failure with sentinel text and
   scanning every envelope for it — needs routes to exist. It belongs to #14 onward. What #13 gives is
   structural: `ErrorDetailValue` is flat, so a nested object cannot be dropped into `detail`, and the
