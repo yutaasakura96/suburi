@@ -2,7 +2,7 @@
 // leaves the browser (07 §5.2). Both libraries load on demand, so /cv's bundle carries neither until
 // a file is picked.
 
-import { detectFormat, pdfPagesToText, tidyImported, type PdfTextItem } from "./text";
+import { detectFormat, docxHtmlToText, pdfPagesToText, tidyImported, type PdfTextItem } from "./text";
 
 /** `no_text`: read, but nothing in it (a scanned PDF). `unreadable`: not a .docx/.pdf we can open. */
 export type ImportResult =
@@ -33,10 +33,23 @@ export async function extractText(file: File): Promise<ImportResult> {
   return text === "" ? { ok: false, reason: "no_text" } : { ok: true, text };
 }
 
+/**
+ * Through HTML rather than `extractRawText`, because raw text knows nothing of tables: it ends every
+ * paragraph with a blank line, and a table cell is a paragraph, so a 履歴書's 学歴・職歴 rows arrived
+ * split across three lines each (#27). `docxHtmlToText` walks the HTML instead and joins a row's
+ * cells with a tab. Outside a table the result is what raw text gave.
+ *
+ * Images are converted to a source-less `<img>`: mammoth's default inlines every picture as a base64
+ * data URI, and a 履歴書 carries a photograph. `DOMParser` builds an inert document, so nothing is
+ * fetched for it either.
+ */
 async function fromDocx(data: Uint8Array) {
   const mammoth = await import("mammoth");
-  const { value } = await mammoth.extractRawText({ arrayBuffer: data.slice().buffer });
-  return value;
+  const { value: html } = await mammoth.convertToHtml(
+    { arrayBuffer: data.slice().buffer },
+    { convertImage: mammoth.images.imgElement(async () => ({ src: "" })) },
+  );
+  return docxHtmlToText(new DOMParser().parseFromString(html, "text/html").body);
 }
 
 let worker: Worker | null = null;

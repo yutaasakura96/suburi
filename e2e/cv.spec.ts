@@ -234,10 +234,14 @@ test("a version id that is not the user's is a 404", async ({ page }) => {
 // scripts/make-import-fixtures.mts; rirekisho.pdf's font is not embedded, so its text comes through
 // only if the pdf.js CMaps are served from /pdfjs/cmaps/.
 
+// The 職務経歴 block is the fixture's table: one line per row, cells joined by a tab (#27). Before
+// the importer read tables, each cell arrived as a line of its own.
 const IMPORTED_SHOKUMU = [
   "職務経歴書",
   "職務要約",
   "架空物流株式会社にて経理システムの刷新を主導し、請求処理を40%短縮しました。",
+  "職務経歴",
+  "2016年4月\t架空物流株式会社 入社\n2019年10月\t経理システム刷新プロジェクトのリーダーを担当",
   "活かせる経験",
   "チーム5名の統括、要件定義から運用までの一貫した担当。",
 ].join("\n\n");
