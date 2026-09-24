@@ -209,6 +209,46 @@ Carry these; do not silently decide them in a ticket.
 
 ---
 
+## The sibling repo
+
+**`yutaasakura96/track-record` produces the documents this app consumes.** It turns a
+hand-maintained career record into facts with verbatim quotes, and renders them as a résumé, a
+履歴書 and a 職務経歴書. Those are the same three document kinds `cv_documents.kind` names. Its
+`renders.kind` is this app's input; nothing connects them in code, and nothing should — but the two
+repos keep arriving at the same problems, and this section exists so the next one is noticed rather
+than solved twice.
+
+**What both repos independently built:**
+
+| | Track Record | Here |
+| --- | --- | --- |
+| Verbatim anchoring | `src/pipeline/quote.ts` — `indexOf`, first occurrence, exact match | `lib/cv/spans.ts` — every occurrence, nearest the model's `start_hint`, plus the grapheme and document-boundary rules |
+| Same-assertion matching | `src/pipeline/dedupe.ts` — `NFKC` + whitespace + lowercase, hashed, permanent | `normaliseClaimText` — whitespace only, per version |
+| "One claim per assertion" | `EXTRACTION_SYSTEM_PROMPT` | `lib/prompts/cv-extract-*` |
+| Section coverage | chunks at ~2,400 characters on paragraph boundaries | one call for the whole document |
+
+**Three things that follow, and they do not all point the same way.**
+
+- **Its normalisation is better than ours, and #28 is open to take it.** `NFKC` would have caught the
+  doubled 免許・資格 lines that whitespace collapse missed — 5 of 34 in the #27 measurement. Take the
+  split its comment states, too: anchoring decides whether a quote is *real* and is exact;
+  normalisation decides whether two candidates are the *same claim* and is deliberately forgiving.
+- **Its chunking makes #27's worst failure impossible, and #29 asks whether to adopt it.** A model
+  reading 2,400 characters has nowhere to skip to. Our `unclaimed_run_max` detects that failure; its
+  architecture prevents it. The one-call design has four live reasons behind it, so this is a
+  question, not a correction.
+- **Its prompt carries the fragment risk #27 removed from ours** — "a sentence carrying two distinct
+  outcomes is two calls", with no rule against stopping at a 連用形. It hurts less there, because its
+  `claim` and `quote` are separate columns and the quote only has to support the claim; here the
+  quote *is* the claim.
+
+**Do not merge them.** The invariants pull opposite ways: Track Record curates and rejects facts,
+this app never discards anything and has no delete. One more seam to watch rather than build: a 履歴書
+Track Record renders carries a 学歴・職歴 table, and reading those correctly is what `lib/cv/import/`
+learned in #27.
+
+---
+
 ## Where things live
 
 | | |
