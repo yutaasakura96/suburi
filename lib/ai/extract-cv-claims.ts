@@ -1,8 +1,8 @@
 import OpenAI from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
 import { z } from "zod";
-import * as en from "../prompts/cv-extract-en-1.1";
-import * as ja from "../prompts/cv-extract-ja-1.0";
+import * as en from "../prompts/cv-extract-en-1.2";
+import * as ja from "../prompts/cv-extract-ja-1.1";
 import { CV_EXTRACTION_MODEL } from "./models";
 
 /**
