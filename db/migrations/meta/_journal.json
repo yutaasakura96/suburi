@@ -29,6 +29,13 @@
       "when": 1790056466486,
       "tag": "0003_rate-limit-windows",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790253560756,
+      "tag": "0004_claim-text-nfkc",
+      "breakpoints": true
     }
   ]
 }

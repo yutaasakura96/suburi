@@ -223,6 +223,24 @@ before any model call. That is the endpoint behaving correctly, and it is also a
 **a new extractor prompt cannot be applied to a CV whose documents have not changed.** Nothing
 depends on it yet, because no answer has been scored.
 
+**Re-counted under `NFKC` after [#28](https://github.com/yutaasakura96/suburi/issues/28),
+2026-09-24.** The same stored claims, keyed by the new `normaliseClaimText` instead of the old one. No
+model call: `claims_duplicated` depends only on the keys, so the stored rows give it exactly. The
+readings above stay; this is a second reading of the same rows, not a replacement.
+
+| reading | claims stored | keys `NFKC` rewrites | distinct, whitespace key → `NFKC` key | `claims_duplicated`, #27 → #28 |
+| --- | --- | --- | --- | --- |
+| `応募書類 v1` — `ja-1.0`, baseline | 181 | 46 | 176 → 176 | 5 → **5** |
+| `応募書類 v2` — `ja-1.1`, re-imported | 86 | 21 | 86 → 86 | 0 → **0** |
+| `CV v1` — `en-1.1`, baseline | 126 | 0 | 126 → 126 | 0 → **0** |
+
+The `en-1.2` re-read was never saved, so it has no rows to re-count, but the English body is already
+`NFKC`-stable, so none of its keys can change and its `0` stands. **`NFKC` merged nothing.** The 29
+doubled 免許・資格 lines #27 left behind differ by the 履歴書's year and month cells, not by width, and
+the prompt is still what removed them. Carry-forward from `応募書類 v1` to `v2` matches **66** claims
+under either key. The 67 rewritten keys are the change: the next version that writes one of those
+assertions in the other width now carries forward instead of starting a new coverage chain.
+
 **What the underline looks like now**, measured from the stored spans (the method reproduces `#27`'s
 DOM numbers exactly, so the two are comparable):
 

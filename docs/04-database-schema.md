@@ -188,7 +188,7 @@ joined text buys the document boundary without touching any of it.
 | `id` | `uuid` | no | `gen_random_uuid()` | PK |
 | `cv_version_id` | `uuid` | no | — | → `cv_versions.id` **restrict** |
 | `user_id` | `text` | no | — | → `users.id` **cascade** |
-| `text_normalised` | `text` | no | — | whitespace-collapsed; the carry-forward match key |
+| `text_normalised` | `text` | no | — | `NFKC`, then whitespace-collapsed, case kept (`06`, #28); the carry-forward match key |
 | `span_start` | `integer` | no | — | inclusive index into `cv_versions.body`, in characters (Unicode code points, as `substring` counts) |
 | `span_end` | `integer` | no | — | exclusive |
 | `supersedes_claim_id` | `uuid` | yes | — | → `cv_claims.id` **restrict**. Lineage. |
@@ -215,6 +215,8 @@ language never matches. Anything else is a new claim with empty coverage.
 and several new claims may point at the same previous one; `carried_forward` counts new claims with a
 parent. The lineage may fork; coverage ("was anything in this chain ever cited?") reads the same
 either way (`06`, #16).
+**`NFKC` is normalisation, not fuzziness:** `４０％` and `40%` are one written form of one assertion,
+and the key is still compared byte for byte.
 **No fuzzy matching, no similarity threshold, no review step** — a reworded claim honestly reads as a
 different thing to cite, and comparability across CV versions is already handled by the CV version
 stamp and Progress's boundary lines (screen-spec refusal #5). Do not solve it twice here.

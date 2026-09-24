@@ -39,9 +39,15 @@ export function sliceQuote(body: string, span: Span) {
   return codePoints(body).slice(span.start, span.end).join("");
 }
 
-/** The carry-forward match key (04 `cv_claims.text_normalised`): whitespace runs collapsed. */
+/**
+ * The same-claim key (04 `cv_claims.text_normalised`), which carry-forward and `claims_duplicated`
+ * both compare: NFKC, so `４０％` and `40%` are one claim, then whitespace runs collapsed. Case is kept
+ * (06, #28). Deliberately more forgiving than `validate`, which decides whether a quote is real and
+ * stays byte-exact. `db/migrations/0004_claim-text-nfkc.sql` is this function in SQL; they change
+ * together.
+ */
 export function normaliseClaimText(text: string) {
-  return text.replace(/\s+/gu, " ").trim();
+  return text.normalize("NFKC").replace(/\s+/gu, " ").trim();
 }
 
 // Code-point indices at which a grapheme cluster starts, plus the end of the text.

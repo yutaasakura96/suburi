@@ -3,6 +3,51 @@
 Newest first. Every entry records what was chosen, why, and what was rejected.
 
 ---
+## Phase 6 — #28, the claim key under `NFKC`
+
+### [2026-09-24] `text_normalised` is `NFKC`, then whitespace-collapsed, and case is kept
+
+**Decided:** `normaliseClaimText` applies `NFKC` before collapsing whitespace. It does **not** fold
+case. `createSpanChecker.validate` is untouched and stays byte-exact.
+
+**Why `NFKC`:** it is the match key for carry-forward and for `claims_duplicated`, and a Japanese CV
+writes one assertion as `４０％` or `40%`, `ＡＷＳ` or `AWS`, `（AT限定）` or `(AT限定)`, and
+`ｼｽﾃﾑ` or `システム` interchangeably. Before this, a claim whose only change between
+versions was a full-width digit read as a new claim and **lost its coverage history**. The split is
+Track Record's (`CONTEXT.md`): anchoring decides whether a quote is real and is exact; normalisation
+decides whether two quotes are the same claim and is forgiving. `NFKC` before the collapse, because
+it can itself produce spaces (`¨` becomes a space and a combining mark).
+
+**Why case is kept:** width is how a character was typed; case is part of what was written. `AWS`,
+`Go`, `SAP` and `iOS` are names, and folding them risks merging two English claims that are
+different, which in carry-forward means **inheriting coverage that was never earned** — worse than
+the miss, because nothing would show it. The miss is only a claim starting a fresh chain. The
+extractor quotes verbatim, so two readings of one line never differ by case on their own, and
+`NFKC` already maps full-width `ＡＷＳ` to `AWS` without touching case.
+
+**Rejected:** copying Track Record's `toLowerCase()`. It hashes English prose for a permanent fact
+store; this key compares one version to the next, and `04` rules out fuzzy matching here.
+
+### [2026-09-24] The stored keys are rewritten by a migration, in the same commit
+
+**Decided:** `0004_claim-text-nfkc` rewrites `text_normalised` on every `cv_claims` row to the new
+key. `cv_versions.body`, `span_start` and `span_end` are not touched and no row is deleted. The SQL is
+`normaliseClaimText` spelled in Postgres — `normalize(…, NFKC)`, JavaScript's `\s` as an explicit
+bracket, `btrim` — and an integration test holds the two equal over the forms that differ.
+
+**Why:** `text_normalised` is stored. Changing only the function would compare `NFKC` keys against
+old ones and carry forward nothing across a full-width form for one version — worse than the bug. It
+is derived data, so the rule against rewriting `cv_versions.body` does not reach it.
+
+**Rejected:** normalising only on write, which makes the first version after the change the broken
+one. **Rollback:** the previous build still reads the column; a version it saved would write
+whitespace-only keys again, which costs carry-forward across a width change and nothing else.
+
+**Measured, and it is not what #28 expected:** re-counted on the stored real readings (`03` §4),
+`NFKC` rewrites 67 keys and merges **none** of the 29 doubled 免許・資格 lines #27 left. They differ
+by the 履歴書's date cells, not by width. The fix earns its place on carry-forward, not on dedupe.
+
+---
 ## Phase 6 — #27, the extractor prompt
 
 ### [2026-09-24] Defect 3 is the importer, not the prompt: `.docx` tables are read as tables

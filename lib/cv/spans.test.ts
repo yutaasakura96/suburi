@@ -148,4 +148,30 @@ describe("normaliseClaimText", () => {
   it("collapses every run of whitespace, including full-width spaces and newlines", () => {
     expect(normaliseClaimText("  請求処理を　40%\n\n短縮 ")).toBe("請求処理を 40% 短縮");
   });
+
+  // #28: a Japanese CV mixes full-width and half-width forms of one assertion.
+  it("reads full-width and half-width forms as one claim", () => {
+    expect(normaliseClaimText("請求処理を４０％短縮")).toBe(normaliseClaimText("請求処理を40%短縮"));
+    expect(normaliseClaimText("普通自動車第一種運転免許（AT限定）")).toBe(normaliseClaimText("普通自動車第一種運転免許(AT限定)"));
+    expect(normaliseClaimText("ＡＷＳ認定")).toBe("AWS認定");
+    expect(normaliseClaimText("ｼｽﾃﾑ開発")).toBe("システム開発");
+  });
+
+  it("applies NFKC before the collapse, so a space it produces is collapsed too", () => {
+    // U+00A8 decomposes to a space and a combining diaeresis.
+    expect(normaliseClaimText("A \u00a8")).toBe("A \u0308");
+  });
+
+  it("keeps case: AWS and aws are not folded into one claim", () => {
+    expect(normaliseClaimText("Led AWS migration.")).not.toBe(normaliseClaimText("Led aws migration."));
+  });
+
+  it("is forgiving where validate is not: validate still refuses a quote one full-width character off", () => {
+    const body = "請求処理を40%短縮";
+    const check = createSpanChecker(body, whole(body));
+    const span = { start: 0, end: characterLength(body) };
+    expect(normaliseClaimText("請求処理を40％短縮")).toBe(normaliseClaimText(body));
+    expect(check.validate(span, "請求処理を40％短縮")).toEqual({ ok: false, reason: "mismatch" });
+    expect(check.validate(span, body)).toEqual({ ok: true, quote: body });
+  });
 });

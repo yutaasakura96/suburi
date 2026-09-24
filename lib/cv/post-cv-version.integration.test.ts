@@ -691,6 +691,32 @@ describe("POST /api/cv-versions next versions", () => {
       expect((await claimsOf(db, v2.json.id))[0].supersedesClaimId).toBe(previous.id);
     }));
 
+  // #28: a Japanese CV writes one assertion in full-width or half-width forms interchangeably.
+  it("carries forward across a full-width-only difference, keeping the coverage chain", () =>
+    inRolledBackTransaction(async (db) => {
+      const { post } = await setUp(db, everyLine);
+      const v1 = await post({
+        language: "ja",
+        documents: [
+          { kind: "rirekisho", text: "普通自動車第一種運転免許（AT限定）" },
+          { kind: "shokumu_keirekisho", text: "請求処理を４０％短縮。ＡＷＳへ移行。" },
+        ],
+      });
+      const v2 = await post({
+        language: "ja",
+        documents: [
+          { kind: "rirekisho", text: "普通自動車第一種運転免許(AT限定)" },
+          { kind: "shokumu_keirekisho", text: "請求処理を40%短縮。AWSへ移行。" },
+        ],
+      });
+
+      expect(v2.json.claims).toEqual({ total: 2, carried_forward: 2, new: 0 });
+      const previous = await claimsOf(db, v1.json.id);
+      expect((await claimsOf(db, v2.json.id)).map((claim) => claim.supersedesClaimId)).toEqual(
+        previous.map((claim) => claim.id),
+      );
+    }));
+
   it("never matches two versions back, and follows a three-version chain", () =>
     inRolledBackTransaction(async (db) => {
       const { post } = await setUp(db, everyLine);
