@@ -221,15 +221,50 @@ describe("POST /api/cv-versions", () => {
         { document: 0, quote: "Led a team of 5", start_hint: 999 },
         { document: 0, quote: "Cafe", start_hint: 0 },
         { document: 3, quote: "Cut invoicing time by 40%.", start_hint: 0 },
-        // The same claim twice is one claim, checked once.
+        // The same claim twice is one claim — now checked, then counted as a duplicate (#27).
         { document: 0, quote: "Cut invoicing time by 40%.", start_hint: 80 },
       ]);
       const { status, json } = await post(cvRequest(decomposed));
 
       expect(status).toBe(201);
       expect(json.claims.total).toBe(4);
-      expect(json.validation).toEqual({ spans_checked: 7, spans_rejected: 3 });
+      // claims_split is 2 because "Led a team of 5" sits inside the longer claim on the same line:
+      // one assertion read twice, which is what the counter is for. The 37 is the contact line,
+      // which holds no claim and must not.
+      expect(json.validation).toEqual({
+        spans_checked: 8,
+        spans_rejected: 3,
+        claims_split: 2,
+        claims_duplicated: 1,
+        unclaimed_run_max: 37,
+      });
       expect((await rowCounts(db, userId)).claims).toBe(4);
+    }));
+
+  // #27: what spans_rejected cannot say. Every claim here slices back verbatim, so the guard reports
+  // 0 while one sentence is read as two fragments, one claim is returned twice, and 122 code points
+  // go unread. 12 §6 alerts on these three, so they have to be on the line.
+  it("puts the three reading counters on the cv_version_created log line", () =>
+    inRolledBackTransaction(async (db) => {
+      const body = ["Owned billing, cutting handling time by 40%.", "", "x".repeat(120)].join("\n");
+      const { post } = await setUp(db, () => [
+        { document: 0, quote: "Owned billing", start_hint: 0 },
+        { document: 0, quote: "cutting handling time by 40%.", start_hint: 15 },
+        { document: 0, quote: "Owned billing", start_hint: 0 },
+      ]);
+      const { status, json } = await post(cvRequest(body));
+
+      expect(status).toBe(201);
+      expect(json.validation).toMatchObject({ spans_rejected: 0 });
+      const created = logged
+        .map((text) => JSON.parse(text) as Record<string, unknown>)
+        .find((line) => line.event === "cv_version_created");
+      expect(created).toMatchObject({
+        spans_rejected: 0,
+        claims_split: 2,
+        claims_duplicated: 1,
+        unclaimed_run_max: 122,
+      });
     }));
 
   it("numbers versions per user: CV v2 after v1, and another user's versions count for nothing", () =>
@@ -580,7 +615,13 @@ describe("POST /api/cv-versions composition", () => {
 
       expect(status).toBe(201);
       expect(json.claims.total).toBe(3);
-      expect(json.validation).toEqual({ spans_checked: 5, spans_rejected: 2 });
+      expect(json.validation).toEqual({
+        spans_checked: 5,
+        spans_rejected: 2,
+        claims_split: 0,
+        claims_duplicated: 0,
+        unclaimed_run_max: 24,
+      });
       expect((await rowCounts(db, userId)).claims).toBe(3);
 
       const [version] = await db.select().from(s.cvVersions).where(eq(s.cvVersions.id, json.id));
@@ -688,16 +729,21 @@ describe("POST /api/cv-versions next versions", () => {
       expect(ja.json.claims.carried_forward).toBe(0);
     }));
 
-  it("points duplicates at the previous claim with the lowest span_start, many-to-one", () =>
+  // #27: an assertion two documents both make is one claim per version, counted once and carried
+  // forward once. Before, it was stored twice and both rows pointed at the same previous claim.
+  it("stores a line two documents share once, and carries that one claim forward", () =>
     inRolledBackTransaction(async (db) => {
       const { post } = await setUp(db, everyLine);
       const v1 = await post(en("Led a team of 5.\nBSc, 2016.", { title: "Portfolio", text: "Led a team of 5." }));
       const v2 = await post(en("Led a team of 5.\nMSc, 2020.", { title: "Summary", text: "Led a team of 5." }));
 
-      expect(v2.json.claims).toEqual({ total: 3, carried_forward: 2, new: 1 });
+      expect(v1.json.claims).toEqual({ total: 2, carried_forward: 0, new: 2 });
+      expect(v1.json.validation).toMatchObject({ claims_duplicated: 1 });
+      expect(v2.json.claims).toEqual({ total: 2, carried_forward: 1, new: 1 });
+
       const [first] = await claimsOf(db, v1.json.id);
       const led = (await claimsOf(db, v2.json.id)).filter((claim) => claim.textNormalised === "Led a team of 5.");
-      expect(led.map((claim) => claim.supersedesClaimId)).toEqual([first.id, first.id]);
+      expect(led.map((claim) => claim.supersedesClaimId)).toEqual([first.id]);
     }));
 
   it("is 422 cv_unchanged for an identical set, calling no model and writing nothing", () =>
