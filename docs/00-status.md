@@ -14,8 +14,9 @@ limiter.** **#19 is done — the synthetic CV seed, and the feature running on `
 the real CVs are through `/cv` locally, the text-size cap is measured and enforced, and `11` §5's
 extraction check is done. It failed: the extractor prompt over-segments and skips whole sections, which
 is now [#27](https://github.com/yutaasakura96/suburi/issues/27), and #27 blocks #21. The native read of
-the 22 panel strings is the one thing still owed on #20, and it is the user's.**
-**Updated:** 2026-09-23 (#20)
+the 22 panel strings is the one thing still owed on #20, and it is the user's — six of them now carry
+an applied Claude review (2026-09-24), which is what the read judges, not what it replaces.**
+**Updated:** 2026-09-24 (#20)
 
 ## Done
 - Phase 1 — `docs/01-project-brief.md`, `docs/02-product-requirements.md`, `docs/06-decision-log.md`.
@@ -298,9 +299,13 @@ quality" is closed with a verdict of **inadequate**, and the defect is the extra
 
 **Still open, and the user's to do:**
 1. **The native read** of `docs/checklists/native-read-cv.md` — 22 panel strings, the new
-   `cv_too_large` sentence, the three prose `職務経歴書` strings. Rules earned go into `05` §6. A
-   marked-up draft of six proposed changes was produced in-session on 2026-09-23 and is **not applied**;
-   it is a review, not a native read, and the boxes stay unticked until the user reads them.
+   `cv_too_large` sentence, the three prose `職務経歴書` strings. Rules earned go into `05` §6.
+   **The six-change draft was applied on 2026-09-24**, on Claude's recommendation after the user
+   declined to rule on the rows one at a time — `app/(app)/cv/copy.ts`, and through to `10` §13 and
+   `e2e/cv.spec.ts` where the same sentences are quoted. Its two mechanical rules are in `05` §6 and
+   asserted over every `ja` string in `app/(app)/cv/copy.test.ts`. **It is still a review, not a
+   native read: every box stays ☐ and the read is still owed** — now on the amended strings, with the
+   originals kept in the checklist so it can overturn them. §3's three prose strings were not applied.
 
 Then **#27**, then #21. **#27 blocks #21:** shipping the CV feature to `main` as it extracts now would
 stamp every scored answer with a `cv_version` whose reading is already known to be bad, and invariant 8

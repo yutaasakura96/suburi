@@ -3,6 +3,35 @@
 Newest first. Every entry records what was chosen, why, and what was rejected.
 
 ---
+## Phase 6 — #20, the reviewed copy draft
+
+### [2026-09-24] The six-change copy draft is applied, and the native read is still owed
+
+**Decided:** the six proposed changes in `docs/checklists/native-read-cv.md` §1 are **applied** — to
+`app/(app)/cv/copy.ts`, and through to `10` §13 and `e2e/cv.spec.ts`, which quote the same sentences.
+The two mechanical rules they earned (no space between a Latin numeral and the Japanese that follows
+it; a document's body is `本文`, never a bare `文`) go into `05` §6 and are asserted over every `ja`
+string in `app/(app)/cv/copy.test.ts`. **Every box in §1 stays ☐, and `11` §5's native read is still
+owed on #20** — now on the amended strings, with the originals kept in the checklist so the read can
+overturn them. §3's three prose `職務経歴書` strings were *not* applied; no code renders them and `05`
+§6 already sends them through the read with the screens that carry them.
+
+**Why:** the user was offered the rows one at a time and declined to rule on them, so the alternative
+was to leave six strings that a review had already found wrong sitting in the panel indefinitely,
+blocking `develop` on a reading that had not been scheduled. Applying them makes the panel better on
+the evidence available; **what it does not do is discharge the rule.**
+
+**Rejected: ticking the boxes.** A review by the same agent that wrote the strings is not a native
+ear, and a checklist that recorded it as one would be precisely the dishonest instrument the brief
+refuses to build — the same argument as the 2026-09-23 entry that refused to call the extraction good
+because `spans_rejected` was 0. The cost of being wrong here is not symmetric: an unticked box costs
+one more reading, a wrongly ticked one costs the rule.
+
+**Rejected: holding everything for the read.** `05` §6's rules are mechanical and testable
+independent of an ear, and a test that encodes a rule is cheap to delete if the read overturns it.
+The rule and its test come out together.
+
+---
 ## Phase 6 — #20, the real-CV extraction check
 
 Decided while running the real CVs through `/cv` locally against Docker Postgres. The measurement came

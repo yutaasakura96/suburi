@@ -27,13 +27,16 @@ type Kinds = Partial<Record<Kind, string>>;
  * saving caption and the dropped count in the result line — are listed in #15's PR for that read;
  * #17's two import failures, which 10 §13 does not give either, wait for the same read (#20), and
  * so does #18's `savableAt`.
+ *
+ * Six strings here carry a reviewed draft applied 2026-09-24, not a native read — the boxes in
+ * `docs/checklists/native-read-cv.md` §1 are still unticked and #20 still owes the read.
  */
 export const COPY = {
   ja: {
     heading: "応募書類",
-    start: "応募書類を追加する",
+    start: "応募書類を登録する",
     newVersion: "新しいバージョンをつくる",
-    requires: "履歴書が1通必要です。職務経歴書と、補足資料を5つまで追加できます。",
+    requires: "履歴書が1通必要です。ほかに職務経歴書を1通と、補足資料を5つまで追加できます。",
     kinds: { rirekisho: "履歴書", shokumu_keirekisho: "職務経歴書", additional: "補足資料" } as Kinds,
     particulars: "生年月日・住所・電話番号・顔写真・家族の情報は省いてかまいません。評価には使いません。",
     addShokumu: "職務経歴書を追加",
@@ -42,9 +45,9 @@ export const COPY = {
     text: "本文",
     remove: "外す",
     importFile: "ファイルから読み込む",
-    imported: "読み込んだ文を確認して、必要なら直してください。保存した文がそのまま評価に使われます。",
+    imported: "読み込んだ本文を確認して、必要なら直してください。保存した本文がそのまま評価に使われます。",
     importNoText:
-      "このファイルからは文字を読み取れませんでした。スキャンした画像のファイルは読み込めないため、本文を貼り付けてください。",
+      "このファイルからは文字を読み取れませんでした。スキャンした画像には文字情報がないため、本文を貼り付けてください。",
     importUnreadable:
       "このファイルは開けませんでした。破損しているか、パスワードで保護されている可能性があります。本文を貼り付けてください。",
     save: "このバージョンを保存する",
@@ -52,9 +55,9 @@ export const COPY = {
     saving: "記載事項を抽出しています。しばらくかかることがあります。",
     claims: (n: number) => `記載事項 ${n}件`,
     result: (r: SaveResult) =>
-      `${r.total}件を抽出。${r.carriedForward}件は前のバージョンから引き継ぎ、${r.fresh}件が新規。${r.rejected}件を除外。`,
+      `${r.total}件を抽出しました。うち${r.carriedForward}件は前のバージョンから引き継ぎ、${r.fresh}件が新規です。除外は${r.rejected}件でした。`,
     dropped: (n: number) => `${n}件は本文と一致しなかったため除きました。`,
-    savableAt: (clock: string) => `${clock} から保存できます。`,
+    savableAt: (clock: string) => `${clock}から保存できます。`,
   },
   en: {
     heading: "CV",

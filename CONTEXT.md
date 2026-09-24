@@ -182,7 +182,10 @@ Carry these; do not silently decide them in a ticket.
   still has no artboard, but it is specified in `10` §13 from `05` components, which is the whole of
   what it needed, and `10` §12's own entry is struck through to say so.
 - **Japanese copy that has not had its native read.** `応募書類`, the 履歴書 personal-particulars hint,
-  every string on the CV screen, and the whole error catalogue — one read, one batch. Separately,
+  every string on the CV screen, and the whole error catalogue — one read, one batch. **Six CV-screen
+  strings were amended on 2026-09-24 from a Claude review**, with the two mechanical rules it earned
+  now in `05` §6 and under test; the read is owed on the amended strings and every box in
+  `docs/checklists/native-read-cv.md` §1 is still ☐. An applied review does not discharge `11` §5. Separately,
   three *prose* strings on the feedback and Progress screens still say `職務経歴書` where they now mean
   the whole set; every stamp already reads `応募書類 v{n}` (`05` §6, `10` §12).
 - **Who sends the alert mail.** `08` §2 rejected magic links specifically to avoid a transactional email

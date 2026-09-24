@@ -120,7 +120,7 @@ test("each panel's chrome is in its own language", async ({ page }) => {
 
   await expect(ja).toHaveAttribute("lang", "ja");
   await expect(en).toHaveAttribute("lang", "en");
-  await ja.getByRole("button", { name: "応募書類を追加する" }).click();
+  await ja.getByRole("button", { name: "応募書類を登録する" }).click();
   await expect(ja.getByRole("button", { name: "このバージョンを保存する" })).toBeVisible();
   await expect(ja.getByRole("button", { name: "職務経歴書を追加" })).toBeVisible();
   await expect(ja.getByRole("button", { name: "補足資料を追加" })).toBeVisible();
@@ -144,7 +144,7 @@ test("a 応募書類 with a 履歴書, a 職務経歴書 and an additional docum
     await page.goto("/cv");
     const ja = page.getByRole("region", { name: "応募書類" });
 
-    await ja.getByRole("button", { name: "応募書類を追加する" }).click();
+    await ja.getByRole("button", { name: "応募書類を登録する" }).click();
     await ja.getByRole("textbox", { name: "履歴書" }).fill(RIREKISHO);
     await ja.getByRole("button", { name: "補足資料を追加" }).click();
     // Added after the additional document, the 職務経歴書 still takes its place after the 履歴書.
@@ -158,7 +158,7 @@ test("a 応募書類 with a 履歴書, a 職務経歴書 and an additional docum
 
     await expect(ja.getByTestId("cv-version-label")).toHaveText("応募書類 v1");
     await expect(ja.getByTestId("cv-claim-count")).toHaveText("記載事項 3件");
-    await expect(ja.getByText("3件を抽出。0件は前のバージョンから引き継ぎ、3件が新規。0件を除外。")).toBeVisible();
+    await expect(ja.getByText("3件を抽出しました。うち0件は前のバージョンから引き継ぎ、3件が新規です。除外は0件でした。")).toBeVisible();
     await expect(ja.getByRole("heading", { level: 3 })).toHaveText(["履歴書", "職務経歴書", "ポートフォリオ"]);
     await expect(ja.locator("[data-claim]")).toHaveText(JA_CLAIMS.map((claim) => claim.quote));
 
@@ -283,7 +283,7 @@ test("import a Japanese .docx and .pdf, edit a line, save: the saved body is the
     // Replaces the prefilled text; blank paragraphs collapse to one blank line.
     await expect(shokumu.getByRole("textbox", { name: "職務経歴書" })).toHaveValue(IMPORTED_SHOKUMU);
     await expect(
-      shokumu.getByText("読み込んだ文を確認して、必要なら直してください。保存した文がそのまま評価に使われます。"),
+      shokumu.getByText("読み込んだ本文を確認して、必要なら直してください。保存した本文がそのまま評価に使われます。"),
     ).toBeVisible();
 
     const rirekisho = ja.getByRole("group", { name: "履歴書" });

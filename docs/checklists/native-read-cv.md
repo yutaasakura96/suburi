@@ -21,9 +21,9 @@ error sentence ends in `。`; no two error codes share a sentence.
 | | Japanese | Intent |
 | --- | --- | --- |
 | ☐ | 応募書類 | the panel heading |
-| ☐ | 応募書類を追加する | empty state's button |
+| ☐ | 応募書類を登録する | empty state's button — draft applied |
 | ☐ | 新しいバージョンをつくる | button on an existing version |
-| ☐ | 履歴書が1通必要です。職務経歴書と、補足資料を5つまで追加できます。 | what the set may hold |
+| ☐ | 履歴書が1通必要です。ほかに職務経歴書を1通と、補足資料を5つまで追加できます。 | what the set may hold — draft applied |
 | ☐ | 履歴書 / 職務経歴書 / 補足資料 | the three kind names |
 | ☐ ★ | 生年月日・住所・電話番号・顔写真・家族の情報は省いてかまいません。評価には使いません。 | the 履歴書 personal-particulars hint |
 | ☐ | 職務経歴書を追加 | |
@@ -32,26 +32,32 @@ error sentence ends in `。`; no two error codes share a sentence.
 | ☐ | 本文 | the text box's label |
 | ☐ | 外す | removes a document from the set |
 | ☐ | ファイルから読み込む | the import button |
-| ☐ | 読み込んだ文を確認して、必要なら直してください。保存した文がそのまま評価に使われます。 | after an import |
-| ☐ | このファイルからは文字を読み取れませんでした。スキャンした画像のファイルは読み込めないため、本文を貼り付けてください。 | import found no text (#17) |
+| ☐ | 読み込んだ本文を確認して、必要なら直してください。保存した本文がそのまま評価に使われます。 | after an import — draft applied |
+| ☐ | このファイルからは文字を読み取れませんでした。スキャンした画像には文字情報がないため、本文を貼り付けてください。 | import found no text (#17) — draft applied |
 | ☐ | このファイルは開けませんでした。破損しているか、パスワードで保護されている可能性があります。本文を貼り付けてください。 | import could not open the file (#17) |
 | ☐ | このバージョンを保存する | save |
 | ☐ | 保存すると、この内容でバージョンが確定します。あとから直すことはできません。 | beside save — immutability |
 | ☐ | 記載事項を抽出しています。しばらくかかることがあります。 | while the model runs |
 | ☐ | 記載事項 34件 | the claim counter |
-| ☐ | 34件を抽出。27件は前のバージョンから引き継ぎ、7件が新規。0件を除外。 | the result line |
+| ☐ | 34件を抽出しました。うち27件は前のバージョンから引き継ぎ、7件が新規です。除外は0件でした。 | the result line — draft applied |
 | ☐ | 2件は本文と一致しなかったため除きました。 | dropped claims |
-| ☐ | 14:32 から保存できます。 | rate-limited retry time (#18) |
+| ☐ | 14:32から保存できます。 | rate-limited retry time (#18) — draft applied |
 
 `記載事項` itself is on trial here: `05` §6 recorded it as the leading candidate for Claim and
 deferred the decision to the first screen that lists claims. This is that screen.
 
-### A reviewed draft, 2026-09-23 — proposals only, boxes stay unticked
+### A reviewed draft, 2026-09-23 — applied 2026-09-24, boxes still unticked
 
-Produced in-session by Claude, at the user's request. **This is a review, not a native read**, and
-nothing below is applied: the point of `11` §5's rule is a native ear, and a record that says
-otherwise would be the kind of dishonest instrument this project exists not to build. Kept here so the
-reading is not redone from scratch.
+Produced in-session by Claude, at the user's request. **This is a review, not a native read.** All six
+were applied on 2026-09-24 on Claude's recommendation, after the user declined to rule on them row by
+row — to `app/(app)/cv/copy.ts`, and through to `10` §13 and `e2e/cv.spec.ts` where the same sentences
+are quoted.
+
+**The boxes above stay ☐ and #20 still owes the read.** The point of `11` §5's rule is a native ear;
+what landed is a Claude review, and a record that called it anything else would be the kind of
+dishonest instrument this project exists not to build. What the read now judges is the amended
+strings, not the originals — the originals are in the table below, so nothing is lost if it overturns
+them.
 
 | Row | Why | Proposed |
 | --- | --- | --- |
@@ -69,9 +75,14 @@ carries none of `主張`'s argument sense, and this is the screen `05` §6 defer
 **`外す` should stay** — `削除` is the natural Japanese word and is exactly the one invariant 7 cannot
 have.
 
-**Two rules would generalise into `05` §6 if the native read keeps them:** no space between a Latin
-numeral and a following Japanese particle, and `本文` not `文` when the referent is a document's body.
-Both are testable in `app/(app)/cv/copy.test.ts`.
+**Two rules generalise, and are now in `05` §6 — recorded there as draft, not as read:** no space
+between a Latin numeral and a following Japanese particle, and `本文` not `文` when the referent is a
+document's body. Both are asserted over every `ja` string in `app/(app)/cv/copy.test.ts`. The native
+read may still overturn either, in which case the rule and its test come back out together.
+
+**Not applied:** §3's three prose strings. They are `職務経歴書` → `応募書類` swaps inside rewritten
+sentences and no code renders them yet, so they wait for the read with the screens that carry them —
+`05` §6 already says so.
 
 ## 2. Error sentences — `lib/copy/errors.ts`
 
