@@ -64,8 +64,7 @@ Full detail: `docs/12-deployment.md` §1 and §4.
 
 ## Commands
 
-No `package.json` exists yet. These are the commands the docs commit to; add them as scripts when the
-app is scaffolded.
+The commands the docs commit to; `package.json` wraps each as an `npm run` script.
 
 ```
 tsc --noEmit                            typecheck
