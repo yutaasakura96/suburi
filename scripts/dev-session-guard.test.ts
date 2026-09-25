@@ -19,8 +19,8 @@ describe("devSessionRefusals", () => {
     expect(devSessionRefusals(local)).toEqual([]);
   });
 
-  it.each(["127.0.0.1", "[::1]", "postgres"])("accepts a database on %s", (host) => {
-    const url = `postgresql://suburi:suburi@${host}:5432/suburi`;
+  it("accepts a database on 127.0.0.1", () => {
+    const url = "postgresql://suburi:suburi@127.0.0.1:5432/suburi";
     expect(
       devSessionRefusals({
         ...local,
@@ -33,7 +33,7 @@ describe("devSessionRefusals", () => {
   it.each(["DATABASE_URL", "DATABASE_URL_UNPOOLED"])("refuses a non-local %s", (name) => {
     const reasons = devSessionRefusals({ ...local, [name]: neon });
     expect(reasons).toEqual([
-      `${name} points at ep-example-pooler.ap-southeast-1.aws.neon.tech, not localhost, 127.0.0.1 or the Docker service.`,
+      `${name} points at ep-example-pooler.ap-southeast-1.aws.neon.tech, not localhost or 127.0.0.1.`,
     ]);
     // Names the host, never the credentials.
     expect(reasons.join()).not.toContain("secret");

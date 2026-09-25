@@ -3,8 +3,8 @@
 
 type Env = Record<string, string | undefined>;
 
-// `postgres` is the service name in docker-compose.yml, for a script run inside the Compose network.
-const localDatabaseHosts = new Set(["localhost", "127.0.0.1", "[::1]", "postgres"]);
+// The same hosts lib/config.ts lets through without TLS.
+const localDatabaseHosts = new Set(["localhost", "127.0.0.1"]);
 const localAppHosts = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
 function hostOf(value: string) {
@@ -31,7 +31,7 @@ export function devSessionRefusals(env: Env): string[] {
     const host = hostOf(value);
     if (host === undefined) reasons.push(`${name} is not a URL.`);
     else if (!localDatabaseHosts.has(host)) {
-      reasons.push(`${name} points at ${host}, not localhost, 127.0.0.1 or the Docker service.`);
+      reasons.push(`${name} points at ${host}, not localhost or 127.0.0.1.`);
     }
   }
 

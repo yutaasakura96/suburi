@@ -17,7 +17,7 @@ ready-to-paste step for Playwright MCP (`browser_run_code_unsafe` adding the coo
 loads env files the way `next dev` does, so it signs with the secret the dev server verifies with.
 
 **The guard runs first, before any database is opened,** and refuses with one line per reason unless:
-both database URLs point at `localhost`, `127.0.0.1`, `[::1]` or the Compose service `postgres`;
+both database URLs point at `localhost` or `127.0.0.1`, the hosts `lib/config.ts` lets through without TLS;
 `NODE_ENV` is not `production`; neither `VERCEL` nor a non-development `VERCEL_ENV` is set; and
 `BETTER_AUTH_URL` is a local host. That last one is the project's existing signal for which secret is
 loaded: the secret travels with the URL it was made for (`.env.develop.local` pairs develop's with
