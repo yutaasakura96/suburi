@@ -37,7 +37,7 @@ Cite a dated entry by its phase and heading; cite an older numbered entry as
 
 ## The invariants are not negotiable in a ticket
 
-`CLAUDE.md` §Invariants (and `CONTEXT.md`) lists eight things no ticket may break, enforced in
+`AGENTS.md` §Invariants (and `CONTEXT.md`) lists eight things no ticket may break, enforced in
 `docs/04-database-schema.md` §6, `docs/07-api-design.md` §6 and
 `docs/11-testing-plan.md` §3. A ticket that needs one relaxed is a ticket that
 edits those three documents first — raise it, don't implement it.

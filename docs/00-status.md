@@ -364,8 +364,9 @@ command that runs `node` fails with `env: node: No such file or directory`.
 
 **One-time setup: done.** `/setup-matt-pocock-skills` has been run — `docs/agents/issue-tracker.md`,
 `docs/agents/triage-labels.md`, `docs/agents/domain.md`, and an `## Agent skills` section in
-`CLAUDE.md`. **Issues live in GitHub Issues**, not local files: the earlier note here said to choose
-local markdown because Backlog (Nulab) is unsupported, but that overlooked the working GitHub remote.
+`AGENTS.md` (imported by `CLAUDE.md`). **Issues live in GitHub Issues**, not local files: the
+earlier note here said to choose local markdown because Backlog (Nulab) is unsupported, but that
+overlooked the working GitHub remote.
 `gh` gives `triage` its label queries and `wayfinder` its native dependency graph. Reversal recorded
 in `06` under Phase 5b, along with why `docs/adr/` is deliberately not created.
 
@@ -467,7 +468,7 @@ the only irreplaceable thing here.
   file, deliberately; `06` records why. `superpowers` was uninstalled machine-wide on 2026-09-20 and
   its key is gone from this file.
 - **No hooks, by decision.** Nothing blocks an edit or a push on `main`, so `12` §4's "nothing is
-  committed straight to `main`" is a convention in `CLAUDE.md`, not a mechanism. What still guards the
+  committed straight to `main`" is a convention, not a mechanism. What still guards the
   measurement record: manual expand-only migrations, and `drizzle-kit migrate`/`push`/`drop`, `psql`,
   `pg_dump`, all `aws` and every writing Neon MCP tool sitting in `permissions.ask`.
 
