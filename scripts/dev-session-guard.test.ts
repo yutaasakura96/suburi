@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { devSessionRefusals } from "./dev-session-guard";
@@ -74,6 +74,12 @@ describe("devSessionRefusals", () => {
     ]);
   });
 
+  it("refuses an IPv6 loopback app URL", () => {
+    expect(devSessionRefusals({ ...local, BETTER_AUTH_URL: "http://[::1]:3000" })).toEqual([
+      "BETTER_AUTH_URL is [::1], so BETTER_AUTH_SECRET is a deployment's secret, not a local one.",
+    ]);
+  });
+
   it("refuses a Vercel environment", () => {
     expect(devSessionRefusals({ ...local, VERCEL: "1", VERCEL_ENV: "preview" })).toEqual([
       "VERCEL is set, so this is a Vercel build or function.",
@@ -96,32 +102,36 @@ describe("npm run dev:session", () => {
     mkdirSync(".playwright", { recursive: true });
     const dir = mkdtempSync(join(process.cwd(), ".playwright/dev-session-test-"));
     const out = join(dir, ".playwright/dev-session.json");
-    const secret = "local-dev-session-secret-32-characters";
-    writeFileSync(join(dir, ".env"), [
-      `DATABASE_URL=${local.DATABASE_URL}`,
-      `DATABASE_URL_UNPOOLED=${local.DATABASE_URL_UNPOOLED}`,
-      `BETTER_AUTH_SECRET=${secret}`,
-      `BETTER_AUTH_URL=${local.BETTER_AUTH_URL}`,
-    ].join("\n"), { mode: 0o600 });
-    const result = spawnSync(
-      "node",
-      [
-        "--disable-warning=MODULE_TYPELESS_PACKAGE_JSON",
-        "--import",
-        join(process.cwd(), "scripts/resolve-ts.mts"),
-        join(process.cwd(), "scripts/dev-session.mts"),
-      ],
-      {
-        cwd: dir,
-        env: {
-          NODE_ENV: "development",
-          PATH: process.env.PATH,
-          ...env,
+    try {
+      const secret = "local-dev-session-secret-32-characters";
+      writeFileSync(join(dir, ".env"), [
+        `DATABASE_URL=${local.DATABASE_URL}`,
+        `DATABASE_URL_UNPOOLED=${local.DATABASE_URL_UNPOOLED}`,
+        `BETTER_AUTH_SECRET=${secret}`,
+        `BETTER_AUTH_URL=${local.BETTER_AUTH_URL}`,
+      ].join("\n"), { mode: 0o600 });
+      const result = spawnSync(
+        "node",
+        [
+          "--disable-warning=MODULE_TYPELESS_PACKAGE_JSON",
+          "--import",
+          join(process.cwd(), "scripts/resolve-ts.mts"),
+          join(process.cwd(), "scripts/dev-session.mts"),
+        ],
+        {
+          cwd: dir,
+          env: {
+            NODE_ENV: "development",
+            PATH: process.env.PATH,
+            ...env,
+          },
+          encoding: "utf8",
         },
-        encoding: "utf8",
-      },
-    );
-    return { ...result, wrote: existsSync(out) };
+      );
+      return { ...result, wrote: existsSync(out) };
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   }
 
   it("refuses exported non-local database URLs and writes nothing", () => {

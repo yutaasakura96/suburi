@@ -5,7 +5,7 @@ type Env = Record<string, string | undefined>;
 
 // The same hosts lib/config.ts lets through without TLS.
 const localDatabaseHosts = new Set(["localhost", "127.0.0.1"]);
-const localAppHosts = new Set(["localhost", "127.0.0.1", "[::1]"]);
+const localAppHosts = new Set(["localhost", "127.0.0.1"]);
 
 function hostOf(value: string) {
   return URL.canParse(value) ? new URL(value).hostname : undefined;
