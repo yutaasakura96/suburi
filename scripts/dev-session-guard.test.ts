@@ -1,6 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { devSessionRefusals } from "./dev-session-guard";
@@ -82,24 +81,33 @@ describe("npm run dev:session", () => {
     NODE_ENV?: "production";
     DATABASE_URL?: string;
     DATABASE_URL_UNPOOLED?: string;
+    BETTER_AUTH_SECRET?: string;
   }) {
-    const out = join(mkdtempSync(join(tmpdir(), "dev-session-")), "state.json");
+    mkdirSync(".playwright", { recursive: true });
+    const dir = mkdtempSync(join(process.cwd(), ".playwright/dev-session-test-"));
+    const out = join(dir, "state.json");
+    const secret = "local-dev-session-secret-32-characters";
+    writeFileSync(join(dir, ".env"), [
+      `DATABASE_URL=${local.DATABASE_URL}`,
+      `DATABASE_URL_UNPOOLED=${local.DATABASE_URL_UNPOOLED}`,
+      `BETTER_AUTH_SECRET=${secret}`,
+      `BETTER_AUTH_URL=${local.BETTER_AUTH_URL}`,
+    ].join("\n"), { mode: 0o600 });
     const result = spawnSync(
       "node",
       [
         "--disable-warning=MODULE_TYPELESS_PACKAGE_JSON",
         "--import",
-        "./scripts/resolve-ts.mts",
-        "scripts/dev-session.mts",
+        join(process.cwd(), "scripts/resolve-ts.mts"),
+        join(process.cwd(), "scripts/dev-session.mts"),
         "--out",
         out,
       ],
-      // Every variable the guard reads is set here, and the real environment wins over env files.
       {
+        cwd: dir,
         env: {
           NODE_ENV: "development",
           PATH: process.env.PATH,
-          ...local,
           ...env,
         },
         encoding: "utf8",
@@ -108,13 +116,32 @@ describe("npm run dev:session", () => {
     return { ...result, wrote: existsSync(out) };
   }
 
-  it("refuses a non-local database and writes nothing", () => {
+  it("refuses exported non-local database URLs and writes nothing", () => {
     const result = run({ DATABASE_URL: neon, DATABASE_URL_UNPOOLED: neon });
     expect(result.status).toBe(1);
-    expect(result.stderr).toContain("DATABASE_URL points at ep-example-pooler");
+    expect(result.stderr).toContain("Exported DATABASE_URL differs from the local env file.");
+    expect(result.stderr).toContain("Exported DATABASE_URL_UNPOOLED differs from the local env file.");
     expect(result.stdout).toBe("");
     expect(result.wrote).toBe(false);
   });
+
+  it("refuses an exported deployment secret with local URLs and writes nothing", () => {
+    const result = run({ BETTER_AUTH_SECRET: "deployed-secret-with-at-least-32-characters" });
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("Exported BETTER_AUTH_SECRET differs from the local env file.");
+    expect(result.stdout).toBe("");
+    expect(result.wrote).toBe(false);
+  });
+
+  it.each(["DATABASE_URL", "DATABASE_URL_UNPOOLED"] as const)(
+    "refuses an exported %s that differs from the local file",
+    (name) => {
+      const result = run({ [name]: "postgresql://suburi:suburi@localhost:5433/other" });
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain(`Exported ${name} differs from the local env file.`);
+      expect(result.wrote).toBe(false);
+    },
+  );
 
   it("refuses NODE_ENV=production and writes nothing", () => {
     const result = run({ NODE_ENV: "production" });

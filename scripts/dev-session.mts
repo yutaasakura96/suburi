@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { chmodSync, closeSync, constants, fchmodSync, ftruncateSync, mkdirSync, openSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import nextEnv from "@next/env";
@@ -20,14 +20,23 @@ const { values } = parseArgs({
   options: { out: { type: "string", default: ".playwright/dev-session.json" } },
 });
 
-// The env files `next dev` loads, in its order, so the cookie is signed with the secret the dev
-// server verifies it with. The real environment wins over every file, as it does for `next dev`.
+const localOnly = ["BETTER_AUTH_SECRET", "DATABASE_URL", "DATABASE_URL_UNPOOLED"] as const;
+const exported = Object.fromEntries(localOnly.map((name) => [name, process.env[name]]));
+for (const name of localOnly) delete process.env[name];
 nextEnv.loadEnvConfig(process.cwd(), true, {
   info: () => {},
   error: console.error,
 });
 
-const refusals = devSessionRefusals(process.env);
+const refusals = localOnly.flatMap((name) => {
+  const local = process.env[name];
+  if (!local) return [`${name} is missing from the local env file.`];
+  if (exported[name] !== undefined && exported[name] !== local) {
+    return [`Exported ${name} differs from the local env file.`];
+  }
+  return [];
+});
+refusals.push(...devSessionRefusals(process.env));
 if (refusals.length > 0) {
   console.error("dev:session refused. It only runs against a local database with local secrets:");
   for (const reason of refusals) console.error(`  - ${reason}`);
@@ -79,8 +88,16 @@ const browserCookie = {
   sameSite: "Lax" as const,
 };
 const out = resolve(values.out);
-mkdirSync(dirname(out), { recursive: true });
-writeFileSync(out, `${JSON.stringify({ cookies: [browserCookie], origins: [] }, null, 2)}\n`);
+mkdirSync(dirname(out), { recursive: true, mode: 0o700 });
+chmodSync(dirname(out), 0o700);
+const fd = openSync(out, constants.O_WRONLY | constants.O_CREAT | constants.O_NOFOLLOW, 0o600);
+try {
+  fchmodSync(fd, 0o600);
+  ftruncateSync(fd, 0);
+  writeFileSync(fd, `${JSON.stringify({ cookies: [browserCookie], origins: [] }, null, 2)}\n`);
+} finally {
+  closeSync(fd);
+}
 
 const origin = appUrl.origin;
 const maxAge = browserCookie.expires - Math.floor(Date.now() / 1000);

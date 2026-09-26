@@ -1,4 +1,6 @@
 import { execFileSync } from "node:child_process";
+import { chmodSync, mkdirSync, statSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { expect, test } from "@playwright/test";
@@ -9,19 +11,20 @@ import { E2E_URL } from "./database";
 // `npm run dev:session` (06, 2026-09-25), run as an agent runs it, against this run's database: the
 // storageState it writes must be a session the app accepts.
 
-function devSession(out: string) {
+function devSession(out: string, dir: string) {
   execFileSync(
     "node",
     [
       "--disable-warning=MODULE_TYPELESS_PACKAGE_JSON",
       "--import",
-      "./scripts/resolve-ts.mts",
-      "scripts/dev-session.mts",
+      join(process.cwd(), "scripts/resolve-ts.mts"),
+      join(process.cwd(), "scripts/dev-session.mts"),
       "--out",
       out,
     ],
     // The database the server under test is booted against.
     {
+      cwd: dir,
       env: {
         ...process.env,
         DATABASE_URL: E2E_URL,
@@ -37,8 +40,20 @@ test("dev:session's storageState opens a signed-in page, reusing the one user", 
 }, testInfo) => {
   const first = testInfo.outputPath("first.json");
   const second = testInfo.outputPath("second.json");
-  devSession(first);
-  devSession(second);
+  const envDir = testInfo.outputPath("env");
+  mkdirSync(envDir, { recursive: true });
+  writeFileSync(join(envDir, ".env"), [
+    `DATABASE_URL=${E2E_URL}`,
+    `DATABASE_URL_UNPOOLED=${E2E_URL}`,
+    `BETTER_AUTH_SECRET=${process.env.BETTER_AUTH_SECRET}`,
+    `BETTER_AUTH_URL=${process.env.BETTER_AUTH_URL}`,
+  ].join("\n"), { mode: 0o600 });
+  devSession(first, envDir);
+  chmodSync(first, 0o666);
+  devSession(first, envDir);
+  devSession(second, envDir);
+  expect(statSync(first).mode & 0o777).toBe(0o600);
+  expect(statSync(testInfo.outputDir).mode & 0o777).toBe(0o700);
 
   for (const storageState of [first, second]) {
     const context = await browser.newContext({ storageState });

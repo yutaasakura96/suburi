@@ -14,15 +14,14 @@ with — and hands it to the browser: it prints the cookie's name, value, domain
 open, writes a Playwright storageState to `.playwright/dev-session.json` (gitignored), and prints a
 ready-to-paste step for Playwright MCP (`browser_run_code_unsafe` adding the cookie) and for
 `chrome-devtools-axi` (setting it with `document.cookie`, which the server reads the same way). It
-loads env files the way `next dev` does, so it signs with the secret the dev server verifies with.
+loads env files the way `next dev` does, and takes the secret and both database URLs from those
+local files. If an exported value differs, it refuses before opening the database.
 
 **The guard runs first, before any database is opened,** and refuses with one line per reason unless:
 both database URLs point at `localhost` or `127.0.0.1`, the hosts `lib/config.ts` lets through without TLS;
 `NODE_ENV` is not `production`; neither `VERCEL` nor a non-development `VERCEL_ENV` is set; and
-`BETTER_AUTH_URL` is a local host. That last one is the project's existing signal for which secret is
-loaded: the secret travels with the URL it was made for (`.env.develop.local` pairs develop's with
-`https://suburi-develop.vercel.app`). A session is a row, so even a cookie signed with a deployed
-secret would open nothing that is not in the local database.
+`BETTER_AUTH_URL` is a local host. A session is a row, so the database guard determines where it
+would work. The storageState directory and file have owner-only permissions, including on replacement.
 
 **Why:** the Google gate stops an agent checking a signed-in screen in a real browser, and each one
 improvised around it. This keeps the line already drawn: there is no sign-in route, flag or code path
