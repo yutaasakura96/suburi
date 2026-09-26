@@ -76,9 +76,7 @@ drizzle-kit generate                    write the migration; read the SQL before
 drizzle-kit migrate                     apply, using DATABASE_URL_UNPOOLED
 ```
 
-**Signed-in screens, locally:** with `next dev` up, `npm run dev:session` prints a session cookie, the
-Playwright MCP and `chrome-devtools-axi` steps to set it, and writes `.playwright/dev-session.json`
-(storageState). Local database and local `.env` only; it refuses anything else (`06`, 2026-09-25).
+**Signed-in screens, locally:** with `next dev` up and `.env.local` configured for local Postgres, run `npm run dev:session` for browser cookie steps or `.playwright/dev-session.json` (storageState); see `06`, 2026-09-25.
 
 Local Postgres is Docker Compose on `pgvector/pgvector:pg18`. Local uses the **same pinned model
 strings as production** — testing against a cheaper model makes local behaviour unrepresentative of
