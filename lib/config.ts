@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-// The only module that reads process.env (docs/12-deployment.md §2). Every variable is
+// The only application module that reads process.env (docs/12-deployment.md §2). Every variable is
 // required and none has a default, except OPENAI_BASE_URL, which only Playwright sets. Errors name
 // the variable, never its value.
 
