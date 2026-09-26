@@ -29,8 +29,15 @@ export default defineConfig([
   },
   {
     // lib/config.ts is the reader. playwright.config.ts builds the environment the server under
-    // test boots with, so it has to write it.
-    files: ["lib/config.ts", "playwright.config.ts"],
+    // test boots with, so it has to write it. The dev:session guard reads the environment before
+    // getConfig() may, and its tests build the environment the script runs with.
+    files: [
+      "lib/config.ts",
+      "playwright.config.ts",
+      "scripts/dev-session.mts",
+      "scripts/dev-session-guard.test.ts",
+      "e2e/dev-session.spec.ts",
+    ],
     rules: { "no-restricted-properties": "off" },
   },
   globalIgnores([

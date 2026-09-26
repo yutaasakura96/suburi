@@ -64,8 +64,7 @@ Full detail: `docs/12-deployment.md` §1 and §4.
 
 ## Commands
 
-No `package.json` exists yet. These are the commands the docs commit to; add them as scripts when the
-app is scaffolded.
+The commands the docs commit to; `package.json` wraps each as an `npm run` script.
 
 ```
 tsc --noEmit                            typecheck
@@ -76,6 +75,8 @@ playwright test                         Chromium, against a production build
 drizzle-kit generate                    write the migration; read the SQL before applying
 drizzle-kit migrate                     apply, using DATABASE_URL_UNPOOLED
 ```
+
+**Signed-in screens, locally:** with `next dev` up and `.env.local` configured for local Postgres, run `npm run dev:session` for browser cookie steps or `.playwright/dev-session.json` (storageState); see `06`, 2026-09-25.
 
 Local Postgres is Docker Compose on `pgvector/pgvector:pg18`. Local uses the **same pinned model
 strings as production** — testing against a cheaper model makes local behaviour unrepresentative of
@@ -141,3 +142,10 @@ The five canonical roles, each label string equal to its name. See `docs/agents/
 
 Single-context: `CONTEXT.md` at the root, decisions in `docs/06-decision-log.md`.
 See `docs/agents/domain.md`.
+
+## Maintaining this file
+
+Keep this file for knowledge useful to almost every future agent session in this project.
+Do not repeat what the codebase already shows; point to the authoritative file or command instead.
+Prefer rewriting or pruning existing entries over appending new ones.
+When updating this file, preserve this bar for all agents and keep entries concise.

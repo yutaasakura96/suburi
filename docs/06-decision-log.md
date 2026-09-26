@@ -3,6 +3,53 @@
 Newest first. Every entry records what was chosen, why, and what was rejected.
 
 ---
+## Phase 6 — signed-in screens for an agent, locally
+
+### [2026-09-25] `npm run dev:session` signs a local browser in; the app gains nothing
+
+**Decided:** `scripts/dev-session.mts`, run as `npm run dev:session`, creates or reuses the
+`ALLOWED_EMAIL` user row in the **local** database (`seedUser`, as `db:seed` does), mints a session
+through `lib/auth/test/session.ts`'s `mintSessionCookie` — the same code `e2e/cv.spec.ts` signs in
+with — and hands it to the browser: it prints the cookie's name, value, domain and path and the URL to
+open, writes a Playwright storageState to `.playwright/dev-session.json` (gitignored), and prints a
+ready-to-paste step for Playwright MCP (`browser_run_code_unsafe` adding the cookie) and for
+`chrome-devtools-axi` (setting it with `document.cookie`, which the server reads the same way). It
+loads env files the way `next dev` does, and takes the secret and both database URLs from those
+local files. If an exported value differs, it refuses before opening the database.
+
+**The guard runs first, before any database is opened,** and refuses with one line per reason unless:
+both database URLs point at `localhost` or `127.0.0.1`, the hosts `lib/config.ts` lets through without TLS;
+`NODE_ENV` is not `production`; neither `VERCEL` nor a non-development `VERCEL_ENV` is set; and
+`BETTER_AUTH_URL` points at `localhost` or `127.0.0.1`. A session is a row, so the database guard
+determines where it would work. The storageState directory and file have owner-only permissions,
+including on replacement.
+
+**Amended 2026-09-26:** the guard refuses query parameters on either database URL, since connection
+parsers can use them to override its hostname. The state path is fixed at `.playwright/dev-session.json`.
+
+**Why:** the Google gate stops an agent checking a signed-in screen in a real browser, and each one
+improvised around it. This keeps the line already drawn: there is no sign-in route, flag or code path
+in the app — no admin route of any kind (`07` §6), the two locks of `08` §2 are the whole gate and the
+session hook still refuses any user but `ALLOWED_EMAIL`, and a switch the deployed app could carry was
+already refused once for being "a flag that could put a fake into production" (2026-09-21, the mock
+OpenAI entry). Nothing under `app/` or `lib/` imports the script, and no deployed variable is added.
+The app's modules import each other without extensions, which Node's type stripping cannot resolve,
+so the script loads them through `scripts/resolve-ts.mts`, a resolve hook that retries a relative
+specifier with `.ts` — the app's files are unchanged.
+
+**Tested:** `scripts/dev-session-guard.test.ts` covers both database URLs, connection parameters,
+the app host, Vercel and production environments, and exported values that differ from the local env
+file. Its script-level tests verify refusal before any state file is written;
+`e2e/dev-session.spec.ts` runs it twice against the e2e database and opens `/cv` signed in with each
+storageState, with one user row after both and owner-only permissions restored on replacement.
+**Verified by hand, 2026-09-25,** on `next dev` against a scratch local database: both the
+Playwright MCP and the `chrome-devtools-axi` steps land on `/cv` signed in.
+
+**Rejected:** a test-only sign-in route or an env-gated bypass in the app, because the app is publicly
+reachable and a route that exists can be reached; turning the gate off locally; and signing in to
+`develop` with the real Google account, which an agent cannot do.
+
+---
 ## Phase 6 — #28, the claim key under `NFKC`
 
 ### [2026-09-24] `text_normalised` is `NFKC`, then whitespace-collapsed, and case is kept
