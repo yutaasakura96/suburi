@@ -20,8 +20,9 @@ local files. If an exported value differs, it refuses before opening the databas
 **The guard runs first, before any database is opened,** and refuses with one line per reason unless:
 both database URLs point at `localhost` or `127.0.0.1`, the hosts `lib/config.ts` lets through without TLS;
 `NODE_ENV` is not `production`; neither `VERCEL` nor a non-development `VERCEL_ENV` is set; and
-`BETTER_AUTH_URL` is a local host. A session is a row, so the database guard determines where it
-would work. The storageState directory and file have owner-only permissions, including on replacement.
+`BETTER_AUTH_URL` points at `localhost` or `127.0.0.1`. A session is a row, so the database guard
+determines where it would work. The storageState directory and file have owner-only permissions,
+including on replacement.
 
 **Amended 2026-09-26:** the guard refuses query parameters on either database URL, since connection
 parsers can use them to override its hostname. The state path is fixed at `.playwright/dev-session.json`.
@@ -36,12 +37,13 @@ The app's modules import each other without extensions, which Node's type stripp
 so the script loads them through `scripts/resolve-ts.mts`, a resolve hook that retries a relative
 specifier with `.ts` — the app's files are unchanged.
 
-**Tested:** `scripts/dev-session-guard.test.ts` holds each refusal and runs the script to prove a
-non-local database and `NODE_ENV=production` are refused with nothing written;
+**Tested:** `scripts/dev-session-guard.test.ts` covers both database URLs, connection parameters,
+the app host, Vercel and production environments, and exported values that differ from the local env
+file. Its script-level tests verify refusal before any state file is written;
 `e2e/dev-session.spec.ts` runs it twice against the e2e database and opens `/cv` signed in with each
-storageState, with one user row after both. **Verified by hand, 2026-09-25,** on `next dev` against
-a scratch local database: both the Playwright MCP and the `chrome-devtools-axi` steps land on `/cv`
-signed in.
+storageState, with one user row after both and owner-only permissions restored on replacement.
+**Verified by hand, 2026-09-25,** on `next dev` against a scratch local database: both the
+Playwright MCP and the `chrome-devtools-axi` steps land on `/cv` signed in.
 
 **Rejected:** a test-only sign-in route or an env-gated bypass in the app, because the app is publicly
 reachable and a route that exists can be reached; turning the gate off locally; and signing in to
