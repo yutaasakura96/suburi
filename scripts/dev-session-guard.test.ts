@@ -38,6 +38,16 @@ describe("devSessionRefusals", () => {
     expect(reasons.join()).not.toContain("secret");
   });
 
+  it.each(["DATABASE_URL", "DATABASE_URL_UNPOOLED"] as const)(
+    "refuses connection parameters in %s",
+    (name) => {
+      for (const query of ["host=remote.example&port=5432", "hostaddr=203.0.113.1", "port=5432", "service=remote"]) {
+        expect(devSessionRefusals({ ...local, [name]: `${local[name]}?${query}` }))
+          .toEqual([`${name} has connection parameters that can override the local address.`]);
+      }
+    },
+  );
+
   it("refuses a missing or malformed database URL", () => {
     expect(devSessionRefusals({ ...local, DATABASE_URL: undefined })).toEqual([
       "DATABASE_URL is not set.",
@@ -85,7 +95,7 @@ describe("npm run dev:session", () => {
   }) {
     mkdirSync(".playwright", { recursive: true });
     const dir = mkdtempSync(join(process.cwd(), ".playwright/dev-session-test-"));
-    const out = join(dir, "state.json");
+    const out = join(dir, ".playwright/dev-session.json");
     const secret = "local-dev-session-secret-32-characters";
     writeFileSync(join(dir, ".env"), [
       `DATABASE_URL=${local.DATABASE_URL}`,
@@ -100,8 +110,6 @@ describe("npm run dev:session", () => {
         "--import",
         join(process.cwd(), "scripts/resolve-ts.mts"),
         join(process.cwd(), "scripts/dev-session.mts"),
-        "--out",
-        out,
       ],
       {
         cwd: dir,

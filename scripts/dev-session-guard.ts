@@ -32,6 +32,8 @@ export function devSessionRefusals(env: Env): string[] {
     if (host === undefined) reasons.push(`${name} is not a URL.`);
     else if (!localDatabaseHosts.has(host)) {
       reasons.push(`${name} points at ${host}, not localhost or 127.0.0.1.`);
+    } else if (new URL(value).search) {
+      reasons.push(`${name} has connection parameters that can override the local address.`);
     }
   }
 

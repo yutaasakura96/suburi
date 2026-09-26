@@ -23,6 +23,9 @@ both database URLs point at `localhost` or `127.0.0.1`, the hosts `lib/config.ts
 `BETTER_AUTH_URL` is a local host. A session is a row, so the database guard determines where it
 would work. The storageState directory and file have owner-only permissions, including on replacement.
 
+**Amended 2026-09-26:** the guard refuses query parameters on either database URL, since connection
+parsers can use them to override its hostname. The state path is fixed at `.playwright/dev-session.json`.
+
 **Why:** the Google gate stops an agent checking a signed-in screen in a real browser, and each one
 improvised around it. This keeps the line already drawn: there is no sign-in route, flag or code path
 in the app — no admin route of any kind (`07` §6), the two locks of `08` §2 are the whole gate and the

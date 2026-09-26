@@ -1,6 +1,5 @@
 import { chmodSync, closeSync, constants, fchmodSync, ftruncateSync, mkdirSync, openSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { parseArgs } from "node:util";
+import { resolve } from "node:path";
 import nextEnv from "@next/env";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
@@ -15,10 +14,6 @@ import { devSessionRefusals } from "./dev-session-guard.ts";
 // agent can check a signed-in screen by hand (06, 2026-09-25). Nothing in the app imports this: the
 // session is minted by the same lib/auth/test/session.ts the end-to-end tests use, for the seeded
 // ALLOWED_EMAIL user, and the session hook still refuses anyone else.
-
-const { values } = parseArgs({
-  options: { out: { type: "string", default: ".playwright/dev-session.json" } },
-});
 
 const localOnly = ["BETTER_AUTH_SECRET", "DATABASE_URL", "DATABASE_URL_UNPOOLED"] as const;
 const exported = Object.fromEntries(localOnly.map((name) => [name, process.env[name]]));
@@ -87,9 +82,10 @@ const browserCookie = {
   secure: true,
   sameSite: "Lax" as const,
 };
-const out = resolve(values.out);
-mkdirSync(dirname(out), { recursive: true, mode: 0o700 });
-chmodSync(dirname(out), 0o700);
+const stateDir = resolve(".playwright");
+const out = resolve(stateDir, "dev-session.json");
+mkdirSync(stateDir, { recursive: true, mode: 0o700 });
+chmodSync(stateDir, 0o700);
 const fd = openSync(out, constants.O_WRONLY | constants.O_CREAT | constants.O_NOFOLLOW, 0o600);
 try {
   fchmodSync(fd, 0o600);
