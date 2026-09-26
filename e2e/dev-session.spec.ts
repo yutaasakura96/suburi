@@ -25,6 +25,9 @@ function devSession(dir: string) {
       cwd: dir,
       env: {
         ...process.env,
+        NODE_ENV: "development",
+        // Next marks the Playwright worker's env as processed; the helper must load its own file.
+        __NEXT_PROCESSED_ENV: "",
         DATABASE_URL: E2E_URL,
         DATABASE_URL_UNPOOLED: E2E_URL,
       },
@@ -56,16 +59,27 @@ test("dev:session's storageState opens a signed-in page, reusing the one user", 
   expect(statSync(state).mode & 0o777).toBe(0o600);
   expect(statSync(stateDir).mode & 0o777).toBe(0o700);
 
-  for (const storageState of [first, second]) {
+  for (const [index, storageState] of [first, second].entries()) {
     const context = await browser.newContext({ storageState });
     try {
       const page = await context.newPage();
       await page.goto("/cv");
       await expect(page).toHaveURL("/cv");
       await expect(page.getByRole("region", { name: "CV" })).toBeVisible();
+      if (index === 0) await page.screenshot({ path: testInfo.outputPath("signed-in-cv.png") });
     } finally {
       await context.close();
     }
+  }
+
+  const anonymous = await browser.newContext();
+  try {
+    const page = await anonymous.newPage();
+    await page.goto("/cv");
+    await expect(page).toHaveURL(/\/sign-in/);
+    await page.screenshot({ path: testInfo.outputPath("anonymous-sign-in.png") });
+  } finally {
+    await anonymous.close();
   }
 
   const db = drizzle(E2E_URL);
