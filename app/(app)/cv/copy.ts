@@ -25,11 +25,11 @@ type Kinds = Partial<Record<Kind, string>>;
  * (#20).** 10 §13's own strings are applied with #13's rules (05 §6): `バージョン`, never `版`, and
  * `記載事項` for Claim, never `主張`. The ones 10 §13 does not give — `外す`, `資料名`, `本文`, the
  * saving caption and the dropped count in the result line — are listed in #15's PR for that read;
- * #17's two import failures, which 10 §13 does not give either, wait for the same read (#20), and
- * so does #18's `savableAt`.
+ * #17's two import failures, which 10 §13 does not give either, wait for the same read
+ * (`docs/checklists/native-read-cv.md`), and so does #18's `savableAt`.
  *
  * Six strings here carry a reviewed draft applied 2026-09-24, not a native read — the boxes in
- * `docs/checklists/native-read-cv.md` §1 are still unticked and #20 still owes the read.
+ * `docs/checklists/native-read-cv.md` §1 are still unticked and the read is still owed.
  */
 export const COPY = {
   ja: {
