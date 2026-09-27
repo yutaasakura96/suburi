@@ -256,7 +256,7 @@ either irreducibly human or need a real human ear.
 - [ ] Realistic mode's TTS pronounces the question correctly, including company names and 役職.
 - [ ] The felt-pressure screen still feels unhurried. It is instrumentation and it is where the last score lands; if it starts feeling like a loading screen, both purposes are damaged.
 - [ ] Feedback renders **while you are still sitting there.** PRD §9 calls a spinner that outlives the sitting a defect — this is the acceptance test for that sentence, and no automated test can make it.
-- [ ] Every new Japanese string has had a **native read** (`05-design-system.md` §6). Not a review of the translation — a read for whether a person would write it. Where the user delegates it because they do not read Japanese, an AI review stands in and is recorded as an AI review, never as a native read (`06`, 2026-09-27).
+- [ ] Every new Japanese string has had a **native read** (`05-design-system.md` §6). Not a review of the translation — a read for whether a person would write it.
 
 **Per CV upload:**
 

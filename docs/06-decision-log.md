@@ -9,8 +9,10 @@ Newest first. Every entry records what was chosen, why, and what was rejected.
 
 **Decided:** `docs/checklists/native-read-cv.md` is discharged by an **AI review**, not a native read.
 The user does not read Japanese and asked Claude to do the check itself ("i cant read japanese you
-do the check"). Claude read every row for whether a person would write it, against its English intent
-and the rules in force. All 22 panel strings and `cv_too_large` are accepted as written — the six
+do the check"). This exception applies only to the CV batch in #38; future Japanese strings still
+require the native read in `05` §6 and `11` §5 unless the user decides otherwise. Claude read every
+row for whether a person would write it, against its English intent and the rules in force. All 22
+panel strings and `cv_too_large` are accepted as written — the six
 2026-09-24 draft amendments included, so none is overturned and their two rules and tests stay.
 `cv_too_large` stays a flat string with no figure. §3's label and legend are accepted as `応募書類`
 swaps; the round-level line becomes `数値の裏づけがない箇所が2つ。応募書類の「請求処理を40%短縮」を使う。`,

@@ -380,8 +380,7 @@ is recorded as an AI review everywhere it is cited, and nothing in this section 
 read (`06`, 2026-09-27).
 
 **Every new Japanese string needs a native read before it ships.** Five of the six rules above came
-from one review pass, not from care at authoring time. Where the user delegates the read because they
-do not read Japanese, an AI review stands in for it and is recorded as one, never as a native read.
+from one review pass, not from care at authoring time.
 
 ---
 
