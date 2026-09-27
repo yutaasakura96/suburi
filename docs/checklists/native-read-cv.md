@@ -95,8 +95,7 @@ have.
 
 **Two rules generalise, and are now in `05` §6 — kept by the 2026-09-27 AI review, not a native read:** no space
 between a Latin numeral and a following Japanese particle, and `本文` not `文` when the referent is a
-document's body. Both are asserted over every `ja` string in `app/(app)/cv/copy.test.ts`. The native
-read may still overturn either, in which case the rule and its test come back out together.
+document's body. Both are asserted over every `ja` string in `app/(app)/cv/copy.test.ts`.
 
 **Not applied at the time:** §3's three prose strings. The 2026-09-27 review settled them (§3).
 

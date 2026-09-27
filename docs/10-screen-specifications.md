@@ -412,7 +412,8 @@ Restated from PRD §9 because a specification that omits them invites a build th
   frame.
 - **Sign-in page.** `/sign-in` (`08` §5) has no artboard. The foundation slice builds it bare in `05`
   tokens — wordmark, one Google button, the refusal line — with both languages on the page, so it does
-  not decide the open bilingual chrome rule. Its Japanese strings need a native read.
+  not decide the open bilingual chrome rule. Its Japanese strings passed a native read on 2026-09-19
+  (`00-status`).
 - ~~**CV screen.**~~ **Closed — specified in §13.** The nav's fourth item now has a specification
   built from `05` components rather than an artboard: two panels, one per language, each with an
   empty state, a current version showing its documents with claim spans underlined, a prefilled
