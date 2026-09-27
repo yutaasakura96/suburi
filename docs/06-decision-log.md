@@ -3,6 +3,71 @@
 Newest first. Every entry records what was chosen, why, and what was rejected.
 
 ---
+## Phase 6 — the round loop's open answers
+
+Answered by the user on 2026-09-28, on the planning page, for the six items the 2026-09-27 plan left
+open. Written into `03`, `04`, `07`, `10`, `11` and `CONTEXT.md` before any round code; the slice
+issues #41–#51 were amended to match and move to `ready-for-agent` once this lands.
+
+### [2026-09-28] A database failure mid-write is `write_failed`, on every round route
+
+**Decided:** a new catalogued code, `write_failed`, status `500`, in the `07` §2 envelope with `ja`
+and `en` copy, returned by every round route when a database write fails. The write is one
+transaction, so nothing is half-written, and **the round stays resumable** from where it was.
+`detail` carries only ids and `pg_<SQLSTATE>`.
+**Alternatives considered:** Next's bare `500`, as #14 left the CV route; a code per route.
+**Reason:** a bare `500` has no Japanese sentence, which `03` §8's generic-error rule forbids, and a
+round is the one place a user is mid-performance when it happens. One code, decided once, is what
+confirm 6 (2026-09-27) asked for. Closes `CONTEXT.md`'s item and `07` §7's.
+
+### [2026-09-28] When text-to-speech fails, the round goes on as text
+
+**Decided:** in realistic mode, a failed synthesis does not stop the round. The question, already on
+screen as text, is answered as usual; screen 3 shows a short notice; the speech route returns a new
+catalogued code, `speech_failed` (`502`), and the failure is logged with the round id, position and
+error class.
+**Alternatives considered:** stopping the round until the voice returns; silently showing the text.
+**Reason:** the spoken question adds pressure, but losing the round to it would cost more than the
+pressure is worth, and silence would make the user wonder whether it was meant. A code of its own
+keeps the copy in the catalogue, with both languages. Closes `07` §5.15's open line.
+
+### [2026-09-28] Round feedback is written without a score that ended `failed`
+
+**Decided:** `complete` does not wait for, or hold back on, an answer whose scoring spent its three
+retries. The round feedback is generated without that answer, which is marked **unscored** on the
+feedback screen; History offers a retry **for that answer alone**, and it never regenerates the round
+feedback.
+**Alternatives considered:** holding the feedback until the answer is retried to `ok`; regenerating
+the feedback when it is.
+**Reason:** invariant 2 — the feedback must render while the user is at the machine, and a held
+round breaks it. Feedback is permanent, so regenerating it would rewrite what the user already read.
+Closes `07` §5.12's open paragraph.
+
+### [2026-09-28] "Today" is the user's local day, Asia/Tokyo
+
+**Decided:** the day a round's resumability and abandonment are judged by is the calendar day in
+Asia/Tokyo, computed from `rounds.started_at`.
+**Alternatives considered:** UTC; the browser's time zone.
+**Reason:** the user lives in Japan, and a UTC day would end at 09:00 JST — mid-morning, mid-practice.
+The browser's zone would let a clock setting move a round's status. Fills what the 2026-09-27 entry
+left as "today".
+
+### [2026-09-28] Confirmed: an open round from an earlier day with no newer round is abandoned
+
+**Decided:** as written on 2026-09-27 — the derivation in `04` `rounds` stands unchanged, now with the
+Asia/Tokyo day above.
+**Alternatives considered:** leaving such a round resumable indefinitely.
+**Reason:** a round's pressure is a sitting's; resuming yesterday's answers is practice, not a round.
+
+### [2026-09-28] Confirmed: the CV screen keeps its per-panel language
+
+**Decided:** the CV screen stays outside `10` §0's rule that app-level screens are English; each panel
+follows the language of the CV it shows (`10` §13).
+**Alternatives considered:** English chrome on the CV screen like the other app-level screens.
+**Reason:** the CV's text is the content, in its own language, and #38's read of the panel strings
+already fits it.
+
+---
 ## Phase 6 — the round loop, decided before it was built
 
 Settled 2026-09-27 in the round-loop grilling: fifteen questions and eight forced confirms, raised by

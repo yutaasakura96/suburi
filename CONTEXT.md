@@ -38,7 +38,7 @@ docs and the build.
 | **The correction step** | Editing the raw transcript inline before submitting. Raw and corrected both persist. **This is the feature no surveyed competitor has — never optimise it away.** |
 | **Rewrite magnitude** | How much the correction step changed the raw transcript. The diff is data, not a side effect. |
 | **Role context** | What the round is pitched at: an uploaded posting, researched notes, or explicit **General practice**. An immutable row, reusable across rounds; General practice is one row per user. Round one needs posting and General practice; research lands with US-16. |
-| **Abandoned round** | An open round (`completed_at is null`) that a newer round has been started after, or that was not started today. **Derived, never stored.** Only the newest open round resumes, and only the same day. |
+| **Abandoned round** | An open round (`completed_at is null`) that a newer round has been started after, or that was not started today — **today being the user's local day, Asia/Tokyo**. **Derived, never stored.** Only the newest open round resumes, and only the same day. |
 | **CV** | The set of documents a round is scored against, **one per language**, each with its own version history. Japanese: a required **履歴書**, an optional **職務経歴書**, and additional documents. English: a required **CV** document and additional documents. In Japanese copy the set is **応募書類**; in English, **CV**. |
 | **Document** | One member of a CV: a 履歴書, a 職務経歴書, a CV document, or an **additional document** (titled by the user, up to five, in either language). Pasted, or imported from `.docx`/`.pdf` into editable text that the user checks before saving. |
 | **CV version** | An immutable snapshot of one language's whole CV. Changing any document makes a new version of the set. Labelled `応募書類 v{n}` / `CV v{n}`, numbered per language, never typed by the user. |
@@ -204,9 +204,8 @@ Carry these; do not silently decide them in a ticket.
   review, not a native read.** The user does not read Japanese and delegated
   `docs/checklists/native-read-cv.md` to Claude: every CV-screen string and `cv_too_large` accepted,
   §3's three prose strings now say `応募書類`, one rewritten for register (`05` §6, `06`).
-- **What a database failure mid-write returns.** A bare `500` today (#14). Decided to be settled
-  **once, for every round route** (`06`, 2026-09-27, confirm 6) — a new code with copy in both
-  languages, or Next's `500` — but not yet which.
+- ~~**What a database failure mid-write returns.**~~ **Decided 2026-09-28:** `write_failed`, a
+  catalogued `500` in the `07` §2 envelope, on every round route; the round stays resumable (`07` §3).
 - **The text-to-speech model.** A constant in `lib/ai/models.ts`, **pinned only after it is verified**
   at implementation (`03` §4, `06`, 2026-09-27).
 - **Who sends the alert mail.** `08` §2 rejected magic links specifically to avoid a transactional email

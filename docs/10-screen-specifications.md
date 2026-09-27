@@ -172,7 +172,8 @@ absent only from the transcript state, which substitutes:
 - A 15px speaker glyph (1.2 stroke, `currentColor`) in `--ink-label` with
   `読み上げました。文字は残します。` at 12px. **Realistic mode speaks the question; the text stays
   on screen.** Practice mode is text-only, so this line and glyph are omitted. The audio streams from
-  the speech route (`07` §5.15); what this line says when synthesis fails is still open (`07` §7).
+  the speech route (`07` §5.15). **When synthesis fails**, this line is replaced by a short notice —
+  the catalogue's `speech_failed` copy — and the round goes on with the text (`06`, 2026-09-28).
 - **The question is the one fixed when the round started** (`round_questions`) — a reload shows the
   same one.
 - The question at **19px/1.9** in `--ink-2`, `max-width: 880px`. This is the largest reading text in
@@ -344,6 +345,13 @@ read a Japanese round's feedback in English.
   language's progress (PRD §7). Copy written with the grounding slice.
 - Footer stamp: `評価基準 v1.2・出題 v1.0・応募書類 v3` / `緊張度 4 を講評前に記録`.
 
+### An answer whose score failed
+
+A score that ended `failed` does not hold the round feedback back (`07` §5.12, `06`, 2026-09-28). The
+answer's rows read as unscored — the same `未採点` state History shows — and the round-level findings
+are written without it. History offers a retry for that answer alone; the round-level findings are
+not regenerated when it lands.
+
 ### When the round-level findings are not in
 
 If `complete` could not generate them — the last score did not land within its bound, or the call
@@ -414,11 +422,12 @@ Title 13px/500 `--ink-1` when selected, 400 `--ink-3` when not; date right-align
 
 Two entries carry an `--attention-ink` status line at 11px — **these states must be designed in, not
 discovered in production:**
-- `未採点 — 採点をやり直す`
+- `未採点 — 採点をやり直す` — re-scores the unscored answer alone; the round feedback is not
+  regenerated (`07` §5.12, `06` 2026-09-28)
 - `中断 — 進捗から除外`
 
 **`中断` is derived** (`04` `rounds`, `06` 2026-09-27): an open round is abandoned once a newer round
-has started, or once the day it started has passed. The newest open round started today is in
+has started, or once the day it started has passed — the user's local day, Asia/Tokyo. The newest open round started today is in
 progress, and History offers to resume it rather than marking it.
 
 ### Detail — the matrix (§5.5)

@@ -470,8 +470,8 @@ its prompt are database facts, not client facts. Reloading mid-round resumes at 
 so before recording.
 
 **Only the newest open round resumes, and only on the day it started** (`06`, 2026-09-27). Starting a
-new round abandons any open one, and an open round from an earlier day is abandoned too; both are
-derived from timestamps (`04` `rounds`), with no abandon endpoint.
+new round abandons any open one, and an open round from an earlier day is abandoned too — the day
+being the user's local day in Asia/Tokyo (`06`, 2026-09-28); both are derived from timestamps (`04` `rounds`), with no abandon endpoint.
 
 **Recording caps.** Realistic mode is capped at 4 minutes per answer and this is specified UI —
 screen 4 states `最長 4分` and `4分で自動的に止まります。そこまでの録音は残ります。` Practice mode has
@@ -494,6 +494,8 @@ column is `not null`.
 | Upload failed | "Held on this device. Do not close this tab." + retry | key, size, attempt count |
 | Transcription failed | The take is kept; offers retry or typing the answer | answer id, duration |
 | Scoring failed | Answer saved, score pending, stated on the feedback screen | answer id, model, error class |
+| A database write failed on a round route | The call's own screen says it could not be saved; nothing was half-written, and the round resumes where it was (`write_failed`, `07` §3) | route, ids, `pg_<SQLSTATE>` |
+| Text-to-speech failed | The question stays as text, with a short notice; the round goes on (`speech_failed`, `07` §5.15) | round id, position, error class |
 | Round feedback failed, or the last score did not land in time | The round is complete; every landed score renders; the round-level note is pending, with a retry (`07` §5.12) | round id, model, error class, pending count |
 | Follow-up generation failed | The round continues; the hole is recorded (`follow_ups`, `missing`) | answer id, model, error class |
 | OpenAI project spend limit | Preflight refuses the round — `503 model_unavailable`. Upstream it is `429 project_spend_limit_exceeded`, mapped, never retried as a rate limit | event only |

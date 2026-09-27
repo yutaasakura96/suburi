@@ -267,13 +267,23 @@ With a stubbed generator and embedder.
 - A score still pending when the bound runs out → **no `round_feedback` row**, `502 feedback_generation_failed`, the round complete. Feedback from an incomplete set is never written.
 - No model call is made inside a transaction.
 - The retry (`07` §5.16) writes the row once; a second retry returns it and calls nothing.
+- **A score that ended `failed`** → the feedback is generated without that answer; retrying the answer's
+  score later writes a new attempt and **never touches `round_feedback`**.
 
 ### 3.15 The derived round status
 
 - A newer round started → the older open round is `abandoned`, and `resume` is null.
 - The newest open round, started today → `in_progress`, and resumable.
-- An open round started on an earlier day → `abandoned`.
+- An open round started on an earlier day → `abandoned`. **The day is Asia/Tokyo's**: a round started at
+  23:50 JST is abandoned at 00:10 JST the next day, whatever the server's time zone (`06`, 2026-09-28).
 - A realistic round's `GET /api/rounds/{id}` carries **no score, flag or scores field** until it is complete; a practice round's carries them once each answer is `ok` (US-8, `07` §5.5).
+
+### 3.16 `write_failed` on every round route
+
+- A database failure forced on each round route returns `500 write_failed` in the `07` §2 envelope,
+  never a bare `500`, with only ids and `pg_<SQLSTATE>` in `detail` — no sentinel text (§3.10).
+- Nothing the call would have written exists afterwards, and `GET /api/rounds/{id}` resumes at the
+  same call.
 
 ---
 

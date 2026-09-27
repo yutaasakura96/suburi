@@ -354,7 +354,9 @@ never averaged into anything, never surfaced on Progress.
 
 **Abandoned is derived, never stored** (`06`, 2026-09-27). An open round (`completed_at is null`) is
 **abandoned** when the same user has started a newer round, or when it was not started today; the
-newest open round started today is **in progress**, and only it can be resumed. There is no
+newest open round started today is **in progress**, and only it can be resumed. **"Today" is the
+user's local day in Asia/Tokyo** (`06`, 2026-09-28), computed from `started_at` — never the server's
+or the browser's clock setting, so a trip or a clock change does not move it (PRD §7). There is no
 `abandoned_at`, no status column and no abandon endpoint (`07` §6).
 
 ---

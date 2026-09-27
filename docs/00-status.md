@@ -324,16 +324,17 @@ Page 1 is the screen set, page 2 the three exploration directions. **Working fil
 every change re-seeds from those — edit them, never the built `design/suburi-directions.html`.
 
 ## Next
-**0. The round-loop plan is settled; its slice issues are drafted and awaiting confirmation.** Eleven
+**0. The round-loop plan is settled, its open answers are recorded, and its slice issues are ready.** Eleven
 issues, slices 0–10 — [#41](https://github.com/yutaasakura96/suburi/issues/41) (S3, CORS, IAM, the
 OpenAI checks) → #42 (tracer: an English realistic round) → #43 Japanese · #44 follow-ups · #45
 spoken question and cap · #46 CV grounding · #47 generated questions and role context → #48 failure
 paths (#44) · #49 practice (#44, #47) · #50 History (#44) → #51 Progress and Home (#43, #46, #47, #50),
-with native GitHub `blocked_by` edges. **None carries `ready-for-agent`**; each is `needs-triage` until
-the user confirms it. The first real round needs #41–#48 plus #21. Before any slice can be confirmed, the open items in `CONTEXT.md`
-that the plan left open need a decision: what a database failure mid-write returns (confirm 6), what
-realistic mode does when TTS fails, and feedback when a score ended `failed` (`07` §7). Slice 0 is
-human work and moves `12` §3 steps 3–5 out of #21; #21's own body still lists them.
+with native GitHub `blocked_by` edges. The first real round needs #41–#48 plus #21. **The items the
+plan left open were answered on 2026-09-28** (`06`): a database failure mid-write is `write_failed` on
+every round route; a failed synthesis goes on as text with `speech_failed`; feedback is written
+without a score that ended `failed`, which is retried alone; "today" is Asia/Tokyo's. Once this PR
+merges, #41–#51 move from `needs-triage` to `ready-for-agent`. Slice 0 (#41) is the user's own
+console work and takes `12` §3 steps 3–5 out of #21, whose body now points at it.
 
 **#21 is next. #20, #29 and #38 are done.**
 
