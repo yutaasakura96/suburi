@@ -281,7 +281,7 @@ one window's claims, all finished before the one transaction. Its real-CV re-mea
 - **#29 — windowed extraction.** Measured on synthetic sets (`06`, 2026-09-27): one long call lumped
   the late `PROJECTS` block into seven ~500-character claims no counter saw, and one call per document
   returned a 職務経歴書's repeated qualifications again. Now `lib/cv/windows.ts` cuts each document at
-  blank lines into windows of up to 4,000 code points, and `lib/cv/windowed-extraction.ts` sends every
+  blank lines into windows (`03` §4), and `lib/cv/windowed-extraction.ts` sends every
   window the whole set, in parallel, with one retry that fits the 300 s. Everything finishes before
   the transaction, and any window failing is `502 cv_extraction_failed`. New prompts
   `cv-extract-ja-1.2` and `cv-extract-en-1.3` add the window clause and give a repeated assertion to

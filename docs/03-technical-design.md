@@ -185,10 +185,8 @@ validator — nothing is written and the user simply saves again (`07` §5.2). T
 outside the transaction: holding one open across a model call only pins a connection (`06`,
 2026-09-21). How the calls divide the work is below, under **windowed since #29**. A version holding half
 its claims would make *"CV material never used"* a lie for the rest of that version's life, which is
-worse than a save the user has to repeat. The latency is deliberately left unwritten here: a CV is a
-much longer prompt than an answer, the call is made a handful of times ever rather than once per
-answer, and a budget guessed now would be a number later sessions defend instead of measure. The first
-real run records it (`11` §5).
+worse than a save the user has to repeat. The one-call baseline and windowed measurements below are
+observations, not a latency promise; the new prompts still need the real-CV re-measure (`11` §5).
 
 **Measured on the real documents, 2026-09-23 (#20), locally against Docker Postgres:**
 
@@ -266,8 +264,10 @@ leaves about a sixth of the document genuinely unread, which no counter can rule
 
 **Windowed since [#29](https://github.com/yutaasakura96/suburi/issues/29), 2026-09-27.** The
 readings above were each one call on the whole set. That call is now one call per **window**: a
-passage of one document, cut at blank lines to at most 4,000 code points (`lib/cv/windows.ts`). Every
-call is still sent the **whole set**, and returns the claims of its own window only
+passage of one document, cut at blank lines toward a 4,000-code-point target (`lib/cv/windows.ts`).
+Oversized paragraphs fall back to line breaks; a line is never split, and a final window under a
+quarter of the target joins its predecessor, so 4,000 is not a hard maximum. Every call is still sent
+the **whole set**, and returns the claims of its own window only
 (`cv-extract-ja-1.2`, `cv-extract-en-1.3`). The calls run in parallel and all finish before the
 transaction opens (`lib/cv/windowed-extraction.ts`). A window that fails with a transient error gets
 one retry if enough of the 300 s is left; any window failing for good fails the save.

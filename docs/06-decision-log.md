@@ -5,6 +5,13 @@ Newest first. Every entry records what was chosen, why, and what was rejected.
 ---
 ## Phase 6 — #29, windowed CV extraction
 
+### [2026-09-27] The 4,000-code-point window size is a target
+
+**Clarification:** the window planner preserves a whole line even when it exceeds 4,000 code points,
+and joins a final window shorter than a quarter of the target to its predecessor. Either can make a
+window longer than 4,000. The earlier entry's "at most" describes the packing step, not the final
+window size (`03` §4, `lib/cv/windows.ts`).
+
 ### [2026-09-27] CV extraction is N parallel windowed calls, and every call reads the whole set
 
 **Decided:** a save's extraction is no longer one model call. The set is cut into **windows**

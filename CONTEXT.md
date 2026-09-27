@@ -227,7 +227,7 @@ than solved twice.
 | Verbatim anchoring | `src/pipeline/quote.ts` — `indexOf`, first occurrence, exact match | `lib/cv/spans.ts` — every occurrence, nearest the model's `start_hint`, plus the grapheme and document-boundary rules |
 | Same-assertion matching | `src/pipeline/dedupe.ts` — `NFKC` + whitespace + lowercase, hashed, permanent | `normaliseClaimText` — `NFKC` + whitespace, case kept, per version (#28) |
 | "One claim per assertion" | `EXTRACTION_SYSTEM_PROMPT` | `lib/prompts/cv-extract-*` |
-| Section coverage | chunks at ~2,400 characters on paragraph boundaries, each read on its own | windows of up to 4,000 characters on paragraph boundaries, each call reading the whole set (#29) |
+| Section coverage | chunks at ~2,400 characters on paragraph boundaries, each read on its own | windows at paragraph boundaries, each call reading the whole set (`03` §4, #29) |
 
 **Three things that follow, and they do not all point the same way.**
 
