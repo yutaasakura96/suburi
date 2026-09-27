@@ -237,6 +237,7 @@ describe("POST /api/cv-versions", () => {
         claims_split: 2,
         claims_duplicated: 1,
         unclaimed_run_max: 37,
+        quotes_outside_window: 0,
       });
       expect((await rowCounts(db, userId)).claims).toBe(4);
     }));
@@ -318,6 +319,62 @@ describe("POST /api/cv-versions", () => {
         detail: { error_class: "no_claims_survived", spans_checked: 1, spans_rejected: 1 },
       });
       expect(await rowCounts(db, userId)).toEqual({ versions: 0, documents: 0, claims: 0 });
+    }));
+
+  // #29: one save is N windowed calls. A window that fails fails the save, even when every other
+  // window came back: nothing is written until all of them have.
+  it("is 502 cv_extraction_failed when one window of several fails, and writes nothing", () =>
+    inRolledBackTransaction(async (db) => {
+      const { post, userId, extractor } = await setUp(db, (documents, _language, window) => {
+        if (window.document === 2) throw new ExtractionFailed("upstream_400");
+        return [{ document: window.document, quote: documents[window.document].text, start_hint: 0 }];
+      });
+      const { status, json } = await post({ language: "ja", documents: [rirekisho, shokumu, additional("ポートフォリオ")] });
+
+      expect(status).toBe(502);
+      expect(json.error).toMatchObject({ code: "cv_extraction_failed", detail: { error_class: "upstream_400" } });
+      expect(extractor.calls).toBe(3);
+      expect(await rowCounts(db, userId)).toEqual({ versions: 0, documents: 0, claims: 0 });
+      const failed = logged
+        .map((text) => JSON.parse(text) as Record<string, unknown>)
+        .find((line) => line.event === "cv_extraction_failed");
+      expect(failed).toMatchObject({ error_class: "upstream_400", windows: 3, window_retries: 0 });
+    }));
+
+  it("retries a window that failed with a transient error once, and saves", () =>
+    inRolledBackTransaction(async (db) => {
+      let failures = 0;
+      const { post, extractor } = await setUp(db, (documents, _language, window) => {
+        if (window.document === 1 && failures++ === 0) throw new ExtractionFailed("upstream_503");
+        return [{ document: window.document, quote: documents[window.document].text, start_hint: 0 }];
+      });
+      const { status, json } = await post({ language: "ja", documents: [rirekisho, shokumu] });
+
+      expect(status).toBe(201);
+      expect(json.claims.total).toBe(2);
+      expect(extractor.calls).toBe(3);
+      const created = logged
+        .map((text) => JSON.parse(text) as Record<string, unknown>)
+        .find((line) => line.event === "cv_version_created");
+      expect(created).toMatchObject({ windows: 2, window_retries: 1 });
+    }));
+
+  it("drops and counts a claim a window returned from outside itself, and stores it from its own window", () =>
+    inRolledBackTransaction(async (db) => {
+      // Every window returns every document's claims: the ones outside it are never kept from it.
+      const { post, userId } = await setUp(db, (documents) =>
+        documents.map((document, index) => ({ document: index, quote: document.text, start_hint: 0 })),
+      );
+      const { status, json } = await post({ language: "ja", documents: [rirekisho, shokumu, additional("ポートフォリオ")] });
+
+      expect(status).toBe(201);
+      expect(json.claims.total).toBe(3);
+      expect(json.validation).toMatchObject({ spans_checked: 3, spans_rejected: 0, quotes_outside_window: 6 });
+      expect((await rowCounts(db, userId)).claims).toBe(3);
+      const created = logged
+        .map((text) => JSON.parse(text) as Record<string, unknown>)
+        .find((line) => line.event === "cv_version_created");
+      expect(created).toMatchObject({ quotes_outside_window: 6, spans_rejected: 0 });
     }));
 
   it("is all-or-nothing when a write fails after the version row is inserted", () =>
@@ -605,12 +662,15 @@ describe("POST /api/cv-versions composition", () => {
 
   it("drops and counts a claim whose quote runs from one document into the next", () =>
     inRolledBackTransaction(async (db) => {
-      const { post, userId } = await setUp(db, () => [
-        ...JA_CLAIMS,
-        // The join between the 履歴書 and the 職務経歴書, attributed to either side.
-        { document: 0, quote: `基本情報技術者試験 合格\n\n経理システム`, start_hint: 40 },
-        { document: 1, quote: `基本情報技術者試験 合格\n\n経理システム`, start_hint: 0 },
-      ]);
+      // Each window returns its own document's claims, as the prompt asks.
+      const { post, userId } = await setUp(db, (_documents, _language, window) =>
+        [
+          ...JA_CLAIMS,
+          // The join between the 履歴書 and the 職務経歴書, attributed to either side.
+          { document: 0, quote: `基本情報技術者試験 合格\n\n経理システム`, start_hint: 40 },
+          { document: 1, quote: `基本情報技術者試験 合格\n\n経理システム`, start_hint: 0 },
+        ].filter((claim) => claim.document === window.document),
+      );
       const { status, json } = await post({ language: "ja", documents: [rirekisho, shokumu, additional("ポートフォリオ")] });
 
       expect(status).toBe(201);
@@ -621,6 +681,7 @@ describe("POST /api/cv-versions composition", () => {
         claims_split: 0,
         claims_duplicated: 0,
         unclaimed_run_max: 24,
+        quotes_outside_window: 0,
       });
       expect((await rowCounts(db, userId)).claims).toBe(3);
 
@@ -777,6 +838,8 @@ describe("POST /api/cv-versions next versions", () => {
       const { post, extractor, userId } = await setUp(db, everyLine);
       const set = { language: "ja", documents: [rirekisho, shokumu, additional("ポートフォリオ")] };
       const v1 = await post(set);
+      // One call per window: three short documents are three windows.
+      expect(extractor.calls).toBe(3);
       const before = await rowCounts(db, userId);
 
       // source_filename is not part of the comparison (06, #16).
@@ -786,7 +849,7 @@ describe("POST /api/cv-versions next versions", () => {
       });
       expect(again.status).toBe(422);
       expect(again.json.error).toMatchObject({ code: "cv_unchanged", detail: { language: "ja" } });
-      expect(extractor.calls).toBe(1);
+      expect(extractor.calls).toBe(3);
       expect(await rowCounts(db, userId)).toEqual(before);
 
       // Any one change is a new version: a title, one space, a removed document.

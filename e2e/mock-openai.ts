@@ -30,24 +30,25 @@ export function responsesApiBody(payload: object) {
   };
 }
 
-/** Answers every POST /v1/responses with `payload` as the model's structured output. */
-export async function startMockOpenAi(payload: object): Promise<MockOpenAi> {
+/**
+ * Answers every POST /v1/responses with `payload` as the model's structured output — or, given a
+ * function, with what it returns for that request's body, so a spec can answer each extraction
+ * window (#29) with that window's claims.
+ */
+export async function startMockOpenAi(payload: object | ((body: Record<string, unknown>) => object)): Promise<MockOpenAi> {
   const requests: MockOpenAi["requests"] = [];
   const server: Server = createServer((request, response) => {
     let raw = "";
     request.on("data", (chunk) => (raw += chunk));
     request.on("end", () => {
-      requests.push({
-        path: request.url ?? "",
-        authorization: request.headers.authorization,
-        body: raw ? JSON.parse(raw) : {},
-      });
+      const body: Record<string, unknown> = raw ? JSON.parse(raw) : {};
+      requests.push({ path: request.url ?? "", authorization: request.headers.authorization, body });
       if (request.method !== "POST" || request.url !== "/v1/responses") {
         response.writeHead(404).end();
         return;
       }
       response.writeHead(200, { "content-type": "application/json" });
-      response.end(JSON.stringify(responsesApiBody(payload)));
+      response.end(JSON.stringify(responsesApiBody(typeof payload === "function" ? payload(body) : payload)));
     });
   });
   await new Promise<void>((resolve) => server.listen(MOCK_OPENAI_PORT, "localhost", resolve));

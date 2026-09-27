@@ -139,7 +139,11 @@ test("a 応募書類 with a 履歴書, a 職務経歴書 and an additional docum
   page,
 }) => {
   await signIn(page);
-  const openAi = await startMockOpenAi({ claims: JA_CLAIMS });
+  // One request per extraction window (#29); each answers with its own window's document.
+  const openAi = await startMockOpenAi((body) => {
+    const window = Number(/^=== window: document (\d+),/mu.exec(String(body.input))?.[1]);
+    return { claims: JA_CLAIMS.filter((claim) => claim.document === window) };
+  });
   try {
     await page.goto("/cv");
     const ja = page.getByRole("region", { name: "応募書類" });
@@ -162,13 +166,18 @@ test("a 応募書類 with a 履歴書, a 職務経歴書 and an additional docum
     await expect(ja.getByRole("heading", { level: 3 })).toHaveText(["履歴書", "職務経歴書", "ポートフォリオ"]);
     await expect(ja.locator("[data-claim]")).toHaveText(JA_CLAIMS.map((claim) => claim.quote));
 
-    // The Japanese prompt, and each document headed by its kind.
-    expect(openAi.requests).toHaveLength(1);
-    const input = String(openAi.requests[0].body.input);
-    expect(input).toContain("=== document 0: rirekisho ===");
-    expect(input).toContain("=== document 1: shokumu_keirekisho ===");
-    expect(input).toContain("=== document 2: additional, titled: ポートフォリオ ===");
-    expect(String(openAi.requests[0].body.instructions)).toContain("応募書類");
+    // The Japanese prompt, one request per window — three short documents, three windows — and every
+    // request carrying the whole set, each document headed by its kind, then its own window.
+    expect(openAi.requests).toHaveLength(3);
+    const windows = openAi.requests.map((request) => {
+      const input = String(request.body.input);
+      expect(input).toContain("=== document 0: rirekisho ===");
+      expect(input).toContain("=== document 1: shokumu_keirekisho ===");
+      expect(input).toContain("=== document 2: additional, titled: ポートフォリオ ===");
+      expect(String(request.body.instructions)).toContain("応募書類");
+      return /^=== window: document (\d+), characters 0 to \d+ ===$/mu.exec(input)?.[1];
+    });
+    expect(windows.sort()).toEqual(["0", "1", "2"]);
 
     // A reload reads it back from Postgres, and the English panel shows none of it.
     await page.reload();

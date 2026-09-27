@@ -24,5 +24,10 @@
  *
  * Raising one is not an edit: it is a measurement on a set that size, because the margin above is
  * the only thing standing between a long CV and a save that dies at the client timeout.
+ *
+ * **Everything above is one call.** Since #29 extraction is N parallel windowed calls
+ * (`windowed-extraction.ts`), whose wall time follows the largest window rather than the whole set,
+ * and a set at the cap is at least 8 (`ja`) or 12 (`en`) concurrent calls. The caps stay exactly as
+ * measured until a real set is re-measured windowed.
  */
 export const MAX_BODY_CHARS = { ja: 30_000, en: 45_000 } as const satisfies Record<"ja" | "en", number>;

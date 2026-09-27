@@ -178,11 +178,12 @@ Four distinct jobs, one pinned model:
 | Answer scoring | `gpt-5.6-sol` | during the next answer | **The instrument** |
 | CV claim extraction | `gpt-5.6-sol` | **measured: 48–60 s on real documents** (#20, 2026-09-23) | High — every citation and every coverage count rests on it |
 
-**CV claim extraction is one synchronous call, all-or-nothing.** The user saves a CV version and waits;
-the call runs first and the version, its documents and its claims are then written in one transaction,
-so if it fails — or if no claim survives the span validator — nothing is written and the user simply
-saves again (`07` §5.2). The call is deliberately outside the transaction: holding one open across a
-model call only pins a connection (`06`, 2026-09-21). A version holding half
+**CV claim extraction is one synchronous extraction (N parallel windowed calls), all-or-nothing.** The
+user saves a CV version and waits; the calls run first and the version, its documents and its claims
+are then written in one transaction, so if any call fails — or if no claim survives the span
+validator — nothing is written and the user simply saves again (`07` §5.2). The calls are deliberately
+outside the transaction: holding one open across a model call only pins a connection (`06`,
+2026-09-21). How the calls divide the work is below, under **windowed since #29**. A version holding half
 its claims would make *"CV material never used"* a lie for the rest of that version's life, which is
 worse than a save the user has to repeat. The latency is deliberately left unwritten here: a CV is a
 much longer prompt than an answer, the call is made a handful of times ever rather than once per
@@ -262,6 +263,39 @@ of its 6,733 characters are unclaimed **by design** — the 保有資格 block t
 (1,071), an education entry the 履歴書 already states (657), the document's own title and date block
 (391), and a 技術スタック inventory that names tools without saying where they were used (371). That
 leaves about a sixth of the document genuinely unread, which no counter can rule on.
+
+**Windowed since [#29](https://github.com/yutaasakura96/suburi/issues/29), 2026-09-27.** The
+readings above were each one call on the whole set. That call is now one call per **window**: a
+passage of one document, cut at blank lines to at most 4,000 code points (`lib/cv/windows.ts`). Every
+call is still sent the **whole set**, and returns the claims of its own window only
+(`cv-extract-ja-1.2`, `cv-extract-en-1.3`). The calls run in parallel and all finish before the
+transaction opens (`lib/cv/windowed-extraction.ts`). A window that fails with a transient error gets
+one retry if enough of the 300 s is left; any window failing for good fails the save.
+
+Why, measured on synthetic sets shaped like the real CVs (`06`, 2026-09-27):
+
+| reading of the same English `PROJECTS` block (3,635 code points, 7 projects) | claims in it | average length |
+| --- | --- | --- |
+| one call, `en-1.2`, two runs | **7**, each a whole project | **516** |
+| one call, the same block moved up to follow `PROFILE` | 26 | 138 |
+| windowed, 4 parallel calls, the whole set in each | 16 (14 sentences, 2 paragraphs) | — |
+
+The one call **lumped** the late, dense block into paragraph-sized claims, which the prompt forbids.
+No counter saw it: `unclaimed_run_max` read 996 on every English reading, lumped or not. Moving the
+same text earlier fixed it, so the cause is how late the material falls in one long output. Reading
+each document on its own instead broke the other direction: on the synthetic 応募書類 the
+職務経歴書's `■保有資格` returned all 14 qualifications the 履歴書 already states, because neither call
+could see the other document. Windowed, with the whole set in every call, it returned none twice.
+
+**Latency and cost, windowed.** Wall time is the slowest window's call, not the sum: 46.6 s (`en`, 4
+windows) and 49.5 s (`ja`, 2) against 43–47 s for one call. Tokens are 2–3×, about $0.20–0.30 a save
+against $0.10, since every call carries the whole set. Across the 17 measured calls, duration fit
+`15.1 s + 7.2 ms × output tokens` better than it fit claims, and a window of 5 claims still took
+24–28 s. **The `07` §5.2 caps and the ~145 s / ~105 s predictions above assume one call** whose
+duration grows with the set. Windowed, the wall time tracks the largest window, so the caps are kept
+as they are until a real set is re-measured windowed. `cv-extract-ja-1.2` and `cv-extract-en-1.3`
+themselves are unmeasured: the harness carried the same instruction in its input. The real-CV
+re-measure is a local run, as #20's and #27's were.
 
 **Its prompt is versioned per language** — `cv-extract-ja-…`, `cv-extract-en-…` in `lib/prompts/` —
 and recorded on the version as `extractor_prompt_version`. It is *not* a fifth **stamp**: that word is

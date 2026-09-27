@@ -27,7 +27,10 @@ Five ways that happens, and every one of them is a test in §3:
 5. **A CV is read badly and every counter says it is fine**, so Coverage is computed over a set that
    omits the applicant's best material and is padded with lines no answer will cite. Found for real in
    [#27](https://github.com/yutaasakura96/suburi/issues/27): `spans_rejected` was **0** on a reading
-   that skipped 27% of the English CV and cut sentences into uncitable fragments.
+   that skipped 27% of the English CV and cut sentences into uncitable fragments. Found again in
+   [#29](https://github.com/yutaasakura96/suburi/issues/29), after #27's fix: the same late block came
+   back as paragraph-sized lumps that every counter read as clean. That one is prevented by windowed
+   extraction rather than counted, so its tests are the windowing's (§3.3).
 
 None of these throws. The first four are enforced by things a unit test with a mocked database cannot see —
 Postgres constraints, partial unique indexes, the absence of a column. That is why §2 puts a real
@@ -124,6 +127,22 @@ deleted:
 - The same normalised text twice in one version is **one claim**, and the drop is counted.
 - `unclaimed_run_max` is measured **per document**, never across the join, and in code points.
 
+**Windowed extraction** (#29, `lib/cv/windows.ts`, `lib/cv/windowed-extraction.ts`,
+`lib/cv/surviving-claims.ts`). The fan-out is where a save could half-happen, so these are the tests
+that hold it to all-or-nothing:
+
+- One document's windows cover it **exactly**, end to end, and **no window crosses a document**.
+- Windows are cut at **blank lines**, fall back to **line breaks** for a paragraph over the target, and
+  **never cut inside a line**.
+- Every call is sent the **whole set**; the calls run in parallel.
+- **One window failing fails the save and writes nothing**, even when every other window came back
+  (integration, against Postgres).
+- A transient failure is retried **once**, only if enough of the deadline is left; a 4xx the same
+  request would get again is not retried.
+- A quote outside its window — another document, another window, across the edge — is **dropped and
+  counted** in `quotes_outside_window`, never kept; a quote not in the text at all is still
+  `spans_rejected`.
+
 ### 3.4 First-attempt computation
 
 The index is the backstop; this is the logic that should never reach it.
@@ -175,7 +194,7 @@ With a stubbed embedder returning fixed vectors, so the test is about the decisi
 - Coverage inheritance follows a chain of three versions correctly.
 - A claim moved from one document to another between versions → carries forward (`04`: from any document).
 - Two previous claims with one `text_normalised` → the new claim points at the lower `span_start`; two new claims with one text both point at it.
-- `cv_unchanged` is refused before the model call, and again inside the write when an identical save committed in between.
+- `cv_unchanged` is refused before any model call, and again inside the write when an identical save committed in between.
 - Two saves in one language on two connections are serialised: the second waits for the first's lock, becomes `v{n+1}`, carries forward from it, and is dated after it.
 
 ### 3.9 Derived measures
@@ -242,6 +261,7 @@ either irreducibly human or need a real human ear.
 **Per CV upload:**
 
 - [ ] Claims on a **real** CV: eyeball extraction quality, and check `spans_rejected` is zero. Explicitly unmeasured (`CONTEXT.md`) — this checkbox is where it first gets measured. **First run 2026-09-23 (#20):** `spans_rejected` 0 on both languages, 181 claims from a 9,202-character 応募書類 and 126 from a 14,607-character CV; the eyeball itself is still open.
+- [ ] **Re-measure the real CVs windowed** (#29), locally, after `cv-extract-ja-1.2` and `cv-extract-en-1.3` merge: claim lengths per section (no paragraph-sized lumps in `PROJECTS`), `quotes_outside_window` 0, `claims_duplicated` 0, wall time against the one-call numbers in `03` §4, and whether `lib/cv/limits.ts`'s caps still hold.
 - [ ] Every rendered quote is genuinely in the CV. Sample five.
 
 **The CV feature's native read** is collected as one batch in `docs/checklists/native-read-cv.md`: every

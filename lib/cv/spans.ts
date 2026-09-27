@@ -92,8 +92,11 @@ export function createSpanChecker(body: string, documents: readonly Span[]) {
    * start (06, 2026-09-21): models count characters poorly, so the server finds every exact
    * occurrence and takes the one nearest the hint. The hint chooses between occurrences; it never
    * moves one. A quote that is not in the document verbatim has no span.
+   *
+   * `within`, in code points from the start of the document, keeps only the occurrences that lie
+   * wholly inside it: an extraction window (`windows.ts`), whose call may quote nothing else.
    */
-  function locate(documentIndex: number, quote: string, hint: number): Span | null {
+  function locate(documentIndex: number, quote: string, hint: number, within?: Span): Span | null {
     const document = documents[documentIndex];
     if (!document || quote === "") return null;
 
@@ -102,6 +105,7 @@ export function createSpanChecker(body: string, documents: readonly Span[]) {
     let best: number | null = null;
     for (let unit = text.indexOf(quote); unit !== -1; unit = text.indexOf(quote, unit + 1)) {
       const offset = characterLength(text.slice(0, unit));
+      if (within && (offset < within.start || offset + length > within.end)) continue;
       if (best === null || Math.abs(offset - hint) < Math.abs(best - hint)) best = offset;
     }
     if (best === null) return null;

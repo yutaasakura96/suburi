@@ -1,0 +1,118 @@
+JORDAN ELLIS
+Senior Software Engineer
+London, United Kingdom · jordan.ellis@example.test · +44 7700 900123 · linkedin.com/in/jordan-ellis-example
+
+PROFILE
+Senior software engineer with ten years of experience building data-heavy backend systems for logistics, retail and financial services companies. I specialise in turning slow, fragile batch pipelines into event-driven services that teams can reason about, and I have led the migration of three production platforms from on-premises infrastructure to the cloud without a customer-visible outage.
+I am most effective in small teams that own a service end to end, from the schema to the on-call rota. I write design documents before code, I measure before I optimise, and I treat an incident review as the most useful meeting of the month.
+I am applying for this role because your platform sits at exactly the point where data correctness and latency pull against each other, and that is the problem I have spent the last five years learning to solve well.
+
+EXPERIENCE
+Northwind Freight Ltd — Lead Backend Engineer
+March 2022 – Present · London
+Lead a team of six engineers responsible for the shipment-tracking platform, which ingests 40 million carrier events per day from 120 carriers across Europe.
+Replaced a nightly batch reconciliation job with a streaming pipeline on Kafka and Flink, cutting the delay between a carrier scan and a customer-visible status from 14 hours to under 90 seconds.
+Designed an idempotent event-ingestion API that absorbed duplicate and out-of-order carrier messages, reducing support tickets about incorrect tracking states by 63% in the first quarter after launch.
+Introduced contract tests between the ingestion service and its eleven downstream consumers, which caught 28 breaking schema changes before they reached production during 2023.
+Ran the migration of the tracking database from a self-managed PostgreSQL 11 cluster to Amazon Aurora PostgreSQL, completing the cut-over in a four-minute maintenance window with zero data loss.
+Established an on-call rotation with written runbooks for every paging alert, bringing the mean time to recovery for Severity 1 incidents down from 3 hours 10 minutes to 38 minutes.
+Mentored four engineers through promotion to senior level, running a fortnightly design-review session that became the team's default way of agreeing on changes to shared services.
+Negotiated a service-level objective of 99.95% monthly availability with the customer-experience organisation and met it in 17 of the 18 months since it was introduced.
+
+Partnered with the security team to move all service-to-service authentication to short-lived workload identities, removing 214 long-lived credentials from configuration files and closing the last open finding from the 2022 penetration test.
+Cut the platform's monthly AWS bill by 29%, about £41,000 a month, by right-sizing the Flink cluster, moving cold event storage to S3 Glacier Instant Retrieval and deleting eleven abandoned environments.
+Presented the streaming-migration case study at the company's annual engineering conference and wrote the internal guide that three other product teams have since followed for their own migrations.
+
+Harbour Retail Group — Senior Software Engineer
+June 2019 – February 2022 · Manchester
+Owned the order-management service for an e-commerce business processing roughly 1.8 million orders per month across four country storefronts.
+Split the order-management module out of a ten-year-old Java monolith into a standalone Spring Boot service, reducing the p99 latency of order placement from 2.4 seconds to 420 milliseconds.
+Rebuilt the stock-reservation logic around optimistic locking, which eliminated the overselling incidents that had cost the business an estimated £310,000 in refunds and vouchers during the 2018 peak season.
+Led the load-testing programme ahead of Black Friday 2020, simulating six times normal traffic and fixing nine bottlenecks before the event; the platform handled a peak of 2,300 orders per minute without degradation.
+Worked with the finance team to automate the daily revenue reconciliation between the order system and the payment provider, replacing a manual spreadsheet process that took two analysts most of each morning.
+Introduced feature flags and trunk-based development to the team of eight, increasing the deployment frequency from once every two weeks to several times a day.
+
+Represented engineering in the vendor selection for a new payment gateway, writing the technical evaluation of four providers and leading the integration of the chosen one across all four storefronts in eleven weeks.
+Replaced the hand-written SQL reporting queries behind the merchandising dashboard with a nightly dbt project, reducing the dashboard's load time from 40 seconds to 3 seconds and giving analysts tested, documented models to build on.
+Acted as incident commander for 14 production incidents over two years and wrote the blameless post-incident review template the wider engineering department still uses.
+
+Kestrel Payments — Software Engineer
+September 2016 – May 2019 · Leeds
+Built and maintained services in the card-authorisation path of a payments processor handling £2.1 billion in annual transaction volume.
+Implemented a rules engine for merchant-specific fraud thresholds that let the risk team change a rule without an engineering release, cutting the average time to deploy a new rule from nine days to one hour.
+Reduced authorisation latency by 35% by replacing synchronous calls to a legacy customer-profile service with a read-through cache and an asynchronous invalidation feed.
+Wrote the reconciliation tooling that matched settlement files from three acquiring banks against internal ledgers, surfacing discrepancies within one business day instead of at month end.
+Participated in two PCI DSS audits, owning the evidence for network segmentation and key-rotation controls; both audits closed with no findings against my areas.
+
+Migrated the team's services from a hand-maintained fleet of virtual machines to containers on Kubernetes, reducing the time to provision a new service from a week of tickets to a single pull request.
+Volunteered as the team's accessibility and documentation champion, rewriting the onboarding guide so that a new engineer could make a production deployment on their second day.
+
+Brightline Analytics — Graduate Software Engineer
+September 2015 – August 2016 · Leeds
+Joined the graduate programme and rotated through the data-engineering and web teams, shipping production code in both within the first three months.
+Built an internal dashboard in Python and Flask that reported daily data-quality checks for 45 client feeds, which the account managers adopted as their morning status check.
+Automated the provisioning of client reporting environments with Ansible, reducing set-up time for a new client from two days to forty minutes.
+
+PROJECTS
+Carrier Event Replay Service (Northwind Freight, 2023)
+Designed and built a replay service that lets engineers re-run any window of historical carrier events against a new version of the tracking pipeline in an isolated environment. It stores 18 months of raw events in compressed Parquet on S3 and can replay a full day of traffic, about 40 million events, in 22 minutes. Before it existed, validating a change to status-derivation logic meant waiting a week to see production behaviour; after it, the team validated 31 logic changes in 2023 against real historical traffic before release, and none of them caused a status regression.
+
+Delivery-Promise Estimator (Northwind Freight, 2024)
+Led a three-person effort to replace a static lookup table of delivery estimates with a model that predicts delivery dates from live network conditions. I built the feature pipeline and the serving API; a data scientist owned the model itself. The estimator is called 9 million times a day with a p95 latency of 35 milliseconds, and it raised the share of parcels delivered on the promised date as shown to customers from 81% to 93% within four months of launch.
+
+Order Ledger Migration (Harbour Retail Group, 2021)
+Planned and executed the migration of 210 million historical order records from an Oracle 12c database to PostgreSQL 13 as part of retiring the monolith. I wrote a dual-write layer and a row-level comparison job that ran continuously for six weeks, finding and fixing 14 classes of data mismatch before the cut-over. The final switch took place during a Sunday morning low-traffic window, took 11 minutes, and required no rollback.
+
+Checkout Resilience Programme (Harbour Retail Group, 2020)
+Ran a six-month programme to make checkout degrade gracefully when any dependency failed. I catalogued 23 downstream dependencies, classified each as critical or deferrable, and added timeouts, circuit breakers and fallbacks so that a failure in a deferrable dependency such as recommendations or loyalty points no longer blocked an order. Checkout availability during third-party outages rose from 71% to 99.2% over the following year.
+
+Settlement Discrepancy Finder (Kestrel Payments, 2018)
+Built a tool that compared acquiring-bank settlement files against the internal ledger at transaction level and grouped discrepancies by likely cause. It processed around 1.2 million settlement lines a night and recovered £184,000 in under-settled funds in its first year by flagging disputes that the operations team had previously found too late to raise.
+
+Warehouse Slotting Optimiser (Northwind Freight, 2022)
+Built a weekly batch job that recommends where each product should sit in the three regional warehouses based on the previous eight weeks of pick data. I wrote the optimisation as a constrained assignment problem solved with OR-Tools and exposed the recommendations through a small internal web app the warehouse managers could accept or override line by line. Managers accepted 76% of recommendations in the first quarter, and the average picker walking distance per order fell by 18% at the largest site, which the operations director credited with avoiding a planned hire of twelve seasonal pickers.
+
+Open-Source Contribution: pg-partition-tool (2022 – present)
+Maintainer of a small open-source command-line tool for managing time-based table partitions in PostgreSQL. I wrote the original version to solve a retention problem at Northwind Freight and released it under the MIT licence; it has 1,400 stars on GitHub, 38 contributors, and is used in production by at least nine companies that have written to say so.
+
+EDUCATION
+University of Leeds — BSc (Hons) Computer Science, First Class
+September 2012 – June 2015
+Final-year dissertation on consistency guarantees in eventually consistent key-value stores, awarded the department's prize for the best undergraduate project in distributed systems.
+Leeds City College — A Levels in Mathematics (A*), Further Mathematics (A) and Physics (A)
+September 2010 – June 2012
+
+CERTIFICATIONS
+AWS Certified Solutions Architect – Professional (2023)
+AWS Certified Developer – Associate (2020)
+AWS Certified SysOps Administrator – Associate (2021)
+Microsoft Certified: Azure Solutions Architect Expert (2024)
+Microsoft Certified: Azure Data Engineer Associate (2023)
+Google Cloud Professional Data Engineer (2022)
+Certified Kubernetes Administrator (CKA) (2021)
+Certified Kubernetes Application Developer (CKAD) (2022)
+HashiCorp Certified: Terraform Associate (2022)
+Confluent Certified Developer for Apache Kafka (2023)
+Oracle Certified Professional, Java SE 11 Developer (2019)
+PostgreSQL 13 Associate Certification, EDB (2021)
+Certified ScrumMaster (CSM), Scrum Alliance (2018)
+ITIL 4 Foundation (2019)
+ISTQB Certified Tester Foundation Level (2017)
+Databricks Certified Data Engineer Associate (2024)
+Snowflake SnowPro Core Certification (2024)
+
+TECHNICAL SKILLS
+Languages: Java, Kotlin, Python, TypeScript, Go, SQL, Bash
+Frameworks: Spring Boot, Micronaut, Flask, FastAPI, Express, Next.js, React
+Data: PostgreSQL, Aurora, Oracle, MySQL, Redis, DynamoDB, Cassandra, Elasticsearch, Snowflake, Databricks
+Streaming: Apache Kafka, Kafka Streams, Apache Flink, Amazon Kinesis, RabbitMQ
+Cloud: AWS (EC2, ECS, EKS, Lambda, S3, RDS, Aurora, SQS, SNS, Step Functions), Azure (AKS, Functions, Data Factory, Synapse), Google Cloud (BigQuery, Pub/Sub)
+Infrastructure: Terraform, Ansible, Docker, Kubernetes, Helm, Argo CD, GitHub Actions, Jenkins
+Observability: Prometheus, Grafana, OpenTelemetry, Datadog, Sentry, PagerDuty
+Practices: domain-driven design, event sourcing, trunk-based development, contract testing, chaos engineering
+
+LANGUAGES
+English (native), Japanese (JLPT N2), French (conversational)
+
+INTERESTS
+Long-distance cycling, restoring mechanical watches, and volunteering as a mentor with a coding club for secondary-school students.
