@@ -160,7 +160,8 @@ Carry these; do not silently decide them in a ticket.
   languages at once does not settle the rule for screens showing one.
 - **The near-duplicate similarity threshold.** A guess until there is real data. Start strict, log
   every near-miss with its score, tune from the log.
-- **CV claim extraction quality — judged no on 2026-09-23, fixed and re-measured on 2026-09-24.**
+- **CV claim extraction quality — judged no on 2026-09-23, fixed and re-measured on 2026-09-24,
+  re-measured windowed and judged good on 2026-09-27 (#20/#29, `03` §4).**
   The real 履歴書 + 職務経歴書 and the real English CV went through `/cv` locally against Docker
   Postgres (#20, `03` §4) and `11` §5's check was run. **What passed:** 307 of 307 claims sliced back
   **verbatim**, `spans_rejected` **0** in both languages, and **no claim drawn from the 履歴書's
@@ -191,16 +192,6 @@ Carry these; do not silently decide them in a ticket.
   answer has been scored. Decide it deliberately if a third prompt version ever ships. **#29 shipped
   one** (`cv-extract-ja-1.2`, `cv-extract-en-1.3`) before production reads any CV (#21), which is what
   keeps this moot for now; the stored versions it cannot reach are `develop`'s and the local ones.
-- **Windowed re-measure on the real CVs, 2026-09-27 (#20/#29).** Both real CVs went through `/cv`
-  locally with `cv-extract-ja-1.2` / `cv-extract-en-1.3`: 応募書類 (9,077 code points) in 3 windows, 81
-  claims, 43.2 s; the English CV (14,607 code points) in 4 windows, 82 claims, 45.5 s.
-  `spans_rejected`, `quotes_outside_window` and `window_retries` were 0 on both (`03` §4). The user
-  read the extraction on-screen and judged it good — a five-quote sample per CV matched the source
-  verbatim. Unclaimed text was **by design**: bare skills inventories (`TECHNICAL SKILLS`, the tech
-  stack line), the 職務経歴書's `■保有資格` list (each item already claimed once from the 履歴書's
-  `免許・資格`), and `本人希望記入欄`. **One minor miss:** the 経歴要約's opening sentence has no claim
-  of its own, though its facts are claimed elsewhere. Closes #20's real-CV check and #29's chunking
-  question.
 - **One drawn-but-unspecified screen:** practice mode's record frames differ from realistic mode's.
   Listed in `docs/10-screen-specifications.md` §12. **The CV screen came off this list in #12** — it
   still has no artboard, but it is specified in `10` §13 from `05` components, which is the whole of

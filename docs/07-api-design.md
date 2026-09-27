@@ -281,8 +281,8 @@ database is read and before any model call**. Over it is `422 cv_too_large`, who
 number a refusal names is the number the record counts in. **Both numbers were measured** on the real
 documents, not guessed: duration tracks claims rather than characters, and claim density differs about
 2.3x between the languages (`03` §4, `06`, #20). Raising one is a measurement on a set that size.
-Both were measured for **one** call; windowed extraction (#29) keeps them unchanged until a real set is
-re-measured windowed, since its wall time follows the largest window rather than the whole set.
+Both were measured for **one** call and held when the real sets were re-measured windowed (#29,
+2026-09-27), since windowed wall time follows the largest window rather than the whole set.
 
 **`version_label` is derived**, `応募書類 v{n}` / `CV v{n}`, numbered per language. `unique (user_id,
 language, version_label)` is the backstop; saves in one language are serialised by a

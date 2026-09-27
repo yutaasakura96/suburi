@@ -361,7 +361,7 @@ Errors already made and fixed in this project. Each line below is a rule because
 The first two are enforced across the catalogue by `lib/copy/errors.test.ts`.
 
 **Two mechanical rules from #20's reviewed draft, applied 2026-09-24 — and *not* a native read.**
-`docs/checklists/native-read-cv.md` §1's boxes are still unticked and #20 still owes the read; these
+`docs/checklists/native-read-cv.md` §1's boxes are still unticked and the read is still owed; these
 two are recorded here early only because they are mechanical enough to be tested, and
 `app/(app)/cv/copy.test.ts` asserts both. The read may still overturn them.
 

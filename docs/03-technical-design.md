@@ -176,7 +176,7 @@ Four distinct jobs, one pinned model:
 | Question generation | `gpt-5.6-sol` | before round / between answers | High — banked permanently |
 | Follow-up generation | `gpt-5.6-sol` | user is waiting | Low — never scored, never banked |
 | Answer scoring | `gpt-5.6-sol` | during the next answer | **The instrument** |
-| CV claim extraction | `gpt-5.6-sol` | **measured: 48–60 s on real documents** (#20, 2026-09-23) | High — every citation and every coverage count rests on it |
+| CV claim extraction | `gpt-5.6-sol` | **measured: 43–46 s on real documents, windowed** (#20/#29, 2026-09-27) | High — every citation and every coverage count rests on it |
 
 **CV claim extraction is one synchronous extraction (N parallel windowed calls), all-or-nothing.** The
 user saves a CV version and waits; the calls run first and the version, its documents and its claims
@@ -186,7 +186,7 @@ outside the transaction: holding one open across a model call only pins a connec
 2026-09-21). How the calls divide the work is below, under **windowed since #29**. A version holding half
 its claims would make *"CV material never used"* a lie for the rest of that version's life, which is
 worse than a save the user has to repeat. The one-call baseline and windowed measurements below are
-observations, not a latency promise; the new prompts still need the real-CV re-measure (`11` §5).
+observations, not a latency promise.
 
 **Measured on the real documents, 2026-09-23 (#20), locally against Docker Postgres:**
 
@@ -530,9 +530,9 @@ also what makes `11` §3.10's both-directions test compare two modules rather th
 set with a different model is the only way to detect scorer drift, and it is impossible if the
 scoring call is inlined at its call sites.
 
-**The CV-extraction port is the same shape, for a different reason.** Extraction quality is unmeasured
-(`CONTEXT.md`), so it has one real implementation and a fake — and no test ever calls OpenAI (`11`
-§2). `lib/cv/` holds everything around it that must stay deterministic and testable without a model:
+**The CV-extraction port is the same shape, for a different reason.** Extraction quality can
+only be judged by hand on real data (`11` §5), so it has one real implementation and a fake — and no
+test ever calls OpenAI (`11` §2). `lib/cv/` holds everything around it that must stay deterministic and testable without a model:
 the composition rules, the join that builds `body`, the span validator, and quote slicing.
 
 ---
@@ -555,7 +555,7 @@ stored text by span, never taken from model output.** The extractor returns a ve
 approximate start; the server finds the quote in the stored text and validates the span it finds. A
 quote that is not in the text verbatim, or a span that fails validation, is dropped and counted
 (`06`, 2026-09-21). Spans count Unicode code points, as Postgres `substring` does.
-Extraction quality itself is unmeasured — first thing to eyeball on real data.
+Extraction quality itself is eyeballed on real data per CV upload (`11` §5; §4 holds the readings).
 
 **3. Near-duplicate questions in a growing bank.**
 Generated questions are written into the bank permanently, and first-attempt progress data is keyed

@@ -1,7 +1,7 @@
 # Native read — the CV feature (#14–#18), one batch
 
 `11` §5 asks for a native read of every new Japanese string, and `05` §6 holds the rules earned so
-far. This is the batch #20 owes: every Japanese string the CV feature added, in one sitting, read for
+far. This is the batch still owed (split out of #20 when it closed): every Japanese string the CV feature added, in one sitting, read for
 **whether a person would write it** — not whether the translation is correct.
 
 The English column is there as the intent, not as the thing being judged.
@@ -53,7 +53,7 @@ were applied on 2026-09-24 on Claude's recommendation, after the user declined t
 row — to `app/(app)/cv/copy.ts`, and through to `10` §13 and `e2e/cv.spec.ts` where the same sentences
 are quoted.
 
-**The boxes above stay ☐ and #20 still owes the read.** The point of `11` §5's rule is a native ear;
+**The boxes above stay ☐ and the read is still owed.** The point of `11` §5's rule is a native ear;
 what landed is a Claude review, and a record that called it anything else would be the kind of
 dishonest instrument this project exists not to build. What the read now judges is the amended
 strings, not the originals — the originals are in the table below, so nothing is lost if it overturns

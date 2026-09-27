@@ -462,10 +462,8 @@ in 4b):
   language, because each panel is about one language's documents (`10` §13).
 - **The near-duplicate similarity threshold** — a guess until there is real data. `12` §6 puts the
   near-miss log in the weekly digest so it is tunable from data.
-- **CV claim extraction quality** — still unmeasured. `07` §5.2 returns `spans_rejected` and `12` §6
-  alerts on it being non-zero; the CV screen renders claim spans underlined in the user's own text so
-  it can be read off directly (`10` §13). The check runs on the **real CV, locally** (#20) — that is
-  what closes this, not the screen shipping.
+- **CV claim extraction quality** — measured on the real CVs locally and judged good, windowed, on
+  2026-09-27 (#20, #27, #29; `03` §4). Each new CV upload is still eyeballed (`11` §5).
 - **Who sends the alert mail.** `08` §2 avoided an email vendor deliberately; `12` §6 reintroduces one
   as a placeholder.
 - **One drawn-but-unspecified screen:** practice mode's record frames differ from realistic mode's.
