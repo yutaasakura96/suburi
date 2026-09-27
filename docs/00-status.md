@@ -10,18 +10,23 @@ done; **#13 is done — built, and its catalogue passed the native read.** **#14
 bullet: an English CV pasted, saved and read back underlined.** **#15 is done — the 応募書類 panel and
 additional documents in both languages.** **#16 is done — next versions: prefill, carry-forward,
 `cv_unchanged`, history.** **#17 is done — import from `.docx`/`.pdf` in the browser.** **#18 is done — the per-session rate
-limiter.** **#19 is done — the synthetic CV seed, and the feature running on `develop`.** **#20 is in progress —
+limiter.** **#19 is done — the synthetic CV seed, and the feature running on `develop`.** **#20 is done —
 the real CVs are through `/cv` locally, the text-size cap is measured and enforced, and `11` §5's
 extraction check is done. It failed, which became
 [#27](https://github.com/yutaasakura96/suburi/issues/27).** **#27 is done — the extractor prompt is
 rewritten in both languages, the `.docx` importer reads tables, three reading counters replace a blind
-`spans_rejected`, and the real CVs are re-measured. The three machine defects are gone.** **The two
-human checks are all that is left on #20:** the native read of the 22 panel strings — six of them now
-carry an applied Claude review (2026-09-24), which is what the read judges, not what it replaces — and
-the eyeball of #27's new claims.
-**#29 is built — extraction is windowed:** N parallel calls, each sent the whole set and returning
-one window's claims, all finished before the one transaction. Its real-CV re-measure is still owed.
-**Updated:** 2026-09-27 (#29)
+`spans_rejected`, and the real CVs are re-measured. The three machine defects are gone.** **The
+real-CV re-measure, windowed, closed #20 (`06`, 2026-09-27):** 応募書類 in 3 windows (43.2 s), the
+English CV in 4 (45.5 s), both faster than their one-call 59.5 s and 48.0 s and both clean on
+`spans_rejected`/`quotes_outside_window`/`window_retries`; the caps stay ja 30,000 / en 45,000. The
+same day's on-screen read of both CVs is the eyeball of #27's new claims. **The native read** of
+`docs/checklists/native-read-cv.md` — 22 panel strings, six of them now carrying an applied Claude
+review (2026-09-24), which is what the read judges, not what it replaces — is a separate, still-owed
+human check, tracked under Next, no longer part of #20.
+**#29 is done — extraction is windowed:** N parallel calls, each sent the whole set and returning
+one window's claims, all finished before the one transaction, now answered by the same real-CV
+re-measure.
+**Updated:** 2026-09-27 (#20, #29)
 
 ## Done
 - Phase 1 — `docs/01-project-brief.md`, `docs/02-product-requirements.md`, `docs/06-decision-log.md`.
@@ -302,8 +307,8 @@ Page 1 is the screen set, page 2 the three exploration directions. **Working fil
 every change re-seeds from those — edit them, never the built `design/suburi-directions.html`.
 
 ## Next
-**Two human checks on #20 and the #29 re-measure, then #21. The machine half of #20, #27 and #29 is
-done.**
+**One human check left, then #21. #20 and #29 are both done — the machine half and the windowed
+re-measure alike.**
 
 **1. The native read** of `docs/checklists/native-read-cv.md` — 22 panel strings, the new
 `cv_too_large` sentence, the three prose `職務経歴書` strings. Rules earned go into `05` §6.
@@ -314,20 +319,11 @@ asserted over every `ja` string in `app/(app)/cv/copy.test.ts`. **It is still a 
 read: every box stays ☐ and the read is still owed** — now on the amended strings, with the originals
 kept in the checklist so it can overturn them. §3's three prose strings were not applied.
 
-**2. The eyeball on #27's new claims** — `11` §5's per-CV-upload box. The three counters say the
-machine defects are gone; no counter can say whether what is left reads as the applicant's claims.
-**Start with the 職務経歴書 at 41.2% underlined** (`03` §4). About 2,800 of its 6,733 characters are
-unclaimed by design — the 保有資格 and education blocks the 履歴書 already states, the title-and-date
-block, and a 技術スタック inventory — which leaves roughly a sixth genuinely unread. **The English CV
-went the other way, to 88.7% in a 2,668-character unbroken run**, because an English CV is very nearly
-all assertions and the claims are now whole sentences. Both readings are in the local database beside
-their baselines; nothing was deleted.
-
-**3. The real-CV re-measure, windowed (#29)** — `11` §5. The new prompts have only run on synthetic
-sets, and only as an input stand-in. Re-read both real CVs locally: no paragraph-sized lumps in
-`PROJECTS`, `quotes_outside_window` 0, `claims_duplicated` 0, wall time beside `03` §4's one-call
-numbers, and whether `lib/cv/limits.ts`'s caps still hold. **Do it before #21**: once production reads
-a CV, `cv_unchanged` keeps an unchanged set from ever being re-read.
+**Done, 2026-09-27: the eyeball on the windowed claims and the real-CV re-measure (#20, #29).** Both
+real CVs were re-read windowed and the user judged the result good on-screen, five quotes per CV
+verbatim, unclaimed text by design (`03` §4, `06`). Both came in under the one-call 59.5 s and
+48.0 s, and `lib/cv/limits.ts`'s caps hold unchanged. #20 and #29 are closed; item 1 above is
+separate from both.
 
 **Then #21.** #27 no longer blocks it: the CV feature can reach `main` without stamping every scored
 answer with a reading already known to be bad. **Never merge into `main` before #21.**
@@ -466,10 +462,8 @@ in 4b):
   language, because each panel is about one language's documents (`10` §13).
 - **The near-duplicate similarity threshold** — a guess until there is real data. `12` §6 puts the
   near-miss log in the weekly digest so it is tunable from data.
-- **CV claim extraction quality** — still unmeasured. `07` §5.2 returns `spans_rejected` and `12` §6
-  alerts on it being non-zero; the CV screen renders claim spans underlined in the user's own text so
-  it can be read off directly (`10` §13). The check runs on the **real CV, locally** (#20) — that is
-  what closes this, not the screen shipping.
+- **CV claim extraction quality** — measured on the real CVs locally and judged good, windowed, on
+  2026-09-27 (#20, #27, #29; `03` §4). Each new CV upload is still eyeballed (`11` §5).
 - **Who sends the alert mail.** `08` §2 avoided an email vendor deliberately; `12` §6 reintroduces one
   as a placeholder.
 - **One drawn-but-unspecified screen:** practice mode's record frames differ from realistic mode's.

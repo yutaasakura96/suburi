@@ -160,7 +160,8 @@ Carry these; do not silently decide them in a ticket.
   languages at once does not settle the rule for screens showing one.
 - **The near-duplicate similarity threshold.** A guess until there is real data. Start strict, log
   every near-miss with its score, tune from the log.
-- **CV claim extraction quality — judged no on 2026-09-23, fixed and re-measured on 2026-09-24.**
+- **CV claim extraction quality — judged no on 2026-09-23, fixed and re-measured on 2026-09-24,
+  re-measured windowed and judged good on 2026-09-27 (#20/#29, `03` §4).**
   The real 履歴書 + 職務経歴書 and the real English CV went through `/cv` locally against Docker
   Postgres (#20, `03` §4) and `11` §5's check was run. **What passed:** 307 of 307 claims sliced back
   **verbatim**, `spans_rejected` **0** in both languages, and **no claim drawn from the 履歴書's

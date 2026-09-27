@@ -176,7 +176,7 @@ Four distinct jobs, one pinned model:
 | Question generation | `gpt-5.6-sol` | before round / between answers | High — banked permanently |
 | Follow-up generation | `gpt-5.6-sol` | user is waiting | Low — never scored, never banked |
 | Answer scoring | `gpt-5.6-sol` | during the next answer | **The instrument** |
-| CV claim extraction | `gpt-5.6-sol` | **measured: 48–60 s on real documents** (#20, 2026-09-23) | High — every citation and every coverage count rests on it |
+| CV claim extraction | `gpt-5.6-sol` | **measured: 43–46 s on real documents, windowed** (#20/#29, 2026-09-27) | High — every citation and every coverage count rests on it |
 
 **CV claim extraction is one synchronous extraction (N parallel windowed calls), all-or-nothing.** The
 user saves a CV version and waits; the calls run first and the version, its documents and its claims
@@ -186,7 +186,7 @@ outside the transaction: holding one open across a model call only pins a connec
 2026-09-21). How the calls divide the work is below, under **windowed since #29**. A version holding half
 its claims would make *"CV material never used"* a lie for the rest of that version's life, which is
 worse than a save the user has to repeat. The one-call baseline and windowed measurements below are
-observations, not a latency promise; the new prompts still need the real-CV re-measure (`11` §5).
+observations, not a latency promise.
 
 **Measured on the real documents, 2026-09-23 (#20), locally against Docker Postgres:**
 
@@ -293,9 +293,28 @@ against $0.10, since every call carries the whole set. Across the 17 measured ca
 `15.1 s + 7.2 ms × output tokens` better than it fit claims, and a window of 5 claims still took
 24–28 s. **The `07` §5.2 caps and the ~145 s / ~105 s predictions above assume one call** whose
 duration grows with the set. Windowed, the wall time tracks the largest window, so the caps are kept
-as they are until a real set is re-measured windowed. `cv-extract-ja-1.2` and `cv-extract-en-1.3`
-themselves are unmeasured: the harness carried the same instruction in its input. The real-CV
-re-measure is a local run, as #20's and #27's were.
+as they are until a real set is re-measured windowed.
+
+**Re-measured on the real documents, windowed, 2026-09-27 (#20/#29), locally against Docker
+Postgres, `cv-extract-ja-1.2` and `cv-extract-en-1.3`:**
+
+| set | code points | windows | claims | `spans_rejected` | `quotes_outside_window` | `window_retries` | duration |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `応募書類` — 履歴書 + 職務経歴書 | 9,077 | 3 | 81 | 0 | 0 | 0 | **43.2 s** |
+| `CV` — one document | 14,607 | 4 | 82 | 0 | 0 | 0 | **45.5 s** |
+
+Both are faster than the same CVs read in one call on 2026-09-23 (59.5 s and 48.0 s, `lib/cv/limits.ts`):
+the largest window is a few thousand code points, so wall time did not grow with the extra fan-out. **Verdict: the `07` §5.2
+caps stay ja 30,000 / en 45,000.** Nothing in this reading — nor the same day's edited-version runs
+(ja 7,812/37.5 s and 9,112/46 s; en 9,072/34.5 s and 14,656/36 s) — puts a set at either cap near the
+OpenAI client's 240 s timeout or the route's 300 s ceiling; `lib/cv/limits.ts` carries the table.
+
+The user read both extractions on the `/cv` screen and judged them good: a five-quote sample per CV
+matched the source verbatim. Unclaimed text was by design — bare skills inventories, the
+職務経歴書's `■保有資格` list (each item already claimed once from the 履歴書's `免許・資格`), and
+`本人希望記入欄` — with one minor miss: the 経歴要約's opening sentence carries no claim of its own,
+though its facts are claimed elsewhere. This closes #29: chunking was adopted (windowed extraction,
+above) and is now measured on real data, not only synthetic sets.
 
 **Its prompt is versioned per language** — `cv-extract-ja-…`, `cv-extract-en-…` in `lib/prompts/` —
 and recorded on the version as `extractor_prompt_version`. It is *not* a fifth **stamp**: that word is
@@ -511,9 +530,9 @@ also what makes `11` §3.10's both-directions test compare two modules rather th
 set with a different model is the only way to detect scorer drift, and it is impossible if the
 scoring call is inlined at its call sites.
 
-**The CV-extraction port is the same shape, for a different reason.** Extraction quality is unmeasured
-(`CONTEXT.md`), so it has one real implementation and a fake — and no test ever calls OpenAI (`11`
-§2). `lib/cv/` holds everything around it that must stay deterministic and testable without a model:
+**The CV-extraction port is the same shape, for a different reason.** Extraction quality can
+only be judged by hand on real data (`11` §5), so it has one real implementation and a fake — and no
+test ever calls OpenAI (`11` §2). `lib/cv/` holds everything around it that must stay deterministic and testable without a model:
 the composition rules, the join that builds `body`, the span validator, and quote slicing.
 
 ---
@@ -536,7 +555,7 @@ stored text by span, never taken from model output.** The extractor returns a ve
 approximate start; the server finds the quote in the stored text and validates the span it finds. A
 quote that is not in the text verbatim, or a span that fails validation, is dropped and counted
 (`06`, 2026-09-21). Spans count Unicode code points, as Postgres `substring` does.
-Extraction quality itself is unmeasured — first thing to eyeball on real data.
+Extraction quality itself is eyeballed on real data per CV upload (`11` §5; §4 holds the readings).
 
 **3. Near-duplicate questions in a growing bank.**
 Generated questions are written into the bank permanently, and first-attempt progress data is keyed

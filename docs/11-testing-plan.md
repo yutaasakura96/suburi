@@ -260,8 +260,7 @@ either irreducibly human or need a real human ear.
 
 **Per CV upload:**
 
-- [ ] Claims on a **real** CV: eyeball extraction quality, and check `spans_rejected` is zero. Explicitly unmeasured (`CONTEXT.md`) — this checkbox is where it first gets measured. **First run 2026-09-23 (#20):** `spans_rejected` 0 on both languages, 181 claims from a 9,202-character 応募書類 and 126 from a 14,607-character CV; the eyeball itself is still open.
-- [ ] **Re-measure the real CVs windowed** (#29), locally, after `cv-extract-ja-1.2` and `cv-extract-en-1.3` merge: claim lengths per section (no paragraph-sized lumps in `PROJECTS`), `quotes_outside_window` 0, `claims_duplicated` 0, wall time against the one-call numbers in `03` §4, and whether `lib/cv/limits.ts`'s caps still hold.
+- [ ] Claims on a **real** CV: eyeball extraction quality — no paragraph-sized lumps in a late, dense section — and check `spans_rejected`, `quotes_outside_window` and `claims_duplicated` are zero. First run 2026-09-23 (#20, one call); the windowed re-measure and eyeball, 2026-09-27 (#29), judged good and kept `lib/cv/limits.ts`'s caps (`03` §4).
 - [ ] Every rendered quote is genuinely in the CV. Sample five.
 
 **The CV feature's native read** is collected as one batch in `docs/checklists/native-read-cv.md`: every
