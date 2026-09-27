@@ -3,6 +3,35 @@
 Newest first. Every entry records what was chosen, why, and what was rejected.
 
 ---
+## Phase 6 — #38, the CV feature's Japanese strings
+
+### [2026-09-27] The CV batch's native read is done as an AI review, and recorded as one
+
+**Decided:** `docs/checklists/native-read-cv.md` is discharged by an **AI review**, not a native read.
+The user does not read Japanese and asked Claude to do the check itself ("i cant read japanese you
+do the check"). This exception applies only to the CV batch in #38; future Japanese strings still
+require the native read in `05` §6 and `11` §5 unless the user decides otherwise. Claude read every
+row for whether a person would write it, against its English intent and the rules in force. All 22
+panel strings and `cv_too_large` are accepted as written — the six
+2026-09-24 draft amendments included, so none is overturned and their two rules and tests stay.
+`cv_too_large` stays a flat string with no figure. §3's label and legend are accepted as `応募書類`
+swaps; the round-level line becomes `数値の裏づけがない箇所が2つ。応募書類の「請求処理を40%短縮」を使う。`,
+because the original switched from polite to plain inside one item of a plain-form list. That became
+`05` §6's register rule. The artboards were edited and re-seeded to match.
+
+**Why:** the rule in `11` §5 exists to catch copy no Japanese writer would produce, and the person it
+assumed would do the reading cannot. Leaving the batch open would block nothing it guards and leave
+the strings unread by anyone. A careful read against the intents is the best check available.
+
+**Recorded honestly:** the checklist header, `05` §6, `10` §13, `11` §5, `00-status` and `CONTEXT.md`
+all call it an AI review. Nothing says a native speaker read these strings, because none did. The
+same agent family wrote most of them, which is the weakness of this check; a native read later
+that overturns a row wins, and the row changes with its test.
+
+**Rejected: calling it a native read** — the 2026-09-24 entry's argument stands unchanged. **Rejected:
+leaving it owed indefinitely** — the user has said there is no reader to wait for.
+
+---
 ## Phase 6 — #20, the real-CV re-measure, windowed
 
 ### [2026-09-27] The windowed caps hold; #20's real-CV check is done

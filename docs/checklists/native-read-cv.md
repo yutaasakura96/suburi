@@ -1,12 +1,19 @@
 # Native read — the CV feature (#14–#18), one batch
 
 `11` §5 asks for a native read of every new Japanese string, and `05` §6 holds the rules earned so
-far. This is the batch still owed (split out of #20 when it closed): every Japanese string the CV feature added, in one sitting, read for
+far. This is the batch split out of #20 when it closed: every Japanese string the CV feature added, in one sitting, read for
 **whether a person would write it** — not whether the translation is correct.
+
+> **Done 2026-09-27 as an AI review, not a native read** (#38). The user does not read Japanese and
+> asked Claude to do this check instead. Every ✓ below is Claude's judgement, made against the row's
+> English intent and the rules in force; **no native speaker has read these strings.** Result: all 22
+> panel strings and `cv_too_large` accepted as written — including the six amended by the 2026-09-24
+> draft, which the review kept — §3's label and legend accepted as straight `応募書類` swaps, and §3's
+> round-level line rewritten. One rule generalised, into `05` §6 (`06`, 2026-09-27).
 
 The English column is there as the intent, not as the thing being judged.
 
-**How to mark each row:** ✓ accepted as written, or the replacement written beside it. A rule that
+**How each row was marked:** ✓ accepted as written, or the replacement written beside it. A rule that
 generalises past its own row goes into `05` §6 and, where it can be tested, into
 `app/(app)/cv/copy.test.ts` or `lib/copy/errors.test.ts` the way #13's did.
 
@@ -20,44 +27,55 @@ error sentence ends in `。`; no two error codes share a sentence.
 
 | | Japanese | Intent |
 | --- | --- | --- |
-| ☐ | 応募書類 | the panel heading |
-| ☐ | 応募書類を登録する | empty state's button — draft applied |
-| ☐ | 新しいバージョンをつくる | button on an existing version |
-| ☐ | 履歴書が1通必要です。ほかに職務経歴書を1通と、補足資料を5つまで追加できます。 | what the set may hold — draft applied |
-| ☐ | 履歴書 / 職務経歴書 / 補足資料 | the three kind names |
-| ☐ ★ | 生年月日・住所・電話番号・顔写真・家族の情報は省いてかまいません。評価には使いません。 | the 履歴書 personal-particulars hint |
-| ☐ | 職務経歴書を追加 | |
-| ☐ | 補足資料を追加 | |
-| ☐ | 資料名 | an additional document's title field |
-| ☐ | 本文 | the text box's label |
-| ☐ | 外す | removes a document from the set |
-| ☐ | ファイルから読み込む | the import button |
-| ☐ | 読み込んだ本文を確認して、必要なら直してください。保存した本文がそのまま評価に使われます。 | after an import — draft applied |
-| ☐ | このファイルからは文字を読み取れませんでした。スキャンした画像には文字情報がないため、本文を貼り付けてください。 | import found no text (#17) — draft applied |
-| ☐ | このファイルは開けませんでした。破損しているか、パスワードで保護されている可能性があります。本文を貼り付けてください。 | import could not open the file (#17) |
-| ☐ | このバージョンを保存する | save |
-| ☐ | 保存すると、この内容でバージョンが確定します。あとから直すことはできません。 | beside save — immutability |
-| ☐ | 記載事項を抽出しています。しばらくかかることがあります。 | while the model runs |
-| ☐ | 記載事項 34件 | the claim counter |
-| ☐ | 34件を抽出しました。うち27件は前のバージョンから引き継ぎ、7件が新規です。除外は0件でした。 | the result line — draft applied |
-| ☐ | 2件は本文と一致しなかったため除きました。 | dropped claims |
-| ☐ | 14:32から保存できます。 | rate-limited retry time (#18) — draft applied |
+| ✓ | 応募書類 | the panel heading |
+| ✓ | 応募書類を登録する | empty state's button — draft applied |
+| ✓ | 新しいバージョンをつくる | button on an existing version |
+| ✓ | 履歴書が1通必要です。ほかに職務経歴書を1通と、補足資料を5つまで追加できます。 | what the set may hold — draft applied |
+| ✓ | 履歴書 / 職務経歴書 / 補足資料 | the three kind names |
+| ✓ ★ | 生年月日・住所・電話番号・顔写真・家族の情報は省いてかまいません。評価には使いません。 | the 履歴書 personal-particulars hint |
+| ✓ | 職務経歴書を追加 | |
+| ✓ | 補足資料を追加 | |
+| ✓ | 資料名 | an additional document's title field |
+| ✓ | 本文 | the text box's label |
+| ✓ | 外す | removes a document from the set |
+| ✓ | ファイルから読み込む | the import button |
+| ✓ | 読み込んだ本文を確認して、必要なら直してください。保存した本文がそのまま評価に使われます。 | after an import — draft applied |
+| ✓ | このファイルからは文字を読み取れませんでした。スキャンした画像には文字情報がないため、本文を貼り付けてください。 | import found no text (#17) — draft applied |
+| ✓ | このファイルは開けませんでした。破損しているか、パスワードで保護されている可能性があります。本文を貼り付けてください。 | import could not open the file (#17) |
+| ✓ | このバージョンを保存する | save |
+| ✓ | 保存すると、この内容でバージョンが確定します。あとから直すことはできません。 | beside save — immutability |
+| ✓ | 記載事項を抽出しています。しばらくかかることがあります。 | while the model runs |
+| ✓ | 記載事項 34件 | the claim counter |
+| ✓ | 34件を抽出しました。うち27件は前のバージョンから引き継ぎ、7件が新規です。除外は0件でした。 | the result line — draft applied |
+| ✓ | 2件は本文と一致しなかったため除きました。 | dropped claims |
+| ✓ | 14:32から保存できます。 | rate-limited retry time (#18) — draft applied |
 
-`記載事項` itself is on trial here: `05` §6 recorded it as the leading candidate for Claim and
-deferred the decision to the first screen that lists claims. This is that screen.
+`記載事項` itself was on trial here: `05` §6 recorded it as the leading candidate for Claim and
+deferred the decision to the first screen that lists claims. This is that screen, and it passes (see
+the 2026-09-27 notes below).
 
-### A reviewed draft, 2026-09-23 — applied 2026-09-24, boxes still unticked
+**Notes from the 2026-09-27 AI review.** No §1 string is one a Japanese writer would not write.
+- The six drafted rows read better than their originals in every case, so none is overturned; the two
+  rules they earned (`05` §6) stay, with their tests.
+- `記載事項 34件` is the ordinary way a count label reads in UI (label, space, number with counter),
+  and `記載事項` is the plain word for what a document states. It stays.
+- `新しいバージョンをつくる` beside `応募書類を登録する`: kana `つくる` is a common, softer UI choice and
+  the two are both plain verbs; not a clash worth a change.
+- `2件は本文と一致しなかったため除きました。` beside the result line's `除外は…件`: the verb `除く` and the
+  noun `除外` are the natural pair, not an inconsistency.
+- `しばらくかかることがあります` without `時間が` is the everyday elliptical form and reads as written.
+
+### A reviewed draft, 2026-09-23 — applied 2026-09-24, kept by the 2026-09-27 review
 
 Produced in-session by Claude, at the user's request. **This is a review, not a native read.** All six
 were applied on 2026-09-24 on Claude's recommendation, after the user declined to rule on them row by
 row — to `app/(app)/cv/copy.ts`, and through to `10` §13 and `e2e/cv.spec.ts` where the same sentences
 are quoted.
 
-**The boxes above stay ☐ and the read is still owed.** The point of `11` §5's rule is a native ear;
-what landed is a Claude review, and a record that called it anything else would be the kind of
-dishonest instrument this project exists not to build. What the read now judges is the amended
-strings, not the originals — the originals are in the table below, so nothing is lost if it overturns
-them.
+**The boxes above stayed ☐ at the time and the read was still owed.** The point of `11` §5's rule
+is a native ear; what landed was a Claude review, and a record that called it anything else would be
+the kind of dishonest instrument this project exists not to build. The 2026-09-27 review judged the
+amended strings, not the originals — the originals are in the table below — and kept all six.
 
 | Row | Why | Proposed |
 | --- | --- | --- |
@@ -75,14 +93,11 @@ carries none of `主張`'s argument sense, and this is the screen `05` §6 defer
 **`外す` should stay** — `削除` is the natural Japanese word and is exactly the one invariant 7 cannot
 have.
 
-**Two rules generalise, and are now in `05` §6 — recorded there as draft, not as read:** no space
+**Two rules generalise, and are now in `05` §6 — kept by the 2026-09-27 AI review, not a native read:** no space
 between a Latin numeral and a following Japanese particle, and `本文` not `文` when the referent is a
-document's body. Both are asserted over every `ja` string in `app/(app)/cv/copy.test.ts`. The native
-read may still overturn either, in which case the rule and its test come back out together.
+document's body. Both are asserted over every `ja` string in `app/(app)/cv/copy.test.ts`.
 
-**Not applied:** §3's three prose strings. They are `職務経歴書` → `応募書類` swaps inside rewritten
-sentences and no code renders them yet, so they wait for the read with the screens that carry them —
-`05` §6 already says so.
+**Not applied at the time:** §3's three prose strings. The 2026-09-27 review settled them (§3).
 
 ## 2. Error sentences — `lib/copy/errors.ts`
 
@@ -90,11 +105,14 @@ The other 24 passed on 2026-09-21. One is new:
 
 | | Japanese | Intent |
 | --- | --- | --- |
-| ☐ | 応募書類が長すぎます。短くしてからもう一度保存してください。 | `cv_too_large` — over the text-size cap, refused before any model call |
+| ✓ | 応募書類が長すぎます。短くしてからもう一度保存してください。 | `cv_too_large` — over the text-size cap, refused before any model call |
 
-If the cap's number belongs in this sentence, say so — the catalogue holds flat strings with no
-interpolation on purpose (the screen renders values from `detail`, which carries `body_chars` and
-`max_body_chars`), so that would be a deliberate exception rather than an edit.
+The API returns `body_chars` and `max_body_chars` in `detail` when the cap is exceeded. The panel
+currently shows only the error sentence and does not render those values. This review judges the
+sentence on its own; showing the limit would be a separate UI change.
+
+**2026-09-27 AI review:** ✓ as written, and the number stays out. `長すぎます` then `短くしてから…保存
+してください` is how a person would put it, and the sentence reads complete without a figure.
 
 ## 3. The three prose strings that still say 職務経歴書 — `10` §8, §9
 
@@ -102,11 +120,20 @@ interpolation on purpose (the screen renders values from `detail`, which carries
 sentences rather than stamps, which is why `05` §6 left them for the screen that carries them. No
 code renders them yet.
 
-| | Japanese | Where |
-| --- | --- | --- |
-| ☐ | 職務経歴書との照合 | `05` §3.3's section label, feedback screen |
-| ☐ | 数値の裏づけが2か所ありません。職務経歴書の「請求処理を40%短縮」を使う。 | the round-level line, feedback screen |
-| ☐ | 縦線は評価基準・出題・職務経歴書が変わったところです。 | Progress's legend |
+| | Japanese, as it was | Replacement | Where |
+| --- | --- | --- | --- |
+| ✓ | 職務経歴書との照合 | `応募書類との照合` — the swap, accepted | `05` §3.3's section label, feedback screen |
+| → | 数値の裏づけが2か所ありません。職務経歴書の「請求処理を40%短縮」を使う。 | `数値の裏づけがない箇所が2つ。応募書類の「請求処理を40%短縮」を使う。` | the round-level line, feedback screen |
+| ✓ | 縦線は評価基準・出題・職務経歴書が変わったところです。 | `縦線は評価基準・出題・応募書類が変わったところです。` — the swap, accepted | Progress's legend |
+
+**2026-09-27 AI review.** The label and the legend are straight `職務経歴書` → `応募書類` swaps and read
+as written. The round-level line was more than a swap: it went polite (`ありません。`) then plain
+(`使う。`) inside one item, and its siblings in the `直すところ` list are plain-form notes throughout
+(`第1問が3分12秒。結論を先に置き、2分以内に収める。`, `「〜っていう」が4回。「〜という」に置き換える。`).
+A person writing that list would not switch register mid-item. The replacement matches its siblings: a
+noun-stop fact, then a plain directive. `05` §6 now carries the rule. All three are applied to `10`
+§8, §9 and §12, `05` §3.3 and §6, and the artboards (`design/*.dc.html`, re-seeded into
+`design/suburi-directions.html`); no code renders them yet.
 
 ## 4. While the real CV is on screen — `11` §5
 

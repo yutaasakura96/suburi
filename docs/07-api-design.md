@@ -775,12 +775,9 @@ convert a guarantee in `04` §6 into a preference.
   (`03` §4), and §5.7's response carries the real string.
 - **The near-duplicate threshold** used in §5.4. A guess until there is real data; start strict, log
   every near-miss with its score.
-- **User-facing copy for every code in §3.** The catalogue is closed and complete; the Japanese and
-  English strings for it are not written, and **Japanese copy needs a native read**
-  (`05-design-system.md` §6). `11-testing-plan.md` asserts the two lists match, which will fail
-  loudly until they do. **Being written now, whole** — not code by code as each endpoint lands —
-  because the Japanese half is one native read either way, and a catalogue written in instalments is
-  a catalogue with a different voice in each instalment (#13).
+- ~~**User-facing copy for every code in §3.**~~ **Closed in #13:** `lib/copy/errors.ts` owns the
+  bilingual catalogue. `11-testing-plan.md` checks it against §3, and its Japanese strings passed a
+  native read on 2026-09-21 (`05-design-system.md` §6).
 - ~~**The per-session rate limiter's mechanism.**~~ **Decided in #18** (2026-09-22): a Postgres fixed
   window per `(session, route)`, checked against Vercel's current WAF documentation first. §1 rule 5.
 - ~~**The text-size cap on `POST /api/cv-versions`.**~~ **Decided in #20** (2026-09-23), from the

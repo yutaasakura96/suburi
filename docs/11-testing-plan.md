@@ -263,9 +263,10 @@ either irreducibly human or need a real human ear.
 - [ ] Claims on a **real** CV: eyeball extraction quality — no paragraph-sized lumps in a late, dense section — and check `spans_rejected`, `quotes_outside_window` and `claims_duplicated` are zero. First run 2026-09-23 (#20, one call); the windowed re-measure and eyeball, 2026-09-27 (#29), judged good and kept `lib/cv/limits.ts`'s caps (`03` §4).
 - [ ] Every rendered quote is genuinely in the CV. Sample five.
 
-**The CV feature's native read** is collected as one batch in `docs/checklists/native-read-cv.md`: every
-Japanese string #14–#18 added, the new `cv_too_large` sentence, and the three prose strings that still
-say `職務経歴書` where they mean the set.
+**The CV feature's read** is collected as one batch in `docs/checklists/native-read-cv.md`: every
+Japanese string #14–#18 added, the new `cv_too_large` sentence, and the three prose strings that said
+`職務経歴書` where they meant the set. **Done 2026-09-27 as an AI review, not a native read** — the user
+does not read Japanese and delegated it (#38). No native speaker has read these strings.
 
 **Per stamp change** — model, rubric, prompt or CV version:
 

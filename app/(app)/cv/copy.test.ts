@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { COPY, retryClock } from "./copy";
 
 // 05 §6's mechanical rules over the 応募書類 panel's chrome, as lib/copy/errors.test.ts holds them
-// over the catalogue. Whether a person would write the sentence is #20's native read, not a test.
+// over the catalogue. Whether a person would write the sentence is a read, not a test — for this
+// screen, the 2026-09-27 AI review (docs/checklists/native-read-cv.md).
 
 const SAMPLE = { total: 34, carriedForward: 27, fresh: 7, rejected: 2 };
 
@@ -33,7 +34,7 @@ describe("the 応募書類 panel's Japanese chrome", () => {
     expect(COPY.ja.claims(34)).toBe("記載事項 34件");
   });
 
-  // #20's reviewed draft (05 §6), applied ahead of the native read and testable without an ear.
+  // #20's reviewed draft (05 §6), kept by the 2026-09-27 AI review and testable without an ear.
   it.each(ja)("%s sets a Japanese particle tight against a Latin numeral", (_, text) => {
     expect(text).not.toMatch(/[0-9][ 　]+[ぁ-んァ-ヿ一-龯]/u);
   });
