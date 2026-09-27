@@ -82,14 +82,14 @@ auto-merged (`11` §7).
 | `cn`, `class-variance-authority`, `tw-animate-css` | 0.3.0, 0.7.1, 1.4.0 | What `shadcn init` installs on 4.21.0. `cn` is shadcn's own compiled replacement for `clsx` + `tailwind-merge`, and `components/ui/` imports it directly |
 | `drizzle-orm`, `drizzle-kit` | 0.45.2, 0.31.10 | Latest **stable**. The 1.0 RC, and the docs pages written for it, are not used (`06`) |
 | `pg` | 8.23.0 | The one driver, locally, in CI and on Vercel (`06`) |
-| `better-auth` | 1.7.4 | Latest stable |
+| `better-auth` | 1.7.5 | Latest stable |
 | `zod` | 4.6.5 | Latest stable |
 | `openai` | 7.20.0 | Latest stable, checked 2026-09-21. Lists `gpt-5.6-sol`, and its `zodTextFormat` takes Zod 4. Never auto-merged (`11` §7) |
 | `mammoth` | 1.12.3 | Latest stable, checked 2026-09-22. `.docx` → text in the browser (`extractRawText`), loaded only when a file is picked (`06`) |
 | `pdfjs-dist` | 6.3.289 | Latest stable, checked 2026-09-22. `.pdf` → text in the browser. Its worker is bundled by Next; its CMaps are copied to `public/pdfjs/cmaps/` at build, because a Japanese PDF with a non-embedded font cannot be read without them (`06`) |
 | `@next/env` | 16.3.5 | Pinned with `next`. Playwright loads env files with it exactly as `next start` does (`06`) |
-| `vitest`, `@playwright/test`, `vite` | 5.0.0, 1.63.0, 8.3.0 | Latest stable. `vite` is Vitest's peer, pinned so it is not left to resolution |
-| `eslint` | 10.10.0 | Latest stable. 9.x reached end-of-life 2026-08-06 |
+| `vitest`, `@playwright/test`, `vite` | 5.0.1, 1.63.0, 8.3.0 | Latest stable. `vite` is Vitest's peer, pinned so it is not left to resolution |
+| `eslint` | 10.11.0 | Latest stable. 9.x reached end-of-life 2026-08-06 |
 | `@next/eslint-plugin-next`, `eslint-plugin-react-hooks`, `typescript-eslint` | 16.3.5, 7.1.1, 8.70.0 | Assembled by hand in place of `eslint-config-next`, whose react, import and jsx-a11y plugins do not support ESLint 10 (`06`) |
 | Postgres | 18 | Newest supported major (18.6, supported to 2030). Neon ships `pgvector` 0.8.6 on 18 against 0.8.0 on 17 (`06`) |
 
