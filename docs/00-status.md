@@ -19,7 +19,9 @@ rewritten in both languages, the `.docx` importer reads tables, three reading co
 human checks are all that is left on #20:** the native read of the 22 panel strings — six of them now
 carry an applied Claude review (2026-09-24), which is what the read judges, not what it replaces — and
 the eyeball of #27's new claims.
-**Updated:** 2026-09-24 (#28)
+**#29 is built — extraction is windowed:** N parallel calls, each sent the whole set and returning
+one window's claims, all finished before the one transaction. Its real-CV re-measure is still owed.
+**Updated:** 2026-09-27 (#29)
 
 ## Done
 - Phase 1 — `docs/01-project-brief.md`, `docs/02-product-requirements.md`, `docs/06-decision-log.md`.
@@ -276,6 +278,16 @@ the eyeball of #27's new claims.
   (`03` §4): 67 keys rewritten, `claims_duplicated` **5, 0, 0 unchanged** — `NFKC` merged none of the
   29 doubled lines #27 left, which differ by date cells, not width. What it fixes is carry-forward
   across a full-width-only change. **Counts:** units 516 → 520, integration 119 → 122.
+- **#29 — windowed extraction.** Measured on synthetic sets (`06`, 2026-09-27): one long call lumped
+  the late `PROJECTS` block into seven ~500-character claims no counter saw, and one call per document
+  returned a 職務経歴書's repeated qualifications again. Now `lib/cv/windows.ts` cuts each document at
+  blank lines into windows (`03` §4), and `lib/cv/windowed-extraction.ts` sends every
+  window the whole set, in parallel, with one retry that fits the 300 s. Everything finishes before
+  the transaction, and any window failing is `502 cv_extraction_failed`. New prompts
+  `cv-extract-ja-1.2` and `cv-extract-en-1.3` add the window clause and give a repeated assertion to
+  the earliest place it is stated. A quote outside its window is dropped and counted in
+  `quotes_outside_window`, which alerts at any non-zero value (`12` §6). **`lib/cv/limits.ts`'s caps
+  are unchanged and need re-measuring windowed.** **Counts:** units 520 → 558, integration 122 → 125.
 - **Still deferred, not done:** `11` §3.10's third bullet — forcing each failure with sentinel text and
   scanning every envelope for it — needs routes to exist. It belongs to #14 onward. What #13 gives is
   structural: `ErrorDetailValue` is flat, so a nested object cannot be dropped into `detail`, and the
@@ -290,7 +302,8 @@ Page 1 is the screen set, page 2 the three exploration directions. **Working fil
 every change re-seeds from those — edit them, never the built `design/suburi-directions.html`.
 
 ## Next
-**Two human checks on #20, then #21. The machine half of both #20 and #27 is done.**
+**Two human checks on #20 and the #29 re-measure, then #21. The machine half of #20, #27 and #29 is
+done.**
 
 **1. The native read** of `docs/checklists/native-read-cv.md` — 22 panel strings, the new
 `cv_too_large` sentence, the three prose `職務経歴書` strings. Rules earned go into `05` §6.
@@ -309,6 +322,12 @@ block, and a 技術スタック inventory — which leaves roughly a sixth genui
 went the other way, to 88.7% in a 2,668-character unbroken run**, because an English CV is very nearly
 all assertions and the claims are now whole sentences. Both readings are in the local database beside
 their baselines; nothing was deleted.
+
+**3. The real-CV re-measure, windowed (#29)** — `11` §5. The new prompts have only run on synthetic
+sets, and only as an input stand-in. Re-read both real CVs locally: no paragraph-sized lumps in
+`PROJECTS`, `quotes_outside_window` 0, `claims_duplicated` 0, wall time beside `03` §4's one-call
+numbers, and whether `lib/cv/limits.ts`'s caps still hold. **Do it before #21**: once production reads
+a CV, `cv_unchanged` keeps an unchanged set from ever being re-read.
 
 **Then #21.** #27 no longer blocks it: the CV feature can reach `main` without stamping every scored
 answer with a reading already known to be bad. **Never merge into `main` before #21.**

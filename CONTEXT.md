@@ -188,7 +188,9 @@ Carry these; do not silently decide them in a ticket.
   re-measuring #27: the English CV has no tables, so re-importing it produced byte-identical text and
   the save was refused `422 cv_unchanged` before any model call — correct behaviour, and a dead end if
   a better prompt should ever be applied to an unchanged set. Nothing depends on it yet, because no
-  answer has been scored. Decide it deliberately if a third prompt version ever ships.
+  answer has been scored. Decide it deliberately if a third prompt version ever ships. **#29 shipped
+  one** (`cv-extract-ja-1.2`, `cv-extract-en-1.3`) before production reads any CV (#21), which is what
+  keeps this moot for now; the stored versions it cannot reach are `develop`'s and the local ones.
 - **One drawn-but-unspecified screen:** practice mode's record frames differ from realistic mode's.
   Listed in `docs/10-screen-specifications.md` §12. **The CV screen came off this list in #12** — it
   still has no artboard, but it is specified in `10` §13 from `05` components, which is the whole of
@@ -225,7 +227,7 @@ than solved twice.
 | Verbatim anchoring | `src/pipeline/quote.ts` — `indexOf`, first occurrence, exact match | `lib/cv/spans.ts` — every occurrence, nearest the model's `start_hint`, plus the grapheme and document-boundary rules |
 | Same-assertion matching | `src/pipeline/dedupe.ts` — `NFKC` + whitespace + lowercase, hashed, permanent | `normaliseClaimText` — `NFKC` + whitespace, case kept, per version (#28) |
 | "One claim per assertion" | `EXTRACTION_SYSTEM_PROMPT` | `lib/prompts/cv-extract-*` |
-| Section coverage | chunks at ~2,400 characters on paragraph boundaries | one call for the whole document |
+| Section coverage | chunks at ~2,400 characters on paragraph boundaries, each read on its own | windows at paragraph boundaries, each call reading the whole set (`03` §4, #29) |
 
 **Three things that follow, and they do not all point the same way.**
 
@@ -235,10 +237,13 @@ than solved twice.
   whitespace collapse missed in the #27 measurement: re-run on the stored readings it merged none
   (`03` §4). Those differ by the 履歴書's date cells, not by width. What it does fix is a claim whose
   only change between versions is a full-width form, which used to lose its coverage history.
-- **Its chunking makes #27's worst failure impossible, and #29 asks whether to adopt it.** A model
-  reading 2,400 characters has nowhere to skip to. Our `unclaimed_run_max` detects that failure; its
-  architecture prevents it. The one-call design has four live reasons behind it, so this is a
-  question, not a correction.
+- **Its chunking makes #27's worst failure impossible, and #29 adopted half of it.** A model
+  reading 2,400 characters has nowhere to skip to. Measured, one long call also *lumped* the late
+  `PROJECTS` block into paragraph-sized claims that no counter sees. But a chunk read on its own
+  cannot see the other documents, and on a 応募書類 that brought back every repeated qualification.
+  So a call here is sent the whole set and returns the claims of one window only: the window bounds
+  what one call has to write, and the whole set keeps the cross-document rule working (`06`,
+  2026-09-27).
 - **Its prompt carries the fragment risk #27 removed from ours** — "a sentence carrying two distinct
   outcomes is two calls", with no rule against stopping at a 連用形. It hurts less there, because its
   `claim` and `quote` are separate columns and the quote only has to support the claim; here the

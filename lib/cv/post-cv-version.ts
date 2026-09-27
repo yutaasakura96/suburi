@@ -3,30 +3,22 @@ import { z } from "zod";
 import { apiError, rateLimited, unauthenticated } from "../api/errors";
 import { takeRateLimit } from "../api/rate-limit";
 import { sessionOf, type SessionReader } from "../auth/session";
-import {
-  ExtractionFailed,
-  type CvClaimExtractor,
-  type ExtractedClaim,
-} from "../ai/extract-cv-claims";
+import { ExtractionFailed, type CvClaimExtractor } from "../ai/extract-cv-claims";
 import { assembleBody } from "./body";
 import { currentCvVersion } from "./current-version";
 import { MAX_BODY_CHARS } from "./limits";
-import { readClaims, type ValidatedClaim } from "./reading";
 import { saveCvVersion } from "./save-cv-version";
-import {
-  characterLength,
-  createSpanChecker,
-  normaliseClaimText,
-  type RejectionReason,
-  type Span,
-} from "./spans";
+import { characterLength } from "./spans";
+import { survivingClaims } from "./surviving-claims";
 import { isUnchanged } from "./unchanged";
+import { extractByWindow, WindowedExtractionFailed, type WindowedExtraction } from "./windowed-extraction";
 
 // Relative imports: the integration tests load this file outside Next's path aliases.
 
 /**
  * `POST /api/cv-versions` (07 §5.2): save one language's whole CV as a new version and extract its
- * claims. Synchronous, one model call, all-or-nothing.
+ * claims. One synchronous extraction (N parallel windowed calls, `windowed-extraction.ts`), one
+ * transaction, all-or-nothing: every call finishes before the transaction opens.
  *
  * **Composition and order are refused, never repaired** (04, 07 §5.2). A set is its required
  * document, then — Japanese only — at most one 職務経歴書, then up to five titled additional
@@ -38,7 +30,7 @@ import { isUnchanged } from "./unchanged";
  * **Rate-limited before anything else is read** (07 §1 rule 5): 6 per 10 minutes per session, and a
  * request refused for any later reason still counts.
  *
- * **`cv_unchanged` is checked twice** (07 §5.2): here, before the model call, and again under the
+ * **`cv_unchanged` is checked twice** (07 §5.2): here, before any model call, and again under the
  * write's lock (`saveCvVersion`), where carry-forward is also decided.
  *
  * **The client chooses none of the stamps.** `version_label`, `body`, every document's range and
@@ -135,36 +127,6 @@ function pgErrorClass(error: unknown) {
   return typeof pg.code === "string" && /^[0-9A-Z]{5}$/.test(pg.code) ? `pg_${pg.code}` : "unexpected";
 }
 
-/**
- * Every extracted claim is located in its document and then validated. A claim that fails either is
- * dropped and counted, never clamped — that is the anti-hallucination guard, and it answers only
- * whether the quote is really in the stored text.
- *
- * What survives goes to `readClaims`, which drops the repeats and measures **how the model read**
- * (`reading.ts`, #27). Both sets of numbers are reported, and
- * `spans_checked === claims.total + spans_rejected + claims_duplicated`.
- */
-function survivingClaims(body: string, ranges: readonly Span[], claims: readonly ExtractedClaim[]) {
-  const checker = createSpanChecker(body, ranges);
-  const validated: ValidatedClaim[] = [];
-  const rejected: Partial<Record<RejectionReason | "not_found", number>> = {};
-
-  for (const claim of claims) {
-    const span = checker.locate(claim.document, claim.quote, claim.start_hint);
-    const verdict = span ? checker.validate(span, claim.quote) : null;
-    if (!span || !verdict?.ok) {
-      const reason = verdict && !verdict.ok ? verdict.reason : "not_found";
-      rejected[reason] = (rejected[reason] ?? 0) + 1;
-      continue;
-    }
-    validated.push({ span, textNormalised: normaliseClaimText(verdict.quote) });
-  }
-
-  const spansRejected = Object.values(rejected).reduce((sum, n) => sum + n, 0);
-  const reading = readClaims(body, ranges, validated);
-  return { ...reading, spansChecked: validated.length + spansRejected, spansRejected, rejected };
-}
-
 export function createPostCvVersion(deps: PostCvVersionDeps) {
   return async function POST(request: Request): Promise<Response> {
     const session = await sessionOf(deps.auth, request.headers);
@@ -193,7 +155,7 @@ export function createPostCvVersion(deps: PostCvVersionDeps) {
       return apiError("cv_unchanged", `No document differs from ${versionLabel}.`, { language });
     };
 
-    // Assembled here, before the database is read and long before the model call, so the size the
+    // Assembled here, before the database is read and long before any model call, so the size the
     // cap refuses is the size the record would have counted (07 §5.2, measured in #20).
     const { body, ranges } = assembleBody(documents.map((document) => document.text));
     const size = { documents: documents.length, body_chars: characterLength(body) };
@@ -214,31 +176,51 @@ export function createPostCvVersion(deps: PostCvVersionDeps) {
     const started = performance.now();
     const elapsed = () => Math.round(performance.now() - started);
 
-    let extracted: readonly ExtractedClaim[];
+    let extracted: WindowedExtraction;
     try {
-      extracted = await deps.extractor.extract(language, requested);
+      extracted = await extractByWindow(deps.extractor, language, requested);
     } catch (error) {
       const errorClass = error instanceof ExtractionFailed ? error.errorClass : "unexpected";
-      log("error", { event: "cv_extraction_failed", language, ...size, error_class: errorClass, duration_ms: elapsed() });
+      const fanOut: Record<string, number> =
+        error instanceof WindowedExtractionFailed ? { windows: error.windows, window_retries: error.retries } : {};
+      log("error", {
+        event: "cv_extraction_failed",
+        language,
+        ...size,
+        ...fanOut,
+        error_class: errorClass,
+        duration_ms: elapsed(),
+      });
       return apiError("cv_extraction_failed", "CV extraction failed; nothing was written.", {
         error_class: errorClass,
       });
     }
+    const fanOut = { windows: extracted.windows, window_retries: extracted.retries };
 
-    const { claims, claimsSplit, claimsDuplicated, unclaimedRunMax, spansChecked, spansRejected, rejected } =
-      survivingClaims(body, ranges, extracted);
+    const {
+      claims,
+      claimsSplit,
+      claimsDuplicated,
+      unclaimedRunMax,
+      spansChecked,
+      spansRejected,
+      rejected,
+      quotesOutsideWindow,
+    } = survivingClaims(body, ranges, extracted.results);
     // Never a refusal, in either direction: the counters say how the reading went, and a bad reading
     // is the model's judgement rather than an invariant the user could edit their way past (07 §5.2).
     const reading = {
       claims_split: claimsSplit,
       claims_duplicated: claimsDuplicated,
       unclaimed_run_max: unclaimedRunMax,
+      quotes_outside_window: quotesOutsideWindow,
     };
     if (claims.length === 0) {
       log("error", {
         event: "cv_extraction_failed",
         language,
         ...size,
+        ...fanOut,
         error_class: "no_claims_survived",
         spans_checked: spansChecked,
         spans_rejected: spansRejected,
@@ -287,6 +269,7 @@ export function createPostCvVersion(deps: PostCvVersionDeps) {
       language,
       documents: saved.documents.length,
       body_chars: size.body_chars,
+      ...fanOut,
       claims: claims.length,
       carried_forward: saved.carriedForward,
       spans_checked: spansChecked,

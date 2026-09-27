@@ -3,6 +3,135 @@
 Newest first. Every entry records what was chosen, why, and what was rejected.
 
 ---
+## Phase 6 — #29, windowed CV extraction
+
+### [2026-09-27] The 4,000-code-point window size is a target
+
+**Clarification:** the window planner preserves a whole line even when it exceeds 4,000 code points,
+and joins a final window shorter than a quarter of the target to its predecessor. Either can make a
+window longer than 4,000. The earlier entry's "at most" describes the packing step, not the final
+window size (`03` §4, `lib/cv/windows.ts`).
+
+### [2026-09-27] CV extraction is N parallel windowed calls, and every call reads the whole set
+
+**Decided:** a save's extraction is no longer one model call. The set is cut into **windows**
+(`lib/cv/windows.ts`), each a passage of one document, and each window gets one call. **Every call is
+sent the whole set, exactly as the one call was**, and returns the claims of its own window only. The
+calls run in parallel (`lib/cv/windowed-extraction.ts`) and all of them finish before the save's
+transaction opens, so the save is still all-or-nothing and a failure is still `502
+cv_extraction_failed`. This supersedes #11's "One model call extracts atomic claims" and the
+2026-09-21 entry's "one model call"; `03` §4 and `07` §5.2 now say "one synchronous extraction (N
+parallel windowed calls), one transaction". Closes
+[#29](https://github.com/yutaasakura96/suburi/issues/29).
+
+**Why: #27's failure had a second, quieter form, and no counter can see it.** Measured on synthetic
+sets shaped like the real CVs (2026-09-25, `gpt-5.6-sol`; an invented applicant, never the real CV).
+The whole-set call under `cv-extract-en-1.2` did read `PROJECTS` — the block `en-1.1` skipped — but
+returned it as **seven claims averaging 516 characters**, each a project's title and whole paragraph,
+on both runs. The prompt forbids that shape: one of them carried three separate results. The same
+characters **moved up** to follow `PROFILE` came back as 26 claims averaging 138, and read as a window
+of their own, mostly sentence by sentence. So the cause is how late the material falls in one long
+output, not its format. `unclaimed_run_max` read **996 on every English reading, lumped or not**
+(the `TECHNICAL SKILLS` inventory, unclaimed by design), `claims_split` read 0, and coverage was
+complete. Before #27 the symptom was a skip; after it, a lump. The cause did not move, and each new
+symptom would need a new counter.
+
+**Why not one call per document, or per heading-split chunk** (#29's options 2 and 3). It brings back
+#27's duplicated qualifications. On the synthetic 応募書類 the 職務経歴書's `■保有資格` repeats the
+履歴書's 14 `免許・資格` rows in another date format. The whole-set call returned none of them twice.
+One call per document returned **all 14 again** (84 claims against 66), because neither call can see
+the other document, so the "one claim for an assertion written twice" rule cannot apply.
+`claims_duplicated` stayed 0 (the texts differ by date format), and `unclaimed_run_max` **fell** from
+823 to 248, so the counter reported the worse reading as an improvement. Windowed, with the whole
+set in every call: 66 claims, none repeated.
+
+**Why not one call, then a re-ask for unclaimed runs.** It would not have fired: every reading,
+lumped ones included, was under `12` §6's 2,000 threshold, because lumping leaves coverage complete.
+Lowering the threshold would re-ask on by-design gaps (`TECHNICAL SKILLS`, a repeated `保有資格`) and
+invite back the duplicates the first call rightly left out, all on a serial second call of 25–50 s.
+
+**What it costs.** Wall time is the largest window's call, not the sum: **46.6 s** (`en`, 4 windows)
+and **49.5 s** (`ja`, 2) against 43.9–47.2 s and 43.1 s for one call. Tokens are **2–3×**, about
+$0.20–0.30 a save against $0.10, because every call carries the whole set as input. `CLAUDE.md` says
+cost is not the constraint at this volume, and a save is made a handful of times ever.
+
+**Why now, before #21.** Production's first `CV v1` is read by whatever extractor ships, and after
+that `422 cv_unchanged` stops a better one from re-reading an unchanged set (`CONTEXT.md`, open
+questions). No answer has been scored, so changing the extractor now costs nothing downstream.
+
+**Where it lives.** The port (`lib/ai/extract-cv-claims.ts`) stays one interface with one
+implementation (`03` §10) and gains a window argument: one call, one window. Planning, the fan-out,
+the retry and the out-of-window check are deterministic and live in `lib/cv/`, where the fake drives
+them in tests. Keeping the fan-out inside the port was rejected: the out-of-window count has to reach
+the save's log line, and the port would have had to return more than claims.
+
+**Not yet measured, and said so.** The harness put the window instruction in the input as a stand-in.
+`cv-extract-ja-1.2` and `cv-extract-en-1.3` are that instruction as versioned prompts, and they have
+not been run against a model. The real-CV local re-measure after merge is the check, the same one
+#20 and #27 ran. `lib/cv/limits.ts`'s caps were derived for one call whose duration grows with the
+set; windowed wall time tracks the largest window instead, so the caps are **kept and marked for
+re-measurement**, not edited. The rate limits seen were the local key's (500 RPM, 500,000 TPM); the
+production key's are #21's to check, since a set at the cap is at least 8 (`ja`) or 12 (`en`)
+concurrent calls.
+
+**Rejected:** a partial save that keeps the windows that succeeded (a version with half its claims
+makes *"CV material never used"* a lie for its whole life, `03` §4); running the windows serially
+(the sum, about 139 s for four windows, against a 300 s ceiling); a heading detector to cut at
+(tuned to one CV's headings, and unnecessary, since the `.docx` importer ends every paragraph with a
+blank line).
+
+### [2026-09-27] A repeated assertion belongs to the earliest place it is stated
+
+**Decided:** `cv-extract-ja-1.2` and `cv-extract-en-1.3` give an assertion written more than once
+one owner: **the lowest-numbered document that states it, and its first occurrence there.** A call
+returns it only if that place is inside its window.
+
+**Why:** the old rule was "quote it once, from whichever document states it". With one call that is
+one choice. With several calls it is several choices, and two windows could both return the
+assertion, or both leave it to the other. The earliest place is a rule every call can apply alone,
+because every call sees the whole set. It also matches the backstop: `readClaims` keeps the first of
+two equal texts in body order, and the fan-out's results arrive in window order. For the measured
+case, the 履歴書 owns the qualifications its 職務経歴書 repeats, which is the reading `ja-1.1`
+already produced.
+
+### [2026-09-27] A quote outside its window is dropped and counted, and alerts at any non-zero value
+
+**Decided:** a claim whose quote is in the text but not wholly inside the window its call was given
+(another document, another window, or across the window's edge) is dropped, never kept and never
+moved, and counted in **`quotes_outside_window`**. It is logged, returned in the 201's `validation`
+and alerted on at any non-zero value (`12` §6). The verbatim check runs first, so a quote that is not
+in the text at all is still `spans_rejected`, whichever window returned it. An out-of-window quote is
+not part of `spans_checked`, so every returned claim is `spans_checked + quotes_outside_window`. The
+three reading counters keep their meaning.
+
+**Why dropped rather than kept:** the window that holds that text reads it and returns its own
+claims, so keeping a stray one could store the same assertion from two places, the duplication the
+ownership rule exists to prevent. **Why strict:** it was 0 across all six windowed calls measured, so
+any value is the model ignoring its window, the same shape as `spans_rejected`.
+
+### [2026-09-27] Windows are cut at blank lines near 4,000 code points, and a failed window gets one retry that fits
+
+**Decided:** `planWindows` cuts each document at blank lines and packs paragraphs into windows of at
+most **4,000 code points**. A paragraph is never cut: its line breaks may be a PDF's visual wraps,
+and a sentence straddling the cut could be quoted whole by neither call. A paragraph longer than the
+target is a window of its own, past the target. A last window under a quarter of
+the target joins the one before it, and a window never crosses a document. One number serves both
+languages. The measured windows that read at sentence level were 1,010–5,907 code points, and the
+densest, a whole 3,014-character 職務経歴書, read cleanly. On the synthetic English CV the planner
+gives `PROJECTS` a window of its own, the shape that was measured.
+
+A window that fails with a transient error (a timeout, a 5xx, a 408/409/429, an incomplete or
+unparseable response) is **retried once**, if at least **60 s** of a **270 s** deadline is left (the
+route's 300 s, less 30 s for the session, the reads and the write), with a timeout of whatever is
+left. A 4xx the same request would get again is not retried. When a window fails for good, the others
+are aborted.
+
+**Why a retry is possible now:** the one call had `maxRetries: 0` because it alone had to fit
+the 300 s, at a predicted ~145 s at the cap. A window's call took at most 53 s in the measurement, so
+one retry of a window that failed fast fits, and one that timed out at 240 s is refused rather than
+outliving the route.
+
+---
 ## Phase 6 — signed-in screens for an agent, locally
 
 ### [2026-09-25] `npm run dev:session` signs a local browser in; the app gains nothing

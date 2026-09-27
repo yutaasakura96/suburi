@@ -244,7 +244,7 @@ POST /api/cv-versions
 201
 { "id": "3f2a91c4-…", "version_label": "応募書類 v3", "language": "ja",
   "created_at": "2026-08-30T09:14:22Z",
-  "extractor_model_id": "gpt-5.6-sol", "extractor_prompt_version": "cv-extract-ja-1.1",
+  "extractor_model_id": "gpt-5.6-sol", "extractor_prompt_version": "cv-extract-ja-1.2",
   "documents": [
     { "id": "d001…", "kind": "rirekisho", "title": null, "start": 0, "end": 412 },
     { "id": "d002…", "kind": "shokumu_keirekisho", "title": null, "start": 414, "end": 2860 },
@@ -253,7 +253,8 @@ POST /api/cv-versions
   ],
   "claims": { "total": 34, "carried_forward": 27, "new": 7 },
   "validation": { "spans_checked": 35, "spans_rejected": 0,
-                  "claims_split": 0, "claims_duplicated": 1, "unclaimed_run_max": 118 } }
+                  "claims_split": 0, "claims_duplicated": 1, "unclaimed_run_max": 118,
+                  "quotes_outside_window": 0 } }
 ```
 
 **The client chooses none of the stamps.** `version_label`, `body`, every document's `start`/`end`,
@@ -280,6 +281,8 @@ database is read and before any model call**. Over it is `422 cv_too_large`, who
 number a refusal names is the number the record counts in. **Both numbers were measured** on the real
 documents, not guessed: duration tracks claims rather than characters, and claim density differs about
 2.3x between the languages (`03` §4, `06`, #20). Raising one is a measurement on a set that size.
+Both were measured for **one** call; windowed extraction (#29) keeps them unchanged until a real set is
+re-measured windowed, since its wall time follows the largest window rather than the whole set.
 
 **`version_label` is derived**, `応募書類 v{n}` / `CV v{n}`, numbered per language. `unique (user_id,
 language, version_label)` is the backstop; saves in one language are serialised by a
@@ -311,7 +314,15 @@ blind to all of them.
 `spans_checked` counts every located claim plus every rejection, so
 `spans_checked = claims.total + spans_rejected + claims_duplicated`.
 
-**None of the four refuses a save.** `spans_rejected` does not, and neither do the three reading
+**`quotes_outside_window` is the fan-out's own guard** ([#29](https://github.com/yutaasakura96/suburi/issues/29)).
+Each call returns the claims of one window, and a claim whose quote is in the text but not wholly
+inside that window — another document, another window, across the window's edge — is dropped, never
+kept and never moved, and counted here. The verbatim check runs first, so a quote that is not in the
+text at all is a `spans_rejected` whichever window returned it. An out-of-window quote is not checked,
+so every claim the calls returned is `spans_checked + quotes_outside_window`. It measured 0 across
+every windowed call, so it alerts at any non-zero value, like `spans_rejected` (`12` §6).
+
+**None of the five refuses a save.** `spans_rejected` does not, and neither do the three reading
 counters: a bad reading is the model's judgement rather than an invariant, and there is no edit the
 user could make that would clear it. They are logged, returned here, and alerted on (`12` §6). The one
 case that still fails is every claim being rejected, which leaves nothing to store —
@@ -322,9 +333,15 @@ deliberately repeats another's qualifications now leaves that whole block unclai
 extractor obeying the one-claim-per-assertion rule rather than a section being skipped. Its threshold
 is set from the measurement, not at zero.
 
-**Synchronous, one model call, one transaction.** The user is at the machine waiting; the version, its
-documents and its claims are written together or not at all. The call runs before the transaction
-opens, so nothing is held open while the model works (`06`, 2026-09-21).
+**One synchronous extraction (N parallel windowed calls), one transaction.** The user is at the
+machine waiting; the version, its documents and its claims are written together or not at all. The set
+is cut into windows — passages of one document, cut at blank lines, never crossing a document
+(`lib/cv/windows.ts`) — and each window gets one call that is sent the **whole set** and returns
+that window's claims (`03` §4, `06`, 2026-09-27). The calls run in parallel and **all of them finish
+before the transaction opens**, so nothing is held open while the model works (`06`, 2026-09-21) and
+no window's claims are ever written without the others'. A window that fails with a transient error
+is retried once if enough of the route's 300 s is left for another call; a window that fails for good
+fails the save, and the other windows are aborted.
 
 Failures:
 
@@ -333,12 +350,12 @@ Failures:
   no-op save would otherwise create a permanent duplicate version, a wasted extraction call, and a
   Progress boundary line marking a change that did not happen (`04` §6, refusal #5). The client also
   disables the save control while a save is in flight; this is the server-side half of the same rule.
-  **Checked twice:** before the model call, against the current version — the cheap refusal, no
+  **Checked twice:** before any model call, against the current version — the cheap refusal, no
   extraction spent — and again inside the write transaction, under the lock, against whatever is
   current *then*. Two tabs saving the same edit both pass the first check; the second to take the lock
   is refused by the second check rather than writing a duplicate `v{n+1}` (`06`, #16).
-- **`502 cv_extraction_failed`** — the model call failed, **or zero claims survived the span
-  validator**. Nothing is written, the version is not created, and the user simply saves again. A CV
+- **`502 cv_extraction_failed`** — any window's call failed, after the one retry it may get, **or
+  zero claims survived the span validator**. Nothing is written, the version is not created, and the user simply saves again. A CV
   version with half its claims is worse than none, and one with no claims would make coverage and
   every generated question silently empty for as long as it stayed current.
 - **`429 rate_limited`** with `Retry-After`, from the shared per-session limiter on every ⚡ route

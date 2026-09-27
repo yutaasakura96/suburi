@@ -142,6 +142,14 @@ describe("locate", () => {
     ]);
     expect(checker.locate(1, "Python.", 0)).toEqual({ start: 9, end: 16 });
   });
+
+  it("keeps only the occurrences wholly inside a window, relative to the document", () => {
+    // The hint points at the first occurrence; the window holds only the second.
+    expect(check.locate(0, "Led a team of 5.", 0, { start: 17, end: 60 })).toEqual({ start: 44, end: 60 });
+    // Straddling the window's edge is outside it.
+    expect(check.locate(0, "Cut invoicing time by 40%.", 17, { start: 20, end: 60 })).toBeNull();
+    expect(check.locate(0, "Cut invoicing time by 40%.", 17, { start: 17, end: 43 })).toEqual({ start: 17, end: 43 });
+  });
 });
 
 describe("normaliseClaimText", () => {

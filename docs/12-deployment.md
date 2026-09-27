@@ -241,6 +241,7 @@ retry loop or a prompt that doubled in size shows up on a bill, not on a screen.
 | `claims_split > 0` on a CV upload | any | email — the extractor is cutting sentences into fragments again (`07` §5.2) |
 | `claims_duplicated > 0` on a CV upload | any | email — the same assertion returned more than once |
 | `unclaimed_run_max` on a CV upload | > **2,000** code points | email — a section of the CV may have gone unread |
+| `quotes_outside_window > 0` on a CV upload | any | email — an extraction call quoted outside the window it was given (`07` §5.2, #29) |
 | Near-duplicate near-misses | weekly count and score distribution | the weekly digest — this is the log the threshold gets tuned from (`03` §11) |
 | Unhandled exception | any | Sentry, scrubbed per §7 |
 | App down | — | **not alerted.** You will know. |
@@ -254,8 +255,13 @@ repeats another's qualifications now leaves that whole block unclaimed by design
 1,071 code points, while the skipped `PROJECTS` block that started #27 measured 3,875. Tighten it when
 there is more than one CV's worth of readings to tune from, the way §6's near-duplicate row is tuned.
 
+**One failure no row here sees: a lumped reading** (#29). A late, dense section returned as a few
+paragraph-sized claims leaves coverage complete, abuts nothing and repeats nothing, so every counter
+reads clean. It is prevented by windowed extraction, not detected. The `quotes_outside_window` row
+guards the windowing itself and is strict, because it measured 0 across every windowed call.
+
 **Implementation:** two Vercel Cron routes under `/api/cron/`, authenticated with `CRON_SECRET`,
-returning `401` without it. `self-check` (daily) covers the first seven rows **and writes the daily
+returning `401` without it. `self-check` (daily) covers the first eight rows **and writes the daily
 `pg_dump`** (§8); `digest` (weekly) covers the last and reports the week's rounds, tokens and spend.
 
 **Vercel Hobby cron, verified 2026-09-12:** 100 cron jobs per project, **minimum interval once per

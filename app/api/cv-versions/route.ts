@@ -4,7 +4,8 @@ import { getConfig } from "@/lib/config";
 import { createPostCvVersion } from "@/lib/cv/post-cv-version";
 import { getDb } from "@/lib/db";
 
-// One synchronous model call (07 §5.2). Hobby's ceiling, which is also its default (CONTEXT.md).
+// One synchronous extraction, N parallel windowed calls (07 §5.2). Hobby's ceiling, which is also its
+// default (CONTEXT.md), and the budget `lib/cv/windowed-extraction.ts` fits its one retry inside.
 export const maxDuration = 300;
 
 export function POST(request: Request) {
