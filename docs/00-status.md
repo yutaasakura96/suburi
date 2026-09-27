@@ -19,9 +19,14 @@ rewritten in both languages, the `.docx` importer reads tables, three reading co
 human checks are all that is left on #20:** the native read of the 22 panel strings — six of them now
 carry an applied Claude review (2026-09-24), which is what the read judges, not what it replaces — and
 the eyeball of #27's new claims.
-**#29 is built — extraction is windowed:** N parallel calls, each sent the whole set and returning
-one window's claims, all finished before the one transaction. Its real-CV re-measure is still owed.
-**Updated:** 2026-09-27 (#29)
+**#20 is done — the real-CV re-measure, windowed, is in (`06`, 2026-09-27):** 応募書類 in 3 windows
+(43.2 s), the English CV in 4 (45.5 s), both inside the one-call range and both clean on
+`spans_rejected`/`quotes_outside_window`/`window_retries`; the caps stay ja 30,000 / en 45,000. The
+native read of `docs/checklists/native-read-cv.md` is a separate, still-owed human check, outside #20.
+**#29 is done — extraction is windowed:** N parallel calls, each sent the whole set and returning
+one window's claims, all finished before the one transaction, now answered by the same real-CV
+re-measure.
+**Updated:** 2026-09-27 (#20, #29)
 
 ## Done
 - Phase 1 — `docs/01-project-brief.md`, `docs/02-product-requirements.md`, `docs/06-decision-log.md`.
@@ -302,8 +307,8 @@ Page 1 is the screen set, page 2 the three exploration directions. **Working fil
 every change re-seeds from those — edit them, never the built `design/suburi-directions.html`.
 
 ## Next
-**Two human checks on #20 and the #29 re-measure, then #21. The machine half of #20, #27 and #29 is
-done.**
+**One human check left, then #21. #20 and #29 are both done — the machine half and the windowed
+re-measure alike.**
 
 **1. The native read** of `docs/checklists/native-read-cv.md` — 22 panel strings, the new
 `cv_too_large` sentence, the three prose `職務経歴書` strings. Rules earned go into `05` §6.
@@ -314,20 +319,11 @@ asserted over every `ja` string in `app/(app)/cv/copy.test.ts`. **It is still a 
 read: every box stays ☐ and the read is still owed** — now on the amended strings, with the originals
 kept in the checklist so it can overturn them. §3's three prose strings were not applied.
 
-**2. The eyeball on #27's new claims** — `11` §5's per-CV-upload box. The three counters say the
-machine defects are gone; no counter can say whether what is left reads as the applicant's claims.
-**Start with the 職務経歴書 at 41.2% underlined** (`03` §4). About 2,800 of its 6,733 characters are
-unclaimed by design — the 保有資格 and education blocks the 履歴書 already states, the title-and-date
-block, and a 技術スタック inventory — which leaves roughly a sixth genuinely unread. **The English CV
-went the other way, to 88.7% in a 2,668-character unbroken run**, because an English CV is very nearly
-all assertions and the claims are now whole sentences. Both readings are in the local database beside
-their baselines; nothing was deleted.
-
-**3. The real-CV re-measure, windowed (#29)** — `11` §5. The new prompts have only run on synthetic
-sets, and only as an input stand-in. Re-read both real CVs locally: no paragraph-sized lumps in
-`PROJECTS`, `quotes_outside_window` 0, `claims_duplicated` 0, wall time beside `03` §4's one-call
-numbers, and whether `lib/cv/limits.ts`'s caps still hold. **Do it before #21**: once production reads
-a CV, `cv_unchanged` keeps an unchanged set from ever being re-read.
+**Done, 2026-09-27: the eyeball on the windowed claims and the real-CV re-measure (#20, #29).** Both
+real CVs were re-read windowed and the user judged the result good on-screen, five quotes per CV
+verbatim, unclaimed text by design (`03` §4, `06`). Wall time stayed beside the one-call numbers and
+`lib/cv/limits.ts`'s caps hold unchanged. This is what item 1 above still owes a native read on;
+#20 and #29 are otherwise closed.
 
 **Then #21.** #27 no longer blocks it: the CV feature can reach `main` without stamping every scored
 answer with a reading already known to be bad. **Never merge into `main` before #21.**

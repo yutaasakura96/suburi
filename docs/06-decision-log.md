@@ -334,6 +334,42 @@ fell to 956 on a 3,875-character block.
 puts an inventory into Coverage — the same complaint #27 makes about the doubled certifications.
 
 ---
+## Phase 6 — #20, the real-CV re-measure, windowed
+
+### [2026-09-27] The windowed caps hold; #20's real-CV check is done
+
+**Decided:** the real 履歴書 + 職務経歴書 (9,077 code points) and the real English CV (14,607 code
+points) were re-read through `/cv`, windowed, locally against Docker Postgres — `cv-extract-ja-1.2`
+and `cv-extract-en-1.3`, 3 and 4 windows, 81 and 82 claims, 43.2 s and 45.5 s, `spans_rejected`
+`quotes_outside_window` and `window_retries` all 0 on both (`03` §4, `lib/cv/limits.ts`). Both
+durations land inside the one-call baseline's 43–47 s range, because wall time follows the largest
+window rather than the whole set. **`lib/cv/limits.ts`'s caps stay ja 30,000 / en 45,000** — nothing
+measured, including the same day's edited-version runs, approaches the OpenAI client's 240 s timeout
+or the route's 300 s ceiling. The user read both extractions on-screen and judged them good: a
+five-quote sample per CV matched the source verbatim. Unclaimed text was by design — skills
+inventories, the 職務経歴書's `■保有資格` list already claimed from the 履歴書's `免許・資格`, and
+`本人希望記入欄` — with one minor miss, the 経歴要約's opening sentence carrying no claim of its own
+though its facts are claimed elsewhere.
+
+**Rejected:** raising or lowering a cap on this reading. Raising one is a measurement on a set that
+size (`lib/cv/limits.ts`), and nothing here shows the current caps unsafe; lowering one has no
+motivating defect either.
+
+**Closes #20.** The native read of `docs/checklists/native-read-cv.md` is separate and stays owed —
+it is the user's own read, not part of this measurement.
+
+### [2026-09-27] #29 is answered: chunking is adopted, now measured on real data
+
+**Decided:** #29 asked whether CV extraction should chunk the document instead of one call. It
+shipped windowed (N parallel calls, each sent the whole set, each returning one window's claims) and
+was measured on synthetic sets the same day (`06`, 2026-09-27, above) and now on the real CVs (this
+entry). The real-set numbers confirm the synthetic finding: windowing fixes the late-block lumping a
+single long call produced, at a wall-time cost that stays inside the one-call range because it tracks
+the largest window, not the sum.
+
+**Closes #29.**
+
+---
 ## Phase 6 — #20, the reviewed copy draft
 
 ### [2026-09-24] The six-change copy draft is applied, and the native read is still owed

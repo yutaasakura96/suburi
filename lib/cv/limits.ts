@@ -27,7 +27,20 @@
  *
  * **Everything above is one call.** Since #29 extraction is N parallel windowed calls
  * (`windowed-extraction.ts`), whose wall time follows the largest window rather than the whole set,
- * and a set at the cap is at least 8 (`ja`) or 12 (`en`) concurrent calls. The caps stay exactly as
- * measured until a real set is re-measured windowed.
+ * and a set at the cap is at least 8 (`ja`) or 12 (`en`) concurrent calls.
+ *
+ * **Re-measured windowed on the real documents, 2026-09-27 (#20/#29), `cv-extract-ja-1.2` /
+ * `cv-extract-en-1.3`:**
+ *
+ * | set | code points | windows | claims | duration |
+ * | --- | --- | --- | --- | --- |
+ * | `応募書類` 履歴書 + 職務経歴書 | 9,077 | 3 | 81 | 43.2 s |
+ * | `CV` one document | 14,607 | 4 | 82 | 45.5 s |
+ *
+ * `spans_rejected`, `quotes_outside_window` and `window_retries` were all 0 on both. Wall time tracks
+ * the largest window (a few thousand code points), not the whole set, so it stayed inside the
+ * one-call range above even as claim counts and window fan-out changed. **The caps stay ja 30,000 /
+ * en 45,000**: nothing measured windowed suggests a set at either cap would approach the OpenAI
+ * client's 240 s timeout or the route's 300 s ceiling.
  */
 export const MAX_BODY_CHARS = { ja: 30_000, en: 45_000 } as const satisfies Record<"ja" | "en", number>;
