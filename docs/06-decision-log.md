@@ -112,8 +112,9 @@ any value is the model ignoring its window, the same shape as `spans_rejected`.
 ### [2026-09-27] Windows are cut at blank lines near 4,000 code points, and a failed window gets one retry that fits
 
 **Decided:** `planWindows` cuts each document at blank lines and packs paragraphs into windows of at
-most **4,000 code points**. A paragraph longer than that is cut at its line breaks, because pasted
-and PDF text often has no blank lines. A single line is never cut. A last window under a quarter of
+most **4,000 code points**. A paragraph is never cut: its line breaks may be a PDF's visual wraps,
+and a sentence straddling the cut could be quoted whole by neither call. A paragraph longer than the
+target is a window of its own, past the target. A last window under a quarter of
 the target joins the one before it, and a window never crosses a document. One number serves both
 languages. The measured windows that read at sentence level were 1,010–5,907 code points, and the
 densest, a whole 3,014-character 職務経歴書, read cleanly. On the synthetic English CV the planner

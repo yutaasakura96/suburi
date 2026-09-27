@@ -49,18 +49,19 @@ describe("planWindows", () => {
     for (const window of windows) expect(window.end - window.start).toBeLessThanOrEqual(10);
   });
 
-  it("falls back to line breaks for a paragraph longer than the target, as pasted and PDF text has", () => {
-    const text = ["line one", "line two", "line three", "line four"].join("\n");
-    const windows = planWindows([text], 20);
-    expect(windows.map((window) => slice([text], window))).toEqual(["line one\nline two\n", "line three\nline four"]);
-    expectExactCover([text], windows);
+  it("never cuts inside a paragraph: one longer than the target, line-wrapped as PDF text is, is one window", () => {
+    const line = "Led the migration of the billing platform to a new ledger service, ";
+    const text = Array.from({ length: 70 }, () => line).join("\n");
+    expect(characterLength(text)).toBeGreaterThan(4_000);
+    const windows = planWindows([text]);
+    expect(windows).toEqual([{ document: 0, start: 0, end: characterLength(text) }]);
   });
 
-  it("never cuts inside a line, even one longer than the target", () => {
-    const long = "x".repeat(50);
-    const text = `${long}\nshort line here\nanother short one`;
-    const windows = planWindows([text], 20);
-    expect(slice([text], windows[0])).toBe(`${long}\n`);
+  it("gives an over-long paragraph a window of its own and keeps packing whole paragraphs around it", () => {
+    const long = ["x".repeat(15), "y".repeat(15)].join("\n");
+    const text = ["AA", "", long, "", "BBBB", "", "CCCC"].join("\n");
+    const windows = planWindows([text], 12);
+    expect(windows.map((window) => slice([text], window))).toEqual(["AA\n\n", `${long}\n\n`, "BBBB\n\nCCCC"]);
     expectExactCover([text], windows);
   });
 

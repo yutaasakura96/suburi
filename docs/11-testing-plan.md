@@ -132,8 +132,8 @@ deleted:
 that hold it to all-or-nothing:
 
 - One document's windows cover it **exactly**, end to end, and **no window crosses a document**.
-- Windows are cut at **blank lines**, fall back to **line breaks** for a paragraph over the target, and
-  **never cut inside a line**.
+- Windows are cut at **blank lines only** and **never inside a paragraph**; a paragraph over the
+  target, line-wrapped or not, is a window of its own.
 - Every call is sent the **whole set**; the calls run in parallel.
 - **One window failing fails the save and writes nothing**, even when every other window came back
   (integration, against Postgres).

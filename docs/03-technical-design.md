@@ -265,7 +265,7 @@ leaves about a sixth of the document genuinely unread, which no counter can rule
 **Windowed since [#29](https://github.com/yutaasakura96/suburi/issues/29), 2026-09-27.** The
 readings above were each one call on the whole set. That call is now one call per **window**: a
 passage of one document, cut at blank lines toward a 4,000-code-point target (`lib/cv/windows.ts`).
-Oversized paragraphs fall back to line breaks; a line is never split, and a final window under a
+A paragraph is never split, so an oversized one is a window of its own, and a final window under a
 quarter of the target joins its predecessor, so 4,000 is not a hard maximum. Every call is still sent
 the **whole set**, and returns the claims of its own window only
 (`cv-extract-ja-1.2`, `cv-extract-en-1.3`). The calls run in parallel and all finish before the

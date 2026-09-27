@@ -11,10 +11,10 @@ import { characterLength } from "./spans";
  * a document**, and one document's windows cover it exactly, end to end, so no character belongs to
  * no call and none to two.
  *
- * **Cut at blank lines, falling back to line breaks.** A blank line is the paragraph boundary — the
- * `.docx` importer ends every paragraph with one (`import/text.ts`) — and across every measured reading
- * no claim crossed one. Pasted and PDF text often has no blank lines, so a paragraph longer than the
- * target is cut at its line breaks instead. A single line is never cut: a sentence would straddle it.
+ * **Cut at blank lines only.** A blank line is the paragraph boundary — the `.docx` importer ends every
+ * paragraph with one (`import/text.ts`) — and across every measured reading no claim crossed one. A
+ * paragraph is never cut: its line breaks may be a PDF's visual wraps, and a sentence would straddle
+ * the cut. A paragraph longer than the target is a window of its own, past the target.
  *
  * Pure, and deterministic in its input, so the same set always gets the same windows.
  */
@@ -40,27 +40,23 @@ const SHORT_TAIL_SHARE = 0.25;
 const BLANK = /^\s*$/u;
 
 /**
- * The offsets at which a new unit may start, strictly inside the text: after every line break
- * (`lines`), and at the first non-blank line after a run of blank ones (`paragraphs`).
+ * The offsets at which a new paragraph starts, strictly inside the text: the first non-blank line
+ * after a run of blank ones.
  */
-function boundaries(text: string) {
-  const lines: number[] = [];
-  const paragraphs: number[] = [];
+function paragraphStarts(text: string) {
+  const starts: number[] = [];
   let offset = 0;
   text.split("\n").forEach((line, index, all) => {
-    if (index > 0) {
-      lines.push(offset);
-      if (BLANK.test(all[index - 1]) && !BLANK.test(line)) paragraphs.push(offset);
-    }
+    if (index > 0 && BLANK.test(all[index - 1]) && !BLANK.test(line)) starts.push(offset);
     offset += characterLength(line) + 1;
   });
-  return { lines, paragraphs };
+  return starts;
 }
 
-/** `[start, end)` cut at each boundary strictly inside it. */
-function cut(start: number, end: number, at: readonly number[]) {
-  const inside = at.filter((offset) => start < offset && offset < end);
-  return [start, ...inside].map((from, index) => ({ start: from, end: inside[index] ?? end }));
+/** `[0, length)` cut at each paragraph start. */
+function paragraphs(text: string, length: number) {
+  const starts = paragraphStarts(text);
+  return [0, ...starts].map((from, index) => ({ start: from, end: starts[index] ?? length }));
 }
 
 /** One document's windows, as `[start, end)` pairs covering `[0, length)`. */
@@ -68,13 +64,8 @@ function planDocument(text: string, target: number) {
   const length = characterLength(text);
   if (length <= target) return [{ start: 0, end: length }];
 
-  const { lines, paragraphs } = boundaries(text);
-  const units = cut(0, length, paragraphs).flatMap((paragraph) =>
-    paragraph.end - paragraph.start > target ? cut(paragraph.start, paragraph.end, lines) : [paragraph],
-  );
-
   const windows: { start: number; end: number }[] = [];
-  for (const unit of units) {
+  for (const unit of paragraphs(text, length)) {
     const open = windows.at(-1);
     if (open && unit.end - open.start <= target) open.end = unit.end;
     else windows.push({ ...unit });
