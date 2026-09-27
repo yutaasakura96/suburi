@@ -196,13 +196,10 @@ Carry these; do not silently decide them in a ticket.
   Listed in `docs/10-screen-specifications.md` §12. **The CV screen came off this list in #12** — it
   still has no artboard, but it is specified in `10` §13 from `05` components, which is the whole of
   what it needed, and `10` §12's own entry is struck through to say so.
-- **Japanese copy that has not had its native read.** `応募書類`, the 履歴書 personal-particulars hint,
-  every string on the CV screen, and the whole error catalogue — one read, one batch. **Six CV-screen
-  strings were amended on 2026-09-24 from a Claude review**, with the two mechanical rules it earned
-  now in `05` §6 and under test; the read is owed on the amended strings and every box in
-  `docs/checklists/native-read-cv.md` §1 is still ☐. An applied review does not discharge `11` §5. Separately,
-  three *prose* strings on the feedback and Progress screens still say `職務経歴書` where they now mean
-  the whole set; every stamp already reads `応募書類 v{n}` (`05` §6, `10` §12).
+- ~~**Japanese copy that has not had its native read.**~~ **Closed 2026-09-27 (#38) — by an AI
+  review, not a native read.** The user does not read Japanese and delegated
+  `docs/checklists/native-read-cv.md` to Claude: every CV-screen string and `cv_too_large` accepted,
+  §3's three prose strings now say `応募書類`, one rewritten for register (`05` §6, `06`).
 - **Who sends the alert mail.** `08` §2 rejected magic links specifically to avoid a transactional email
   vendor; §6 of `12` reintroduces one as a placeholder. Decide deliberately — an alert nobody receives
   is not monitoring.

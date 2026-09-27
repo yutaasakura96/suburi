@@ -256,16 +256,17 @@ either irreducibly human or need a real human ear.
 - [ ] Realistic mode's TTS pronounces the question correctly, including company names and 役職.
 - [ ] The felt-pressure screen still feels unhurried. It is instrumentation and it is where the last score lands; if it starts feeling like a loading screen, both purposes are damaged.
 - [ ] Feedback renders **while you are still sitting there.** PRD §9 calls a spinner that outlives the sitting a defect — this is the acceptance test for that sentence, and no automated test can make it.
-- [ ] Every new Japanese string has had a **native read** (`05-design-system.md` §6). Not a review of the translation — a read for whether a person would write it.
+- [ ] Every new Japanese string has had a **native read** (`05-design-system.md` §6). Not a review of the translation — a read for whether a person would write it. Where the user delegates it because they do not read Japanese, an AI review stands in and is recorded as an AI review, never as a native read (`06`, 2026-09-27).
 
 **Per CV upload:**
 
 - [ ] Claims on a **real** CV: eyeball extraction quality — no paragraph-sized lumps in a late, dense section — and check `spans_rejected`, `quotes_outside_window` and `claims_duplicated` are zero. First run 2026-09-23 (#20, one call); the windowed re-measure and eyeball, 2026-09-27 (#29), judged good and kept `lib/cv/limits.ts`'s caps (`03` §4).
 - [ ] Every rendered quote is genuinely in the CV. Sample five.
 
-**The CV feature's native read** is collected as one batch in `docs/checklists/native-read-cv.md`: every
-Japanese string #14–#18 added, the new `cv_too_large` sentence, and the three prose strings that still
-say `職務経歴書` where they mean the set.
+**The CV feature's read** is collected as one batch in `docs/checklists/native-read-cv.md`: every
+Japanese string #14–#18 added, the new `cv_too_large` sentence, and the three prose strings that said
+`職務経歴書` where they meant the set. **Done 2026-09-27 as an AI review, not a native read** — the user
+does not read Japanese and delegated it (#38). No native speaker has read these strings.
 
 **Per stamp change** — model, rubric, prompt or CV version:
 

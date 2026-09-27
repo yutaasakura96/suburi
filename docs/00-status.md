@@ -19,14 +19,14 @@ rewritten in both languages, the `.docx` importer reads tables, three reading co
 real-CV re-measure, windowed, closed #20 (`06`, 2026-09-27):** 応募書類 in 3 windows (43.2 s), the
 English CV in 4 (45.5 s), both faster than their one-call 59.5 s and 48.0 s and both clean on
 `spans_rejected`/`quotes_outside_window`/`window_retries`; the caps stay ja 30,000 / en 45,000. The
-same day's on-screen read of both CVs is the eyeball of #27's new claims. **The native read** of
-`docs/checklists/native-read-cv.md` — 22 panel strings, six of them now carrying an applied Claude
-review (2026-09-24), which is what the read judges, not what it replaces — is a separate, still-owed
-human check, tracked under Next, no longer part of #20.
+same day's on-screen read of both CVs is the eyeball of #27's new claims. **The read of
+`docs/checklists/native-read-cv.md` is done (2026-09-27, #38) — as an AI review, not a native read:**
+the user does not read Japanese and delegated it. Every panel string and `cv_too_large` accepted; §3's
+round-level line rewritten; one register rule into `05` §6.
 **#29 is done — extraction is windowed:** N parallel calls, each sent the whole set and returning
 one window's claims, all finished before the one transaction, now answered by the same real-CV
 re-measure.
-**Updated:** 2026-09-27 (#20, #29)
+**Updated:** 2026-09-27 (#20, #29, #38)
 
 ## Done
 - Phase 1 — `docs/01-project-brief.md`, `docs/02-product-requirements.md`, `docs/06-decision-log.md`.
@@ -307,23 +307,19 @@ Page 1 is the screen set, page 2 the three exploration directions. **Working fil
 every change re-seeds from those — edit them, never the built `design/suburi-directions.html`.
 
 ## Next
-**One human check left, then #21. #20 and #29 are both done — the machine half and the windowed
-re-measure alike.**
+**#21 is next. #20, #29 and #38 are done.**
 
-**1. The native read** of `docs/checklists/native-read-cv.md` — 22 panel strings, the new
-`cv_too_large` sentence, the three prose `職務経歴書` strings. Rules earned go into `05` §6.
-**The six-change draft was applied on 2026-09-24**, on Claude's recommendation after the user declined
-to rule on the rows one at a time — `app/(app)/cv/copy.ts`, and through to `10` §13 and
-`e2e/cv.spec.ts` where the same sentences are quoted. Its two mechanical rules are in `05` §6 and
-asserted over every `ja` string in `app/(app)/cv/copy.test.ts`. **It is still a review, not a native
-read: every box stays ☐ and the read is still owed** — now on the amended strings, with the originals
-kept in the checklist so it can overturn them. §3's three prose strings were not applied.
+**Done, 2026-09-27: the read of `docs/checklists/native-read-cv.md` (#38) — an AI review, not a
+native read.** The user does not read Japanese and asked Claude to do the check. All 22 panel strings
+(the six 2026-09-24 draft amendments kept) and `cv_too_large` accepted as written; §3's label and
+legend accepted as `応募書類` swaps; §3's round-level line rewritten to
+`数値の裏づけがない箇所が2つ。応募書類の「請求処理を40%短縮」を使う。` to match its list's plain register,
+which became a `05` §6 rule. Applied to `10`, `05` and the artboards (re-seeded). `06`, 2026-09-27.
 
 **Done, 2026-09-27: the eyeball on the windowed claims and the real-CV re-measure (#20, #29).** Both
 real CVs were re-read windowed and the user judged the result good on-screen, five quotes per CV
 verbatim, unclaimed text by design (`03` §4, `06`). Both came in under the one-call 59.5 s and
-48.0 s, and `lib/cv/limits.ts`'s caps hold unchanged. #20 and #29 are closed; item 1 above is
-separate from both.
+48.0 s, and `lib/cv/limits.ts`'s caps hold unchanged. #20 and #29 are closed.
 
 **Then #21.** #27 no longer blocks it: the CV feature can reach `main` without stamping every scored
 answer with a reading already known to be bad. **Never merge into `main` before #21.**
@@ -365,9 +361,10 @@ migrate it from `0000`, seed it, and repoint `develop`'s `DATABASE_URL`/`DATABAS
 `save-cv-version`), because the seed script runs under plain `node`, which does not resolve extensionless
 imports. `next build` accepts them. A new `lib/cv` import that a script reaches needs the same.
 
-**Still waiting on a native read, with the screens that carry them (#14–#18):** the strings in `10`
-§13 (as amended in #15 and #17), the 履歴書 personal-particulars hint, `記載事項`, #15's new strings, #17's two import failures, #18's retry-time line, and the three prose strings
-that still say `職務経歴書` where they mean the set (`05` §6).
+**Read 2026-09-27 as an AI review, not a native read (#38):** the strings in `10` §13 (as amended in
+#15 and #17), the 履歴書 personal-particulars hint, `記載事項`, #15's new strings, #17's two import
+failures, #18's retry-time line, and the three prose strings that said `職務経歴書` where they meant the
+set (`05` §6).
 
 **The three deploy fixes, #10, are closed:** `agentRules: false`; only `main` and `develop` deploy
 (`vercel.json`); remote database URLs must carry `sslmode=verify-full`, which `lib/config.ts` now

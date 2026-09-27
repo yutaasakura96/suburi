@@ -279,10 +279,10 @@ read a Japanese round's feedback in English.
 - `直すところ 3件` — a numbered list, index in mono `--ink-label`, text 13px/1.75. The items quote the
   user and cite the CV:
   1. `第1問が3分12秒。結論を先に置き、2分以内に収める。`
-  2. `数値の裏づけが2か所ありません。職務経歴書の「請求処理を40%短縮」を使う。`
+  2. `数値の裏づけがない箇所が2つ。応募書類の「請求処理を40%短縮」を使う。`
   3. `「〜っていう」が4回。「〜という」に置き換える。`
 - `良かったところ 1件` — one line, same size. **One, not three.** The asymmetry is the design.
-- `職務経歴書との照合` — callout rails (§5.8): `--attention-mark` for
+- `応募書類との照合` — callout rails (§5.8): `--attention-mark` for
   `裏づけなし —「チーム全体の生産性を上げた」に対応する記述が応募書類 v3 にない。`, `--ink-9` for
   `未使用 —「2024 決済基盤の移行リード」「英語での顧客折衝」`.
 - Footer stamp: `評価基準 v1.2・出題 v1.0・応募書類 v3` / `緊張度 4 を講評前に記録`.
@@ -321,7 +321,7 @@ English`, and `—` in the numeral column. **The row is kept, not removed** — 
 ### Footer, 12px/1.85 `--ink-6`, two columns
 `古い順に左から並んでいます。練習ラウンド・再挑戦・深掘り・入力した回答は入っていません。` /
 `一般練習のラウンドは別に集計しています。` ·
-`縦線は評価基準・出題・職務経歴書が変わったところです。` /
+`縦線は評価基準・出題・応募書類が変わったところです。` /
 `点にカーソルを合わせると、日付・第何問かが出ます。`
 
 That first line is the exclusion list, and it must match what the data layer actually excludes:
@@ -418,17 +418,16 @@ Restated from PRD §9 because a specification that omits them invites a build th
   empty state, a current version showing its documents with claim spans underlined, a prefilled
   new-version form, and a version history. No artboard was drawn and none is needed — every element
   it uses is already measured in `05`.
-- **Three prose strings still say `職務経歴書` where they now mean the whole set.** §8's section label
-  `職務経歴書との照合`, §8's round-level line `数値の裏づけが2か所ありません。職務経歴書の…`, and §9's
-  legend `縦線は評価基準・出題・職務経歴書が変わったところです。`. Every *stamp* in this document now
-  reads `応募書類 v3` (`05` §6), but these three are sentences, not labels: rewriting them is a copy
-  change that goes through a native read with the screens that carry them, not a find-and-replace.
+- ~~**Three prose strings still say `職務経歴書` where they now mean the whole set.**~~ **Closed —
+  rewritten in the 2026-09-27 AI review** (`docs/checklists/native-read-cv.md` §3, `05` §6): §8's
+  section label is `応募書類との照合`, §9's legend `縦線は評価基準・出題・応募書類が変わったところです。`,
+  and §8's round-level line `数値の裏づけがない箇所が2つ。応募書類の…`, which also moved to its list's
+  plain register. An AI review, not a native read.
 - ~~**The `design/` artboards still draw `職務経歴書 v3`.**~~ **Closed — re-seeded in #22.** Every
   stamp in `design/*.dc.html` now reads `応募書類 v{n}` (`CV v{n}` in English), the rejected
   explorations DirectionA and DirectionC included for consistent terminology, and
-  `design/suburi-directions.html` was rebuilt from those working files. Only the stamps changed: the
-  three prose strings in the item above still say `職務経歴書` in the artboards too, and wait on the
-  same native read.
+  `design/suburi-directions.html` was rebuilt from those working files. The three prose strings in
+  the item above were re-seeded into the artboards the same way on 2026-09-27.
 - **Practice mode's screens.** Practice differs at the record frames (no timer, `録り直し可`) and
   delivers feedback per answer rather than at round end. Only realistic mode is drawn.
 - **The four-round run.** Deferred as LATER and unshaped (decision log).
@@ -444,14 +443,12 @@ checked against the user's own text before anything depends on it.
 Session-required like every other screen (`08` §5). Built entirely from `05` components; nothing here
 needed a new one, which is why no artboard was drawn.
 
-> **Every Japanese string in this section is proposed and has not had its native read.** So is
-> `応募書類` itself. They go through one read together with the error catalogue (`05` §6, #13), and
-> what that read settles is what ships.
+> **Every Japanese string in this section had an AI review on 2026-09-27, not a native read.** The
+> user does not read Japanese and delegated `docs/checklists/native-read-cv.md` to Claude; every row
+> in it was accepted as written, including the six amended from the 2026-09-24 draft (`05` §6, `06`).
 >
 > **#13's read already changed two words here, applied in #15:** a version is `バージョン`, never `版`,
-> and Claim is `記載事項`, never `主張` (`05` §6). The strings below carry both. The strings #15 added —
-> `外す`, `資料名`, `本文`, the saving caption and the result line's dropped count — are proposed like
-> the rest and go to #20's read.
+> and Claim is `記載事項`, never `主張` (`05` §6). The strings below carry both.
 
 ### Two panels, side by side
 
@@ -510,7 +507,7 @@ server-side.
 | Per document | A title (fixed for the three known kinds; a text input for `additional`) over a monospaced-width textarea at 13px/1.9. |
 | Import | Beside each box, `ファイルから読み込む` / `Import from a file`, accepting `.docx` and `.pdf` — a text control in the §3.3 label style beside `外す`, for the same reason. **The text is extracted in the browser and dropped into that box, which stays editable.** The file is never uploaded (`07` §5.2). |
 | After an import | The extracted text **replaces** the box's text, and the document's `source_filename` becomes the file's name. A 12px `--ink-6` line: `読み込んだ本文を確認して、必要なら直してください。保存した本文がそのまま評価に使われます。` / `Check the imported text and fix anything wrong. What you save is what gets scored.` |
-| A failed import | An `--attention-mark` callout rail (`05` §5.8) under the box, which is left as it was. No text in the file (a scanned PDF): `このファイルからは文字を読み取れませんでした。スキャンした画像には文字情報がないため、本文を貼り付けてください。` / `No text could be read from this file. A scanned file has none — paste the text instead.` Anything else — damaged, password-protected, not really `.docx`/`.pdf`: `このファイルは開けませんでした。破損しているか、パスワードで保護されている可能性があります。本文を貼り付けてください。` / `This file could not be opened. It may be damaged or password-protected — paste the text instead.` Both Japanese strings await the native read (#20). |
+| A failed import | An `--attention-mark` callout rail (`05` §5.8) under the box, which is left as it was. No text in the file (a scanned PDF): `このファイルからは文字を読み取れませんでした。スキャンした画像には文字情報がないため、本文を貼り付けてください。` / `No text could be read from this file. A scanned file has none — paste the text instead.` Anything else — damaged, password-protected, not really `.docx`/`.pdf`: `このファイルは開けませんでした。破損しているか、パスワードで保護されている可能性があります。本文を貼り付けてください。` / `This file could not be opened. It may be damaged or password-protected — paste the text instead.` |
 | 履歴書 box only | An `--accent-mid` callout rail (`05` §5.8): `生年月日・住所・電話番号・顔写真・家族の情報は省いてかまいません。評価には使いません。` |
 | Add | `補足資料を追加` / `Add a supporting document`, disabled at five. Japanese panels also offer `職務経歴書を追加` until one exists. |
 | Remove | `外す` / `Remove` beside the 職務経歴書 and each additional document — never the required one. A text control in the §3.3 label style, not a §5.7 button: `05` draws no quiet variant, and a 48px outline beside every box outweighs the box. It removes a document from the unsaved form; nothing stored is touched. |
@@ -544,8 +541,7 @@ so there is nothing to reconcile. The message is the catalogue's copy for `cv_ex
 `cv_unchanged` or `rate_limited`, in that panel's language. **`rate_limited` adds a second line with
 the clock time the save can be retried**, from `Retry-After`, in local 24-hour `HH:MM` rounded up to
 the minute: `14:32から保存できます。` / `You can save again at 14:32.` A clock time rather than a
-countdown, because it stays true however long the callout is on screen (`06`, #18). The Japanese
-awaits the native read (#20).
+countdown, because it stays true however long the callout is on screen (`06`, #18).
 
 ### Version history
 

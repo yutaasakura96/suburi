@@ -163,7 +163,7 @@ color: var(--ink-label);
 **`text-transform: uppercase` is only ever set on Latin text.** All 20 uses were verified
 Latin-only. On Japanese the property silently does nothing, so a Japanese section label must be
 distinguished by tracking and ink alone — never by adding `uppercase` and assuming it did something.
-Japanese section labels in the artboards (`直すところ 3件`, `職務経歴書との照合`) use 11–12px mono at
+Japanese section labels in the artboards (`直すところ 3件`, `応募書類との照合`) use 11–12px mono at
 `0.1–0.16em` with no transform.
 
 ---
@@ -321,12 +321,15 @@ Errors already made and fixed in this project. Each line below is a rule because
   thing. Every version label reads **`応募書類 v{n}`** in Japanese and **`CV v{n}`** in English, and
   both are derived by the app, never typed. `職務経歴書` stays in use where it means that one
   document. **`応募書類` passed its native read with the error catalogue on 2026-09-21** (#13).
-  **Not yet changed, deliberately:** three *prose* strings on the feedback and Progress screens still
-  say `職務経歴書` where they now mean the set — §3.3's section label `職務経歴書との照合`, the
-  round-level line `数値の裏づけが2か所ありません。職務経歴書の「請求処理を40%短縮」を使う。`, and
-  Progress's legend `縦線は評価基準・出題・職務経歴書が変わったところです。` (`10` §8, §9). They are
-  rewritten sentences, not stamps, so they go through a native read with the screens that carry them
-  rather than being swapped here. Recorded in `10` §12 so it is not lost.
+  The three *prose* strings on the feedback and Progress screens that still said `職務経歴書` where
+  they meant the set were rewritten in the 2026-09-27 AI review (below): §3.3's section label is
+  `応募書類との照合`, Progress's legend `縦線は評価基準・出題・応募書類が変わったところです。`, and the
+  round-level line `数値の裏づけがない箇所が2つ。応募書類の「請求処理を40%短縮」を使う。` (`10` §8, §9).
+- **A list keeps one register.** `10` §8's `直すところ` items are plain-form notes — a fact, then a
+  plain directive (`第1問が3分12秒。結論を先に置き、2分以内に収める。`). The round-level line read
+  `…2か所ありません。…を使う。`, polite then plain in one item and polite against its plain siblings.
+  No item in a list mixes `です`/`ます` with a plain ending. Caught in the 2026-09-27 AI review; no
+  code renders that list yet, so it is not under test.
 - **Never set Japanese in a Latin-only mono stack** (§3), and never rely on
   `text-transform: uppercase` for a Japanese label (§3.3).
 
@@ -352,7 +355,8 @@ Errors already made and fixed in this project. Each line below is a rule because
   already says `v3`. `cv_unchanged` changed to `新しいバージョンは作成しませんでした。`
 - **`応募書類` passed.** It is the ordinary word for the 履歴書 + 職務経歴書 set, and the stamp stays
   `応募書類 v{n}`.
-- **Claim is `記載事項`, chosen in #15 — proposed until it is read in place in #20.** No catalogue
+- **Claim is `記載事項`, chosen in #15 and kept when read in place on the CV screen** (the 2026-09-27
+  AI review, below — not a native read). No catalogue
   string needs one: `cv_extraction_failed` names the documents, not the claims. The CV screen is the
   first that counts claims (`記載事項 34件`), so the word was chosen there, from #13's leading
   candidate. `主張` is rejected because it reads as argument. `app/(app)/cv/copy.test.ts` fails any CV
@@ -360,10 +364,8 @@ Errors already made and fixed in this project. Each line below is a rule because
 
 The first two are enforced across the catalogue by `lib/copy/errors.test.ts`.
 
-**Two mechanical rules from #20's reviewed draft, applied 2026-09-24 — and *not* a native read.**
-`docs/checklists/native-read-cv.md` §1's boxes are still unticked and the read is still owed; these
-two are recorded here early only because they are mechanical enough to be tested, and
-`app/(app)/cv/copy.test.ts` asserts both. The read may still overturn them.
+**Two mechanical rules from #20's reviewed draft, applied 2026-09-24, and kept by the 2026-09-27 AI
+review — neither is a native read.** `app/(app)/cv/copy.test.ts` asserts both.
 
 - **No space between a Latin numeral and the Japanese that follows it.** `14:32から保存できます。`, not
   `14:32 から`. The same family as the nakaguro rule — the space is Latin typography, and Japanese
@@ -371,8 +373,15 @@ two are recorded here early only because they are mechanical enough to be tested
 - **A document's body is `本文`, never a bare `文`.** `文` alone is one sentence. The import caption
   read `読み込んだ文を確認して…` while the box beside it was labelled `本文`. `文字` is unaffected.
 
+**The CV feature's batch had an AI review, not a native read (2026-09-27).** The user does not read
+Japanese and delegated `docs/checklists/native-read-cv.md` to Claude. Every row was read for whether a
+person would write it; one string changed and one rule came out of it (the register rule above). It
+is recorded as an AI review everywhere it is cited, and nothing in this section calls it a native
+read (`06`, 2026-09-27).
+
 **Every new Japanese string needs a native read before it ships.** Five of the six rules above came
-from one review pass, not from care at authoring time.
+from one review pass, not from care at authoring time. Where the user delegates the read because they
+do not read Japanese, an AI review stands in for it and is recorded as one, never as a native read.
 
 ---
 
