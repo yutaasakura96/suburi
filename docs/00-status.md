@@ -10,19 +10,19 @@ done; **#13 is done — built, and its catalogue passed the native read.** **#14
 bullet: an English CV pasted, saved and read back underlined.** **#15 is done — the 応募書類 panel and
 additional documents in both languages.** **#16 is done — next versions: prefill, carry-forward,
 `cv_unchanged`, history.** **#17 is done — import from `.docx`/`.pdf` in the browser.** **#18 is done — the per-session rate
-limiter.** **#19 is done — the synthetic CV seed, and the feature running on `develop`.** **#20 is in progress —
+limiter.** **#19 is done — the synthetic CV seed, and the feature running on `develop`.** **#20 is done —
 the real CVs are through `/cv` locally, the text-size cap is measured and enforced, and `11` §5's
 extraction check is done. It failed, which became
 [#27](https://github.com/yutaasakura96/suburi/issues/27).** **#27 is done — the extractor prompt is
 rewritten in both languages, the `.docx` importer reads tables, three reading counters replace a blind
-`spans_rejected`, and the real CVs are re-measured. The three machine defects are gone.** **The two
-human checks are all that is left on #20:** the native read of the 22 panel strings — six of them now
-carry an applied Claude review (2026-09-24), which is what the read judges, not what it replaces — and
-the eyeball of #27's new claims.
-**#20 is done — the real-CV re-measure, windowed, is in (`06`, 2026-09-27):** 応募書類 in 3 windows
-(43.2 s), the English CV in 4 (45.5 s), both inside the one-call range and both clean on
+`spans_rejected`, and the real CVs are re-measured. The three machine defects are gone.** **The
+real-CV re-measure, windowed, closed #20 (`06`, 2026-09-27):** 応募書類 in 3 windows (43.2 s), the
+English CV in 4 (45.5 s), both faster than their one-call 59.5 s and 48.0 s and both clean on
 `spans_rejected`/`quotes_outside_window`/`window_retries`; the caps stay ja 30,000 / en 45,000. The
-native read of `docs/checklists/native-read-cv.md` is a separate, still-owed human check, outside #20.
+same day's on-screen read of both CVs is the eyeball of #27's new claims. **The native read** of
+`docs/checklists/native-read-cv.md` — 22 panel strings, six of them now carrying an applied Claude
+review (2026-09-24), which is what the read judges, not what it replaces — is a separate, still-owed
+human check, tracked under Next, no longer part of #20.
 **#29 is done — extraction is windowed:** N parallel calls, each sent the whole set and returning
 one window's claims, all finished before the one transaction, now answered by the same real-CV
 re-measure.
@@ -321,9 +321,9 @@ kept in the checklist so it can overturn them. §3's three prose strings were no
 
 **Done, 2026-09-27: the eyeball on the windowed claims and the real-CV re-measure (#20, #29).** Both
 real CVs were re-read windowed and the user judged the result good on-screen, five quotes per CV
-verbatim, unclaimed text by design (`03` §4, `06`). Wall time stayed beside the one-call numbers and
-`lib/cv/limits.ts`'s caps hold unchanged. This is what item 1 above still owes a native read on;
-#20 and #29 are otherwise closed.
+verbatim, unclaimed text by design (`03` §4, `06`). Both came in under the one-call 59.5 s and
+48.0 s, and `lib/cv/limits.ts`'s caps hold unchanged. #20 and #29 are closed; item 1 above is
+separate from both.
 
 **Then #21.** #27 no longer blocks it: the CV feature can reach `main` without stamping every scored
 answer with a reading already known to be bad. **Never merge into `main` before #21.**

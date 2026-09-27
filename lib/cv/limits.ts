@@ -38,8 +38,8 @@
  * | `CV` one document | 14,607 | 4 | 82 | 45.5 s |
  *
  * `spans_rejected`, `quotes_outside_window` and `window_retries` were all 0 on both. Wall time tracks
- * the largest window (a few thousand code points), not the whole set, so it stayed inside the
- * one-call range above even as claim counts and window fan-out changed. **The caps stay ja 30,000 /
+ * the largest window (a few thousand code points), not the whole set, so both came in under the
+ * one-call durations above (59.5 s and 48.0 s) even as window fan-out grew. **The caps stay ja 30,000 /
  * en 45,000**: nothing measured windowed suggests a set at either cap would approach the OpenAI
  * client's 240 s timeout or the route's 300 s ceiling.
  */

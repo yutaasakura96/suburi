@@ -303,8 +303,8 @@ Postgres, `cv-extract-ja-1.2` and `cv-extract-en-1.3`:**
 | `応募書類` — 履歴書 + 職務経歴書 | 9,077 | 3 | 81 | 0 | 0 | 0 | **43.2 s** |
 | `CV` — one document | 14,607 | 4 | 82 | 0 | 0 | 0 | **45.5 s** |
 
-Both land inside the one-call baseline's 43–47 s range above, not above it: the largest window is a
-few thousand code points, so wall time did not grow with the extra fan-out. **Verdict: the `07` §5.2
+Both are faster than the same CVs read in one call on 2026-09-23 (59.5 s and 48.0 s, `lib/cv/limits.ts`):
+the largest window is a few thousand code points, so wall time did not grow with the extra fan-out. **Verdict: the `07` §5.2
 caps stay ja 30,000 / en 45,000.** Nothing in this reading — nor the same day's edited-version runs
 (ja 7,812/37.5 s and 9,112/46 s; en 9,072/34.5 s and 14,656/36 s) — puts a set at either cap near the
 OpenAI client's 240 s timeout or the route's 300 s ceiling; `lib/cv/limits.ts` carries the table.
