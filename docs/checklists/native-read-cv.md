@@ -108,13 +108,12 @@ The other 24 passed on 2026-09-21. One is new:
 | --- | --- | --- |
 | ✓ | 応募書類が長すぎます。短くしてからもう一度保存してください。 | `cv_too_large` — over the text-size cap, refused before any model call |
 
-If the cap's number belongs in this sentence, say so — the catalogue holds flat strings with no
-interpolation on purpose (the screen renders values from `detail`, which carries `body_chars` and
-`max_body_chars`), so that would be a deliberate exception rather than an edit.
+The API returns `body_chars` and `max_body_chars` in `detail` when the cap is exceeded. The panel
+currently shows only the error sentence and does not render those values. This review judges the
+sentence on its own; showing the limit would be a separate UI change.
 
 **2026-09-27 AI review:** ✓ as written, and the number stays out. `長すぎます` then `短くしてから…保存
-してください` is how a person would put it, and the sentence reads complete without a figure; a figure
-belongs to the screen's rendering of `detail`, not to the catalogue.
+してください` is how a person would put it, and the sentence reads complete without a figure.
 
 ## 3. The three prose strings that still say 職務経歴書 — `10` §8, §9
 
