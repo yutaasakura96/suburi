@@ -254,6 +254,16 @@ question at round start is tolerable.
 **Reason:** each was a contradiction between two docs with one defensible answer; the user confirmed
 all eight without debate. Confirm 6 settled the scope of the decision, not its outcome.
 
+### [2026-09-27] One IAM user per environment, each on its own prefix
+
+**Decided:** `12` §3 step 5 creates two IAM users, not one: production's may put and get under `prod/`
+only, `develop`'s under `dev/` only. Found while drafting the round loop's first slice, which moves
+steps 3–5 ahead of #21.
+**Alternatives considered:** one user on both prefixes, as step 5 was written.
+**Reason:** `12` §2's last rule says nothing deployed from `develop` may hold a credential that reaches
+`prod/`, and one user on both prefixes is exactly such a credential. The rule was already decided;
+step 5 contradicted it.
+
 ---
 ## Phase 6 — #38, the CV feature's Japanese strings
 

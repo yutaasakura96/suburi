@@ -27,7 +27,8 @@ round-level line rewritten; one register rule into `05` §6.
 one window's claims, all finished before the one transaction, now answered by the same real-CV
 re-measure.
 **The round loop is planned:** grilled 2026-09-27, its decisions written into the docs, and its
-eleven slice issues drafted — **awaiting the user's confirmation, none `ready-for-agent`** (Next).
+eleven slice issues drafted, #41–#51 — **awaiting the user's confirmation, none `ready-for-agent`**
+(Next).
 **Updated:** 2026-09-28 (the round-loop plan; #38 on 2026-09-27)
 
 ## Done
@@ -324,8 +325,12 @@ every change re-seeds from those — edit them, never the built `design/suburi-d
 
 ## Next
 **0. The round-loop plan is settled; its slice issues are drafted and awaiting confirmation.** Eleven
-issues, slices 0–10, each with its dependencies linked. **None carries `ready-for-agent`** — the user
-confirms them first, then labels them. Before any slice can be confirmed, the open items in `CONTEXT.md`
+issues, slices 0–10 — [#41](https://github.com/yutaasakura96/suburi/issues/41) (S3, CORS, IAM, the
+OpenAI checks) → #42 (tracer: an English realistic round) → #43 Japanese · #44 follow-ups · #45
+spoken question and cap · #46 CV grounding · #47 generated questions and role context → #48 failure
+paths (#44) · #49 practice (#44, #47) · #50 History (#44) → #51 Progress and Home (#43, #46, #47, #50),
+with native GitHub `blocked_by` edges. **None carries `ready-for-agent`**; each is `needs-triage` until
+the user confirms it. The first real round needs #41–#48 plus #21. Before any slice can be confirmed, the open items in `CONTEXT.md`
 that the plan left open need a decision: what a database failure mid-write returns (confirm 6), what
 realistic mode does when TTS fails, and feedback when a score ended `failed` (`07` §7). Slice 0 is
 human work and moves `12` §3 steps 3–5 out of #21; #21's own body still lists them.
