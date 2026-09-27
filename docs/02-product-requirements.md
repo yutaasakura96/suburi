@@ -1,7 +1,8 @@
 # Product requirements — Suburi
 
 **Date:** 2026-09-12
-**Status:** Phase 1 complete.
+**Status:** Phase 1 complete. **Amended 2026-09-27** by the round-loop decisions (`06`, "Phase 6 — the
+round loop"): §2, §3, US-2, US-4, US-5, US-7, US-8, US-11, US-13 and §7.
 **Upstream:** `01-project-brief.md`. Decisions and their reasoning: `06-decision-log.md`.
 
 No technical decisions appear here. Stack, storage, speech engine and model choices belong to
@@ -37,11 +38,11 @@ These terms are used precisely throughout.
 | --- | --- |
 | **Round** | One sitting. Exactly one round type, one language, one mode, one length. The unit of practice and the unit of history. |
 | **Round type** | Behavioural, Technical, HR, or CEO/final. |
-| **Mode** | **Practice** (edit freely, retry, immediate feedback) or **Realistic** (one take, timed, feedback held to round end). |
-| **Question** | A bank entry with a permanent ID. Either a **set piece** (hand-authored, fixed) or **generated** (created from CV + role context, then written into the bank on first use). |
+| **Mode** | **Practice** (edit freely, retry, per-answer feedback once each answer is scored) or **Realistic** (one take, timed, feedback held to round end). |
+| **Question** | A bank entry with a permanent ID. Either a **set piece** (hand-authored, fixed, belonging to one round type) or **generated** (created from CV + role context, then written into the bank on first use). |
 | **Follow-up** | A question generated from what the user just said. Not a bank entry, has no stable identity, and never appears in progress data. |
-| **First attempt** | The first realistic-mode answer to a given question ID, in a given language. Never overwritten. The only data the progress screen plots. |
-| **Role context** | The company and role the round is pitched at: an uploaded posting/notes file, AI research, or explicit **General practice**. |
+| **First attempt** | A realistic-mode answer to a question ID, in a language, when **no earlier answer to it in that language exists in either mode**. A question practised first never has one. Never overwritten. The only data the progress screen plots. |
+| **Role context** | The company and role the round is pitched at: an uploaded posting/notes file, AI research, or explicit **General practice**. Kept and reusable across rounds; never edited once saved. |
 
 ---
 
@@ -49,8 +50,9 @@ These terms are used precisely throughout.
 
 One round = one round type × one language × one mode × one length, chosen at the start.
 
-1. The app asks question *n*. Realistic mode **speaks it and leaves the text on screen**; practice
-   mode displays it silently.
+1. The app asks question *n*. Every question in the round was **chosen when the round started**, so a
+   reload never swaps one. Realistic mode **speaks it and leaves the text on screen**; practice mode
+   displays it silently.
 2. The user speaks an answer. Realistic mode is one take, under a per-answer timer.
 3. Speech-to-text produces a raw transcript.
 4. The user **corrects the transcript inline**. Raw and corrected are both kept; the diff is data.
@@ -61,8 +63,10 @@ One round = one round type × one language × one mode × one length, chosen at 
 9. Round-end feedback renders: per-dimension scores, two or three things to fix, one thing that
    worked.
 
-Practice mode differs at steps 1 (text only), 2 (retry allowed, no timer) and 8–9 (feedback is
-immediate per answer, no pressure rating).
+Practice mode differs at steps 1 (text only), 2 (retry allowed, no timer) and 8 (no pressure
+rating). It also shows **each answer's scores as soon as that answer is scored**, and still ends with
+step 9's round feedback. *Amended 2026-09-27:* this read "feedback is immediate per answer" — scoring
+takes tens of seconds, so "immediate" meant "once scored" (`06`).
 
 ---
 
@@ -113,10 +117,13 @@ realistic round can be run — everything else in v1 may land during the 30-day 
 > relevance scoring are about the job I am actually applying for.
 
 *Acceptance:*
-- A role context is one of: an uploaded posting/notes file, AI research (US-17), or **General
-  practice**.
+- A role context is one of: an uploaded posting/notes file, AI research (US-16), or **General
+  practice**. **Round one needs only the posting and General practice**; AI research lands with US-16
+  (amended 2026-09-27 — this cited a nonexistent "US-17", and research is not a round-one gate).
+- A saved role context is kept and can be picked again for later rounds. It is never edited; a changed
+  posting is a new one. There is one General practice, not one per round.
 - When a file and researched context both exist, **the file wins** and the app says so.
-- A round cannot start without one of the three selected; the selection is stored with the round.
+- A round cannot start without one selected; the selection is stored with the round.
 - **General practice** is a first-class choice, not a fallback, and rounds run under it are grouped
   separately in progress data.
 
@@ -137,14 +144,21 @@ realistic round can be run — everything else in v1 may land during the 30-day 
 > worth taking.
 
 *Acceptance:*
-- Questions come from the bank. **Set pieces** (自己紹介, 志望動機, 転職理由, 自己PR, 逆質問 and their
-  English counterparts) are hand-authored, fixed, and never regenerated.
+- Questions come from the bank. **Set pieces** (自己紹介, 志望動機, 転職理由, 自己PR and their English
+  counterparts) are hand-authored, fixed, and never regenerated. **Each belongs to exactly one round
+  type:** 自己紹介, 自己PR and 転職理由 to HR; 志望動機 to CEO/final. Set pieces carry a content version,
+  so a reworded one draws a boundary like a new generator prompt does.
 - **Generated** questions are written into the bank on first use with a permanent ID and, set at
-  creation and never changed: round type, language, declared difficulty tier, and **generator prompt
-  version**.
+  creation and never changed: round type, language and **generator prompt version**.
+- A round asks **at most one unseen set piece** of its type, then generated questions, **unseen
+  first**. Practice rounds prefer questions already answered, so the unseen pool is not spent in
+  practice.
 - A near-duplicate of an existing bank question maps to the existing ID rather than creating a new
   one.
 - No question repeats within a round.
+- *Amended 2026-09-27:* **逆質問 is no longer a scored set piece** — the candidate asking the questions
+  does not fit answer-then-score — and **the declared difficulty tier is struck**: nothing read it, and
+  generator drift is already visible through the generator prompt version (`06`).
 - Realistic mode speaks the question aloud and leaves the text visible; practice mode is text only.
 
 **US-5 — Answer by voice** `MUST` · **round-one gate**
@@ -154,8 +168,9 @@ realistic round can be run — everything else in v1 may land during the 30-day 
 - Record / stop, then a raw transcript appears.
 - **Answer duration and words-per-minute are computed and stored** for every spoken answer.
 - The **audio is stored** and replayable from history.
-- Realistic mode is one take, under a per-answer timer; practice mode allows retries, and only the
-  kept take is stored.
+- Realistic mode is one take, under a per-answer timer. Practice mode allows two retries: a **re-take**
+  before the transcript, which replaces the take, and **answering again** after seeing the feedback,
+  which is a new answer beside the first and gets no follow-up of its own.
 
 **US-6 — Correct the transcript before submitting** `MUST` · **round-one gate**
 > As the user, I want to fix what the recognizer got wrong, so that I am graded on what I said rather
@@ -176,8 +191,9 @@ realistic round can be run — everything else in v1 may land during the 30-day 
 - Exactly one follow-up per submitted answer, in **both modes**, generated from the corrected text.
 - The follow-up answer goes through record → transcript → correct → submit, and does **not** generate
   a further follow-up.
-- A follow-up is stored linked to its parent answer, is scored, and is **excluded from progress data**
-   — it has no stable question identity, so it cannot be a first attempt.
+- A follow-up is stored linked to its parent answer, with its text and the version of what generated
+  it, is scored, and is **excluded from progress data** — it has no stable question identity, so it
+  cannot be a first attempt.
 - If generation fails, the round continues and the missing follow-up is recorded as missing, visibly.
 
 **US-8 — Not be graded mid-round** `MUST` · **round-one gate**
@@ -186,7 +202,8 @@ realistic round can be run — everything else in v1 may land during the 30-day 
 
 *Acceptance:*
 - Realistic mode shows no score, no flag and no hint of evaluation until the round ends.
-- Practice mode shows per-answer feedback immediately after each submission.
+- Practice mode shows per-answer feedback as soon as each answer is scored, and round feedback at the
+  end.
 
 **US-9 — Record felt pressure** `MUST` · **round-one gate**
 > As the user, I want to rate the pressure I felt before I see any feedback, so that the project's
@@ -219,10 +236,11 @@ realistic round can be run — everything else in v1 may land during the 30-day 
 > stop leaving my strongest material on the table.
 
 *Acceptance:*
-- **Unsupported claims:** flagged at answer level, citing the span of the answer and the absence in
-  the CV. Framed as a gap a real interviewer would notice, not an accusation.
-- **Untouched material:** flagged at round level, citing the CV units never referenced across the
-  whole round.
+- **Unsupported claims:** flagged at answer level, citing the span of the **corrected** answer and the
+  absence in the CV. The quoted span is taken from the stored answer, never reworded. Framed as a gap
+  a real interviewer would notice, not an accusation.
+- **Untouched material:** flagged at round level: **two or three relevant** CV units never referenced,
+  chosen from everything the round left uncited — not a list of all of them.
 - Both cite the CV version used.
 
 ### History and progress
@@ -241,8 +259,8 @@ realistic round can be run — everything else in v1 may land during the 30-day 
 > language, so that the number is honest.
 
 *Acceptance:*
-- Plots **realistic-mode first attempts only**. Practice rounds, repeat attempts and follow-ups are
-  excluded.
+- Plots **realistic-mode first attempts only**. Practice rounds, repeat attempts, questions already
+  answered in practice, follow-ups, answers in the wrong language and abandoned rounds are excluded.
 - One line per rubric dimension, **split by language**, and plotted **within round type**.
 - A change in **generator prompt version or rubric version draws a visible marker** on the chart.
 - **No composite score.**
@@ -312,17 +330,17 @@ Empty states are requirements.
 | Case | Behaviour |
 | --- | --- |
 | **Duplicate submit** | Submitting an answer is idempotent. One stored answer per question per round, whatever the client does. |
-| **Mic permission denied, or recording fails** | The round pauses. No partial answer is stored and **the question is not consumed** — it remains unseen. |
+| **Mic permission denied, or recording fails** | The round pauses. No partial answer is stored and **the question is not consumed** — it remains unseen. Nothing is recorded against a question until a take exists. |
 | **Transcript comes back empty or unusable** | The user may type the answer. It is stored flagged as *typed, not spoken*, excluded from duration/WPM, and **excluded from progress data** — it is not a voice rep. |
 | **Realistic timer expires mid-answer** | The take ends. Whatever was captured is transcribed, correction is still allowed, and the answer counts normally. |
 | **Very long answer** | A hard recording cap per answer in both modes. Hitting the cap ends the take like the timer does. |
-| **Round abandoned part-way** | Stored as abandoned with its answers intact and reviewable. **Excluded from progress data entirely** — a partial round has no pressure rating and is not comparable. |
+| **Round abandoned part-way** | Stored as abandoned with its answers intact and reviewable. **Excluded from progress data entirely** — a partial round has no pressure rating and is not comparable. A question it answered is **seen for good**. A round is abandoned when a newer round is started, or when the day it was started has passed; only the newest open round can be resumed, and only that day. |
 | **Scoring call fails after the round** | Answers are never lost. The round is stored unscored, the user is told, and scoring is retryable. |
 | **Follow-up generation fails** | The round continues. The gap is recorded as a missing follow-up rather than silently skipped. |
 | **CV re-uploaded mid-history** | New version. Old answers keep their original version reference; the progress screen marks the change like a rubric version change. |
 | **Near-duplicate question generated** | Deduplicated against the bank before insertion; maps to the existing ID. Prevents inflating the first-attempt count with the same question under new IDs. |
-| **User answers in the wrong language** | Detected, flagged in feedback, and the answer is **excluded from that language's progress data**. |
-| **Question already answered in a previous realistic round** | Allowed and asked, marked a repeat, scored normally, and excluded from first-attempt data. |
+| **User answers in the wrong language** | Detected when the answer is scored, flagged in feedback, and the answer is **excluded from that language's progress data**. |
+| **Question already answered in a previous round, in either mode** | Allowed and asked, marked a repeat, scored normally, and excluded from first-attempt data. *Amended 2026-09-27:* this said "realistic round", which let a practised question count as unseen. |
 | **Huge or unparseable role-context file** | Rejected with a clear reason before the round starts, never mid-round. |
 | **Spacing across timezones or a system clock change** | Due-ness is computed from stored timestamps; a clock change does not retroactively alter history. |
 

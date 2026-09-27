@@ -436,6 +436,9 @@ Direction C's matrix had none of these and had to caption itself. This one does 
   **Still open.** The CV screen (`10` §13) settles it *for that screen only* — each panel's chrome is
   in its own language, because each panel is about one language's documents. That is a local answer to
   a local question and sets no precedent for the round screens.
+  **Decided 2026-09-27** (`06`, `10` §0): the screens inside a round follow the round's language;
+  Home, Setup, Progress and History are in English. §3.3's uppercase Latin labels stay Latin only in
+  an English round — in a Japanese round they are Japanese labels, without `text-transform`.
 - **Hover surface and focus ring are undrawn.** §10.2 aliases shadcn's `--accent` (hover) to
   `--ground` and `--ring` (focus) to `--mark` as placeholders. §7 requires keyboard focus on score
   rows, so the focus ring is needed, not optional — it wants a design read, not a default.

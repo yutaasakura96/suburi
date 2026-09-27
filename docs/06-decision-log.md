@@ -3,6 +3,258 @@
 Newest first. Every entry records what was chosen, why, and what was rejected.
 
 ---
+## Phase 6 — the round loop, decided before it was built
+
+Settled 2026-09-27 in the round-loop grilling: fifteen questions and eight forced confirms, raised by
+a read of `02`, `03`, `04`, `07`, `10`, `11` and `12` that found where they disagree or say nothing.
+The user took the recommended option on every item, with one override (Q1's app language). Written
+into the docs before any round code, the way #12 wrote #11's decisions; the build is drafted as eleven
+slice issues, **not yet `ready-for-agent`**. Every entry below contradicts or fills something an
+earlier phase wrote; each says what.
+
+### [2026-09-27] Round screens follow the round's language; every other screen is in English
+
+**Decided:** the screens inside a round — record in all its states, transcript correction, felt
+pressure, round feedback and practice mode's per-answer frame — are written entirely in the round's
+language, labels, buttons, captions and error copy alike. Home, Setup, Progress and History are in
+**one fixed app language, English.** The CV screen keeps its own per-panel rule (`10` §13).
+**Alternatives considered:** everything in one app language; the round rule plus Latin mono uppercase
+section labels kept as a design device in both languages; both languages side by side, as on
+`/sign-in`. For the app language, Japanese — the planning report's lean.
+**Reason:** English chrome on a Japanese round breaks the immersion the round exists for, and the
+feedback language already follows the round (`06`, 2026-09-12, "Feedback for a Japanese round is written
+in Japanese"). Progress and History show both languages at once, and Setup is where the language is
+chosen, so none of them has a round language to follow. **English is the user's call** (2026-09-27),
+over the report's lean. Consequence: the artboards' Japanese chrome on Home, Setup, Progress and
+History is layout, not copy — those strings are rewritten in English by the slice that builds each
+screen — and the Latin labels on the round screens (`YOUR ANSWER — EDIT FREELY`, `BEFORE THE
+FEEDBACK`) become Japanese in a Japanese round, with a native read. Closes `CONTEXT.md`'s "bilingual
+chrome rule" and `05` §9's entry.
+
+### [2026-09-27] A round's questions are fixed when it starts; a slot opens only once a take exists
+
+**Decided:** `POST /api/rounds` chooses every bank question the round will ask — selecting, and
+generating where the pool runs short — and writes them to a new `round_questions` table, one row per
+position, in the transaction that creates the round. A follow-up is written to a new `follow_ups` row
+when it is generated (next entry). **The answer slot is opened only after a take exists**: record,
+then `POST …/answers` with the take's real size, then the presigned PUT. `is_first_attempt` is still
+computed at slot-open.
+**Alternatives considered:** an `answers` row in an `asked` state, created when the prompt is shown and
+presigned later; keeping the docs as written and accepting that a refresh may re-select.
+**Reason:** nothing stored a selected-but-unanswered question, so a reload could swap a question the
+user had already heard, or regenerate a different follow-up — both bad for an instrument. Opening the
+slot after the take answers two contradictions at once: `07` §5.6 sent `expected_bytes` (known only
+after recording) yet checked `upload_too_large` "before recording", and PRD §7 says a failed recording
+leaves the question unseen while a slot opened before recording had already claimed the first
+attempt. Generating at round start, beside the preflight, also takes question generation off the
+between-answers path. **A question answered in an abandoned round keeps its row and is seen for
+good** — honest, since the user did see it. Supersedes `07` §5.6's "presign before recording" and the
+2026-09-12 entry's framing of the four calls.
+
+### [2026-09-27] A follow-up is a `follow_ups` row, generated or missing
+
+**Decided:** a new `follow_ups` table: one row per parent answer (`parent_answer_id` unique), `status`
+`generated` | `missing`, `prompt_text` (null when missing), `model_id`, `prompt_version`, tokens,
+`error_class`. The follow-up's own answer row still points at its parent through
+`answers.parent_answer_id`, and copies `prompt_text` from the follow-up row.
+**Alternatives considered:** a `follow_up_status` column on the parent answer, plus stamp columns.
+**Reason:** `03` §4 says every AI-touched row is stamped, and follow-up generation had no stamp columns
+anywhere. A missing follow-up must render as a hole in History (`10` §10) and no column could hold one:
+`answers.prompt_text` is not null, and `next` simply degraded. The row also gives resume its stored
+follow-up text, which the previous entry needs.
+
+### [2026-09-27] Any earlier answer in the language, in either mode, rules out a first attempt
+
+**Decided:** an answer is a first attempt iff the round is realistic, the prompt is a bank question,
+and **no earlier answer to that question id in that language exists in any mode**. Practice mode
+prefers questions already answered, but may still be given unseen ones.
+**Alternatives considered:** practice drawing only from questions already answered realistically, so the
+unseen pool is never spent in practice; the rule as written, which looked only at earlier realistic
+answers.
+**Reason:** as written, a question practised and later met in a realistic round was a first attempt —
+`11` §1's first silent failure exactly, a practised answer charted as a cold one — and US-13 asks for
+first attempts at questions the user had **not seen**. The preference keeps practice from spending the
+unseen pool without making practice rounds impossible when the seen pool is thin. Amends `CONTEXT.md`,
+PRD §2, `04` `answers` and `11` §3.4, as the invariants rule requires.
+
+### [2026-09-27] Stamp 3 is never null: set pieces carry a content version, follow-ups their prompt version
+
+**Decided:** `scoring_attempts.generator_prompt_version` becomes `not null`. For a generated question it
+is the generator prompt version; for a set piece, the set pieces' **content version** (for example
+`set-piece-ja-1.0`), stored in `questions.generator_prompt_version`; for a follow-up, the follow-up
+prompt version from `follow_ups.prompt_version`. `scoring_prompt_version` stays beside `model_id` as
+part of stamp 4, "scoring model/prompt" (PRD §9).
+**Alternatives considered:** leaving it nullable and fixing the docs to say "not null except set
+pieces".
+**Reason:** the four stamps disagreed across the docs — `04` made stamp 3 nullable while `04` §6.5
+said all four are `not null`, `11` §3.1's stamp test named `scoring_prompt_version` instead, and `11`
+§3.6's boundary list left the generator out. A null is a boundary Progress cannot draw, and a
+hand-authored set piece can change too. The table is empty in every environment, so tightening the
+column is a safe migration now and a backfill later.
+
+### [2026-09-27] Unsupported claims are `answer_flags` spans into the corrected text; untouched material is 2–3 claims the model picks
+
+**Decided:** a new `answer_flags` table — `answer_id`, `scoring_attempt_id`, `kind = 'unsupported'`,
+and `span_start`/`span_end` into `answers.transcript_corrected` — validated exactly as CV spans are:
+the quote is sliced from the stored text by span, and a span that fails is dropped and counted, never
+clamped. `claim_citations.relation = 'contradicted_by'` now means only a real contradiction with a
+cited CV claim. For **untouched material**, the round-feedback call picks two or three **relevant**
+claims from the computed never-cited set; their ids are validated against that set and stored on
+`round_feedback`.
+**Alternatives considered:** flags as a jsonb column on `scoring_attempts`; showing every uncited claim.
+**Reason:** an unsupported claim is a span of the *answer* with nothing behind it in the CV, and
+`claim_citations` requires a `cv_claim_id`, so "no claim supports this" could not be stored. `04` had
+also defined `contradicted_by` as that absence, which is a different thing from being contradicted by a
+claim. The answer-side quote needs the same anti-hallucination rule as a CV quote (`03` §11). A CV
+carries about 80 claims and a round cites a handful, so listing every uncited one would bury `10` §8's
+two-item callout under seventy.
+
+### [2026-09-27] `complete` writes the rating first, waits for the last scores, then generates feedback outside the transaction
+
+**Decided:** `POST /api/rounds/{id}/complete` becomes ⚡ with its own bucket. It writes `felt_pressure`
+and `completed_at` in one transaction and commits. It then waits, bounded inside the 300 s, for the
+round's pending scores; generates round feedback **outside any transaction**; and writes
+`round_feedback`. If feedback cannot be generated, the round stays complete with its rating, the
+feedback screen shows every score that landed and a pending round-level note, and generation is
+retryable. A new code, `feedback_generation_failed`, with copy in both languages.
+**Alternatives considered:** returning at once and generating feedback in `after()`, the feedback
+screen reading round-level items once they land; generating feedback from whatever scores exist.
+**Reason:** invariant 2. `round_feedback` is one row per round and never rewritten, so feedback
+generated without the last answer is permanent. `07` §5.12 generated feedback "in the same
+transaction" as the rating, which contradicted the rule that model calls run before or after a
+transaction, never inside it (`06`, 2026-09-21), and `complete` called a model without being ⚡. The
+rating is still written structurally first. **The bound is not chosen here:** it comes from the round
+loop's latency measurement (below).
+
+### [2026-09-27] Questions: one round type per set piece, 逆質問 dropped, one unseen set piece then generated, no difficulty tier
+
+**Decided:** every set piece belongs to exactly one round type — 自己紹介, 自己PR and 転職理由 to `hr`;
+志望動機 to `ceo`; and their English counterparts the same. **逆質問 is dropped from the scored bank.**
+A round asks **at most one unseen set piece** of its type, then generated bank questions, **unseen
+first**; when the unseen pool cannot fill the round, new questions are generated and PRD §6's
+bank-exhausted warning applies. **The declared difficulty tier is struck** from US-4 and from the
+2026-09-12 entry; nothing replaces it. **The near-duplicate threshold starts at cosine similarity 0.90
+= the same question — an unverified guess**, logged and tuned exactly as `03` §11 already says.
+**Alternatives considered:** set pieces opening every round, one row per round type; generated questions
+only; a `difficulty_tier` column.
+**Reason:** first-attempt accounting is keyed by question id, so 自己紹介 as four rows in four round
+types would be four ids and four first attempts for one question. 逆質問 is the candidate asking, which
+does not fit answer-then-score. The tier had no column in `04` and no reader anywhere; drift in what
+the generator produces is already covered by the generator stamp. 0.90 is where the report proposed to
+start strict; no measurement stands behind it.
+
+### [2026-09-27] Round one needs a posting and General practice; research lands with US-16
+
+**Decided:** round one supports two kinds of role context: a **posting**, pasted or imported through
+the existing `lib/cv/import/`, and **General practice**. **Research** ships later with US-16, still
+under "the file wins". Role contexts are **immutable, reusable rows** picked across rounds; General
+practice is **one row per user**. The posting's size cap is measured the way the CV's was.
+**Alternatives considered:** all three kinds in round one.
+**Reason:** US-2 is a round-one gate and listed research among its kinds, while US-16 is explicitly
+not a gate, and US-2 cited a "US-17" that does not exist. Reusable rows let a posting be picked for
+many rounds without re-pasting, and immutability keeps "what was this round pitched at?" answerable
+after the fact, the way a CV version does.
+
+### [2026-09-27] Realistic mode speaks through a new ⚡ route streaming an OpenAI TTS model
+
+**Decided:** a new ⚡ route streams synthesised audio for a prompt of the round, identified by
+position; the server reads the text from `round_questions` or `follow_ups`, never from the request.
+The model string is a constant in `lib/ai/models.ts`, **pinned only after it is verified** at
+implementation — the report found `tts-1` and `tts-1-hd` in OpenAI's docs and could not rule out a
+newer model.
+**Alternatives considered:** the browser's `speechSynthesis` — free and instant, but its voice depends
+on the OS, it cannot be stamped, and its pronunciation of 役職 is unverified.
+**Reason:** `03` §4 said synthesis happens at ask time and named a TTS model constant, but `07` had no
+endpoint for it and no model was named. Question audio is well under the 4.5 MB body cap, so it can
+cross a function. Taking the text from stored rows is what stops the route becoming a general TTS
+proxy on the user's key.
+
+### [2026-09-27] Practice mode: a per-answer frame once scored, two kinds of retry, round feedback at the end
+
+**Decided:** practice keeps realistic's flow. After each submit, a per-answer frame shows that answer's
+score rows and flags once it is scored, reading `GET /api/rounds/{id}` extended with scores **for
+practice rounds only**; the follow-up is ready beside it. **Two retries:** a **re-take** before
+transcription, which re-records into the same answer row and overwrites the S3 object (bucket
+versioning keeps the old object version, and that is accepted); and **answer again** after the
+feedback, which is a new answer row with `retry_of_answer_id` and **no new follow-up**. Round-level
+feedback comes at the end, as in realistic mode, without the pressure rating. The screens are
+specified in `10` from `05` components before they are built, the way the CV screen was.
+**Alternatives considered:** practice deferring all feedback to round end, like realistic but untimed.
+**Reason:** scoring is asynchronous, so "immediately after each submission" (US-8) means once scored,
+tens of seconds later, and nothing read scores back to the client. "Retry" meant two things — US-5's
+re-record where "only the kept take is stored", and `04`/`07`'s new row scored again — and both are
+real practice moves. Realistic rounds get no scores from the read, which keeps US-8's silence
+structural.
+
+### [2026-09-27] Rubric v1.0: Claude drafts it with per-level anchors in both languages; the scorer reads corrected text, duration and pace
+
+**Decided:** `lib/rubric/` starts at **v1.0** for `ja` and `en`, drafted by Claude with an anchor for
+every level 1–5 of every dimension, in Japanese and English, then reviewed by the user and given a
+native read. The scorer is given the **corrected** text, the answer's duration and its pace — not the
+raw text, whose recogniser errors would unfairly cost accuracy. Fluency's definition reads fillers and
+restarts, which screen 5's caption asks the user to keep when correcting.
+**Alternatives considered:** definitions without level anchors.
+**Reason:** the rubric is the instrument, and no rubric existed: `12` §3 step 9 seeded "rubric v1.2",
+a label that came from the artboards' sample data. Anchors are what make a 3 in March mean a 3 in
+September to the scorer. Fluency read from corrected text could be laundered by the correction step;
+defining it on what the correction step keeps closes that. `12` §3 step 9 now seeds v1.0. The
+artboards' `評価基準 v1.2` stays as sample data.
+
+### [2026-09-27] An abandoned round is derived: a newer round abandons it, and only today's newest open round resumes
+
+**Decided:** starting a new round makes any open round abandoned. **Resume is offered only for the
+newest open round, and only within the same day.** Abandonment stays derived from `completed_at is
+null` and those two facts; there is still no abandon endpoint and no column.
+**Alternatives considered:** abandonment by elapsed time (for example, open for more than 24 hours);
+refusing to start a new round while one is open.
+**Reason:** an abandoned round and one in progress both had `completed_at is null`, while History shows
+`中断`, and Home and Setup needed a rule. Deriving it keeps `07` §6's refusal of an abandon endpoint
+intact, and never blocks a round, which US-14 already requires of the Due list.
+
+### [2026-09-27] A wrong-language answer is detected by the scorer, which returns `answered_language`
+
+**Decided:** the scorer returns the language the answer was given in; it is stored on the scoring
+attempt as `answered_language`. An answer whose `answered_language` is not the round's language is
+flagged in feedback and **excluded from that language's Progress**.
+**Alternatives considered:** the transcriber's language detection; deferring past round one.
+**Reason:** PRD §7 requires the exclusion and no column recorded it. The scorer already reads the whole
+answer, and a code-switched Japanese answer full of English domain terms is exactly the case a
+transcription language tag would misread.
+
+### [2026-09-27] The round loop's model latencies are measured in the first slice, before the rest is built
+
+**Decided:** the tracer slice measures every model call the round depends on — scoring, follow-up
+generation, round feedback, question generation, transcription and TTS — against synthetic answers,
+the way #20 measured CV extraction, and records the numbers in `03` §4.
+**Alternatives considered:** build first, measure after.
+**Reason:** none of these latencies is known. The follow-up wait sits inside a timed round; scoring has
+to land by screen 7; and the numbers decide `complete`'s wait bound and whether generating every
+question at round start is tolerable.
+
+### [2026-09-27] Eight forced confirms, taken as the planning report wrote them
+
+**Decided:**
+1. **`POST /api/rounds` takes no `cv_version_id`.** The current CV version in the round's language is
+   resolved server-side (`07` §6 forbade a round choosing one).
+2. **A practice round stores `per_answer_cap_seconds = 900`**, the real runaway guard; the column is
+   `not null` in `04` and the schema, and `07` §5.4's `null` was wrong. Setup shows no duration
+   estimate for practice.
+3. **A follow-up shares its parent's `position`**, as a retry does, matching `第1問` and "of 5". `07`
+   §5.9 and `04` §4's example gave it the next one.
+4. **Pace is characters per minute of `transcript_raw` for `ja`** and words per minute for `en`, in
+   the existing `words_per_minute` column. `10` already shows `字/分`; `11` §3.9's expected values
+   follow.
+5. **`12` §6's spend cap fails as `429 project_spend_limit_exceeded` upstream**, not `503`. The round
+   loop maps it: preflight reports `503 model_unavailable`, and it is never retried as a rate limit.
+6. **A database failure mid-write is decided once, for every round route** — not route by route. Which
+   way it goes (a new code with copy, or Next's bare `500`) is still open.
+7. **The most answers a round holds is 14** (7 + 7), not "sixteen". Wording only.
+8. **The embedding model is `text-embedding-3-small`**, pinned in `lib/ai/models.ts`; `vector(1536)` is
+   its default dimension (OpenAI docs, per the planning report's check, 2026-09-27).
+**Reason:** each was a contradiction between two docs with one defensible answer; the user confirmed
+all eight without debate. Confirm 6 settled the scope of the decision, not its outcome.
+
+---
 ## Phase 6 — #38, the CV feature's Japanese strings
 
 ### [2026-09-27] The CV batch's native read is done as an AI review, and recorded as one

@@ -2,7 +2,8 @@
 
 **Date:** 2026-09-12
 **Status:** Phase 4. Written against `01-project-brief.md`, `02-product-requirements.md`,
-`05-design-system.md`, `10-screen-specifications.md`.
+`05-design-system.md`, `10-screen-specifications.md`. **Amended 2026-09-27 for the round loop** (`06`,
+"Phase 6 — the round loop"): §3, §4, §7, §8, §10, §11.
 
 Every constraint in PRD §9 and screen-spec §11 binds this document. Where a technical choice was
 made *because* of one of those constraints, it says so — a later session that loses the link will
@@ -129,7 +130,7 @@ flowchart TB
     B -->|"presigned PUT — audio never crosses a function"| S3
     V -->|"Drizzle"| N
     V -->|"presign"| S3
-    V -->|"generate · transcribe · score"| O
+    V -->|"generate · transcribe · score · speak · embed"| O
     B -->|"sign in"| G
     G --> V
 ```
@@ -140,23 +141,30 @@ short-lived presigned URL; the function only ever handles the resulting object k
 
 ### The round loop, in calls
 
-1. **Round setup** — preflight the OpenAI health check (§5) before the round can start.
-2. **Ask** — question read from the bank, or generated and written into it. Realistic mode speaks it.
-3. **Record** — `MediaRecorder` in the browser, hard-capped (§7). Blob held locally.
-4. **Upload + transcribe** — presigned PUT to S3, then transcription. Raw transcript returned.
+1. **Round setup** — preflight the OpenAI health check (§5) and, in parallel, **choose every bank
+   question the round will ask**, generating any the unseen pool lacks. The round and its
+   `round_questions` are written in one transaction (`07` §5.4).
+2. **Ask** — the question at this position, read from `round_questions`. Realistic mode speaks it
+   through the speech route (§4, `07` §5.15).
+3. **Record** — `MediaRecorder` in the browser, hard-capped (§7). Blob held locally; **nothing is
+   written yet.**
+4. **Open the slot, upload, transcribe** — the answer row is created once the take exists, then the
+   presigned PUT to S3, then transcription. Raw transcript returned.
 5. **Correct** — user edits inline. Raw and corrected both persist; the diff is stored data.
-6. **Submit** — the answer row is written, and **scoring is dispatched immediately**, not deferred.
-7. **Follow-up** — generated from the corrected answer, asked once, answered through 3–6.
-8. Repeat. Realistic mode collects the felt-pressure rating, then renders feedback.
+6. **Submit** — the answer is committed, and **scoring is dispatched immediately**, not deferred.
+7. **Follow-up** — generated from the corrected answer at submit and written to `follow_ups` (or
+   recorded as missing), asked once, answered through 3–6.
+8. Repeat. Realistic mode collects the felt-pressure rating; then `complete` waits for the last scores
+   and generates the round feedback (`07` §5.12).
 
 ### Scoring runs during the round, not at the end of it
 
 PRD §9 requires round-end feedback to render while the user is still at the machine, and calls a
-spinner that outlives the sitting a defect. Scoring sixteen answers in one burst at round end would
-put a reasoning model squarely on the critical path.
+spinner that outlives the sitting a defect. Scoring up to fourteen answers (seven questions, seven
+follow-ups) in one burst at round end would put a reasoning model squarely on the critical path.
 
 So each answer is scored the moment it is submitted, while the user is recording the next one. By
-round end, fifteen of sixteen scores are already rows in the database and the feedback screen is a
+round end, thirteen of fourteen scores are already rows in the database and the feedback screen is a
 read.
 
 The residual risk is the final answer, which has nothing after it to hide behind — except that the
@@ -165,18 +173,46 @@ and the feedback screen** and exists for reasons that have nothing to do with la
 unhurried by design, and it is where the last score lands. Do not "optimise" that screen away or
 make it skippable in realistic mode.
 
+**The round feedback itself still needs every score.** `round_feedback` is one row, written once, so
+`complete` commits the rating first, then waits — bounded, inside the 300 s — for any score still
+pending, then generates the feedback outside any transaction (`07` §5.12, `06`, 2026-09-27). If the
+wait runs out or generation fails, the round stays complete, the scores render, and the round-level
+note is stated as pending with a retry. The bound comes from the latency measurement in §4.
+
 ---
 
 ## 4. Model use
 
-Four distinct jobs, one pinned model:
+Five text jobs on one pinned model, and three more on models of their own:
 
 | Job | Model | Latency budget | Stakes |
 | --- | --- | --- | --- |
-| Question generation | `gpt-5.6-sol` | before round / between answers | High — banked permanently |
-| Follow-up generation | `gpt-5.6-sol` | user is waiting | Low — never scored, never banked |
-| Answer scoring | `gpt-5.6-sol` | during the next answer | **The instrument** |
+| Question generation | `gpt-5.6-sol` | **at round start, beside the preflight** — every question the round needs (`06`, 2026-09-27) | High — banked permanently |
+| Follow-up generation | `gpt-5.6-sol` | user is waiting, inside a timed round | Medium — scored, stamped, never banked |
+| Answer scoring | `gpt-5.6-sol` | during the next answer; the last one by the end of screen 7 | **The instrument** |
+| Round feedback | `gpt-5.6-sol` | at `complete`, after the last score (`07` §5.12) | High — one row, never rewritten |
 | CV claim extraction | `gpt-5.6-sol` | **measured: 43–46 s on real documents, windowed** (#20/#29, 2026-09-27) | High — every citation and every coverage count rests on it |
+| Transcription | `gpt-transcribe` | user is waiting, after each take | Medium — the raw transcript is final |
+| Text-to-speech | **not yet pinned** — verified at implementation | user is waiting, at ask time | Low — not retained |
+| Embeddings | `text-embedding-3-small`, 1536 dimensions | at question generation | High — the near-duplicate guard (§11) |
+
+**None of the round's latencies is measured yet** — every row but CV extraction. The round-loop
+tracer measures them against synthetic answers before the loop is built further, the way #20
+measured extraction, and records them here (`06`, 2026-09-27). Its numbers set `complete`'s wait
+bound, and say whether generating every question at round start is tolerable.
+
+**The embedding model is `text-embedding-3-small`**, pinned in `lib/ai/models.ts` like every other
+model string: `questions.embedding` is `vector(1536)`, that model's default dimension (OpenAI docs, per
+the round-loop planning report's check, 2026-09-27). Changing it changes every distance the
+near-duplicate guard has ever logged, so it is a stamp-like change even though no score carries it.
+
+**What the scorer reads** (`06`, 2026-09-27): the rubric version's dimensions with their per-level
+anchors (`04` `rubric_versions`), the prompt as asked, the **corrected** transcript, the answer's
+duration and its pace, and the CV version's claims. **Not the raw transcript** — its recogniser errors
+would cost accuracy points for the machine's mistakes. Fluency is defined on what the correction step
+keeps: fillers and restarts, which screen 5's caption asks the user to leave in, so the correction
+step cannot launder it. It returns the scores, citations, unsupported spans of the answer, and
+`answered_language` (`07` §5.10).
 
 **CV claim extraction is one synchronous extraction (N parallel windowed calls), all-or-nothing.** The
 user saves a CV version and waits; the calls run first and the version, its documents and its claims
@@ -374,6 +410,14 @@ Realistic mode speaks the question (decision log, Phase 2); practice mode does n
 when the question is asked and the audio is not retained — questions are stable bank rows, so
 re-synthesis is cheap and caching adds a store to invalidate for no benefit.
 
+**Through a ⚡ route that streams an OpenAI TTS model's audio** (`07` §5.15, `06`, 2026-09-27). The
+route takes a position, not text, and reads the prompt from `round_questions` or `follow_ups`.
+**The model is pinned only after it is verified at implementation.** The planning report found
+`tts-1` and `tts-1-hd` in OpenAI's docs on 2026-09-27 and could not rule out a newer one; whichever is
+chosen is an exact string in `lib/ai/models.ts`. The browser's `speechSynthesis` was rejected: its
+voice depends on the OS, it cannot be stamped, and its reading of 役職 is unverified. Pronunciation
+itself is `11` §5's ear check.
+
 ---
 
 ## 5. External services, and what happens when each is down
@@ -419,15 +463,23 @@ other client cache, router or global store.
   state.
 - **The transcript editor** — the edit buffer and the live rewrite-magnitude meter (screen 6).
 
-**A round survives a refresh.** Every answer is written server-side at submit, so the round's
-position is a database fact, not a client fact. Reloading mid-round resumes at the current question.
-An in-flight recording is the one thing that does not survive, and the UI says so before recording.
+**A round survives a refresh.** Every answer is written server-side at submit, and every question the
+round asks was fixed when it started (`round_questions`, `follow_ups`), so the round's position and
+its prompt are database facts, not client facts. Reloading mid-round resumes at the current question,
+**the same question**. An in-flight recording is the one thing that does not survive, and the UI says
+so before recording.
+
+**Only the newest open round resumes, and only on the day it started** (`06`, 2026-09-27). Starting a
+new round abandons any open one, and an open round from an earlier day is abandoned too; both are
+derived from timestamps (`04` `rounds`), with no abandon endpoint.
 
 **Recording caps.** Realistic mode is capped at 4 minutes per answer and this is specified UI —
 screen 4 states `最長 4分` and `4分で自動的に止まります。そこまでの録音は残ります。` Practice mode has
 no timer by design, so it gets a **hard 15-minute runaway guard** instead: not a timer, not shown as
 pressure, not part of the practice UI's rhythm. It exists so a forgotten open tab cannot produce an
-unbounded upload. When it fires it behaves exactly like the realistic cap: the take is kept.
+unbounded upload. When it fires it behaves exactly like the realistic cap: the take is kept. **It is
+stored as the round's `per_answer_cap_seconds = 900`** (`04`, `06` 2026-09-27 confirm 2), since the
+column is `not null`.
 
 ---
 
@@ -442,6 +494,9 @@ unbounded upload. When it fires it behaves exactly like the realistic cap: the t
 | Upload failed | "Held on this device. Do not close this tab." + retry | key, size, attempt count |
 | Transcription failed | The take is kept; offers retry or typing the answer | answer id, duration |
 | Scoring failed | Answer saved, score pending, stated on the feedback screen | answer id, model, error class |
+| Round feedback failed, or the last score did not land in time | The round is complete; every landed score renders; the round-level note is pending, with a retry (`07` §5.12) | round id, model, error class, pending count |
+| Follow-up generation failed | The round continues; the hole is recorded (`follow_ups`, `missing`) | answer id, model, error class |
+| OpenAI project spend limit | Preflight refuses the round — `503 model_unavailable`. Upstream it is `429 project_spend_limit_exceeded`, mapped, never retried as a rate limit | event only |
 | Model refusal / malformed output | Same as scoring failed | answer id, **not the content** |
 | Auth rejected | "This account cannot sign in." No enumeration of why | email hash only |
 
@@ -506,14 +561,14 @@ suburi/
 │   ├── migrations/
 │   └── seed.ts                seeded user row, set pieces
 ├── lib/
-│   ├── ai/                    ports: generate · transcribe · score · extract-cv-claims  ← one interface each
+│   ├── ai/                    ports: generate (questions, follow-ups, round feedback) · transcribe · score · tts · embed · extract-cv-claims  ← one interface each
 │   │   └── models.ts          every model string, pinned — the only place one is written
 │   ├── api/                   the 07 §2 envelope and the 07 §3 code table — no user-visible string
 │   │   └── rate-limit.ts      the one per-session limiter every ⚡ route calls, and each route's limit
 │   ├── copy/                  every user-visible string, ja and en — no status, no logic
 │   ├── prompts/               versioned prompt files; the version is in the filename
 │   ├── cv/                    composition rules, body assembly, span validation, quote slicing
-│   ├── rubric/                rubric versions as data, not prose
+│   ├── rubric/                rubric versions as data, not prose — v1.0, ja and en, with per-level anchors
 │   └── s3/
 ├── docs/                      01–10, this file among them
 └── design/                    Claude Design working files — re-seed from here, never edit the build
@@ -522,8 +577,9 @@ suburi/
 **`lib/api/` and `lib/copy/` are split on purpose, and the dependency runs one way.** `lib/api/`
 holds the codes and their statuses and no user-visible string; `lib/copy/` holds the strings and no
 status, and imports `ErrorCode` from `lib/api/`. §8's rule that a server `message` can never be the
-Japanese one is what forces the split, and `07` §2 adds a second reason: the bilingual chrome rule is
-still open, and an API layer that cannot reach a rendered string cannot decide it by accident. It is
+Japanese one is what forces the split, and `07` §2 adds a second reason: which language a string renders in is
+the screen's decision (`10` §0), and an API layer that cannot reach a rendered string cannot get it
+wrong. It is
 also what makes `11` §3.10's both-directions test compare two modules rather than two halves of one.
 
 **`lib/ai/score.ts` is a port with one implementation.** That is deliberate: re-scoring a held-out
@@ -564,7 +620,9 @@ measurement — five questions with one first attempt each instead of one with f
 every question on insert, store the vector in `pgvector`, and check cosine similarity against the
 same `(language, round_type)` slice before writing a new row. Above threshold, reuse the existing
 question instead of inserting. **The threshold is a guess until there is real data — start strict,
-log every near-miss with its score, and tune from the log rather than from intuition.**
+log every near-miss with its score, and tune from the log rather than from intuition.** It starts at
+**cosine similarity 0.90 = the same question** (`06`, 2026-09-27); no measurement stands behind that
+number. Set pieces stay out of the problem by construction: each is one row in one round type (`04`).
 
 ---
 

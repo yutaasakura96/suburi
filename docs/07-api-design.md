@@ -2,7 +2,9 @@
 
 **Date:** 2026-09-12
 **Status:** Phase 4b. Tier 2, triggered: there is a real API surface — the round loop is client-driven
-and audio never crosses a function, so the browser talks to endpoints.
+and audio never crosses a function, so the browser talks to endpoints. **Amended 2026-09-27 for the
+round loop** (`06`, "Phase 6 — the round loop"): §1, §3, §5 intro, §5.3–§5.6, §5.9, §5.10, §5.12, and
+two new endpoints, §5.15 and §5.16.
 
 Written against `03-technical-design.md` §3 (the round loop in calls), `04-database-schema.md` (every
 entity), `08-auth-and-permissions.md` §5 (route protection). Every invariant in PRD §9 and
@@ -30,9 +32,10 @@ code. They are endpoints anyway, for the uniformity.
 
 | Read | Why it cannot be a Server Component |
 | --- | --- |
-| `GET /api/rounds/{roundId}` | Resume after a refresh mid-round; the client reconciles its own state against it. |
+| `GET /api/rounds/{roundId}` | Resume after a refresh mid-round; the client reconciles its own state against it. In a practice round, also practice's per-answer frame (§5.5). |
 | `GET /api/rounds` | History's cursor-paginated list. |
 | `GET /api/answers/{answerId}/audio` | Mints a short-lived credential on demand, at play time. |
+| `GET /api/rounds/{roundId}/speech` ⚡ | Streams the synthesised question audio at ask time (§5.15). |
 
 Everything else — Home's intervals, Progress's trends, History detail, the feedback screen — is a
 Server Component reading Postgres directly. **The feedback screen in particular is a read** (`03` §3):
@@ -55,9 +58,12 @@ by round end the scores are already rows.
    taken right after the session check and before the body is parsed**, so every authenticated
    request counts, a refused one included, and a flood never reaches Zod or the database's real work.
    `POST /api/cv-versions`: **6 per 10 minutes.** Why not Vercel's WAF: `06` "Phase 6 — #18".
+   **Each round route's limit is set in the slice that builds it**, from the round's own shape — a
+   7-question round makes 14 `transcribe` and 14 `submit` calls — and recorded here beside this one.
 6. **The client never chooses an S3 key, an object prefix, a `user_id`, a `position`, an
-   `is_first_attempt`, or any version stamp.** All are server-derived. This is not defensive coding;
-   it is what makes the four stamps and first-attempt uniqueness trustworthy.
+   `is_first_attempt`, a question, a CV version, text to be spoken, or any version stamp.** All are
+   server-derived. This is not defensive coding; it is what makes the four stamps and first-attempt
+   uniqueness trustworthy.
 
 ---
 
@@ -83,8 +89,10 @@ Defined once. Every non-2xx response from every endpoint, without exception.
 
 **`message` is never rendered to the user.** The UI maps `code` to localised copy held with the rest
 of the copy. Two reasons: `03` §8 demands a specific sentence per failure and a server string cannot
-be the Japanese one; and **the bilingual chrome rule is still open** (`CONTEXT.md`) — routing all user
-text through the copy layer means this document does not accidentally decide it.
+be the Japanese one; and the bilingual chrome rule belongs to the screens, not the API. **It is decided
+now** (`06`, 2026-09-27): a round screen renders the code in the **round's language**, Home, Setup,
+Progress and History in **English**, and the CV screen in the panel's language (`10` §0). The API
+still sends no user-visible string, so it cannot get that wrong.
 
 **`detail` obeys `03` §8's never-log list.** No transcript text, no corrected text, no CV text or
 claim text, no company notes, no prompt bodies, no model response bodies, no salary expectations. A
@@ -104,7 +112,7 @@ for the same reason: an error payload is a third home for sensitive material.
 | `422` | Refused by an invariant — the request is well-formed and would corrupt the record | envelope |
 | `429` | Per-session rate limit on a model route | envelope, `Retry-After` |
 | `502` | Upstream failed — OpenAI or S3 | envelope, `code` names which |
-| `503` | Preflight says the scorer is unavailable | envelope, `code: "model_unavailable"` |
+| `503` | Preflight says the scorer is unavailable | envelope, `code: "model_unavailable"`. **Includes a spent OpenAI project** — upstream that is `429 project_spend_limit_exceeded`, and it is mapped here, never retried as a rate limit (`06`, 2026-09-27, confirm 5) |
 
 **`422` is the interesting one.** It is the code for *"this is refused by design"* — submitting a
 felt-pressure rating for a practice round, retrying a score that succeeded, a second first attempt.
@@ -125,9 +133,9 @@ that asserts the two lists match.
 | `not_found` | 404 | every route | — |
 | `rate_limited` | 429 | ⚡ routes | inline, with wait |
 | `model_unavailable` | 503 | `/api/health/model`, `POST /api/rounds` | screen 2 — round cannot start |
-| `question_generation_failed` | 502 | `POST /api/rounds`, `/answers` | screen 2 / screen 3 |
-| `presign_failed` | 502 | `POST …/answers` | screen 3 |
-| `upload_too_large` | 422 | `POST …/answers` | screen 3 — before recording |
+| `question_generation_failed` | 502 | `POST /api/rounds` | screen 2 — the round is not created |
+| `presign_failed` | 502 | `POST …/answers` | screen 4 — the take is held |
+| `upload_too_large` | 422 | `POST …/answers` | screen 4 — after the take, before any upload |
 | `unsupported_content_type` | 422 | `POST …/answers` | screen 3 |
 | `audio_missing` | 404 | `transcribe`, `audio` | screen 4 / History playback |
 | `transcription_failed` | 502 | `transcribe` | screen 5 — keep take, retry or type |
@@ -140,10 +148,18 @@ that asserts the two lists match.
 | `pressure_required` | 422 | `complete` | screen 7 |
 | `round_already_complete` | 409 | `complete`, `answers` | — |
 | `round_not_complete` | 409 | `complete` | screen 7 |
+| `feedback_generation_failed` | 502 | `complete`, `feedback` | screen 8 — the round is complete and its scores show; the round-level note is pending and retryable (§5.12) |
+| `role_context_too_large` | 422 | `POST /api/role-contexts` | Setup — before anything is saved. **Its cap is measured first** (§5.3) |
 | `cv_unchanged` | 422 | `POST /api/cv-versions` | CV screen — the save is refused, nothing written |
 | `cv_too_large` | 422 | `POST /api/cv-versions` | CV screen — before any model call |
 | `cv_extraction_failed` | 502 | `POST /api/cv-versions` | CV screen |
 | `upstream_s3` / `upstream_openai` | 502 | any | per the table in `03` §5 |
+
+**Two codes are added by the round loop** (`06`, 2026-09-27) and are not yet in `lib/api/errors.ts`:
+`feedback_generation_failed`, with the round-loop tracer, and `role_context_too_large`, with its
+measured cap. Each lands with its `ja` and `en` copy in the same change, as `11` §3.10 requires. **Open:
+whether a database failure mid-write gets a code** — decided once for every round route, not yet which
+way (§7).
 
 ---
 
@@ -181,19 +197,27 @@ of the rubric version.
 
 ## 5. The round loop, endpoint by endpoint
 
-The four-call shape the loop settles into, per answer:
+The four-call shape the loop settles into, per answer — **after the take is recorded**:
 
 ```
+(record in the browser — nothing is written yet)
 POST /api/rounds/{id}/answers            → answer_id + presigned PUT
 PUT  <presigned url>                     → S3, direct from the browser
 POST /api/answers/{answer_id}/transcribe → transcript_raw
 POST /api/answers/{answer_id}/submit     → scoring dispatched + the next prompt
 ```
 
-**The answer row is created at presign, not at submit.** That is what makes `transcribe` and `submit`
-idempotent: they address a row that already exists, so a double-click, a retried fetch or a flaky
-connection cannot produce a second `answers` row. Given `answers_first_attempt_uniq` and the
-never-overwrite rule (`04`), a duplicate row is not an annoyance — it is a corrupted measurement.
+**The answer row is created at presign, not at submit — and presign happens once a take exists**
+(`06`, 2026-09-27). That is what makes `transcribe` and `submit` idempotent: they address a row that
+already exists, so a double-click, a retried fetch or a flaky connection cannot produce a second
+`answers` row. Given `answers_first_attempt_uniq` and the never-overwrite rule (`04`), a duplicate row
+is not an annoyance — it is a corrupted measurement. Opening the slot only after recording means a
+failed or denied recording writes nothing and leaves the question unseen (PRD §7), and the take's real
+size is known when it is checked.
+
+**What is asked is never chosen here.** Every bank question is fixed in `round_questions` when the round
+is created (§5.4), and every follow-up is a `follow_ups` row once generated (§5.9). Every read and every
+next prompt comes from those rows, so a refresh cannot swap a question the user has already heard.
 
 ### 5.1 `GET /api/health/model` ⚡
 
@@ -375,33 +399,50 @@ extracted claims, not a rejected span's slice. Ids, counts, durations and error 
 
 ```http
 POST /api/role-contexts
-{ "kind": "researched", "company_name": "株式会社サンプル", "role_title": "経理マネージャー",
+{ "kind": "posting", "company_name": "株式会社サンプル", "role_title": "経理マネージャー",
+  "source_filename": "sample_keiri_2026.pdf",
   "body": "…上場準備中。管理会計の立ち上げが直近の課題…" }
 ```
 ```json
 201
-{ "id": "8b4c…", "kind": "researched", "company_name": "株式会社サンプル",
-  "role_title": "経理マネージャー", "created_at": "2026-09-12T03:02:00Z" }
+{ "id": "8b4c…", "kind": "posting", "company_name": "株式会社サンプル",
+  "role_title": "経理マネージャー", "source_filename": "sample_keiri_2026.pdf",
+  "created_at": "2026-09-12T03:02:00Z" }
 ```
 
-`kind: "general"` requires `company_name`, `role_title` and `body` to be absent — `400` otherwise.
-General practice is a real row, not a null foreign key (`04`).
+**Round one accepts `posting` and `general`** (`06`, 2026-09-27). `researched` is a `400` until US-16
+ships, and arrives with "the file wins" (PRD US-2). A posting is pasted, or imported with the CV
+screen's importer (`lib/cv/import/`): the browser extracts the text, the user checks it, and only the
+text and the filename are sent — the file never reaches the server, as in §5.2.
+
+**Immutable and reusable.** There is no `PUT`, `PATCH` or `DELETE`; a changed posting is a new row, and
+Setup picks from the saved ones. The picker is a Server Component read (§1), so there is no `GET`.
+
+`kind: "general"` requires `company_name`, `role_title`, `body` and `source_filename` to be absent —
+`400` otherwise. General practice is a real row, not a null foreign key (`04`), and there is **one per
+user**: a second `general` request returns the existing row with `200`, never a second row.
+
+**A posting's text-size cap is measured, not guessed**, the way the CV's was (§5.2, #20), in the
+slice that builds this endpoint. Over it is `422 role_context_too_large`, before anything is saved.
 
 ### 5.4 `POST /api/rounds` ⚡
 
-Starts a round. Preflights the model, resolves the rubric, selects or generates question 1, returns
-the round with its first prompt.
+Starts a round. Preflights the model, resolves the rubric and the CV version, **chooses every bank
+question the round will ask** and writes them to `round_questions`, and returns the round with its
+first prompt.
 
 **The client sends the five choices from screen 2 and nothing else.** `rubric_version_id` is resolved
 server-side to the newest rubric for the round's language — two rubrics, not one with a flag (`04`).
-`per_answer_cap_seconds` is derived from `mode`: 240 realistic, `null` in the row for practice with a
-15-minute runaway guard applied client-side (`03` §7). **Neither is a request field**, because a
-client-chosen cap is a client-chosen stamp.
+`cv_version_id` is resolved to the **current CV version in the round's language** (`04`, §6) — it was a
+request field here until 2026-09-27, which contradicted §6 (`06`, confirm 1). `per_answer_cap_seconds`
+is derived from `mode`: 240 realistic, **900 practice** — the runaway guard, stored because the column
+is `not null` (`03` §7, confirm 2). **None of the three is a request field**, because a client-chosen
+cap or version is a client-chosen stamp.
 
 ```http
 POST /api/rounds
 { "round_type": "behavioural", "language": "ja", "mode": "realistic", "length": 5,
-  "cv_version_id": "3f2a91c4-…", "role_context_id": "8b4c…" }
+  "role_context_id": "8b4c…" }
 ```
 ```json
 201
@@ -423,24 +464,42 @@ shown, not implied.
 
 `speak: true` in realistic mode only; practice mode is text (decision log, Phase 2).
 
-**Question selection, and the near-duplicate guard.** A bank question from the
-`(user_id, language, round_type) where retired_at is null` slice, or a generated one. On generation,
-the question is embedded and compared by cosine distance within the same slice; **above threshold the
-existing row is reused instead of inserted** (`04`, `03` §11). Every near-miss is logged with its
-score — the threshold is a guess until there is real data, and the log is what tunes it, not
-intuition.
+**Question selection, all at once** (`06`, 2026-09-27). From the `(user_id, language, round_type)
+where retired_at is null` slice, in this order:
+
+1. **At most one unseen set piece** of the round's type, if one exists — 自己紹介, 自己PR and 転職理由
+   are `hr`, 志望動機 is `ceo`, and the other types have none.
+2. **Generated bank questions, unseen first.** *Seen* means answered in this language, in either mode
+   (`04` `questions`).
+3. **New questions generated** when the unseen pool cannot fill the round, with PRD §6's bank-exhausted
+   warning on Setup before the round starts.
+
+**Practice rounds prefer seen questions** and fall back to unseen ones, so practice does not spend the
+unseen pool (`06`, 2026-09-27). Generation runs **in parallel with the preflight**, before the
+transaction; the round row and all its `round_questions` rows are then written in one transaction. No
+question repeats within a round (`04`).
+
+**The near-duplicate guard.** A generated question is embedded (`text-embedding-3-small`, `03` §4) and
+compared by cosine similarity within the same slice; **at or above the threshold the existing row is
+reused instead of inserted** (`04`, `03` §11). **The threshold starts at 0.90, an unverified guess.**
+Every near-miss is logged with its score — the log is what tunes it, not intuition.
+
+**Starting a round abandons any open round** (`04` `rounds`). Nothing is written to the old round:
+abandonment is derived, and §6 still refuses an abandon endpoint.
 
 Failures: `503 model_unavailable` (preflight — the round is not created);
 `502 question_generation_failed` (nothing created).
 
 ### 5.5 `GET /api/rounds/{roundId}`
 
-Resume. `03` §7: a round survives a refresh, because every answer is written server-side at submit,
-so the round's position is a database fact.
+Resume. `03` §7: a round survives a refresh, because every answer is written server-side at submit
+and every prompt was fixed when it was chosen, so the round's position **and what it is asking** are
+database facts.
 
 ```json
 200
-{ "round": { "id": "77af0b13-…", "mode": "realistic", "length": 5, "completed_at": null, "…": "…" },
+{ "round": { "id": "77af0b13-…", "mode": "realistic", "length": 5, "completed_at": null,
+             "status": "in_progress", "…": "…" },
   "answers": [
     { "id": "c001…", "position": 1, "kind": "question", "state": "submitted",
       "scoring": { "attempt_id": "s900…", "status": "ok" } },
@@ -451,16 +510,33 @@ so the round's position is a database fact.
   "resume": { "at": "transcribe", "answer_id": "c003…" } }
 ```
 
+`prompt` is read from `round_questions` at the current position, or from the parent's `follow_ups` row
+when a follow-up is next — never selected or generated again. A follow-up shares its parent's
+`position` (`06`, 2026-09-27, confirm 3).
+
 `state` is derived, not stored: `open` (row exists, no audio) → `uploaded` (`audio_s3_key` set) →
 `transcribed` (`transcript_raw` set) → `submitted` (`transcript_corrected` set). `resume.at` tells the
 client which of the four calls to make next.
 
+**`round.status` is derived** — `in_progress`, `abandoned` or `complete` (`04` `rounds`). **Only the
+newest open round started today resumes**; an abandoned round returns `resume: null`, and the client
+shows it read-only. An open round is abandoned the moment a newer one starts, so a stale tab cannot
+resume into it.
+
+**Scores in the read, practice only** (`06`, 2026-09-27). For a `practice` round, each submitted
+answer's `scoring` also carries its `scores` (in the rubric's order, §4) and its `flags` once `ok` —
+what practice's per-answer frame shows. **A `realistic` round's read carries status only until the
+round is complete**: US-8 forbids any score, flag or hint mid-round, and leaving the fields out of the
+response is what makes that structural rather than a client courtesy.
+
 **An in-flight recording is the one thing that does not survive** (`03` §7), and the UI says so before
-recording. A resumed round whose newest answer is `open` simply re-records it.
+recording. The slot is opened only after a take exists, so a round reloaded mid-recording has no row
+for it: the question is simply asked again.
 
 ### 5.6 `POST /api/rounds/{roundId}/answers`
 
-Opens an answer slot and presigns the upload. Creates the `answers` row.
+Opens an answer slot and presigns the upload. Creates the `answers` row. **Called once the take
+exists** — after recording, before the upload (`06`, 2026-09-27).
 
 The client sends only what it cannot know about itself: the content type and the take's byte size.
 Everything that matters is server-derived — `question_id` or `parent_answer_id`, `prompt_text`,
@@ -479,27 +555,36 @@ POST /api/rounds/77af0b13-…/answers
               "max_bytes": 20971520, "expires_at": "2026-09-12T03:22:00Z" } }
 ```
 
-**Idempotency.** If the current position already has an answer row with `transcript_corrected is
-null`, that row is returned with a **fresh** presigned URL — same `answer_id`, no new row. So a
-re-record, an expired URL, or a double-clicked 録音 button all land on the same row.
+**Idempotency.** If the current position already has an answer row that is not yet submitted, that
+row is returned — same `answer_id`, no new row — and while its `transcript_raw` is null, with a
+**fresh** presigned URL for the **same key**. So an expired URL, a failed upload retried, or a double-clicked control all land on the same row.
+**This is also practice's re-take** (`06`, 2026-09-27): a new take before transcription PUTs over the
+same object, and bucket versioning keeps the old version (`12` §3), which is accepted. Once
+`transcript_raw` is set, the take is final, as the transcript is (§5.7).
 
-**A practice retry is the one case that deliberately creates a second row:** `{ "retry_of_answer_id":
-"c003…" }` in the body bypasses the reopen rule and writes a new answer with `retry_of_answer_id`
-set. **It takes the same `position` as the answer it retries** — so the round still renders in
-order with the retry grouped beside its original, ties broken by `created_at`. This is why
-`answers (round_id, position)` is not unique in `04` §3, and it must not be made unique.
-`is_first_attempt` stays on the original, always (PRD §9, refusal #3).
+**Practice's "answer again" is the one case that deliberately creates a second row:** `{
+"retry_of_answer_id": "c003…" }` in the body, allowed only in a practice round and only on a submitted
+answer, writes a new answer with `retry_of_answer_id` set. **It takes the same `position` as the answer
+it retries** — so the round still renders in order with the retry grouped beside its original, ties
+broken by `created_at`. This is why `answers (round_id, position)` is not unique in `04` §3, and it
+must not be made unique. `is_first_attempt` stays on the original, always (PRD §9, refusal #3), and
+**the retry gets no follow-up** (§5.9).
 
 **`position` is assigned under `select … for update` on the `rounds` row.** Two concurrent opens must
 not both claim position 2.
 
 **`is_first_attempt` is computed here, not asserted by the client**: true iff `mode = 'realistic'`,
-the prompt is a bank question, and no row yet holds it for this `(question_id, language)`. The partial
-unique index is the backstop — if it fires, that is a `422`, and it means this computation was wrong.
+the prompt is a bank question, and **no answer row exists for this `(question_id, language)` in either
+mode** (`06`, 2026-09-27 — it used to ask only whether a *first attempt* existed, which let a practised
+question count as cold). The partial unique index is the backstop — if it fires, that is a `422`, and
+it means this computation was wrong.
 
-Failures: `422 upload_too_large` (checked *before* recording, against `max_bytes`);
-`422 unsupported_content_type`; `409 round_already_complete`; `502 presign_failed`;
-`502 question_generation_failed` when the next prompt had to be generated and could not be.
+**The prompt comes from stored rows** — `round_questions` at the current position, or the parent's
+`follow_ups` row — and `prompt_text` is copied from there. Nothing is selected or generated here.
+
+Failures: `422 upload_too_large` (the take's size against `max_bytes`, **after recording and before any
+upload** — the take is still in the browser); `422 unsupported_content_type`;
+`409 round_already_complete`; `502 presign_failed`.
 
 Presign constraints (`03` §9): content type, maximum size, **and a server-generated key — the client
 never chooses the object key.** Key shape: `{prefix}/{user_id}/{round_id}/{answer_id}.webm`.
@@ -558,6 +643,7 @@ POST /api/answers/c003e8a2-…/submit
   "rewrite_magnitude": 0.12,
   "scoring": { "attempt_id": "s903…", "status": "pending" },
   "next": { "kind": "follow_up", "position": 2, "parent_answer_id": "c003e8a2-…",
+            "follow_up_id": "f210…",
             "text": "その40%という数字は、どう測ったものですか。", "speak": true },
   "progress": { "position": 2, "of": 5 } }
 ```
@@ -565,11 +651,13 @@ POST /api/answers/c003e8a2-…/submit
 **Both transcripts persist and the diff is data** (`04`, decision log Phase 2). `rewrite_magnitude` is
 computed server-side and returned so screen 6's meter and the stored value cannot disagree.
 
-**Scoring is dispatched here, not at round end.** `03` §3: scoring sixteen answers in one burst at
-round end would put a reasoning model on the critical path of a screen PRD §9 requires to render while
-the user is still at the machine. So `submit` creates the `scoring_attempts` row — `status:
-'pending'`, all four stamps written — and returns immediately. By round end, all but the last score
-are already rows and the feedback screen is a read.
+**Scoring is dispatched here, not at round end.** `03` §3: scoring up to fourteen answers in one burst
+at round end would put a reasoning model on the critical path of a screen PRD §9 requires to render
+while the user is still at the machine. So `submit` creates the `scoring_attempts` row — `status:
+'pending'`, all four stamps written, **stamp 3 from the question row or, for a follow-up, from its
+`follow_ups` row** — and returns immediately. By round end, all but the last score are already rows and
+the feedback screen is a read. *(Seven questions and seven follow-ups make at most 14 answers a round —
+not the "sixteen" this used to say, confirm 7. Practice retries add rows without adding follow-ups.)*
 
 **`next` is one of four shapes**, and the client does not compute it:
 
@@ -580,14 +668,24 @@ are already rows and the feedback screen is a read.
 | `pressure` | Last answer submitted, `mode = 'realistic'` — screen 7 |
 | `feedback` | Last answer submitted, `mode = 'practice'` |
 
-One generated follow-up per answer, both modes, asked once (decision log Phase 2). A follow-up is
-**never scored into progress data** — structurally impossible: it has no `question_id`, and
-`is_first_attempt` requires one (`04` §6).
+One generated follow-up per answer, both modes, asked once (decision log Phase 2). **It is written to
+`follow_ups` before `submit` returns** — `status: 'generated'` with its text and stamps, or, when
+generation finally fails, `status: 'missing'` with its `error_class` (`04`, `06`, 2026-09-27). `next`
+carries the follow-up's `position`, which is **its parent's** (confirm 3). A follow-up is **never scored
+into progress data** — structurally impossible: it has no `question_id`, and `is_first_attempt`
+requires one (`04` §6).
+
+**No follow-up is generated for** a follow-up's own answer, or for practice's "answer again" (§5.6).
+A retry's `next` is whatever the round was already on.
+
+**Its latency is not yet known.** The user waits for it inside a timed round; it is measured with the
+rest of the round's model calls before the loop is built beyond the tracer (`03` §4).
 
 Failures: `422 answer_already_submitted` (idempotent alternative: the same body returns `200` with the
 existing attempt — a different body is the `422`); `502 followup_generation_failed`, which is **not
-fatal** — the answer is saved and scored, and `next` degrades to `question`, `pressure` or `feedback`.
-A missing follow-up costs one prompt; a lost answer costs a measurement.
+fatal** — the answer is saved and scored, the `missing` row is written, and `next` degrades to
+`question`, `pressure` or `feedback`. A missing follow-up costs one prompt; a lost answer costs a
+measurement.
 
 ### 5.10 `POST /api/scoring-attempts/{attemptId}/run` ⚡
 
@@ -595,6 +693,11 @@ Performs a pending attempt. **Normally not called over HTTP at all** — `submit
 work in `after()` (see the trigger note below), while the user is already recording the next answer.
 This endpoint is the **History retry path**: the way a `pending` or `failed` attempt is driven to
 completion by hand.
+
+**What the scorer reads** (`03` §4, `06`, 2026-09-27): the round's rubric version, the prompt as
+asked, the **corrected** transcript — never the raw one — the answer's duration and its pace, and the
+CV version's claims. **What it returns**, beside the scores: the citations, the unsupported spans of
+the answer (US-11), and `answered_language`.
 
 ```json
 200
@@ -604,6 +707,8 @@ completion by hand.
               { "dimension": "accuracy", "value": 4 }, { "dimension": "length_pacing", "value": 3 },
               { "dimension": "keigo", "value": 4 } ],
   "citations": [ { "cv_claim_id": "9c41…", "relation": "supported_by" } ],
+  "flags": [ { "kind": "unsupported", "span_start": 212, "span_end": 231 } ],
+  "answered_language": "ja",
   "tokens_in": 3120, "tokens_out": 604 }
 ```
 
@@ -626,6 +731,12 @@ Citations are written to `claim_citations` **only after span validation**: the q
 `substring(cv_versions.body, span_start, span_end - span_start)`, never text returned by the model.
 A span outside the body, or a quote that does not match its span, drops the citation (`03` §11,
 `04`).
+
+**Unsupported spans get the same rule on the answer side** (`04` `answer_flags`). The scorer returns a
+verbatim quote from the corrected text and a start hint; the server locates it in
+`transcript_corrected` and writes the span, or drops and counts it. **`answered_language` is stored on
+the attempt**; a value that is not the round's language flags the answer in feedback and keeps it out
+of that language's Progress (PRD §7).
 
 **The trigger is `after()` in `submit`, not a client `fetch`** — resolved 2026-09-12, on the condition
 this TBD set for itself. Next.js documents that `after` runs for the route's configured max duration,
@@ -661,6 +772,7 @@ POST /api/scoring-attempts
 { "attempt_id": "s907…", "answer_id": "c001e8a2-…", "status": "pending",
   "is_superseding": true,
   "stamps": { "cv_version_id": "3f2a91c4-…", "rubric_version_id": "b110…",
+              "generator_prompt_version": "set-piece-ja-1.0",
               "model_id": "gpt-5.6-sol", "scoring_prompt_version": "score-ja-1.0" } }
 ```
 
@@ -672,10 +784,10 @@ score is not re-rollable from the UI** — that is the per-session model picker 
 decision log arriving by a different door. Re-scoring an `ok` answer happens only through the
 held-out harness, which writes `is_superseding: false` and never changes a displayed score (`04`).
 
-### 5.12 `POST /api/rounds/{roundId}/complete`
+### 5.12 `POST /api/rounds/{roundId}/complete` ⚡
 
 Records the felt-pressure rating, closes the round, and generates the round feedback. One endpoint,
-deliberately.
+deliberately. **⚡ since 2026-09-27**: it calls a model, so it gets its own bucket (§1 rule 5).
 
 ```http
 POST /api/rounds/77af0b13-…/complete
@@ -688,23 +800,47 @@ POST /api/rounds/77af0b13-…/complete
     "to_fix": [ { "title": "数字の出どころを先に言う", "body": "…" },
                 { "title": "結論を最初の一文に置く", "body": "…" } ],
     "what_worked": "困難だった点を具体的な場面で説明できていました。",
+    "untouched_claim_ids": [ "9c57…", "9c63…" ],
     "language": "ja", "model_id": "gpt-5.6-sol", "prompt_version": "feedback-ja-1.0" },
-  "scoring": { "ok": 9, "pending": 1, "failed": 0 } }
+  "scoring": { "ok": 10, "pending": 0, "failed": 0 } }
 ```
 
 **Why the rating and the completion are the same call:** `04` requires `felt_pressure` to be captured
 **before any feedback**, and one endpoint makes that ordering structural rather than a rule someone
-has to remember. Feedback cannot be generated without the rating having already been written in the
-same transaction.
+has to remember.
+
+**In this order, and never inside one transaction with the model** (`06`, 2026-09-27):
+
+1. **One transaction writes `felt_pressure` and `completed_at`, and commits.** The rating is on record
+   before anything else happens, whatever happens next.
+2. **Wait for the round's pending scores**, bounded, inside the route's 300 s. The bound is set from
+   the round loop's latency measurement (`03` §4) and is not chosen yet; screen 7 is where most of the
+   wait has already been spent.
+3. **Generate the round feedback, outside any transaction** — from every answer's scores and flags,
+   and the never-cited claims of the round's CV version, from which the model picks two or three
+   relevant ones as untouched material. Their ids are validated against that set.
+4. **Write `round_feedback`**, whole, once.
+
+**If step 2's bound runs out or step 3 fails**, no `round_feedback` is written: it is one row, never
+rewritten, and feedback from an incomplete set of scores would be permanent (`04`). The response is
+`502 feedback_generation_failed`; **the round is still complete, with its rating.** The feedback screen
+shows every score that landed and a pending round-level note, and generation is retried through
+§5.16. Generating from whatever scores exist was rejected for the same reason (`06`, 2026-09-27).
 
 - `mode = 'realistic'` and no `felt_pressure` → `422 pressure_required`.
 - `mode = 'practice'` and a `felt_pressure` → `422 pressure_not_applicable`. The check constraint is
-  the backstop.
-- Already complete → `409 round_already_complete`, returning the existing feedback.
+  the backstop. **A practice round is completed the same way, without a rating**, and gets the same
+  round feedback (`06`, 2026-09-27).
+- Already complete → `409 round_already_complete`, returning the existing feedback, or none if it is
+  still pending.
 - Not all answers submitted → `409 round_not_complete`.
+- Feedback could not be generated → `502 feedback_generation_failed`, as above.
 
-**`scoring` reports what is not yet in.** The feedback screen states a pending score plainly rather
-than spinning (`03` §5, §8). `pending` here is not an error and does not block the response.
+**`scoring` reports what is in.** The feedback screen states anything pending plainly rather than
+spinning (`03` §5, §8). **Open: a score that ended `failed`** (its three retries spent, `03` §8). It
+is not pending, so step 2 does not wait for it, but feedback written without it is as permanent as
+feedback written without a pending one, and it may be retried to `ok` from History later (§5.11).
+Whether feedback is generated without it or held until it is retried is not decided (§7).
 
 **An abandoned round is never completed and never cleaned up.** There is no endpoint to abandon one:
 `completed_at is null` *is* the record, and an abandoned round is evidence about pressure, not
@@ -722,6 +858,7 @@ GET /api/rounds?limit=20&language=ja&round_type=behavioural
 { "items": [
     { "id": "77af0b13-…", "round_type": "behavioural", "language": "ja", "mode": "realistic",
       "length": 5, "started_at": "2026-09-12T03:04:51Z", "completed_at": "2026-09-12T03:41:08Z",
+      "status": "complete",
       "answers": 10, "scoring": { "ok": 9, "pending": 1, "failed": 0 },
       "stamps": { "cv_version_label": "応募書類 v3", "rubric_version_label": "v1.2",
                   "scoring_model_id": "gpt-5.6-sol" } } ],
@@ -729,7 +866,8 @@ GET /api/rounds?limit=20&language=ja&round_type=behavioural
 ```
 
 Every row carries its stamps, because History is where a change of stamp has to be legible per row —
-Progress draws the boundary line, History says which side a round is on (refusal #5).
+Progress draws the boundary line, History says which side a round is on (refusal #5). `status` is the
+derived `in_progress` / `abandoned` / `complete` of §5.5 — what History's `中断` line reads.
 
 ### 5.14 `GET /api/answers/{answerId}/audio`
 
@@ -744,6 +882,46 @@ short-lived presigned GETs only).
 
 `404 audio_missing` when `audio_s3_key` is null or the object is gone. **The play control must
 tolerate a missing object** (`04` §5) — a dangling key is a missing recording, not a broken page.
+
+### 5.15 `GET /api/rounds/{roundId}/speech` ⚡
+
+Realistic mode's spoken question (`06`, 2026-09-27). Streams audio synthesised by the pinned TTS model
+for **one prompt of this round**, named by position and kind — never by text.
+
+```
+GET /api/rounds/77af0b13-…/speech?position=2&kind=follow_up
+```
+```
+200
+Content-Type: audio/mpeg
+<streamed audio>
+```
+
+**The server reads the text** from `round_questions` at that position, or from the parent's
+`follow_ups` row; the client sends none, so the route cannot be used to synthesise anything else on
+the user's key (§1 rule 6). A `practice` round is `404` — practice is text only. A position with no
+prompt yet, or a `missing` follow-up, is `404`. Question audio is well under the 4.5 MB body cap, so it
+crosses the function; it is **not retained** (`03` §4).
+
+**The model is not named yet.** It is a constant in `lib/ai/models.ts`, pinned only once verified at
+implementation (`03` §4). **Open: what the round does when synthesis fails** — whether it proceeds with
+the text alone and says so, and whether that needs a code of its own (§7).
+
+### 5.16 `POST /api/rounds/{roundId}/feedback` ⚡
+
+The retry path for §5.12's step 3, and nothing else — the way §5.10's `run` is for a score. Only a
+**complete** round **with no `round_feedback`** is accepted; it waits, generates and writes exactly as
+§5.12 steps 2–4 do.
+
+```json
+201
+{ "feedback": { "to_fix": [ … ], "what_worked": "…", "untouched_claim_ids": [ … ],
+                "language": "ja", "model_id": "gpt-5.6-sol", "prompt_version": "feedback-ja-1.0" } }
+```
+
+A round with feedback returns it with `200` and makes no model call. An incomplete round is
+`409 round_not_complete`. Failure is `502 feedback_generation_failed` again, and the note stays
+pending.
 
 ---
 
@@ -760,7 +938,9 @@ convert a guarantee in `04` §6 into a preference.
 | Anything that edits or deletes a **document** or a **claim** | Same reason, one level down. `cv_documents` ranges and `cv_claims` spans both index into the same immutable `body` (`04`). A document is changed by saving a new version of the whole set. |
 | Anything that makes an older CV version current, or lets a round choose one | Current is `max(created_at)` per language and nothing else (`04`). A selectable CV version would make the CV stamp a user choice, which is the same failure as a model or rubric selector two rows down. |
 | Any endpoint returning a composite score | Refusal #1. No column, no view, no field. |
-| `POST /api/rounds/{id}/abandon` | `completed_at is null` is the record. Abandonment is data. |
+| `POST /api/rounds/{id}/abandon` | `completed_at is null` is the record. Abandonment is data, and derived (`04` `rounds`). |
+| Anything that changes a round's questions after it starts | `round_questions` is fixed with the round (`04` §6). A re-roll is how a question the user has already heard gets swapped for an easier one. |
+| A speech route that takes text | §5.15 reads the text from stored rows. One that took text would be a general TTS proxy on the user's key. |
 | A model or rubric selector on any request | The stamps would become user-chosen, making drift voluntary and biased (decision log). Both are config and resolved server-side. |
 | Anything with a `share`, `visibility`, `export` or `public` in it | Refusal #6. Multi-tenancy is not permission to build a sharing surface (`03` §2, `08` §7). |
 | `POST /api/questions` | The bank is written by generation with the near-duplicate guard, or by seed. A hand-inserted question skips the embedding check and fragments the measurement (`03` §11). |
@@ -773,8 +953,18 @@ convert a guarantee in `04` §6 into a preference.
 - ~~The scoring dispatch trigger~~ and ~~the transcription model id~~ — **both closed 2026-09-12.**
   The trigger is `after()` inside `submit` (§5.10); the model is `gpt-transcribe` at $0.0045/minute
   (`03` §4), and §5.7's response carries the real string.
-- **The near-duplicate threshold** used in §5.4. A guess until there is real data; start strict, log
-  every near-miss with its score.
+- **The near-duplicate threshold** used in §5.4. **Starts at cosine similarity 0.90** (`06`,
+  2026-09-27) — an unverified guess until there is real data; log every near-miss with its score.
+- **The TTS model** behind §5.15, pinned only once verified, and **what realistic mode does when
+  synthesis fails** — go on with the text and say so, or something else — and whether that needs a
+  code.
+- **`complete`'s wait bound** (§5.12 step 2), from the round loop's latency measurement (`03` §4).
+- **Round feedback when a score ended `failed`** (§5.12): generate without it, or hold until it is
+  retried.
+- **A database failure mid-write** is a bare `500` today (#14). Decided to be settled once, for every
+  round route (`06`, 2026-09-27, confirm 6); not yet whether as a new code with copy in both languages
+  or as Next's `500`.
+- **Each round route's rate limit** (§1 rule 5), set in the slice that builds it.
 - ~~**User-facing copy for every code in §3.**~~ **Closed in #13:** `lib/copy/errors.ts` owns the
   bilingual catalogue. `11-testing-plan.md` checks it against §3, and its Japanese strings passed a
   native read on 2026-09-21 (`05-design-system.md` §6).
