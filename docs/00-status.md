@@ -490,8 +490,9 @@ in 4b):
   digest so it is tunable from data.
 - **CV claim extraction quality** — measured on the real CVs locally and judged good, windowed, on
   2026-09-27 (#20, #27, #29; `03` §4). Each new CV upload is still eyeballed (`11` §5).
-- **Who sends the alert mail.** `08` §2 avoided an email vendor deliberately; `12` §6 reintroduces one
-  as a placeholder.
+- ~~**Who sends the alert mail.**~~ **Decided 2026-09-28:** no mail. Alerts go to a private status
+  page (`12` §6, `06`). Sentry, the cron routes with that page, and the daily `pg_dump` are #54, #55
+  and #56, and #21 is blocked by all three.
 - **One drawn-but-unspecified screen:** practice mode's record frames differ from realistic mode's.
   `10-screen-specifications.md` §12. **The CV screen came off this list in #12** — still no artboard,
   but specified in `10` §13 from `05` components.

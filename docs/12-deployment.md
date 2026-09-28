@@ -72,11 +72,14 @@ synthetic completed rounds with scores, to be verified on `develop` at all. Both
 CV's, and never call a model.
 
 **Cron is off on `develop` on purpose.** The self-check alerts on pending scores and cost drift (§6);
-run against synthetic data it would mail noise, and an alert channel that cries wolf is one you stop
-reading — which is the whole failure §6 exists to prevent.
+run against synthetic data it would fill the status page with noise, and an alert channel that cries
+wolf is one you stop reading — which is the whole failure §6 exists to prevent.
 
 **Sentry is on for `develop`, tagged.** Not for the error reports, but so that §7's scrubbing
-configuration is exercised before production has anything worth leaking.
+configuration is exercised before production has anything worth leaking. So `SENTRY_DSN` and
+`SENTRY_AUTH_TOKEN` sit in the `develop` branch's Preview scope as well as Production (§2). *Corrected
+2026-09-28:* §2 used to say "production only", which contradicted this paragraph (`06`). Sentry is
+not integrated yet: #54.
 
 **Refreshing Neon `develop`:** reset it from a fresh seed, never from a copy of `main`. Neon's branch-
 from-parent would be the convenient move and it would put the real CV, real transcripts and real salary
@@ -118,11 +121,14 @@ in this application is safe to ship to the browser**, and none is.
 | `AWS_REGION` | S3 region | Vercel env |
 | `S3_BUCKET` | One bucket | Vercel env |
 | `S3_PREFIX` | `prod/` or `dev/` | Vercel env — **this is the only thing separating `develop` audio from real audio**. `lib/config.ts` accepts exactly these two values |
-| `SENTRY_DSN` | Exception reporting | Vercel encrypted env, production only |
-| `SENTRY_AUTH_TOKEN` | Source-map upload at build | Vercel encrypted env, production only |
-| `ALERT_EMAIL` | Where the self-check mails (§6) | Vercel env |
-| `RESEND_API_KEY` *(or equivalent)* | Sending the two alert mails | Vercel encrypted env. **TBD — the sender is unchosen**; §6 |
-| `CRON_SECRET` | Authenticates the cron routes against forgery | Vercel encrypted env |
+| `SENTRY_DSN` | Exception reporting | Vercel encrypted env. **Production and the `develop` branch's Preview scope** (§1); one Sentry project, events tagged by environment. #54 |
+| `SENTRY_AUTH_TOKEN` | Source-map upload at build | Same scopes as `SENTRY_DSN`: both builds upload their maps |
+| `CRON_SECRET` | Authenticates the cron routes against forgery | Vercel encrypted env, **Production only**: cron is off on `develop` (§1). #55 |
+| `BACKUP_AWS_ACCESS_KEY_ID` | The daily `pg_dump`'s write to `backups/` (§8) | Vercel encrypted env, **Production only**. The dedicated backup-writer IAM user (§3 step 5), never the app's own. #56 |
+| `BACKUP_AWS_SECRET_ACCESS_KEY` | Same | Same |
+
+**No alert-mail variables.** `ALERT_EMAIL` and a sender key (`RESEND_API_KEY`) were placeholders
+here until 2026-09-28, when alerts went to a private status page instead of email (§6, `06`).
 
 **Rules, not preferences:**
 
@@ -141,7 +147,7 @@ In this order. Steps 3 and 4 are the ones that fail silently if skipped.
 2. **Google Cloud:** OAuth client. Authorised redirect URIs for three origins — **`localhost`**, because local development signs in with the same Google allowlist (§1); the production subdomain, **`suburi-murex.vercel.app`** (`suburi.vercel.app` was taken; Vercel assigned this on import, 2026-09-19); and **`develop`'s stable subdomain, `suburi-develop.vercel.app`** (if a name ever changes, change this list, §1 and the URIs together). Each URI is the origin plus `/api/auth/callback/google`, and local is `http://localhost:3000`. The client stays in **Testing**: with only `openid`, `email` and `profile` requested, Google lets any account through, so the two locks in `08` §2 are the whole gate — which is the second reason `develop` gets a fixed domain rather than a per-commit one: Google's redirect URIs are an exact-match list, so a generated hostname can never sign in. A per-commit URL could not sign in either, which is one reason feature branches are not deployed (§1); verify feature work on `develop`.
 3. **S3 bucket:** Block Public Access **all four settings on**; default encryption SSE-S3 or better; versioning on; a lifecycle rule expiring `dev/` after 30 days and **none on `prod/`** (audio is retained — `04` §5). **Steps 3–5 are done ahead of #21, as the round loop's first slice** (`06`, 2026-09-27): every recording slice needs the bucket, and it is human work. **Done 2026-09-28** (#41): region `ap-northeast-1`, SSE-S3 with a bucket key, Object Ownership bucket-owner-enforced, and a bucket policy refusing any request not over TLS. The `dev/` rule also expires noncurrent versions after a day and aborts incomplete multipart uploads. The bucket name lives only in the §2 variables. Versioning is also what keeps a practice re-take's overwritten object (`04` `answers`) — accepted, and never read. The AWS variables in §2 join `lib/config.ts`, `.env.example` and the `develop` branch's Preview scope in the same slice.
 4. **S3 CORS:** the browser PUTs directly, so without this the whole upload path fails at runtime and nowhere else. Allow `PUT` and `GET` from the production origin and `develop`'s origin — and `http://localhost:3000` only if local development uses the real bucket under `dev/` rather than MinIO, which it does (`06`, 2026-09-28); allowed headers `content-type`; no wildcard origin. **Done 2026-09-28** with all three origins; a preflight from any other origin, or asking for any other header, gets `403`.
-5. **IAM users, one per environment**, each dedicated, with exactly `s3:PutObject` and `s3:GetObject` on its own prefix — production's on `arn:aws:s3:::<bucket>/prod/*`, `develop`'s (and local's, if local uses the real bucket) on `/dev/*`. No `ListBucket`, no `DeleteObject` — **nothing in this app deletes an object**, so the credential should not be able to. *Corrected 2026-09-27:* this used to give one user both prefixes, which would have put a credential reaching `prod/` on `develop` — the thing §2's last rule forbids (`06`). **Done 2026-09-28:** `suburi-s3-prod` and `suburi-s3-dev`, each with one inline policy and no groups or managed policies. Local shares `suburi-s3-dev`. Their keys went straight from the AWS CLI into Vercel's Production scope and the `develop` branch's Preview scope, and the dev key also went into `.env.local`; none was printed.
+5. **IAM users, one per environment**, each dedicated, with exactly `s3:PutObject` and `s3:GetObject` on its own prefix — production's on `arn:aws:s3:::<bucket>/prod/*`, `develop`'s (and local's, if local uses the real bucket) on `/dev/*`. No `ListBucket`, no `DeleteObject` — **nothing in this app deletes an object**, so the credential should not be able to. *Corrected 2026-09-27:* this used to give one user both prefixes, which would have put a credential reaching `prod/` on `develop` — the thing §2's last rule forbids (`06`). **Done 2026-09-28:** `suburi-s3-prod` and `suburi-s3-dev`, each with one inline policy and no groups or managed policies. Local shares `suburi-s3-dev`. Their keys went straight from the AWS CLI into Vercel's Production scope and the `develop` branch's Preview scope, and the dev key also went into `.env.local`; none was printed. **A third user, `suburi-backup-writer`, arrives with the daily dump (#56):** exactly `s3:PutObject` on `/backups/*`, its key in Production only. Neither app user can reach `backups/`, and the backup writer can read nothing (`06`, 2026-09-28).
 6. **OpenAI:** one key per environment, each with a monthly usage cap (§6). Each key's account must be **API Tier 1 or above** for `gpt-transcribe` (§2) — confirmed for the local and `develop` keys in the round loop's first slice, before anything records.
 7. **Vercel:** import the repo. **Production branch = `main`.** Give `develop` a stable domain and point the Preview scope's `DATABASE_URL` at Neon `develop`. Populate §2 per scope. **Leave the import form's environment variables empty** — it scopes them to Production and Preview at once. A variable added after this step follows the same rule: branch-scoped in Preview, before the deploy that first reads it (`OPENAI_API_KEY`, step 8). Importing deploys `main` immediately, and that build fails without Production variables; that is expected until production is set up. Vercel's Deployment Protection is on for Preview by default and stays on: `develop` asks for a Vercel login before the app's own sign-in.
    > **Per-branch environment variables — available on Hobby** (verified 2026-09-14 against Vercel's environment-variable and environments docs). A Preview variable can be scoped to one Git branch, and it overrides the general Preview value. Assigning a stable domain to a branch, with branch-specific variables, is marked "All plans, including Hobby". Custom Environments are Pro and Enterprise only and are not needed. **So:** every §2 variable for `develop` is scoped to the `develop` branch in Preview. General Preview holds nothing; feature branches are not deployed (§1).
@@ -149,7 +155,7 @@ In this order. Steps 3 and 4 are the ones that fail silently if skipped.
    > **Adding a variable to an existing environment is the same step, later.** `OPENAI_API_KEY` joins the `develop` branch's Preview scope when CV extraction lands — branch-scoped, like every other §2 variable for `develop` (step 7). Because `lib/config.ts` validates at boot and a missing variable fails the boot loudly, the deploy that first reads it must not land before the variable does.
 9. **Seed production:** migrations, then the single `users` row, the set-piece questions, and rubric **`v1.0`** for both `ja` and `en`. *Amended 2026-09-27:* this said `v1.2`, a label from the artboards' sample data; no rubric existed (`06`). The set pieces are 自己紹介, 自己PR and 転職理由 (`hr`) and 志望動機 (`ceo`), with their English counterparts, each carrying its content version — **no 逆質問**. Both seeds are real, checked-in data (`11` §8), written by the round loop's tracer (English) and Japanese slices; this step waits for them. The user row is inserted by the hand-run seed script from `ALLOWED_EMAIL`, with `email_verified = true` — **not by migration**, which would commit the email to a public repository. `disableSignUp: true` means it cannot be created by signing in (`08` §2).
 10. **Verify the allowlist twice:** sign in with the allowlisted account (works), and confirm a second Google account is rejected. `08` §2 deliberately has two independent mechanisms; this checks both, before there is anything to protect.
-11. **Sentry:** project, DSN, and the scrubbing configuration in §7 — **configured before the first real error, not after.**
+11. **Sentry:** project, DSN, and the scrubbing configuration in §7 — **configured before the first real error, not after.** The integration itself is #54.
 
 ---
 
@@ -239,17 +245,17 @@ retry loop or a prompt that doubled in size shows up on a bill, not on a screen.
 
 | Signal | Threshold | Where it goes |
 | --- | --- | --- |
-| `scoring_attempts` in `pending` for over **24 hours** | any | email — Hobby cron is daily-only, see below |
-| `scoring_attempts` in `failed`, not superseded by an `ok` attempt | any | email |
-| Week-to-date OpenAI tokens | > 3× the eight-round baseline | email |
-| `spans_rejected > 0` on a CV upload | any | email — the anti-hallucination guard actually firing (`07` §5.2) |
-| `claims_split > 0` on a CV upload | any | email — the extractor is cutting sentences into fragments again (`07` §5.2) |
-| `claims_duplicated > 0` on a CV upload | any | email — the same assertion returned more than once |
-| `unclaimed_run_max` on a CV upload | > **2,000** code points | email — a section of the CV may have gone unread |
-| `quotes_outside_window > 0` on a CV upload | any | email — an extraction call quoted outside the window it was given (`07` §5.2, #29) |
-| A completed round with no `round_feedback` | for over **24 hours** | email — feedback failed and was never retried (`07` §5.12) |
+| `scoring_attempts` in `pending` for over **24 hours** | any | status page — Hobby cron is daily-only, see below |
+| `scoring_attempts` in `failed`, not superseded by an `ok` attempt | any | status page |
+| Week-to-date OpenAI tokens | > 3× the eight-round baseline | status page |
+| `spans_rejected > 0` on a CV upload | any | status page — the anti-hallucination guard actually firing (`07` §5.2) |
+| `claims_split > 0` on a CV upload | any | status page — the extractor is cutting sentences into fragments again (`07` §5.2) |
+| `claims_duplicated > 0` on a CV upload | any | status page — the same assertion returned more than once |
+| `unclaimed_run_max` on a CV upload | > **2,000** code points | status page — a section of the CV may have gone unread |
+| `quotes_outside_window > 0` on a CV upload | any | status page — an extraction call quoted outside the window it was given (`07` §5.2, #29) |
+| A completed round with no `round_feedback` | for over **24 hours** | status page — feedback failed and was never retried (`07` §5.12) |
 | Near-duplicate near-misses | weekly count and score distribution | the weekly digest — this is the log the threshold gets tuned from (`03` §11). The threshold starts at **0.90, unverified** |
-| Unhandled exception | any | Sentry, scrubbed per §7 |
+| Unhandled exception | any | Sentry, scrubbed per §7 (#54) |
 | App down | — | **not alerted.** You will know. |
 
 **The three reading counters are why this table is not blind to a bad extraction** (#27). Measured
@@ -269,7 +275,8 @@ guards the windowing itself and is strict, because it measured 0 across every wi
 **Implementation:** two Vercel Cron routes under `/api/cron/`, authenticated with `CRON_SECRET`,
 returning `401` without it. `self-check` (daily) covers the first nine rows **and writes the daily
 `pg_dump`** (§8); `digest` (weekly) covers the near-miss row and reports the week's rounds, tokens and
-spend.
+spend. Both write to the status page below. Not built yet: #55 (the routes and the page) and #56 (the
+dump).
 
 **Vercel Hobby cron, verified 2026-09-12:** 100 cron jobs per project, **minimum interval once per
 day**, **per-hour scheduling precision** — a job set to `0 1 * * *` fires somewhere between 01:00 and
@@ -288,11 +295,18 @@ Two things follow, one of which reverses a worry this section used to carry:
 The ±59 minute jitter touches nothing here. Both jobs are "sometime that day" work, and §8's dump is
 sized for a daily boundary, not a precise hour.
 
-> **TBD — the alert sender.** `RESEND_API_KEY` is a placeholder. `08` §2 rejected magic links
-> specifically to avoid a transactional email vendor, and adding one here reintroduces it for a
-> different purpose. **Decide at implementation time:** an email vendor, or writing the digest to a
-> private endpoint that is checked by habit. If nothing sends mail, the alerts are a page nobody
-> opens — choose deliberately rather than defaulting.
+**Where the alerts go: a private status page, not email** (decided by the user 2026-09-28, `06`).
+Each cron run is appended to the database, and a signed-in page shows every row above with its latest
+reading and when each job last ran. It sits behind the same session and allowlist as every other page:
+the user's own page, not an admin route (`07` §6) and not a sharing surface (invariant 6). No email
+vendor, which keeps `08` §2's reason for rejecting magic links intact.
+
+**The cost, accepted:** a page is only read when the user opens it, and an alert nobody opens is not
+monitoring. Two things narrow that. Both signals are slow by nature (a day-late discovery loses
+nothing, as the `pending` threshold already accepts), and **the page leads with staleness**: if
+`self-check` has not run for over 48 hours it says so before anything else, so a dead cron never reads
+as "all clear". Whether the app should also surface a red check where the user already looks is an
+open question on #55.
 
 **Cost ceiling as a control, not a chart:** each `OPENAI_API_KEY` carries a monthly usage cap at a
 multiple of the expected $3–5 (`03` §6). A runaway loop then fails closed instead of quietly spending.
@@ -306,12 +320,12 @@ route retries it as though it were a rate limit (`07` §2, `06`, confirm 5).
 ## 7. What is never in a log, a trace or an error report
 
 `03` §8's rule, restated here because a deployment adds three new places to break it: Vercel runtime
-logs, Sentry, and the cron emails.
+logs, Sentry, and the status page the cron routes write (§6).
 
 **Never:** transcript text, corrected text, **CV document text**, CV text or claim text, **a document's
 `source_filename`**, company notes, prompt bodies, model response bodies, salary expectations. A
 rejected span's sliced text is CV text and is on this list; `spans_rejected` is a count, and a count is
-all that is ever logged or mailed about it (§6). **Logs and reports carry ids, counts, durations and error
+all that is ever logged or shown about it (§6). **Logs and reports carry ids, counts, durations and error
 classes** — nothing else. `07` §2 applies the same rule to `error.detail`, and `11` §3.10 tests it with
 sentinel strings.
 
@@ -321,7 +335,7 @@ Sentry configuration, decided here so it is not decided under pressure:
 - A `beforeSend` that **drops request and response bodies entirely** rather than filtering fields — an allowlist of safe keys is a list someone forgets to extend when a column is added.
 - Breadcrumbs from `fetch` keep the URL and status, never the body.
 - Source maps uploaded at build and **not served publicly**.
-- The alert emails contain counts and ids only. Never the answer.
+- The status page and the cron runs behind it hold counts and ids only. Never the answer.
 
 **The threat model that makes this strict** (`03` §9): the worst outcome here is not financial, it is
 someone reading the CV, the salary expectations and the notes on companies being interviewed with —
@@ -337,7 +351,7 @@ system, because `04` §5 means nothing can be rebuilt from a later state.
 
 | What | How | Restore path |
 | --- | --- | --- |
-| Postgres | Neon point-in-time restore, **6 hours and not extendable on Free**, plus a **daily `pg_dump`** written to `s3://<bucket>/backups/`, SSE-encrypted | Restore into a Neon branch, verify, then promote |
+| Postgres | Neon point-in-time restore, **6 hours and not extendable on Free**, plus a **daily `pg_dump`** written to `s3://<bucket>/backups/`, SSE-encrypted, by its own write-only IAM user (§3 step 5). Not built yet: #56 | Restore into a Neon branch, verify, then promote |
 | Audio in S3 | Bucket versioning on; no lifecycle rule on `prod/` | Object version restore |
 | Prompts, rubrics, seeds | Git | Checkout |
 | Secrets | Vercel env is the store of record; not backed up | Regenerate from the source consoles (§3) |

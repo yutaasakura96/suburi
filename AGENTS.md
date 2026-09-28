@@ -102,7 +102,7 @@ the thing being measured.
   rollback story.
 - **Never logged, traced or reported:** transcript text, corrected text, CV text or claim text,
   company notes, prompt bodies, model response bodies, salary expectations. Logs carry ids, counts,
-  durations and error classes. Applies to Vercel logs, Sentry and the cron emails alike.
+  durations and error classes. Applies to Vercel logs, Sentry and the cron status page alike.
 - **`lib/ai/score.ts` is a port with one implementation.** Re-scoring a held-out set with a different
   model is the only way to detect drift, and that is impossible if scoring is inlined at its call
   sites.
