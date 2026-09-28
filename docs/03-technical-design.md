@@ -634,7 +634,7 @@ number. Set pieces stay out of the problem by construction: each is one row in o
 | --- | --- | --- |
 | App | `next dev` | Vercel |
 | Postgres | Docker Compose, `pgvector` image | Neon |
-| Object storage | MinIO, or the real bucket with a `dev/` prefix | S3 |
+| Object storage | The real bucket with a `dev/` prefix (`06`, 2026-09-28) | S3 |
 | Models | Real OpenAI, same pinned strings | Real OpenAI |
 | Auth | Better Auth + Google, same allowlist | Same |
 
