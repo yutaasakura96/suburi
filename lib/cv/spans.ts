@@ -103,8 +103,13 @@ export function createSpanChecker(body: string, documents: readonly Span[]) {
     const text = characters.slice(document.start, document.end).join("");
     const length = characterLength(quote);
     let best: number | null = null;
+    // The code-point offset is carried from one occurrence to the next, not recounted from the start
+    // of the document: a repetitive document holds an occurrence at nearly every index.
+    let offset = 0;
+    let counted = 0;
     for (let unit = text.indexOf(quote); unit !== -1; unit = text.indexOf(quote, unit + 1)) {
-      const offset = characterLength(text.slice(0, unit));
+      offset += characterLength(text.slice(counted, unit));
+      counted = unit;
       if (within && (offset < within.start || offset + length > within.end)) continue;
       if (best === null || Math.abs(offset - hint) < Math.abs(best - hint)) best = offset;
     }
