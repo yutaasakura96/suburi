@@ -27,8 +27,8 @@ round-level line rewritten; one register rule into `05` §6.
 one window's claims, all finished before the one transaction, now answered by the same real-CV
 re-measure.
 **The round loop is planned:** grilled 2026-09-27, its decisions written into the docs, and its
-eleven slice issues drafted, #41–#51 — **awaiting the user's confirmation, none `ready-for-agent`**
-(Next).
+eleven slice issues confirmed on 2026-09-28 and labeled `ready-for-agent`, #41–#51, the user's own
+steps marked in each (Next).
 **Updated:** 2026-09-28 (the round-loop plan; #38 on 2026-09-27)
 
 ## Done
@@ -332,8 +332,8 @@ paths (#44) · #49 practice (#44, #47) · #50 History (#44) → #51 Progress and
 with native GitHub `blocked_by` edges. The first real round needs #41–#48 plus #21. **The items the
 plan left open were answered on 2026-09-28** (`06`): a database failure mid-write is `write_failed` on
 every round route; a failed synthesis goes on as text with `speech_failed`; feedback is written
-without a score that ended `failed`, which is retried alone; "today" is Asia/Tokyo's. Once this PR
-merges, #41–#51 move from `needs-triage` to `ready-for-agent`. Slice 0 (#41) is the user's own
+without a score that ended `failed`, which is retried alone; "today" is Asia/Tokyo's. The user
+confirmed the slices, and #41–#51 moved from `needs-triage` to `ready-for-agent`. Slice 0 (#41) is the user's own
 console work and takes `12` §3 steps 3–5 out of #21, whose body now points at it.
 
 **#21 is next. #20, #29 and #38 are done.**
