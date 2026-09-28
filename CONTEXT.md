@@ -208,9 +208,8 @@ Carry these; do not silently decide them in a ticket.
   catalogued `500` in the `07` §2 envelope, on every round route; the round stays resumable (`07` §3).
 - **The text-to-speech model.** A constant in `lib/ai/models.ts`, **pinned only after it is verified**
   at implementation (`03` §4, `06`, 2026-09-27).
-- **Who sends the alert mail.** `08` §2 rejected magic links specifically to avoid a transactional email
-  vendor; §6 of `12` reintroduces one as a placeholder. Decide deliberately — an alert nobody receives
-  is not monitoring.
+- ~~**Who sends the alert mail.**~~ **Decided 2026-09-28:** nobody. The cron routes write to a private,
+  signed-in status page the user checks; no email vendor (`12` §6, `06`). Built by #55.
 - **User-facing copy for the error catalogue.** `docs/07-api-design.md` §3 closes the set of error codes;
   none of the Japanese or English strings is written. `11` §3.10 asserts the two lists match, so this
   fails loudly until it is done — and the Japanese needs a native read.

@@ -3,6 +3,65 @@
 Newest first. Every entry records what was chosen, why, and what was rejected.
 
 ---
+## Phase 6 — the infrastructure audit's fixes
+
+A read-only audit on 2026-09-28 found production's missing pieces unowned: no ticket for Sentry, the
+cron routes or the daily backup, and one variable in a scope `12` forbids. The user approved the
+small fixes and made the one choice the audit could not.
+
+### [2026-09-28] Alerts go to a private status page, not email
+
+**Decided:** by the user. `self-check` and `digest` append each run to the database, and a signed-in
+page shows every `12` §6 signal's latest reading and when each job last ran. No email vendor, no
+`ALERT_EMAIL`, no `RESEND_API_KEY`. The page leads with staleness: a `self-check` older than 48 hours
+is the first thing it says. Built by #55.
+**Alternatives considered:** a transactional email vendor, which `12` §6 had left as the placeholder.
+**Reason:** `08` §2 rejected magic links to avoid exactly that vendor, and both things §6 watches for
+(scores not landing, cost drifting) are slow failures that a day-late read loses nothing to. The
+staleness line covers the one failure a page hides and a mail would not: the cron itself dying.
+**Cost, accepted:** a page is read only when opened. Whether a red check should also appear where the
+user already looks is left open on #55.
+**Consequence:** `12` §2 drops the two mail variables; §6's table routes to the status page; §7 and
+`AGENTS.md` name the page where they named the cron emails. The page is the user's own, behind the
+same session: not an admin route (`07` §6) and not a sharing surface (invariant 6).
+
+### [2026-09-28] Sentry runs on `develop` too, so its variables are in both scopes
+
+**Decided:** `SENTRY_DSN` and `SENTRY_AUTH_TOKEN` go in Production and the `develop` branch's Preview
+scope, one Sentry project with events tagged by environment. #54 builds it.
+**Reason:** `12` §1 already said Sentry is on for `develop`, tagged, so §7's scrubbing is exercised
+before production has anything worth leaking. §2 said "production only". The two contradicted each
+other, and §1 carries the reason, so §2 changed. A DSN only sends events in; neither variable reaches
+Neon `main` or `prod/`, so §2's last rule holds.
+
+### [2026-09-28] The daily dump writes with its own IAM user
+
+**Decided:** a third IAM user, `suburi-backup-writer`, with exactly `s3:PutObject` on `backups/*`, its
+key in Production only. `suburi-s3-prod` and `suburi-s3-dev` stay as they are. #56 builds it.
+**Alternatives considered:** widening `suburi-s3-prod` to `backups/*`.
+**Reason:** the app's credential would then reach every night's full copy of the database, CV and
+transcripts included, from every request path that presigns audio. A write-only user that nothing
+but the cron route holds cannot read a backup back, and the app's own users still cannot reach it.
+
+### [2026-09-28] The stray general-Preview `OPENAI_API_KEY` is removed
+
+**Done:** the Vercel project held two `OPENAI_API_KEY` rows in Preview, one scoped to `develop` and
+one with no branch. The branchless one was deleted by id through Vercel's API, leaving the `develop`
+row. `12` §3 step 7 says general Preview holds nothing: a preview deployed any other way would have
+received a live key with the rest of its configuration missing. `develop` was then redeployed and
+served `/api/auth/ok`, the session and `/cv` with its seeded CV.
+
+### [2026-09-28] Locating a quote is linear in the document
+
+**Fixed:** `locate` in `lib/cv/spans.ts` counted each occurrence's code-point offset from the start of
+the document. A quote that occurs at nearly every index, as in the cap-sized integration fixtures of
+one repeated letter, made that quadratic: the English cap test took 28 s of a 30 s timeout and failed
+once in CI at 32 s. The offset is now carried from one occurrence to the next. The test takes about
+25 ms, and the two raised timeouts are gone, so the default 5 s catches a regression.
+**Alternatives considered:** raising the timeout to 60 s, which the audit suggested. It would have
+hidden a real cost on the save path for any document with a highly repeated phrase.
+
+---
 ## Phase 6 — #41, the S3 and OpenAI checks
 
 The round loop's first slice. The user chose the local storage and then handed the console steps to

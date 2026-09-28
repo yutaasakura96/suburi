@@ -134,6 +134,22 @@ describe("locate", () => {
     expect(sliceQuote(text, span!)).toBe("請求処理を40%短縮");
   });
 
+  it("counts every surrogate pair before a later occurrence, not only those before the first", () => {
+    const text = "𠮷A𠮷A𠮷A";
+    const checker = createSpanChecker(text, whole(text));
+    expect(checker.locate(0, "A", 5)).toEqual({ start: 5, end: 6 });
+  });
+
+  it("stays linear in a document where the quote occurs at nearly every index", () => {
+    // A 45,000-character cap-sized body of one letter took seconds per call when each occurrence
+    // recounted its offset from the start of the document.
+    const text = "a".repeat(45_000);
+    const checker = createSpanChecker(text, whole(text));
+    const started = performance.now();
+    expect(checker.locate(0, "a".repeat(20), 44_980)).toEqual({ start: 44_980, end: 45_000 });
+    expect(performance.now() - started).toBeLessThan(1_000);
+  });
+
   it("searches only inside the named document, with the hint relative to it", () => {
     const joined = "Python.\n\nPython.";
     const checker = createSpanChecker(joined, [
