@@ -116,7 +116,7 @@ in this application is safe to ship to the browser**, and none is.
 | `AWS_SECRET_ACCESS_KEY` | S3 presigning | Same |
 | `AWS_REGION` | S3 region | Vercel env |
 | `S3_BUCKET` | One bucket | Vercel env |
-| `S3_PREFIX` | `prod/` or `dev/` | Vercel env — **this is the only thing separating `develop` audio from real audio** |
+| `S3_PREFIX` | `prod/` or `dev/` | Vercel env — **this is the only thing separating `develop` audio from real audio**. `lib/config.ts` accepts exactly these two values |
 | `SENTRY_DSN` | Exception reporting | Vercel encrypted env, production only |
 | `SENTRY_AUTH_TOKEN` | Source-map upload at build | Vercel encrypted env, production only |
 | `ALERT_EMAIL` | Where the self-check mails (§6) | Vercel env |

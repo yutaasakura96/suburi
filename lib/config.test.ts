@@ -10,6 +10,11 @@ const valid = {
   GOOGLE_CLIENT_SECRET: "client-secret",
   ALLOWED_EMAIL: "me@example.com",
   OPENAI_API_KEY: "sk-test-not-a-real-key",
+  AWS_ACCESS_KEY_ID: "AKIA-test-not-a-real-id",
+  AWS_SECRET_ACCESS_KEY: "test-not-a-real-secret",
+  AWS_REGION: "ap-northeast-1",
+  S3_BUCKET: "suburi-test-bucket",
+  S3_PREFIX: "dev/",
 };
 
 function errorFrom(env: Record<string, string | undefined>): ConfigError {
@@ -44,6 +49,15 @@ describe("parseConfig", () => {
     ["BETTER_AUTH_SECRET", "too-short"],
     ["BETTER_AUTH_URL", "localhost:3000"],
     ["ALLOWED_EMAIL", "not-an-email"],
+    ["AWS_REGION", "Tokyo"],
+    ["AWS_REGION", "ap-northeast"],
+    ["S3_BUCKET", "Suburi_Audio"],
+    ["S3_BUCKET", "s3://suburi-audio"],
+    ["S3_BUCKET", "suburi..audio"],
+    ["S3_BUCKET", "ab"],
+    ["S3_PREFIX", "dev"],
+    ["S3_PREFIX", "/dev/"],
+    ["S3_PREFIX", "staging/"],
   ])("rejects a malformed %s without echoing its value", (name, value) => {
     const error = errorFrom({ ...valid, [name]: value });
     expect(error.problems).toEqual([{ name, problem: "malformed" }]);
@@ -98,10 +112,16 @@ describe("parseConfig", () => {
     );
   });
 
+  // The prefix is the only thing separating develop's audio from real audio (12 §2).
+  it.each(["prod/", "dev/"])("accepts S3_PREFIX %s", (value) => {
+    expect(parseConfig({ ...valid, S3_PREFIX: value }).S3_PREFIX).toBe(value);
+  });
+
   it("never echoes a secret value, even when another variable is wrong", () => {
     const error = errorFrom({ ...valid, ALLOWED_EMAIL: undefined });
     expect(error.message).not.toContain(valid.GOOGLE_CLIENT_SECRET);
     expect(error.message).not.toContain(valid.BETTER_AUTH_SECRET);
+    expect(error.message).not.toContain(valid.AWS_SECRET_ACCESS_KEY);
   });
 
   it("reports every problem at once", () => {

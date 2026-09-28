@@ -3,6 +3,46 @@
 Newest first. Every entry records what was chosen, why, and what was rejected.
 
 ---
+## Phase 6 — #41, the S3 and OpenAI checks
+
+The agent side of the round loop's first slice. The bucket, its CORS rule, the IAM users, the local
+storage choice and the `develop` key's tier are the user's console steps and are not recorded here
+until they are done.
+
+### [2026-09-28] The AWS variables are validated at boot, and `S3_PREFIX` is exactly `prod/` or `dev/`
+
+**Decided:** `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`, `S3_BUCKET` and `S3_PREFIX`
+join `lib/config.ts` as required, with no default, and `.env.example` names them. `AWS_REGION` must
+look like a region (`ap-northeast-1`), `S3_BUCKET` must follow S3's bucket naming rules, and
+`S3_PREFIX` is an enum of `prod/` and `dev/`. The two keys are only checked as present. CI and
+`playwright.config.ts` set placeholders, never a real credential, as they do for `OPENAI_API_KEY`.
+**Alternatives considered:** a free-form prefix; checking the access key's `AKIA` shape; reading the
+variables lazily at the first presign.
+**Reason:** the prefix is the only thing separating `develop`'s audio from real audio (`12` §2), so a
+typo (`dev`, `/dev/`, `staging/`) must fail the boot rather than write beside the real takes. The key
+shapes are left open because the local storage choice is still the user's, and MinIO's keys are not
+AWS-shaped. Lazy reading would let a deploy without the variables boot and fail at the first take,
+mid-round, which `12` §2's "fails the boot, loudly" exists to prevent.
+**Consequence:** the deploy that first carries this must not land on `develop` before the five
+variables are in the `develop` branch's Preview scope (`12` §3 step 7), and a local `.env.local`
+needs them before `next dev`, `dev:session` or the seed scripts run.
+
+### [2026-09-28] Verified: `gpt-transcribe` accepts Chrome's `MediaRecorder` output
+
+**Checked:** headless Chromium 153 (Playwright's), `MediaRecorder` with
+`mimeType: "audio/webm;codecs=opus"` (`isTypeSupported` true, `recorder.mimeType` echoed it), fed a
+seven-second macOS `say` sentence through the fake capture device, once in Japanese and once in
+English. `ffprobe`: Matroska/WebM, one Opus stream, 48 kHz mono, **no duration in the header** — the
+usual shape of a `MediaRecorder` file. Each file was posted to `/v1/audio/transcriptions` with
+`model=gpt-transcribe`, `language` set, and content type `audio/webm`, using the **local**
+`OPENAI_API_KEY`.
+**Result:** `200` both times, each transcript word-for-word the spoken sentence (the Japanese one
+without the source's comma), `usage` billed as 7 seconds. OpenAI's reference lists `webm` among the
+accepted formats; this confirms it for the file Chrome actually writes, missing duration included.
+**Also shows:** the local key's account is served `gpt-transcribe`, so it is at Tier 1 or above
+(`03` §4). The `develop` key is not held locally and is **not** checked.
+
+---
 ## Phase 6 — the round loop's open answers
 
 Answered by the user on 2026-09-28, on the planning page, for the six items the 2026-09-27 plan left
