@@ -65,7 +65,11 @@ synthetic rounds; only the user row was ever seeded (§3 step 8). What the CV sl
   user-row-only, because production runs it (§3 step 9) and a synthetic CV in Neon `main` would be the
   version the first real rounds are scored against. Fixtures: `db/seed-cv.ts`.
 
-Synthetic questions and rounds still arrive with the slice that first needs them.
+Synthetic questions and rounds still arrive with the slice that first needs them. **The round loop
+names them** (`06`, 2026-09-27): the tracer needs a few synthetic generated-origin bank questions per
+round type and language, so a round can be filled before generation exists; History and Progress need
+synthetic completed rounds with scores, to be verified on `develop` at all. Both are fixtures, like the
+CV's, and never call a model.
 
 **Cron is off on `develop` on purpose.** The self-check alerts on pending scores and cost drift (§6);
 run against synthetic data it would mail noise, and an alert channel that cries wolf is one you stop
@@ -106,7 +110,7 @@ in this application is safe to ship to the browser**, and none is.
 | `GOOGLE_CLIENT_ID` | Google OAuth | Google Cloud console; value in Vercel env |
 | `GOOGLE_CLIENT_SECRET` | Google OAuth | Same |
 | `ALLOWED_EMAIL` | The allowlist assertion on session creation (`08` §2) | Vercel env. Not a secret, but environment-scoped |
-| `OPENAI_API_KEY` | **Every model call** — question generation, follow-ups, scoring, **CV claim extraction** (`03` §4), transcription, TTS | Vercel encrypted env. **Separate key per environment** with its own usage cap (§6). **First needed by CV claim extraction**, which is the first model call the app makes at all; added to the `develop` branch's Preview scope and to `.env.example` with that slice |
+| `OPENAI_API_KEY` | **Every model call** — question generation, follow-ups, scoring, round feedback, **CV claim extraction** (`03` §4), transcription, TTS, embeddings | Vercel encrypted env. **Separate key per environment** with its own usage cap (§6). **First needed by CV claim extraction**, which is the first model call the app makes at all; added to the `develop` branch's Preview scope and to `.env.example` with that slice |
 | `OPENAI_BASE_URL` | **Playwright only.** Points the server under test at `e2e/mock-openai.ts` | Set by `playwright.config.ts` and nowhere else — **never in Vercel, never in `.env`**. The one optional variable: `lib/config.ts` refuses any host but `localhost`/`127.0.0.1`, so no value can send `OPENAI_API_KEY` to another server (`06`, 2026-09-21) |
 | `AWS_ACCESS_KEY_ID` | S3 presigning | Vercel encrypted env. Dedicated IAM user (§7) |
 | `AWS_SECRET_ACCESS_KEY` | S3 presigning | Same |
@@ -134,15 +138,15 @@ In this order. Steps 3 and 4 are the ones that fail silently if skipped.
 
 1. **Neon:** project, Postgres 18, `create extension vector`. Note the pooled and unpooled URLs. **Done 2026-09-19:** project `suburi`, region `aws-ap-southeast-1`; the default branch renamed `main`.
 2. **Google Cloud:** OAuth client. Authorised redirect URIs for three origins — **`localhost`**, because local development signs in with the same Google allowlist (§1); the production subdomain, **`suburi-murex.vercel.app`** (`suburi.vercel.app` was taken; Vercel assigned this on import, 2026-09-19); and **`develop`'s stable subdomain, `suburi-develop.vercel.app`** (if a name ever changes, change this list, §1 and the URIs together). Each URI is the origin plus `/api/auth/callback/google`, and local is `http://localhost:3000`. The client stays in **Testing**: with only `openid`, `email` and `profile` requested, Google lets any account through, so the two locks in `08` §2 are the whole gate — which is the second reason `develop` gets a fixed domain rather than a per-commit one: Google's redirect URIs are an exact-match list, so a generated hostname can never sign in. A per-commit URL could not sign in either, which is one reason feature branches are not deployed (§1); verify feature work on `develop`.
-3. **S3 bucket:** Block Public Access **all four settings on**; default encryption SSE-S3 or better; versioning on; a lifecycle rule expiring `dev/` after 30 days and **none on `prod/`** (audio is retained — `04` §5).
-4. **S3 CORS:** the browser PUTs directly, so without this the whole upload path fails at runtime and nowhere else. Allow `PUT` and `GET` from the production origin and `develop`'s origin; allowed headers `content-type`; no wildcard origin.
-5. **IAM user**, dedicated, with exactly `s3:PutObject` and `s3:GetObject` on `arn:aws:s3:::<bucket>/prod/*` and `/dev/*`. No `ListBucket`, no `DeleteObject` — **nothing in this app deletes an object**, so the credential should not be able to.
-6. **OpenAI:** one key per environment, each with a monthly usage cap (§6).
+3. **S3 bucket:** Block Public Access **all four settings on**; default encryption SSE-S3 or better; versioning on; a lifecycle rule expiring `dev/` after 30 days and **none on `prod/`** (audio is retained — `04` §5). **Steps 3–5 are done ahead of #21, as the round loop's first slice** (`06`, 2026-09-27): every recording slice needs the bucket, and it is human work. Versioning is also what keeps a practice re-take's overwritten object (`04` `answers`) — accepted, and never read. The AWS variables in §2 join `lib/config.ts`, `.env.example` and the `develop` branch's Preview scope in the same slice.
+4. **S3 CORS:** the browser PUTs directly, so without this the whole upload path fails at runtime and nowhere else. Allow `PUT` and `GET` from the production origin and `develop`'s origin — and `http://localhost:3000` only if local development uses the real bucket under `dev/` rather than MinIO, which that slice decides; allowed headers `content-type`; no wildcard origin.
+5. **IAM users, one per environment**, each dedicated, with exactly `s3:PutObject` and `s3:GetObject` on its own prefix — production's on `arn:aws:s3:::<bucket>/prod/*`, `develop`'s (and local's, if local uses the real bucket) on `/dev/*`. No `ListBucket`, no `DeleteObject` — **nothing in this app deletes an object**, so the credential should not be able to. *Corrected 2026-09-27:* this used to give one user both prefixes, which would have put a credential reaching `prod/` on `develop` — the thing §2's last rule forbids (`06`).
+6. **OpenAI:** one key per environment, each with a monthly usage cap (§6). Each key's account must be **API Tier 1 or above** for `gpt-transcribe` (§2) — confirmed for the local and `develop` keys in the round loop's first slice, before anything records.
 7. **Vercel:** import the repo. **Production branch = `main`.** Give `develop` a stable domain and point the Preview scope's `DATABASE_URL` at Neon `develop`. Populate §2 per scope. **Leave the import form's environment variables empty** — it scopes them to Production and Preview at once. A variable added after this step follows the same rule: branch-scoped in Preview, before the deploy that first reads it (`OPENAI_API_KEY`, step 8). Importing deploys `main` immediately, and that build fails without Production variables; that is expected until production is set up. Vercel's Deployment Protection is on for Preview by default and stays on: `develop` asks for a Vercel login before the app's own sign-in.
    > **Per-branch environment variables — available on Hobby** (verified 2026-09-14 against Vercel's environment-variable and environments docs). A Preview variable can be scoped to one Git branch, and it overrides the general Preview value. Assigning a stable domain to a branch, with branch-specific variables, is marked "All plans, including Hobby". Custom Environments are Pro and Enterprise only and are not needed. **So:** every §2 variable for `develop` is scoped to the `develop` branch in Preview. General Preview holds nothing; feature branches are not deployed (§1).
 8. **Neon `develop` branch:** create it as **Schema only** from `main` (Neon has no empty-branch option; this copies no rows), then give it a role and database of its own — `suburi_develop`, owning database `suburi` — because a Schema only branch copies `main`'s roles *with their passwords*. Only `suburi_develop` goes in `develop`'s URLs, and `main` refuses it (`28P01`, checked 2026-09-19). Then migrate, then run `npm run db:seed:develop` with `develop`'s own `ALLOWED_EMAIL` — never `db:seed` alone here, and never `db:seed:develop` against `main`. It seeds the user row and one synthetic CV version per language with its documents and fixture claims (§1); synthetic round data arrives with the slice that first needs it. Never branch it from `main` (§1).
    > **Adding a variable to an existing environment is the same step, later.** `OPENAI_API_KEY` joins the `develop` branch's Preview scope when CV extraction lands — branch-scoped, like every other §2 variable for `develop` (step 7). Because `lib/config.ts` validates at boot and a missing variable fails the boot loudly, the deploy that first reads it must not land before the variable does.
-9. **Seed production:** migrations, then the single `users` row, the set-piece questions, and rubric `v1.2` for both `ja` and `en`. The user row is inserted by the hand-run seed script from `ALLOWED_EMAIL`, with `email_verified = true` — **not by migration**, which would commit the email to a public repository. `disableSignUp: true` means it cannot be created by signing in (`08` §2).
+9. **Seed production:** migrations, then the single `users` row, the set-piece questions, and rubric **`v1.0`** for both `ja` and `en`. *Amended 2026-09-27:* this said `v1.2`, a label from the artboards' sample data; no rubric existed (`06`). The set pieces are 自己紹介, 自己PR and 転職理由 (`hr`) and 志望動機 (`ceo`), with their English counterparts, each carrying its content version — **no 逆質問**. Both seeds are real, checked-in data (`11` §8), written by the round loop's tracer (English) and Japanese slices; this step waits for them. The user row is inserted by the hand-run seed script from `ALLOWED_EMAIL`, with `email_verified = true` — **not by migration**, which would commit the email to a public repository. `disableSignUp: true` means it cannot be created by signing in (`08` §2).
 10. **Verify the allowlist twice:** sign in with the allowlisted account (works), and confirm a second Google account is rejected. `08` §2 deliberately has two independent mechanisms; this checks both, before there is anything to protect.
 11. **Sentry:** project, DSN, and the scrubbing configuration in §7 — **configured before the first real error, not after.**
 
@@ -242,7 +246,8 @@ retry loop or a prompt that doubled in size shows up on a bill, not on a screen.
 | `claims_duplicated > 0` on a CV upload | any | email — the same assertion returned more than once |
 | `unclaimed_run_max` on a CV upload | > **2,000** code points | email — a section of the CV may have gone unread |
 | `quotes_outside_window > 0` on a CV upload | any | email — an extraction call quoted outside the window it was given (`07` §5.2, #29) |
-| Near-duplicate near-misses | weekly count and score distribution | the weekly digest — this is the log the threshold gets tuned from (`03` §11) |
+| A completed round with no `round_feedback` | for over **24 hours** | email — feedback failed and was never retried (`07` §5.12) |
+| Near-duplicate near-misses | weekly count and score distribution | the weekly digest — this is the log the threshold gets tuned from (`03` §11). The threshold starts at **0.90, unverified** |
 | Unhandled exception | any | Sentry, scrubbed per §7 |
 | App down | — | **not alerted.** You will know. |
 
@@ -261,8 +266,9 @@ reads clean. It is prevented by windowed extraction, not detected. The `quotes_o
 guards the windowing itself and is strict, because it measured 0 across every windowed call.
 
 **Implementation:** two Vercel Cron routes under `/api/cron/`, authenticated with `CRON_SECRET`,
-returning `401` without it. `self-check` (daily) covers the first eight rows **and writes the daily
-`pg_dump`** (§8); `digest` (weekly) covers the last and reports the week's rounds, tokens and spend.
+returning `401` without it. `self-check` (daily) covers the first nine rows **and writes the daily
+`pg_dump`** (§8); `digest` (weekly) covers the near-miss row and reports the week's rounds, tokens and
+spend.
 
 **Vercel Hobby cron, verified 2026-09-12:** 100 cron jobs per project, **minimum interval once per
 day**, **per-hour scheduling precision** — a job set to `0 1 * * *` fires somewhere between 01:00 and
@@ -288,8 +294,11 @@ sized for a daily boundary, not a precise hour.
 > opens — choose deliberately rather than defaulting.
 
 **Cost ceiling as a control, not a chart:** each `OPENAI_API_KEY` carries a monthly usage cap at a
-multiple of the expected $3–5 (`03` §6). A runaway loop then fails closed with a
-`503 model_unavailable` — which the app already handles honestly — instead of quietly spending.
+multiple of the expected $3–5 (`03` §6). A runaway loop then fails closed instead of quietly spending.
+*Corrected 2026-09-27:* this said the cap fails as `503 model_unavailable`. **Upstream it is `429
+project_spend_limit_exceeded`** (OpenAI's spend-limits guide, found in #14). The round loop maps it:
+the preflight reports it as `503 model_unavailable`, which the app already handles honestly, and no
+route retries it as though it were a rate limit (`07` §2, `06`, confirm 5).
 
 ---
 

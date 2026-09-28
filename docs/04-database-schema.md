@@ -2,7 +2,10 @@
 
 **Date:** 2026-09-12
 **Status:** Phase 4. Postgres 18 + `pgvector`. Drizzle is the source of truth in code (`db/schema.ts`);
-this document is the source of truth for *why*.
+this document is the source of truth for *why*. **Amended 2026-09-27 for the round loop** (`06`, "Phase
+6 — the round loop"): `round_questions`, `follow_ups` and `answer_flags` are new; `role_contexts`,
+`questions`, `rounds`, `answers`, `scoring_attempts`, `round_feedback` and `claim_citations` changed.
+None of it is migrated yet — each change lands with the slice that first needs it.
 
 ---
 
@@ -26,8 +29,9 @@ this document is the source of truth for *why*.
   nothing else would notice. The columns: `cv_versions.language`, `role_contexts.kind`,
   `rubric_versions.language`, `questions.language`, `questions.round_type`, `questions.origin`,
   `rounds.round_type`, `rounds.language`, `rounds.mode`, `answers.language`,
-  `scoring_attempts.status`, `round_feedback.language`, `claim_citations.relation`,
-  `cv_documents.kind`, `rate_limit_windows.route`.
+  `scoring_attempts.status`, `scoring_attempts.answered_language`, `round_feedback.language`,
+  `claim_citations.relation`, `cv_documents.kind`, `rate_limit_windows.route`, `follow_ups.status`,
+  `answer_flags.kind`.
   `scores.dimension` is **not** checked here: its valid set depends on the rubric row (`keigo` is
   `ja` only), which a column check cannot see.
 - Every table holding user data carries `user_id` (tenancy decision, `03` §2).
@@ -49,11 +53,14 @@ this document is the source of truth for *why*.
 | `rubric_versions` | One version of a rubric: its dimensions and their definitions, as data. |
 | `questions` | A permanent bank entry. Set piece or generated. Has a stable identity forever. |
 | `rounds` | One sitting: one type, one language, one mode, one length. |
+| `round_questions` | One bank question a round will ask, at one position — fixed when the round starts. |
+| `follow_ups` | The one follow-up generated from one answer — its text and stamps, or the record that it is missing. |
 | `answers` | One spoken answer — to a bank question, or to a follow-up. |
 | `scoring_attempts` | One attempt to score one answer. Append-only; a retry is a new row. |
 | `scores` | One dimension's integer 1–5 within one scoring attempt. |
 | `round_feedback` | The round-level narrative: what to fix, what worked. |
 | `claim_citations` | A CV claim was cited when evaluating an answer. This is the coverage record. |
+| `answer_flags` | A span of an answer's corrected text that the scorer flagged — today only `unsupported`: nothing in the CV backs it. |
 | `held_out_rescores` | A past answer re-scored under new stamps, to make drift visible. |
 | `rate_limit_windows` | One session's current fixed window on one ⚡ route: when it began and how many requests it has counted (`07` §1 rule 5). Not measurement. |
 
@@ -241,11 +248,18 @@ stamp and Progress's boundary lines (screen-spec refusal #5). Do not solve it tw
 | `kind` | `text` | no | — | `posting` \| `researched` \| `general` |
 | `company_name` | `text` | yes | — | null when `general` |
 | `role_title` | `text` | yes | — | null when `general` |
-| `body` | `text` | yes | — | posting text or researched notes |
+| `body` | `text` | yes | — | posting text or researched notes; null when `general` |
+| `source_filename` | `text` | yes | — | the `.docx`/`.pdf` a posting's text was imported from, if any — as `cv_documents.source_filename`. The file never leaves the browser |
 | `created_at` | `timestamptz` | no | `now()` | |
 
 `kind = 'general'` is the explicit **General practice** option from PRD §2 — represented as a real
 row, not as `role_context_id IS NULL`, so "was this round pitched at anything?" is never ambiguous.
+
+**Immutable and reusable** (`06`, 2026-09-27). A row is never updated; a changed posting is a new row,
+and a row can be picked by any number of rounds. **General practice is one row per user:**
+`unique (user_id) where kind = 'general'`. **Round one writes `posting` and `general` only;**
+`researched` arrives with US-16. The posting's text-size cap is measured the way the CV's was (`07`
+§5.3).
 
 ---
 
@@ -254,7 +268,7 @@ row, not as `role_context_id IS NULL`, so "was this round pitched at anything?" 
 | Column | Type | Null | Default | Notes |
 | --- | --- | --- | --- | --- |
 | `id` | `uuid` | no | `gen_random_uuid()` | PK |
-| `version_label` | `text` | no | — | `v1.2` — the string screen 2 stamps |
+| `version_label` | `text` | no | — | `v1.0` — the string screen 2 stamps. The first real rubric is **v1.0**; the artboards' `v1.2` is sample data (`06`, 2026-09-27) |
 | `language` | `text` | no | — | `ja` \| `en` — **two rubrics, not one with a flag** |
 | `dimensions` | `jsonb` | no | — | ordered array of `{key, label_ja, label_en, definition}` |
 | `created_at` | `timestamptz` | no | `now()` | |
@@ -264,6 +278,11 @@ Unique on `(version_label, language)`.
 Dimension keys: `structure`, `evidence`, `relevance`, `fluency`, `accuracy`, `length_pacing`, and
 `keigo` **in the `ja` rubric only**. Fluency and accuracy are separate dimensions and must not be
 collapsed into one language score (PRD §4, decision log).
+
+**Each dimension's `definition` carries an anchor for every level 1–5**, in the rubric's language, and
+`label_ja`/`label_en` name it in both. The content lives in `lib/rubric/` and is seeded from there;
+v1.0 is drafted by Claude, reviewed by the user, and given a native read before it is seeded anywhere
+real (`06`, 2026-09-27).
 
 ---
 
@@ -281,8 +300,8 @@ rewriting one silently rewrites history.
 | `origin` | `text` | no | — | `set_piece` \| `generated` |
 | `body` | `text` | no | — | the question as asked. **Immutable.** |
 | `embedding` | `vector(1536)` | yes | — | for near-duplicate detection |
-| `generator_model_id` | `text` | yes | — | null for set pieces |
-| `generator_prompt_version` | `text` | yes | — | null for set pieces |
+| `generator_model_id` | `text` | yes | — | null for set pieces — no model wrote them |
+| `generator_prompt_version` | `text` | **no** | — | the generator prompt version; for a set piece, the set pieces' **content version**, e.g. `set-piece-ja-1.0`. Stamp 3's source (`06`, 2026-09-27) |
 | `tokens_in` / `tokens_out` | `integer` | yes | — | cost attribution |
 | `retired_at` | `timestamptz` | yes | — | **soft retire only. Never delete.** |
 | `created_at` | `timestamptz` | no | `now()` | |
@@ -290,11 +309,21 @@ rewriting one silently rewrites history.
 A retired question stops being *asked*; every answer that referenced it stays valid and keeps
 appearing in History and Progress.
 
+**A set piece belongs to exactly one round type** — 自己紹介, 自己PR and 転職理由 (and their English
+counterparts) to `hr`, 志望動機 to `ceo`. One row per set piece per language, never one per round type:
+four rows would be four ids and four first attempts for one question. **逆質問 is not in the bank.**
+There is **no difficulty tier column**, deliberately — US-4's tier was struck (`06`, 2026-09-27).
+
+**Seen** means an `answers` row exists for this `question_id` in this language, in either mode. Unseen
+questions are asked first; practice rounds prefer seen ones (`07` §5.4).
+
 **Near-duplicate guard.** Before inserting a generated question, embed it and compare by cosine
 distance against non-retired questions in the same `(user_id, language, round_type)` slice. Above
 threshold, **reuse the existing row instead of inserting.** Rationale in `03` §11: five rephrasings
 of one question fragment the first-attempt measurement into five points of one instead of one of
-five. Log every near-miss with its score and tune the threshold from that log, not from intuition.
+five. **The threshold starts at cosine similarity 0.90** — an unverified guess, a constant beside the
+guard, not a column. Log every near-miss with its score and tune the threshold from that log, not from
+intuition.
 
 ---
 
@@ -308,13 +337,13 @@ five. Log every near-miss with its score and tune the threshold from that log, n
 | `language` | `text` | no | — | `ja` \| `en` |
 | `mode` | `text` | no | — | `practice` \| `realistic` |
 | `length` | `integer` | no | — | questions planned, excluding follow-ups |
-| `per_answer_cap_seconds` | `integer` | no | — | 240 realistic. Screen 2's duration estimate derives from this. |
-| `cv_version_id` | `uuid` | no | — | → `cv_versions.id` **restrict** |
+| `per_answer_cap_seconds` | `integer` | no | — | 240 realistic; **900 practice** — the runaway guard (`03` §7). Screen 2's duration estimate derives from this, for realistic rounds only |
+| `cv_version_id` | `uuid` | no | — | → `cv_versions.id` **restrict**. The current version in the round's language, resolved server-side; never sent by the client |
 | `role_context_id` | `uuid` | no | — | → `role_contexts.id` **restrict** |
 | `rubric_version_id` | `uuid` | no | — | → `rubric_versions.id` **restrict** |
 | `felt_pressure` | `smallint` | yes | — | 1–5, realistic only, **captured before any feedback** |
 | `started_at` | `timestamptz` | no | `now()` | |
-| `completed_at` | `timestamptz` | yes | — | null = abandoned or in progress |
+| `completed_at` | `timestamptz` | yes | — | null = abandoned or in progress; see below |
 
 **Constraints:** `check (felt_pressure between 1 and 5)`; `check (mode <> 'practice' or felt_pressure
 is null)` — practice mode has no pressure rating and storing one would corrupt the falsification
@@ -322,6 +351,66 @@ test in the brief.
 
 `felt_pressure` is **instrumentation, not feedback.** It is never shown as something to improve,
 never averaged into anything, never surfaced on Progress.
+
+**Abandoned is derived, never stored** (`06`, 2026-09-27). An open round (`completed_at is null`) is
+**abandoned** when the same user has started a newer round, or when it was not started today; the
+newest open round started today is **in progress**, and only it can be resumed. **"Today" is the
+user's local day in Asia/Tokyo** (`06`, 2026-09-28), computed from `started_at` — never the server's
+or the browser's clock setting, so a trip or a clock change does not move it (PRD §7). There is no
+`abandoned_at`, no status column and no abandon endpoint (`07` §6).
+
+---
+
+### `round_questions`
+
+**Immutable. Written once, when the round is created, in the same transaction.** One row is one bank
+question the round will ask, at one position (`06`, 2026-09-27). This is what makes a refresh show the
+same question: the prompt at position *n* is a database fact from the round's first moment, not a
+choice re-made on every read.
+
+| Column | Type | Null | Default | Notes |
+| --- | --- | --- | --- | --- |
+| `id` | `uuid` | no | `gen_random_uuid()` | PK |
+| `round_id` | `uuid` | no | — | → `rounds.id` **restrict** |
+| `user_id` | `text` | no | — | → `users.id` **restrict** |
+| `position` | `integer` | no | — | 1 … `rounds.length` |
+| `question_id` | `uuid` | no | — | → `questions.id` **restrict** |
+| `created_at` | `timestamptz` | no | `now()` | |
+
+**Constraints:** `unique (round_id, position)`; `unique (round_id, question_id)` — no question repeats
+within a round (US-4); `check (position >= 1)`. Exactly `rounds.length` rows per round, written by the
+same statement that creates the round.
+
+**Choosing a question does not consume it.** Only an answer row makes a question *seen*: a question
+fixed here but never answered — the round was abandoned first, or the recording failed — stays unseen
+(PRD §7).
+
+---
+
+### `follow_ups`
+
+**Append-only. One row per parent answer, written when generation succeeds or finally fails.**
+
+| Column | Type | Null | Default | Notes |
+| --- | --- | --- | --- | --- |
+| `id` | `uuid` | no | `gen_random_uuid()` | PK |
+| `parent_answer_id` | `uuid` | no | — | → `answers.id` **restrict**, **unique** |
+| `user_id` | `text` | no | — | → `users.id` **restrict** |
+| `status` | `text` | no | — | `generated` \| `missing` — value-checked |
+| `prompt_text` | `text` | yes | — | the follow-up as asked. **Null exactly when `missing`** |
+| `model_id` | `text` | no | — | the generation model, exact string |
+| `prompt_version` | `text` | no | — | the follow-up prompt version — **stamp 3 for the follow-up's answer** |
+| `tokens_in` / `tokens_out` | `integer` | yes | — | cost attribution |
+| `error_class` | `text` | yes | — | set when `missing`; class only, never the model's output |
+| `created_at` | `timestamptz` | no | `now()` | |
+
+**Constraints:** `check ((status = 'generated') = (prompt_text is not null))`; `check (status =
+'missing' or error_class is null)`.
+
+**A missing follow-up is a row, not an absence** (US-7, `10` §10). History renders it as the hole it
+is, and nothing ever backfills it. The follow-up's own answer points at the parent through
+`answers.parent_answer_id` and copies `prompt_text` from here. **A retry gets no follow-up**, so no
+`follow_ups` row ever has a retry as its parent (`07` §5.9).
 
 ---
 
@@ -335,7 +424,7 @@ never averaged into anything, never surfaced on Progress.
 | `question_id` | `uuid` | yes | — | → `questions.id` **restrict**. **Null ⇒ follow-up.** |
 | `parent_answer_id` | `uuid` | yes | — | → `answers.id` **restrict**. Set iff follow-up. |
 | `prompt_text` | `text` | no | — | exactly what was asked, denormalised for provenance |
-| `position` | `integer` | no | — | order within the round |
+| `position` | `integer` | no | — | order within the round. **A follow-up and a retry share the position of the answer they belong to** |
 | `language` | `text` | no | — | denormalised from `rounds` — see indexes |
 | `is_first_attempt` | `boolean` | no | `false` | see below |
 | `audio_s3_key` | `text` | yes | — | server-generated key; client never chooses it |
@@ -343,9 +432,9 @@ never averaged into anything, never surfaced on Progress.
 | `transcript_raw` | `text` | yes | — | **never discarded** (PRD §9) |
 | `transcript_corrected` | `text` | yes | — | |
 | `rewrite_magnitude` | `real` | yes | — | the screen-6 meter; the diff is data |
-| `words_per_minute` | `real` | yes | — | delivery record |
+| `words_per_minute` | `real` | yes | — | delivery record. **The pace, whatever the unit:** characters per minute of `transcript_raw` for `ja`, words per minute for `en` (`06`, 2026-09-27). Not renamed — a rename is add, dual-write, backfill (`12` §4) |
 | `transcriber_model_id` | `text` | yes | — | |
-| `retry_of_answer_id` | `uuid` | yes | — | → `answers.id` **restrict**. Practice retries. |
+| `retry_of_answer_id` | `uuid` | yes | — | → `answers.id` **restrict**. Practice's "answer again" — see below. |
 | `created_at` | `timestamptz` | no | `now()` | |
 
 **Constraints:**
@@ -354,8 +443,13 @@ never averaged into anything, never surfaced on Progress.
 - `check (question_id is not null or is_first_attempt = false)` — **a follow-up can never be a first
   attempt.** Follow-ups have no stable identity and never enter progress data (PRD §2).
 
-**`is_first_attempt`** is true for the first *realistic-mode* answer to a given `question_id` in a
-given `language`. Enforced structurally:
+**The row is created once a take exists** — the client records first, then opens the slot with the
+take's real size (`07` §5.6). A failed recording writes nothing, so the question stays unseen.
+
+**`is_first_attempt`** is true for a *realistic-mode* answer to a `question_id` in a `language` when
+**no earlier answer to that `question_id` in that `language` exists, in either mode** (`06`,
+2026-09-27). A question answered in practice first can never have a first attempt; neither can one
+answered in an abandoned round. Computed at slot-open; enforced structurally:
 
 ```sql
 create unique index answers_first_attempt_uniq
@@ -365,6 +459,12 @@ create unique index answers_first_attempt_uniq
 
 **A retry never overwrites.** `retry_of_answer_id` points at the original; both rows persist; only
 the original can carry `is_first_attempt` (PRD §9, screen-spec refusal #3).
+
+**Practice has two retries, and only one of them is a row** (`06`, 2026-09-27). A **re-take** before
+transcription re-records into the same row: `transcript_raw` is still null, the presign is reissued for
+the same key, and the new take overwrites the S3 object. Bucket versioning keeps the old object
+version (`12` §3); that is accepted, and nothing reads it. **Answer again**, after the per-answer
+feedback, is a new row with `retry_of_answer_id` set, scored on its own, with no follow-up.
 
 ---
 
@@ -381,16 +481,22 @@ visible.
 | `status` | `text` | no | `'pending'` | `pending` \| `ok` \| `failed` |
 | `cv_version_id` | `uuid` | no | — | → `cv_versions.id` **restrict** — stamp 1 |
 | `rubric_version_id` | `uuid` | no | — | → `rubric_versions.id` **restrict** — stamp 2 |
-| `generator_prompt_version` | `text` | yes | — | stamp 3 |
+| `generator_prompt_version` | `text` | **no** | — | stamp 3 — copied from `questions.generator_prompt_version`, or from `follow_ups.prompt_version` for a follow-up |
 | `model_id` | `text` | no | — | stamp 4. **Exact string. Never an alias.** |
-| `scoring_prompt_version` | `text` | no | — | model and prompt versioned separately |
+| `scoring_prompt_version` | `text` | no | — | model and prompt versioned separately; part of stamp 4 |
+| `answered_language` | `text` | yes | — | `ja` \| `en`, as the scorer read it. **Null until `ok`.** An answer whose value differs from `answers.language` is flagged in feedback and excluded from Progress (PRD §7) |
 | `tokens_in` / `tokens_out` | `integer` | yes | — | cost attribution |
 | `error_class` | `text` | yes | — | class only — **never the model's output** |
 | `is_superseding` | `boolean` | no | `false` | true when produced by a deliberate re-score |
 | `created_at` | `timestamptz` | no | `now()` | |
 
 The four stamps required by PRD §9 and refusal #5 live here, together, on the row that produced the
-numbers. **Progress draws a boundary wherever any of them changes.**
+numbers, **all four `not null`**. **Progress draws a boundary wherever any of them changes.**
+*Amended 2026-09-27:* `generator_prompt_version` was nullable here while §6 said all four were
+`not null`; set pieces now carry a content version instead of a null (`06`).
+
+**What the scorer reads** (`03` §4): the corrected text, the answer's duration and its pace — not
+`transcript_raw`.
 
 `status = 'pending'` is a first-class state, not an error — History and Progress both render it, and
 **Progress excludes pending and failed attempts from trend lines rather than treating them as zero.**
@@ -425,9 +531,14 @@ Unique on `(scoring_attempt_id, dimension)`.
 | `what_worked` | `text` | no | — | exactly one |
 | `language` | `text` | no | — | the round's language |
 | `body_translated` | `jsonb` | yes | — | the other-language toggle (PRD §4) |
+| `untouched_claim_ids` | `jsonb` | no | `'[]'` | **untouched material** — an array of at most three `cv_claims.id`, picked by the model from the round's never-cited claims and **validated against that set** before the row is written; an id outside it is dropped and counted |
 | `model_id`, `prompt_version` | `text` | no | — | stamps |
 | `tokens_in` / `tokens_out` | `integer` | yes | — | |
 | `created_at` | `timestamptz` | no | `now()` | |
+
+**Written once, whole, and never rewritten** — which is why it is generated only after every score is
+in (`07` §5.12, `06`, 2026-09-27). A round whose feedback failed has no row until the retry writes one;
+the absence is the pending state.
 
 ---
 
@@ -446,8 +557,35 @@ four things the brief says no surveyed competitor does.
 
 Unique on `(answer_id, cv_claim_id, relation)`.
 
-`contradicted_by` is the other direction the brief names — a claim in the answer the CV does not
-support.
+`contradicted_by` means **the answer contradicts this cited claim.** *Amended 2026-09-27:* it used to be
+described as "a claim in the answer the CV does not support" — which has no claim to point at and so
+cannot be a row here. That is an unsupported claim, and it lives in `answer_flags` (`06`).
+
+---
+
+### `answer_flags`
+
+**Append-only.** A span of one answer's corrected text that one scoring attempt flagged (US-11,
+`06`, 2026-09-27).
+
+| Column | Type | Null | Default | Notes |
+| --- | --- | --- | --- | --- |
+| `id` | `uuid` | no | `gen_random_uuid()` | PK |
+| `answer_id` | `uuid` | no | — | → `answers.id` **restrict** |
+| `scoring_attempt_id` | `uuid` | no | — | → `scoring_attempts.id` **restrict** — the attempt that raised it |
+| `user_id` | `text` | no | — | → `users.id` **restrict** |
+| `kind` | `text` | no | — | `unsupported` — value-checked; the only kind |
+| `span_start` | `integer` | no | — | inclusive index into `answers.transcript_corrected`, in code points |
+| `span_end` | `integer` | no | — | exclusive |
+| `created_at` | `timestamptz` | no | `now()` | |
+
+**Constraint:** `check (span_end > span_start)`.
+
+> **The rendered quote is sliced from `transcript_corrected` by span — never taken from model
+> output.** The same rule as `cv_claims`, applied to the answer side: the scorer returns a verbatim
+> quote with a start hint, the server locates it, and a quote that is not there, a span outside the
+> text, or one that splits a grapheme is dropped and counted, never clamped. `transcript_corrected` is
+> final once submitted, so the span can never drift.
 
 ---
 
@@ -479,7 +617,7 @@ so concurrent requests on different serverless instances cannot both slip under 
 | `id` | `uuid` | no | `gen_random_uuid()` | PK |
 | `user_id` | `text` | no | — | → `users.id` **restrict** |
 | `session_id` | `text` | no | — | `sessions.id`, **deliberately not a foreign key** — see below |
-| `route` | `text` | no | — | Checked: `cv-versions`. A new ⚡ route extends the list in its own migration |
+| `route` | `text` | no | — | Checked: `cv-versions`. Each ⚡ route in `07` extends the list in the migration of the slice that builds it — `complete` and the speech route among them (`06`, 2026-09-27) |
 | `window_started_at` | `timestamptz` | no | — | Database clock, never the function's |
 | `count` | `integer` | no | — | Requests counted in this window, **refused ones included** |
 | `created_at` | `timestamptz` | no | `now()` | |
@@ -504,6 +642,11 @@ reviewed code change, and a bucket's window is only ever read against the consta
 | `answers (round_id, position)` | Render a round in order — History detail, feedback screen. |
 | `answers (question_id, language) where is_first_attempt` *(unique)* | Enforces first-attempt uniqueness **and** serves the Progress query. |
 | `answers (user_id, created_at desc)` | Recent activity on Home. |
+| `answers (question_id, language)` | **"Has this question been answered in this language, in either mode?"** — the first-attempt computation at slot-open, and unseen-first selection. The partial unique index above covers first attempts only, so it cannot answer this. |
+| `round_questions (round_id, position)` *(unique)* | The prompt at position *n* — every ask, every resume. |
+| `follow_ups (parent_answer_id)` *(unique)* | The follow-up of an answer — resume, the feedback screen, History's hole. |
+| `answer_flags (answer_id)` | An answer's flags on the feedback screen and in History. |
+| `role_contexts (user_id) where kind = 'general'` *(unique)* | Makes General practice one row per user. |
 | `rounds (user_id, started_at desc)` | History's left rail. |
 | `rounds (user_id, language, round_type, started_at desc)` | Home's "18 days since 行動面接・日本語" interval arithmetic on screen 2. |
 | `scoring_attempts (answer_id, created_at desc)` | Latest attempt per answer — every score read. |
@@ -565,7 +708,7 @@ these ranges.)*
 | id | round_id | question_id | parent | position | language | is_first_attempt | rewrite_magnitude | wpm |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `c001…` | `r77…` | `a17e…` | `null` | `1` | `ja` | `true` | `0.12` | `243` |
-| `c002…` | `r77…` | `null` | `c001…` | `2` | `ja` | `false` | `0.04` | `251` |
+| `c002…` | `r77…` | `null` | `c001…` | `1` | `ja` | `false` | `0.04` | `251` |
 
 **`scoring_attempts` + `scores`**
 
@@ -581,6 +724,10 @@ these ranges.)*
 
 *(Six or seven rows per attempt. No row sums them, and none should.)*
 
+*The follow-up `c002…` shares its parent's position, `1` (`06`, 2026-09-27). `wpm` on a `ja` row is
+characters per minute. The rubric label `v1.2` is the artboards' sample; the first real rubric is
+`v1.0`.*
+
 ---
 
 ## 5. Deletion, retention, expiry
@@ -590,6 +737,8 @@ these ranges.)*
 | Data | Policy |
 | --- | --- |
 | `answers`, `scoring_attempts`, `scores` | Never deleted. Never updated. The measurement record. |
+| `round_questions`, `follow_ups`, `answer_flags` | Never deleted. Never updated. What a round asked, what it followed up with, and what its scorer flagged. |
+| `role_contexts` | Never deleted, never updated. A changed posting is a new row. |
 | `transcript_raw` | **Never discarded**, even after correction (PRD §9). |
 | `questions` | Soft retire via `retired_at`. Never deleted — progress data is keyed by its id. |
 | `cv_versions`, `cv_documents`, `cv_claims` | Never deleted. **Never updated.** Spans, document ranges and citations all point into `body`. |
@@ -615,7 +764,8 @@ Stated so a later session recognises these as decisions, not oversights:
 3. **Overwriting a first attempt.** A retry is a new row with `retry_of_answer_id` set.
 4. **A raw transcript being replaced by its correction.** Two columns, both kept.
 5. **A score without its four stamps.** All four are `not null` on `scoring_attempts` (two as
-   foreign keys, two as strings).
+   foreign keys, two as strings — stamp 4 being `model_id` with `scoring_prompt_version`). *Made true
+   2026-09-27:* `generator_prompt_version` was nullable until then, contradicting this line (`06`).
 6. **Sharing.** No share, visibility, or export-target table (screen-spec refusal #6), despite the
    multi-tenant `user_id` columns. Tenancy is not permission to build a sharing surface.
 7. **Editing a document in place.** `cv_documents` has no `updated_at` and no update path. Changing a
@@ -627,3 +777,9 @@ Stated so a later session recognises these as decisions, not oversights:
 9. **A "current" CV version that is not the newest one.** No flag, no pointer, no column. Current is
    `max(created_at)` per `(user_id, language)`, so an older version cannot be made current again and
    cannot be selected for a new round.
+10. **A round whose questions change after it starts.** `round_questions` is written with the round and
+    never updated, so a refresh, a resume or a retry can only ever see the question already chosen.
+11. **A missing follow-up that is silently absent.** A generation failure writes a `follow_ups` row with
+    `status = 'missing'`; the hole is data.
+12. **An answer-side quote taken from model output.** `answer_flags` stores a span into
+    `transcript_corrected`, never text, exactly as `cv_claims` stores a span into `body`.

@@ -26,7 +26,10 @@ round-level line rewritten; one register rule into `05` §6.
 **#29 is done — extraction is windowed:** N parallel calls, each sent the whole set and returning
 one window's claims, all finished before the one transaction, now answered by the same real-CV
 re-measure.
-**Updated:** 2026-09-27 (#20, #29, #38)
+**The round loop is planned:** grilled 2026-09-27, its decisions written into the docs, and its
+eleven slice issues confirmed on 2026-09-28 and labeled `ready-for-agent`, #41–#51, the user's own
+steps marked in each (Next).
+**Updated:** 2026-09-28 (the round-loop plan; #38 on 2026-09-27)
 
 ## Done
 - Phase 1 — `docs/01-project-brief.md`, `docs/02-product-requirements.md`, `docs/06-decision-log.md`.
@@ -293,6 +296,20 @@ re-measure.
   the earliest place it is stated. A quote outside its window is dropped and counted in
   `quotes_outside_window`, which alerts at any non-zero value (`12` §6). **`lib/cv/limits.ts`'s caps
   are unchanged and need re-measuring windowed.** **Counts:** units 520 → 558, integration 122 → 125.
+- **The round loop — grilled, and written into the docs (2026-09-27).** Fifteen questions and eight
+  forced confirms from a read of the docs that found where they disagree; the recommended option on
+  every item, and English as the app-level language (the user's override). One section of `06`, "Phase
+  6 — the round loop", holds all of it. The docs now say: round screens in the round's language, the
+  rest in English (`10` §0); a round's questions fixed at start in `round_questions`, follow-ups in
+  `follow_ups`, the answer slot opened only once a take exists; any earlier answer in either mode rules
+  out a first attempt; stamp 3 never null; unsupported claims in `answer_flags`, untouched material 2–3
+  picked claims; `complete` commits the rating, waits bounded, generates outside the transaction, with
+  `feedback_generation_failed`; one round type per set piece, 逆質問 dropped, no difficulty tier,
+  near-duplicate threshold starting at 0.90 (**unverified**); posting + General practice in round one;
+  a TTS ⚡ route whose model is **pinned only once verified**; practice's per-answer frame and two
+  retries; rubric v1.0 with per-level anchors; abandoned rounds derived; `answered_language`; and the
+  round's latencies measured in the first slice. `CONTEXT.md`, `02`, `03`, `04`, `05` §9, `07`, `10`,
+  `11`, `12` amended. **No code and no migration yet.**
 - **Still deferred, not done:** `11` §3.10's third bullet — forcing each failure with sentinel text and
   scanning every envelope for it — needs routes to exist. It belongs to #14 onward. What #13 gives is
   structural: `ErrorDetailValue` is flat, so a nested object cannot be dropped into `detail`, and the
@@ -307,6 +324,18 @@ Page 1 is the screen set, page 2 the three exploration directions. **Working fil
 every change re-seeds from those — edit them, never the built `design/suburi-directions.html`.
 
 ## Next
+**0. The round-loop plan is settled, its open answers are recorded, and its slice issues are ready.** Eleven
+issues, slices 0–10 — [#41](https://github.com/yutaasakura96/suburi/issues/41) (S3, CORS, IAM, the
+OpenAI checks) → #42 (tracer: an English realistic round) → #43 Japanese · #44 follow-ups · #45
+spoken question and cap · #46 CV grounding · #47 generated questions and role context → #48 failure
+paths (#44) · #49 practice (#44, #47) · #50 History (#44) → #51 Progress and Home (#43, #46, #47, #50),
+with native GitHub `blocked_by` edges. The first real round needs #41–#48 plus #21. **The items the
+plan left open were answered on 2026-09-28** (`06`): a database failure mid-write is `write_failed` on
+every round route; a failed synthesis goes on as text with `speech_failed`; feedback is written
+without a score that ended `failed`, which is retried alone; "today" is Asia/Tokyo's. The user
+confirmed the slices, and #41–#51 moved from `needs-triage` to `ready-for-agent`. Slice 0 (#41) is the user's own
+console work and takes `12` §3 steps 3–5 out of #21, whose body now points at it.
+
 **#21 is next. #20, #29 and #38 are done.**
 
 **Done, 2026-09-27: the read of `docs/checklists/native-read-cv.md` (#38) — an AI review, not a
@@ -453,12 +482,12 @@ The error-code catalogue in `07` §3 is closed but **none of its copy is written
 
 **Open, and not to be silently decided in a ticket** (full list in `CONTEXT.md` — six items were added
 in 4b):
-- **The bilingual chrome rule** — does chrome follow the round's language or the app's? Still a copy
-  decision. `07` §2 routes every user-visible string through the copy layer so the API does not decide
-  it by accident. The CV screen answers it **for itself only** — each panel's chrome in its own
-  language, because each panel is about one language's documents (`10` §13).
-- **The near-duplicate similarity threshold** — a guess until there is real data. `12` §6 puts the
-  near-miss log in the weekly digest so it is tunable from data.
+- ~~**The bilingual chrome rule**~~ — **decided 2026-09-27**: round screens follow the round's
+  language; Home, Setup, Progress and History are in English (`10` §0). The CV screen keeps its
+  per-panel rule (`10` §13).
+- **The near-duplicate similarity threshold** — a guess until there is real data; it **starts at
+  cosine similarity 0.90, unverified** (`06`, 2026-09-27). `12` §6 puts the near-miss log in the weekly
+  digest so it is tunable from data.
 - **CV claim extraction quality** — measured on the real CVs locally and judged good, windowed, on
   2026-09-27 (#20, #27, #29; `03` §4). Each new CV upload is still eyeballed (`11` §5).
 - **Who sends the alert mail.** `08` §2 avoided an email vendor deliberately; `12` §6 reintroduces one

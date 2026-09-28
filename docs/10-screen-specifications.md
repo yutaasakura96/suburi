@@ -16,6 +16,36 @@ A build that changes one must change all.
 
 ---
 
+## 0. Which language the chrome is in
+
+**Decided 2026-09-27** (`06`, "Round screens follow the round's language"). Chrome is every string the
+app writes — labels, buttons, captions, hints, section labels, error copy — as opposed to the user's own
+words, the questions, and the feedback's content.
+
+| Screens | Chrome is in |
+| --- | --- |
+| **Inside a round** — record (§3–5, and practice's frames), transcript correction (§6), felt pressure (§7), round feedback (§8) | **The round's language.** A Japanese round is Japanese throughout; an English round is English throughout. |
+| **App-level** — Home (§1), Setup (§2), Progress (§9), History (§10) | **English**, one fixed app language. |
+| CV (§13) | Each panel in its own language — its own rule, unchanged. |
+| `/sign-in` | Both languages side by side (§12), unchanged. |
+
+**The artboards were drawn with Japanese chrome everywhere, and that is now layout, not copy.** Their
+measures, order, states and refusals stand. What changes:
+
+- **Home, Setup, Progress and History are written in English** by the slice that builds each, replacing
+  the Japanese strings quoted in §1, §2, §9 and §10. Data keeps its own language: a round type is named
+  in English on these screens, a stored `応募書類 v3` stays `応募書類 v3`, and a Japanese round's
+  questions and feedback are shown as written.
+- **The Latin section labels on the round screens become Japanese in a Japanese round** —
+  `YOUR ANSWER — EDIT FREELY`, `RAW — KEPT, NEVER REPLACED`, `Raw transcript`, `Rewrite`, `BEFORE THE
+  FEEDBACK`, `WHAT THIS IS NOT`. Keeping them Latin as a design device was considered and rejected.
+  `05` §3.3's uppercase and tracking are for Latin labels only; a Japanese label never relies on
+  `text-transform` (`05` §6).
+- **An English round needs its round-screen copy written**; every Japanese string on the round screens
+  still needs its native read before it ships.
+
+---
+
 ## 1. Home — `Main.dc.html` (upper card)
 
 **Purpose.** Answer "what should I practise?" without deciding for the user.
@@ -79,7 +109,7 @@ at weight 500 with `border-bottom: 2px solid var(--accent)` and `padding-bottom:
 | Language | `日本語 · English` | 日本語 |
 | Length | `3問 · 5問 · 7問` | 5問 |
 | Mode | `実戦 · 練習` | 実戦 |
-| Role context | three equal cards | 求人票・メモ |
+| Role context | equal cards — two in round one | 求人票・メモ |
 
 **Mode carries its own explanation inline**, both modes at once, the selected one at `--ink-3` and the
 other at `--ink-6`:
@@ -97,6 +127,18 @@ other at `--ink-6`:
 When both a file and an AI-researched context exist, a `--accent-mid` callout rail states the
 precedence: `求人票とAI調査の両方があります。ファイルを優先して使います。`
 
+**Round one draws two cards, not three** (`06`, 2026-09-27): the posting and General practice, still
+equal, in a `repeat(2, 1fr)` grid. The research card and the precedence callout arrive with US-16.
+A posting is picked from the ones already saved, or added — pasted, or imported through the CV
+screen's importer into an editable box, as on §13. Saved postings are never edited; a changed one is
+a new one. **The picker and the add form are specified here from `05` components by the slice that
+builds them**, as §13 was. The drawn detail `Mercari_SRE_2026.pdf` is the picked posting's
+`source_filename`.
+
+**The bank-exhausted warning** (PRD §6) appears here, before the round starts, when the unseen pool
+for the chosen type and language cannot fill the round: it says new questions will be generated and
+that repeats do not count toward progress. Its copy is written with the slice that builds selection.
+
 ### Rationale column
 - `WHY THESE DEFAULTS` → `行動面接・日本語は18日空いています。既定値はそこから決めました。` then
   `提案です。4つとも変えられます。` at `--ink-label`.
@@ -105,7 +147,9 @@ precedence: `求人票とAI調査の両方があります。ファイルを優�
   `5問＋深掘り5問・最長 約40分` / `評価基準 v1.2・出題 v1.0`.
 
 **The duration estimate is derived, not written:** `length × (1 + follow-ups) × per-answer cap`.
-5 × 2 × 4min = 40min. Changing the length or the cap must change this string.
+5 × 2 × 4min = 40min. Changing the length or the cap must change this string. **Practice shows no
+estimate** — its stored cap is the 15-minute runaway guard, not a pace, and an estimate built on it
+would read as an expected length of more than two hours (`06`, 2026-09-27, confirm 2).
 
 ### Refuses
 No "recommended" badge, no scoring of the choice, no memory of "your usual" beyond the interval
@@ -127,7 +171,11 @@ absent only from the transcript state, which substitutes:
 ### 3. Asked — `RecordIdle.dc.html`
 - A 15px speaker glyph (1.2 stroke, `currentColor`) in `--ink-label` with
   `読み上げました。文字は残します。` at 12px. **Realistic mode speaks the question; the text stays
-  on screen.** Practice mode is text-only, so this line and glyph are omitted.
+  on screen.** Practice mode is text-only, so this line and glyph are omitted. The audio streams from
+  the speech route (`07` §5.15). **When synthesis fails**, this line is replaced by a short notice —
+  the catalogue's `speech_failed` copy — and the round goes on with the text (`06`, 2026-09-28).
+- **The question is the one fixed when the round started** (`round_questions`) — a reload shows the
+  same one.
 - The question at **19px/1.9** in `--ink-2`, `max-width: 880px`. This is the largest reading text in
   the app and the only thing the screen is asking the user to do.
 - A `--rule-row` divider.
@@ -150,6 +198,10 @@ absent only from the transcript state, which substitutes:
 
 **At the cap** the take ends automatically and what was captured is kept. There is no warning
 countdown, no grace period, and no prompt asking whether to continue.
+
+**Nothing is recorded against the question until the take exists** (`07` §5.6). Stopping opens the
+answer slot and uploads; a recording that fails or a microphone that is denied writes nothing, and the
+question stays unseen (PRD §7).
 
 ### 5. Transcript back — `RecordTranscript.dc.html`
 - The question is **demoted to 14px/1.85 `--ink-5`** — it has been answered; it is now context.
@@ -285,7 +337,28 @@ read a Japanese round's feedback in English.
 - `応募書類との照合` — callout rails (§5.8): `--attention-mark` for
   `裏づけなし —「チーム全体の生産性を上げた」に対応する記述が応募書類 v3 にない。`, `--ink-9` for
   `未使用 —「2024 決済基盤の移行リード」「英語での顧客折衝」`.
+  **裏づけなし quotes the answer by span** — sliced from the corrected text, never reworded (`04`
+  `answer_flags`). **未使用 is two or three claims the feedback call picked as relevant** from the
+  round's never-cited set, not every uncited claim (`06`, 2026-09-27); each quote is sliced from the CV
+  by span.
+- **An answer in the wrong language** carries a line saying so, and that it is kept out of this
+  language's progress (PRD §7). Copy written with the grounding slice.
 - Footer stamp: `評価基準 v1.2・出題 v1.0・応募書類 v3` / `緊張度 4 を講評前に記録`.
+
+### An answer whose score failed
+
+A score that ended `failed` does not hold the round feedback back (`07` §5.12, `06`, 2026-09-28). The
+answer's rows read as unscored — the same `未採点` state History shows — and the round-level findings
+are written without it. History offers a retry for that answer alone; the round-level findings are
+not regenerated when it lands.
+
+### When the round-level findings are not in
+
+If `complete` could not generate them — the last score did not land within its bound, or the call
+failed (`07` §5.12) — the per-answer region renders every score that landed, and the round-level region
+is replaced by one plain sentence saying the findings are not ready, with a control that retries them
+(`07` §5.16). **No spinner.** The round is already complete and its rating recorded; nothing on this
+screen waits.
 
 ### Refuses
 - **No composite.** No round total, no average, no per-answer aggregate, no letter, no percentage.
@@ -325,7 +398,9 @@ English`, and `—` in the numeral column. **The row is kept, not removed** — 
 `点にカーソルを合わせると、日付・第何問かが出ます。`
 
 That first line is the exclusion list, and it must match what the data layer actually excludes:
-practice rounds, retries, follow-ups, and typed (non-spoken) answers.
+practice rounds, retries, follow-ups, and typed (non-spoken) answers — **and, since 2026-09-27,
+questions answered in practice before they met a realistic round, answers in the wrong language, and
+abandoned rounds** (`06`). The English footer written for this screen (§0) lists all of them.
 
 ### Consistency requirement
 The rightmost dot of each 日本語 row is the 2026-09-12 round and **must equal the score shown on round
@@ -347,8 +422,13 @@ Title 13px/500 `--ink-1` when selected, 400 `--ink-3` when not; date right-align
 
 Two entries carry an `--attention-ink` status line at 11px — **these states must be designed in, not
 discovered in production:**
-- `未採点 — 採点をやり直す`
+- `未採点 — 採点をやり直す` — re-scores the unscored answer alone; the round feedback is not
+  regenerated (`07` §5.12, `06` 2026-09-28)
 - `中断 — 進捗から除外`
+
+**`中断` is derived** (`04` `rounds`, `06` 2026-09-27): an open round is abandoned once a newer round
+has started, or once the day it started has passed — the user's local day, Asia/Tokyo. The newest open round started today is in
+progress, and History offers to resume it rather than marking it.
 
 ### Detail — the matrix (§5.5)
 Header: `行動面接` 17px/600, `日本語・実戦・5問`, date, and
@@ -376,7 +456,8 @@ Rows, in order, with the sample record:
 
 Q1 matches round feedback exactly. The **missing follow-up** row spans all seven score columns in
 `--attention-ink`: `深掘りが生成されませんでした。空欄として記録しています。` — a generation failure
-is recorded as a hole, never silently omitted and never backfilled.
+is recorded as a hole, never silently omitted and never backfilled. It is read from the `follow_ups`
+row whose `status` is `missing` (`04`).
 
 The 34px column holds a play triangle (`M4.6 3.2 10.6 7l-6 3.8V3.2Z`, 1.2 stroke) that opens the audio
 and the raw transcript for that row.
@@ -430,8 +511,17 @@ Restated from PRD §9 because a specification that omits them invites a build th
   `design/suburi-directions.html` was rebuilt from those working files. The three prose strings in
   the item above were re-seeded into the artboards the same way on 2026-09-27.
 - **Practice mode's screens.** Practice differs at the record frames (no timer, `録り直し可`) and
-  delivers feedback per answer rather than at round end. Only realistic mode is drawn.
+  delivers feedback per answer as well as at round end. Only realistic mode is drawn. **Their shape is
+  decided** (`06`, 2026-09-27) and they are specified here from `05` components before they are built,
+  the way §13 was:
+  - realistic's flow, text only, no timer and no `最長` line;
+  - a **re-take** control on the record frames until the take is transcribed — it replaces the take;
+  - after each submit, a **per-answer frame**: that answer's score rows (§5.3) and flags once it is
+    scored, stated as pending until then, with the follow-up ready beside it;
+  - **answer again** on that frame — a new answer beside the first, with no follow-up of its own;
+  - **round feedback at the end**, as §8, with no felt-pressure screen before it.
 - **The four-round run.** Deferred as LATER and unshaped (decision log).
+- **The role-context picker and add form** on Setup (§2), specified by the slice that builds them.
 - **Loading, error and offline states** beyond the two History statuses and the missing-follow-up row.
 
 ---
@@ -463,9 +553,9 @@ messages are Japanese; the English panel's are English, on the same screen at th
 is *about* one language's documents, so its chrome has an obvious language, which is not true of the
 round screens.
 
-> **This settles the bilingual chrome rule for this screen and no other.** The general question —
-> does chrome follow the round's language or the app's? — stays open (`CONTEXT.md`, `05` §9). A screen
-> that shows both languages at once side by side does not get to answer it for screens that show one.
+> **This settled the bilingual chrome rule for this screen and no other.** The general rule was decided
+> on 2026-09-27 (§0): round screens follow the round, app-level screens are in English. This screen
+> keeps its per-panel rule, because it is about two languages' documents at once.
 
 ### Empty panel
 
@@ -560,7 +650,8 @@ what the CV stamp on an old answer means.
 ### Refuses
 
 - **No coverage marks yet.** Nothing cites a claim until scoring exists, so "used" and "never used"
-  would both be false on every claim on this screen. They arrive with citations, not before.
+  would both be false on every claim on this screen. They arrive with citations, not before — **with
+  the CV-grounding slice of the round loop**, which lifts this refusal and specifies the marks here.
 - **No edit and no delete** — not a document, not a claim, not a version (`04` §6, `07` §6).
 - **No version label input.** The label is derived, per language (`04`).
 - **No upload of the file itself.** The browser extracts text; the file does not leave it.

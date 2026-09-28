@@ -3,7 +3,8 @@
 **Date:** 2026-09-12
 **Status:** Phase 4b. Tier 2, triggered: `01-project-brief.md` sets a **six-month** horizon, and the
 success criterion is a trustworthy instrument — which is a claim about the code still being correct in
-March, not about it working today.
+March, not about it working today. **Amended 2026-09-27 for the round loop** (`06`, "Phase 6 — the
+round loop"): §3.1, §3.4–§3.7, §3.9, §3.12–§3.15, §4, §5.
 
 ---
 
@@ -18,7 +19,8 @@ auth path, and **no deletion at all** — so the list transfers badly. Here the 
 
 Five ways that happens, and every one of them is a test in §3:
 
-1. **A first attempt gets overwritten**, so the chart shows a practised answer as a cold one.
+1. **A first attempt gets overwritten — or a practised question is counted as one** — so the chart
+   shows a practised answer as a cold one.
 2. **A score lands without its full stamp set**, so a boundary Progress should draw is invisible.
 3. **A composite score appears** somewhere — a helper, a view, a response field — and the per-dimension
    discipline the brief is built on quietly collapses into one number.
@@ -83,13 +85,17 @@ amending first.
 | Retry does not overwrite | A retry writes a new row with `retry_of_answer_id` set; the original keeps `is_first_attempt`; both rows persist | Refusal #3 |
 | Practice with a pressure rating | `mode = 'practice'` with a non-null `felt_pressure` raises a check violation | Corrupting the brief's falsification test |
 | Pressure out of range | `felt_pressure = 0` or `6` raises a check violation | — |
-| Stamp completeness | A `scoring_attempts` insert missing any of `cv_version_id`, `rubric_version_id`, `model_id`, `scoring_prompt_version` raises not-null | An unstamped score, invisible boundary (refusal #5) |
+| Stamp completeness | A `scoring_attempts` insert missing any of `cv_version_id`, `rubric_version_id`, `generator_prompt_version`, `model_id`, `scoring_prompt_version` raises not-null. *Amended 2026-09-27:* `generator_prompt_version` — stamp 3 — was missing from this list (`06`) | An unstamped score, invisible boundary (refusal #5) |
 | Score range | `scores.value` outside 1–5 raises a check violation | — |
 | One score per dimension | A duplicate `(scoring_attempt_id, dimension)` raises a unique violation | Two values for one dimension |
 | Span sanity | `span_end <= span_start` raises a check violation | — |
 | Answer is question XOR follow-up | Both set, or neither, raises a check violation | An answer with no provenance |
 | Restrict, not cascade | Deleting a `questions` row that an answer references raises a foreign-key violation | Rewriting history by deleting a bank row |
 | Enumerated values | A value outside its list (`04` §0) in any enumerated `text` column raises a check violation | A misspelt `language` splitting one first-attempt series into two |
+| A round's questions are fixed | A second `round_questions` row at the same `(round_id, position)`, or the same question twice in one round, raises a unique violation | A refresh swapping a question already heard; a repeat inside a round |
+| One follow-up per answer | A second `follow_ups` row for one `parent_answer_id` raises a unique violation; `generated` with a null `prompt_text`, or `missing` with one, raises a check violation | A second follow-up; a hole that is not recorded as one |
+| Flag span sanity | `answer_flags.span_end <= span_start` raises a check violation | — |
+| One General practice | A second `role_contexts` row with `kind = 'general'` for one user raises a unique violation | General practice split across rows, and its rounds grouped as two |
 
 ### 3.2 No composite score — asserted three ways
 
@@ -151,6 +157,13 @@ The index is the backstop; this is the logic that should never reach it.
 - Practice mode, any question → `false`, always.
 - Follow-up → `false`, always (and structurally impossible).
 - Second realistic round asking the same question → `false`.
+- **Answered in practice first, then asked in a realistic round → `false`** (`06`, 2026-09-27). This
+  is §1's first failure, and the case the old rule got wrong.
+- **Answered in an abandoned round, then asked again → `false`.** The question is seen for good.
+- **Fixed in an abandoned round's `round_questions` but never answered → still unseen**, and its first
+  realistic answer is `true`. Choosing a question does not consume it.
+- **A failed or denied recording writes no row** — the slot opens only once a take exists — so the
+  question's next realistic answer is `true`.
 - Same question, **other language** → `true`. Two languages are two measurements.
 - A retry of a first attempt → `false` on the retry, `true` still on the original.
 
@@ -164,18 +177,21 @@ an exclusion is "no measurement". Fixtures: a first-attempt set where one attemp
 - The trend point uses the **latest `is_superseding` attempt**, not the first and not an average across attempts.
 - A held-out re-score (`is_superseding = false`) **never** appears in a trend.
 - A dimension present in the `ja` rubric and absent in `en` (`keigo`) does not produce a null point in an English trend — it produces no point.
+- **An answer whose `answered_language` is not its round's language contributes nothing** to that language's trend (PRD §7).
+- **An abandoned round contributes nothing**, though its answers keep their rows and their first-attempt flags.
 
 ### 3.6 Boundary lines on Progress
 
 Refusal #5. Given a fixture where `model_id` changes mid-series, then `rubric_version_id`, then
-`scoring_prompt_version`, then `cv_version_id`: a boundary is drawn at each of the four, and **no
-trend line is drawn across a boundary as if continuous.**
+`scoring_prompt_version`, then `cv_version_id`, then **`generator_prompt_version`** — including a set
+piece's content version: a boundary is drawn at each, and **no trend line is drawn across a boundary as
+if continuous.** *Amended 2026-09-27:* the generator stamp was missing from this list (`06`).
 
 ### 3.7 The near-duplicate guard
 
 With a stubbed embedder returning fixed vectors, so the test is about the decision rule, not the model.
 
-- Distance above threshold → the existing question row is **reused**; no insert.
+- Similarity at or above the threshold → the existing question row is **reused**; no insert. The threshold is one constant, **0.90 to start** (`06`, 2026-09-27); the test reads the constant rather than repeating the number, so tuning it changes no test.
 - Below → insert, with its embedding stored.
 - Candidate slice is `(user_id, language, round_type) where retired_at is null` — a near-identical question in another language or round type does **not** suppress the insert.
 - A retired question does not suppress an insert but **keeps** every answer that referenced it.
@@ -200,8 +216,10 @@ With a stubbed embedder returning fixed vectors, so the test is about the decisi
 ### 3.9 Derived measures
 
 `rewrite_magnitude` (identical text → 0; total rewrite → 1; monotonic in edit distance; stable under
-pure whitespace changes) and `words_per_minute` (counted on Japanese text without spaces — a real
-tokenisation decision, so the expected values in the test are the specification).
+pure whitespace changes) and `words_per_minute`, which is **the pace in the language's own unit**:
+characters per minute of `transcript_raw` for `ja`, words per minute for `en` (`06`, 2026-09-27,
+confirm 4). The expected values in the test are the specification — `10` §5's `3:12・約250字/分・800字`
+is one of them: 800 characters in 192 seconds is 250 per minute.
 
 ### 3.10 API contract and error catalogue
 
@@ -215,6 +233,57 @@ Two seeded users in the test database — the only place a second user ever exis
 every read and every write is scoped by `user_id`, and that `disableSignUp` plus the `ALLOWED_EMAIL`
 assertion both independently reject a non-allowlisted account (`08` §2: the guarantee does not rest on
 one library flag).
+
+### 3.12 The answer-side span validator
+
+`answer_flags` (`04`) gets `§3.3`'s rules on the other text. The scorer returns a verbatim quote and a
+start hint; the server locates it in `transcript_corrected`.
+
+- The rendered quote is `substring(transcript_corrected, span_start, span_end - span_start)` — never model text.
+- A quote not in the corrected text, a span outside it, an inverted or zero-width one, or one that splits a grapheme → **dropped and counted**, never clamped.
+- A quote that occurs only in `transcript_raw` → dropped. The flag is about what the user submitted.
+
+**Untouched material** (`round_feedback.untouched_claim_ids`): an id that is not a claim of the round's
+CV version, or that some answer in the round cited, is **dropped and counted**; never more than three
+are stored.
+
+### 3.13 A round's questions, chosen once
+
+With a stubbed generator and embedder.
+
+- `POST /api/rounds` writes exactly `length` `round_questions` rows in the round's transaction; a failure before it writes neither.
+- **A reload returns the same prompt at every position**, and never calls the generator.
+- At most **one set piece**, and only an **unseen** one, of the round's own type; `behavioural` and `technical` rounds get none.
+- Unseen generated questions come before seen ones; new ones are generated only when the unseen pool cannot fill the round.
+- **Practice prefers seen questions**, and falls back to unseen ones.
+- No `cv_version_id` in the request is accepted — a strict schema makes it a `400` — and the round is stamped with the current version.
+
+### 3.14 `complete` with a score still pending
+
+`07` §5.12, invariant 2. With a fake scorer that can be held pending and a fake feedback generator.
+
+- **The rating and `completed_at` are committed before the feedback call is made** — a feedback failure leaves both written.
+- A score that lands inside the bound → the feedback is generated from every score.
+- A score still pending when the bound runs out → **no `round_feedback` row**, `502 feedback_generation_failed`, the round complete. Feedback from an incomplete set is never written.
+- No model call is made inside a transaction.
+- The retry (`07` §5.16) writes the row once; a second retry returns it and calls nothing.
+- **A score that ended `failed`** → the feedback is generated without that answer; retrying the answer's
+  score later writes a new attempt and **never touches `round_feedback`**.
+
+### 3.15 The derived round status
+
+- A newer round started → the older open round is `abandoned`, and `resume` is null.
+- The newest open round, started today → `in_progress`, and resumable.
+- An open round started on an earlier day → `abandoned`. **The day is Asia/Tokyo's**: a round started at
+  23:50 JST is abandoned at 00:10 JST the next day, whatever the server's time zone (`06`, 2026-09-28).
+- A realistic round's `GET /api/rounds/{id}` carries **no score, flag or scores field** until it is complete; a practice round's carries them once each answer is `ok` (US-8, `07` §5.5).
+
+### 3.16 `write_failed` on every round route
+
+- A database failure forced on each round route returns `500 write_failed` in the `07` §2 envelope,
+  never a bare `500`, with only ids and `pg_<SQLSTATE>` in `detail` — no sentinel text (§3.10).
+- Nothing the call would have written exists afterwards, and `GET /api/rounds/{id}` resumes at the
+  same call.
 
 ---
 
@@ -235,7 +304,10 @@ wiring between screens that no unit test sees.
 | Transcript editor | The rewrite-magnitude meter moves with edits and its submitted value matches what the server stores. |
 | Screen 7 is not skippable | Realistic mode offers no way past the felt-pressure rating to feedback. **This screen is load-bearing for latency** (`03` §3) as well as for the brief's falsification test — a future "skip" link is a regression in two places at once. |
 | Pending score renders | The feedback screen states a pending score plainly and **does not spin** (`03` §5, §8). |
-| Resume | Reload mid-round returns to the right question, with earlier answers intact. |
+| Resume | Reload mid-round returns to **the same** question, with earlier answers intact. Starting another round, then opening the first, shows it read-only as abandoned. |
+| Spoken question | Realistic mode requests the speech route for the prompt on screen, by position; practice mode never requests it. |
+| Feedback not ready | With the fake feedback generator failing, screen 8 renders every score, a plain pending sentence and a retry — **no spinner** — and the retry fills the round-level region. |
+| Practice frame | After a practice submit, the per-answer frame states the score as pending, then shows it once scored; "answer again" writes a second answer at the same position with no follow-up. |
 | No deletion surface | No delete or share control on History, a round, an answer or a score (refusals #3, #6). |
 
 **Not in Playwright, deliberately:** any assertion about transcript *content*. The fake device
@@ -253,7 +325,9 @@ either irreducibly human or need a real human ear.
 
 - [ ] Real mic, real Chrome, real 4-minute take: audio uploads, transcribes, and plays back from History.
 - [ ] Japanese transcription is good enough to correct rather than retype — on **spoken keigo**, which is the hardest case and the one the rubric scores.
-- [ ] Realistic mode's TTS pronounces the question correctly, including company names and 役職.
+- [ ] Realistic mode's TTS pronounces the question correctly, including company names and 役職 — in both languages, with the model pinned in `lib/ai/models.ts`.
+- [ ] **The round loop's latencies are measured and recorded in `03` §4** — scoring, follow-up generation, round feedback, question generation, transcription and TTS — before the loop is built beyond its tracer (`06`, 2026-09-27). Re-measured whenever a model or prompt for one of them changes.
+- [ ] **The rubric v1.0 read**: the user has reviewed every dimension's per-level anchors in both languages, and the Japanese has had its native read, before it is seeded anywhere real.
 - [ ] The felt-pressure screen still feels unhurried. It is instrumentation and it is where the last score lands; if it starts feeling like a loading screen, both purposes are damaged.
 - [ ] Feedback renders **while you are still sitting there.** PRD §9 calls a spinner that outlives the sitting a defect — this is the acceptance test for that sentence, and no automated test can make it.
 - [ ] Every new Japanese string has had a **native read** (`05-design-system.md` §6). Not a review of the translation — a read for whether a person would write it.

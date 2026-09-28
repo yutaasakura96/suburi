@@ -29,15 +29,16 @@ docs and the build.
 | --- | --- |
 | **Round** | One sitting. Exactly one round type, one language, one mode, one length. The unit of practice *and* the unit of history. |
 | **Round type** | `behavioural` \| `technical` \| `hr` \| `ceo`. |
-| **Mode** | **Practice** — edit freely, retry, immediate per-answer feedback, no timer. **Realistic** — one take, timed, feedback held to round end. |
-| **Question** | A bank entry with a **permanent id**. Either a **set piece** (hand-authored, fixed) or **generated** (created from CV + role context, then written into the bank on first use). |
+| **Mode** | **Practice** — edit freely, retry, per-answer feedback as soon as each answer is scored, no timer. **Realistic** — one take, timed, feedback held to round end. Both end with round feedback. |
+| **Question** | A bank entry with a **permanent id**. Either a **set piece** (hand-authored, fixed, belonging to exactly one round type) or **generated** (created from CV + role context, then written into the bank on first use). A round's questions are **fixed when it starts** (`round_questions`). |
 | **Bank** | The accumulated set of questions. Grows; entries are never deleted, only retired. |
-| **Follow-up** | A question generated from what the user just said. **Not a bank entry**, no stable identity, never in progress data, never scored as a first attempt. |
-| **First attempt** | The first *realistic-mode* answer to a given question id in a given language. **Never overwritten.** The only data Progress plots. |
+| **Follow-up** | A question generated from what the user just said. **Not a bank entry**, no stable identity, never in progress data, never scored as a first attempt. Recorded in `follow_ups` with its text and stamps — or recorded as **missing** when generation failed. Shares its parent's position. |
+| **First attempt** | A *realistic-mode* answer to a question id in a language that has **no earlier answer in that language, in either mode**. A question practised first can never have one. **Never overwritten.** The only data Progress plots. |
 | **Take** | One recorded audio capture of one answer. |
 | **The correction step** | Editing the raw transcript inline before submitting. Raw and corrected both persist. **This is the feature no surveyed competitor has — never optimise it away.** |
 | **Rewrite magnitude** | How much the correction step changed the raw transcript. The diff is data, not a side effect. |
-| **Role context** | What the round is pitched at: an uploaded posting, researched notes, or explicit **General practice**. |
+| **Role context** | What the round is pitched at: an uploaded posting, researched notes, or explicit **General practice**. An immutable row, reusable across rounds; General practice is one row per user. Round one needs posting and General practice; research lands with US-16. |
+| **Abandoned round** | An open round (`completed_at is null`) that a newer round has been started after, or that was not started today — **today being the user's local day, Asia/Tokyo**. **Derived, never stored.** Only the newest open round resumes, and only the same day. |
 | **CV** | The set of documents a round is scored against, **one per language**, each with its own version history. Japanese: a required **履歴書**, an optional **職務経歴書**, and additional documents. English: a required **CV** document and additional documents. In Japanese copy the set is **応募書類**; in English, **CV**. |
 | **Document** | One member of a CV: a 履歴書, a 職務経歴書, a CV document, or an **additional document** (titled by the user, up to five, in either language). Pasted, or imported from `.docx`/`.pdf` into editable text that the user checks before saving. |
 | **CV version** | An immutable snapshot of one language's whole CV. Changing any document makes a new version of the set. Labelled `応募書類 v{n}` / `CV v{n}`, numbered per language, never typed by the user. |
@@ -46,9 +47,11 @@ docs and the build.
 | **Span** | `[start, end)` into `cv_versions.body`. Quotes are **sliced from stored text by span**, never taken from model output. A span **may not cross a document boundary** — one that does is dropped and counted, never clamped. |
 | **Coverage** | Which CV claims have been cited, and which never have. Makes *"CV material never used"* expressible. |
 | **Carry-forward** | A claim in a new CV version whose normalised text exactly matches a claim in the **immediately previous** version **of the same language** — from any document in it. It inherits that claim's coverage. Two versions back never matches; the other language never matches. |
-| **Stamps** | The four version markers on every scored answer: **CV version, rubric version, generator prompt version, scoring model**. |
+| **Stamps** | The four version markers on every scored answer: **CV version, rubric version, generator prompt version, scoring model** (the scoring model with its scoring prompt version). All four are `not null`. Stamp 3 is the generator prompt version for a generated question, the set pieces' **content version** (`set-piece-ja-1.0`) for a set piece, and the follow-up prompt version for a follow-up. |
 | **Boundary** | The line Progress draws wherever a stamp changed. Makes drift visible instead of silent. |
 | **Drift** | The same answer scoring differently over time because the *scorer* changed. The central technical risk. |
+| **Unsupported claim** | A span of the answer's **corrected** text that no CV claim supports. An `answer_flags` row whose quote is **sliced from `transcript_corrected` by span**, never taken from model output. |
+| **Untouched material** | Two or three **relevant** CV claims never cited, picked for round feedback from the never-cited set and stored on `round_feedback`. Not every uncited claim. |
 | **Felt pressure** | A 1–5 self-report taken once per realistic round, **before any feedback**. Instrumentation for the brief's falsification test — never feedback, never averaged, never shown as something to improve. |
 | **敬語 / register** | A scored rubric dimension in Japanese only. Not a politeness filter, not a translation concern. |
 
@@ -101,8 +104,9 @@ follow the feedback language.
 
 Next.js (App Router) + TypeScript on Vercel · Tailwind CSS v4 · shadcn/ui on Base UI · Drizzle ·
 Postgres 18 + `pgvector` on Neon (Docker locally) · Better Auth with Google as the only IdP · AWS S3
-for audio · OpenAI `gpt-5.6-sol`, pinned, for all four model jobs — generation, follow-ups, scoring,
-CV claim extraction.
+for audio · OpenAI `gpt-5.6-sol`, pinned, for every text job — question generation, follow-ups,
+scoring, round feedback, CV claim extraction. Embeddings are `text-embedding-3-small`; the TTS model
+is pinned once verified (`03` §4).
 
 **`docs/05-design-system.md` is the only palette.** Tailwind's defaults are wiped, shadcn's variables
 alias `05`'s tokens, and code outside `components/ui/` uses `05` names. `05`'s `--accent` is `--mark`
@@ -151,15 +155,13 @@ detail and the non-obvious consequences: `docs/12-deployment.md` §1 and §4.
 
 Carry these; do not silently decide them in a ticket.
 
-- **The bilingual chrome rule.** Does UI chrome follow the round's language, or the app's? Progress
-  localises version labels per panel (`応募書類 v3` vs `CV v3`), implying per-round; Home's English
-  caption names round types in Japanese. Both defensible, neither decided. `/sign-in` shows both
-  languages side by side (`10` §12) — it has no round, so it sidesteps the rule rather than setting a
-  precedent for it. **The CV screen answers it for itself only** (`10` §13): each panel's chrome is in
-  its own language because each panel is about one language's documents. A screen showing both
-  languages at once does not settle the rule for screens showing one.
-- **The near-duplicate similarity threshold.** A guess until there is real data. Start strict, log
-  every near-miss with its score, tune from the log.
+- ~~**The bilingual chrome rule.**~~ **Decided 2026-09-27** (`06`, the round loop): the screens
+  inside a round follow the **round's language**; Home, Setup, Progress and History are in **English**,
+  one fixed app language. The CV screen keeps its per-panel rule (`10` §13), and `/sign-in` still shows
+  both. The artboards' Japanese chrome on the app-level screens is layout, not copy (`10` §0).
+- **The near-duplicate similarity threshold.** A guess until there is real data. **It starts at cosine
+  similarity 0.90 = the same question — unverified** (`06`, 2026-09-27). Log every near-miss with its
+  score, tune from the log.
 - **CV claim extraction quality — judged no on 2026-09-23, fixed and re-measured on 2026-09-24,
   re-measured windowed and judged good on 2026-09-27 (#20/#29, `03` §4).**
   The real 履歴書 + 職務経歴書 and the real English CV went through `/cv` locally against Docker
@@ -193,13 +195,19 @@ Carry these; do not silently decide them in a ticket.
   one** (`cv-extract-ja-1.2`, `cv-extract-en-1.3`) before production reads any CV (#21), which is what
   keeps this moot for now; the stored versions it cannot reach are `develop`'s and the local ones.
 - **One drawn-but-unspecified screen:** practice mode's record frames differ from realistic mode's.
-  Listed in `docs/10-screen-specifications.md` §12. **The CV screen came off this list in #12** — it
+  Listed in `docs/10-screen-specifications.md` §12. **Its shape is decided** (`06`, 2026-09-27): a
+  per-answer frame once scored, a re-take and an "answer again", round feedback at the end. The screens
+  are specified in `10` before the practice slice builds them. **The CV screen came off this list in #12** — it
   still has no artboard, but it is specified in `10` §13 from `05` components, which is the whole of
   what it needed, and `10` §12's own entry is struck through to say so.
 - ~~**Japanese copy that has not had its native read.**~~ **Closed 2026-09-27 (#38) — by an AI
   review, not a native read.** The user does not read Japanese and delegated
   `docs/checklists/native-read-cv.md` to Claude: every CV-screen string and `cv_too_large` accepted,
   §3's three prose strings now say `応募書類`, one rewritten for register (`05` §6, `06`).
+- ~~**What a database failure mid-write returns.**~~ **Decided 2026-09-28:** `write_failed`, a
+  catalogued `500` in the `07` §2 envelope, on every round route; the round stays resumable (`07` §3).
+- **The text-to-speech model.** A constant in `lib/ai/models.ts`, **pinned only after it is verified**
+  at implementation (`03` §4, `06`, 2026-09-27).
 - **Who sends the alert mail.** `08` §2 rejected magic links specifically to avoid a transactional email
   vendor; §6 of `12` reintroduces one as a placeholder. Decide deliberately — an alert nobody receives
   is not monitoring.
