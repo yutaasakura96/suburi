@@ -122,8 +122,6 @@ the thing being measured.
 
 ## Workflow
 
-- Before implementing any non-trivial change, grill me on requirements first — one question at a
-  time, recommend an option, wait for my answer.
 - Write tests before implementation where there's a natural seam.
 - Review the diff against repo standards and the original request before saying it's done.
 - For work spanning sessions, write a spec and tickets first.

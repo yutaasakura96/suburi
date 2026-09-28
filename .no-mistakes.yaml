@@ -1,5 +1,5 @@
 # no-mistakes gate config. commands/agent/pr.base_branch are read only from the
-# default branch (main), so this file must exist there too.
+# default branch (develop), so this file must exist there too.
 allow_repo_commands: true
 
 commands:
