@@ -411,9 +411,8 @@ overlooked the working GitHub remote.
 `gh` gives `triage` its label queries and `wayfinder` its native dependency graph. Reversal recorded
 in `06` under Phase 5b, along with why `docs/adr/` is deliberately not created.
 
-**Then, per feature:** `/grill-with-docs` → `/to-spec` → `/to-tickets` → `/implement`. Small changes
-collapse to grill → implement. The flow is in `~/Documents/GitHub/claude-agentic-setup/mattpocock-skills-guide.md`;
-keep grill → spec → tickets inside one unbroken window.
+**For the agentic workflow:** follow `agentic-setup` as the source of truth. This status file does not
+add a per-feature grilling requirement.
 
 **The pre-build verifications are done** — this list is closed, and nothing here blocks a ticket:
 - **Transcription: `gpt-transcribe`, $0.0045/min.** Needs API Tier 1+. Its only snapshot shares its
