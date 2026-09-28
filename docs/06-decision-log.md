@@ -3,6 +3,98 @@
 Newest first. Every entry records what was chosen, why, and what was rejected.
 
 ---
+## Phase 6 — #41, the S3 and OpenAI checks
+
+The round loop's first slice. The user chose the local storage and then handed the console steps to
+the agent ("AWS CLI is already setup. you can do this all for me"), so the bucket, its CORS rule, the
+IAM users and the Vercel variables were done from the already-configured AWS and Vercel CLIs. Only the
+`develop` OpenAI key's tier is still unchecked.
+
+### [2026-09-28] Local development uses the real bucket under `dev/`, not MinIO
+
+**Decided:** by the user. Local writes to the real bucket under `dev/`, with `develop`'s IAM user, and
+`http://localhost:3000` is in the bucket's CORS rule. `docker-compose.yml` gains no MinIO service, and
+`lib/config.ts` gains no endpoint variable.
+**Alternatives considered:** MinIO in `docker-compose.yml`, which `03` §12 and `12` §1 had left open.
+**Reason:** the direct browser→S3 upload is where the round loop can fail silently, and MinIO is
+close to S3 but not identical, in CORS and presigning above all. Running local against the real
+thing removes that gap. `dev/` expires after 30 days, and `develop`'s user cannot reach `prod/`, so
+local work never touches real audio.
+**Consequence:** a local `.env.local` holds a real AWS credential, scoped to `dev/`. `03` §12 and `12`
+§1 now name the choice, and `12` §3 step 4 lists `localhost`.
+
+### [2026-09-28] The bucket is in `ap-northeast-1`, and refuses anything but TLS
+
+**Decided:** one bucket in `ap-northeast-1`. It has Block Public Access with all four settings on,
+SSE-S3 with a bucket key, versioning, Object Ownership set to bucket-owner-enforced (no ACLs), and a
+bucket policy that denies any request not made over TLS. One lifecycle rule applies to `dev/`: it
+expires current objects after 30 days, noncurrent versions after one day, and incomplete multipart
+uploads after one day. There is none on `prod/`. The IAM users are `suburi-s3-prod` and `suburi-s3-dev`,
+each with a single inline policy allowing `s3:PutObject` and `s3:GetObject` on its own prefix, and
+nothing else. The bucket name and the account id are not in the repository; the name is in the
+`S3_BUCKET` variable of each scope.
+**Alternatives considered:** `ap-southeast-1`, beside Neon; `us-east-1`, beside Vercel's default
+function region (`iad1`, which the project uses).
+**Reason:** `12` named no region. The upload happens while the user is waiting, from a browser in
+Japan, and a four-minute take is the largest thing the app moves, so the bucket sits nearest the
+user. The server's read of the object for transcription crosses the Pacific whichever way this goes,
+since OpenAI is not in Tokyo either. The noncurrent-version expiry is there because a versioned
+bucket would otherwise keep every expired `dev/` object as an invisible noncurrent version forever.
+The TLS policy costs nothing, because presigned URLs are already HTTPS.
+**Verified with the IAM policy simulator:** each user is allowed Put and Get on its own prefix only.
+Delete on either prefix, the other prefix and `ListBucket` are all implicitly denied.
+
+### [2026-09-28] Verified: a presigned PUT from the `develop` origin lands under `dev/`, and a presigned GET reads it back
+
+**Checked:** with the dev user's credentials from `.env.local` (the same values piped into the
+`develop` branch's Preview scope), presigned a PUT (`content-type: audio/webm`) and a GET for a key
+under `dev/roundtrip-check/`. A headless Chromium page **on `https://suburi-develop.vercel.app`**
+then ran both with `fetch`. That page was served by route interception, because Deployment Protection
+redirects a logged-out browser to `vercel.com`, but the origin the browser sent and S3's CORS judged
+was `develop`'s. The body was the Chrome `MediaRecorder` file from the check below.
+**Result:** the PUT and the GET both returned `200` across origins, the GET came back as `audio/webm`,
+and the 112,313 bytes it returned were identical to the upload. The stored object was SSE-S3 and
+carried a version id. A preflight from an unlisted origin got `403`, and so did one asking for
+any header other than `content-type`. With the same credential, a PUT and a GET on `prod/`, a
+`ListBucket` and a delete of the object just written all failed with `AccessDenied`, and the object
+was still there afterwards. It is left to the `dev/` lifecycle rule.
+**Not checked:** a deployed `develop` build presigning the URL itself. No presign route exists yet;
+that is the tracer slice's.
+
+### [2026-09-28] The AWS variables are validated at boot, and `S3_PREFIX` is exactly `prod/` or `dev/`
+
+**Decided:** `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`, `S3_BUCKET` and `S3_PREFIX`
+join `lib/config.ts` as required, with no default, and `.env.example` names them. `AWS_REGION` must
+look like a region (`ap-northeast-1`), `S3_BUCKET` must follow S3's bucket naming rules, and
+`S3_PREFIX` is an enum of `prod/` and `dev/`. The two keys are only checked as present. CI and
+`playwright.config.ts` set placeholders, never a real credential, as they do for `OPENAI_API_KEY`.
+**Alternatives considered:** a free-form prefix; checking that the access key starts with `AKIA`; reading the
+variables lazily at the first presign.
+**Reason:** the prefix is the only thing separating `develop`'s audio from real audio (`12` §2), so a
+typo (`dev`, `/dev/`, `staging/`) must fail the boot rather than write beside the real takes. The key
+shapes are only checked as present: the shape is AWS's to change, and a wrong key fails loudly at
+the first presigned request anyway. Lazy reading would let a deploy without the variables boot and fail at the first take,
+mid-round, which `12` §2's "fails the boot, loudly" exists to prevent.
+**Consequence:** the deploy that first carries this must not land on `develop` before the five
+variables are in the `develop` branch's Preview scope (`12` §3 step 7), and a local `.env.local`
+needs them before `next dev`, `dev:session` or the seed scripts run.
+
+### [2026-09-28] Verified: `gpt-transcribe` accepts Chrome's `MediaRecorder` output
+
+**Checked:** headless Chromium 153 (Playwright's), `MediaRecorder` with
+`mimeType: "audio/webm;codecs=opus"` (`isTypeSupported` true, `recorder.mimeType` echoed it), fed a
+seven-second macOS `say` sentence through the fake capture device, once in Japanese and once in
+English. `ffprobe`: Matroska/WebM, one Opus stream, 48 kHz mono, **no duration in the header** — the
+usual shape of a `MediaRecorder` file. Each file was posted to `/v1/audio/transcriptions` with
+`model=gpt-transcribe`, `language` set, and content type `audio/webm`, using the **local**
+`OPENAI_API_KEY`.
+**Result:** `200` both times, each transcript word-for-word the spoken sentence (the Japanese one
+without the source's comma), `usage` billed as 7 seconds. OpenAI's reference lists `webm` among the
+accepted formats; this confirms it for the file Chrome actually writes, missing duration included.
+**Also shows:** the local key's account is served `gpt-transcribe`, so it is at Tier 1 or above
+(`03` §4). The `develop` key is not held locally and is **not** checked.
+
+---
 ## Phase 6 — the round loop's open answers
 
 Answered by the user on 2026-09-28, on the planning page, for the six items the 2026-09-27 plan left

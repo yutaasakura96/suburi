@@ -24,6 +24,13 @@ const localBaseUrl = z.url({ protocol: /^https?$/ }).refine((value) => {
   return localHosts.has(new URL(value).hostname);
 });
 
+// S3's bucket naming rules: 3–63 characters of lowercase letters, digits, dots and hyphens, starting
+// and ending with a letter or digit, no two dots together.
+const bucketName = z
+  .string()
+  .regex(/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/)
+  .refine((value) => !value.includes(".."));
+
 const schema = z.object({
   DATABASE_URL: postgresUrl,
   DATABASE_URL_UNPOOLED: postgresUrl,
@@ -35,6 +42,14 @@ const schema = z.object({
   // Every model call (12 §2). The model strings are not here: they are constants in lib/ai/models.ts.
   OPENAI_API_KEY: z.string().min(1),
   OPENAI_BASE_URL: localBaseUrl.optional(),
+  // Presigning the audio PUT and GET (12 §2). One IAM user per environment, holding only
+  // s3:PutObject and s3:GetObject on its own prefix (12 §3 step 5).
+  AWS_ACCESS_KEY_ID: z.string().min(1),
+  AWS_SECRET_ACCESS_KEY: z.string().min(1),
+  AWS_REGION: z.string().regex(/^[a-z]{2}(-[a-z]+)+-\d$/),
+  S3_BUCKET: bucketName,
+  // The only thing separating develop's audio from real audio (12 §2), so exactly one of the two.
+  S3_PREFIX: z.enum(["prod/", "dev/"]),
 });
 
 export type Config = z.infer<typeof schema>;
