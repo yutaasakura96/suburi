@@ -80,8 +80,11 @@ status page still exist there (#55). With no manual run in its database, `develo
 **Sentry is on for `develop`, tagged.** Not for the error reports, but so that §7's scrubbing
 configuration is exercised before production has anything worth leaking. So `SENTRY_DSN` and
 `SENTRY_AUTH_TOKEN` sit in the `develop` branch's Preview scope as well as Production (§2). *Corrected
-2026-09-28:* §2 used to say "production only", which contradicted this paragraph (`06`). Sentry is
-not integrated yet: #54.
+2026-09-28:* §2 used to say "production only", which contradicted this paragraph (`06`). **Built by
+#54:** `lib/config.ts` turns Sentry on only when `SENTRY_DSN` is set **and** Vercel's own
+`VERCEL_ENV` says `production`, or `preview` with `VERCEL_GIT_COMMIT_REF` = `develop`; the tag comes
+from those two, never from a variable someone sets. Anywhere else — local, CI, Playwright, another
+branch — it is off, even with a DSN present (`06`, 2026-09-30).
 
 **Refreshing Neon `develop`:** reset it from a fresh seed, never from a copy of `main`. Neon's branch-
 from-parent would be the convenient move and it would put the real CV, real transcripts and real salary
@@ -103,7 +106,9 @@ see step 4 of §4.
 ## 2. Environment variables — the full inventory
 
 Every variable, its purpose, and where the secret lives. Nothing here is `NEXT_PUBLIC_`: **no variable
-in this application is safe to ship to the browser**, and none is.
+in this application is safe to ship to the browser**, and none is. **One value derived from one is:**
+`next.config.ts` inlines `SENTRY_DSN` into the browser bundle at build, because the browser SDK needs it
+to report. A DSN only sends events in (`06`, 2026-09-28); `SENTRY_AUTH_TOKEN` never leaves the build.
 
 | Name | Purpose | Where the secret lives |
 | --- | --- | --- |
@@ -123,10 +128,10 @@ in this application is safe to ship to the browser**, and none is.
 | `AWS_REGION` | S3 region | Vercel env |
 | `S3_BUCKET` | One bucket | Vercel env |
 | `S3_PREFIX` | `prod/` or `dev/` | Vercel env — **this is the only thing separating `develop` audio from real audio**. `lib/config.ts` accepts exactly these two values |
-| `SENTRY_DSN` | Exception reporting | Vercel encrypted env. **Production and the `develop` branch's Preview scope** (§1); one Sentry project, events tagged by environment. #54 |
-| `SENTRY_AUTH_TOKEN` | Source-map upload at build | Same scopes as `SENTRY_DSN`: both builds upload their maps |
+| `SENTRY_DSN` | Exception reporting | Vercel encrypted env. **Production and the `develop` branch's Preview scope** (§1); one Sentry project, events tagged by environment. **Optional:** absent means Sentry is off, never a failed boot (`06`, 2026-09-30). Unset locally, in CI and under Playwright |
+| `SENTRY_AUTH_TOKEN` | Source-map upload at build | Same scopes as `SENTRY_DSN`: both builds upload their maps. An **organization** token (`sntrys_…`), which names its organization. Required whenever `SENTRY_DSN` is set in those two deployments; `lib/config.ts` refuses a DSN without it |
 | `CRON_SECRET` | Authenticates the cron routes against forgery: Vercel sends it as `Authorization: Bearer <CRON_SECRET>` (`07` §5.17) | Vercel encrypted env, **Production only**: cron is off on `develop` (§1). At least 16 characters (`openssl rand -base64 32`). **`lib/config.ts` requires it when `VERCEL_ENV` is `production`** and accepts its absence anywhere else, where the cron routes then refuse every call. Locally, in `.env.local` only to run a job by hand |
-| `VERCEL_ENV` | Which Vercel environment is running: `production`, `preview` or `development` | **Set by Vercel, not by us** — a system variable available at build and runtime (verified 2026-09-30). Read only to decide whether `CRON_SECRET` is required. Unset locally |
+| `VERCEL_ENV` | Which Vercel environment is running: `production`, `preview` or `development` | **Set by Vercel, not by us** — a system variable available at build and runtime (verified 2026-09-30). Read to decide whether `CRON_SECRET` is required and whether Sentry is on (§1). Unset locally |
 | `BACKUP_AWS_ACCESS_KEY_ID` | The daily `pg_dump`'s write to `backups/` (§8) | Vercel encrypted env, **Production only**. The dedicated backup-writer IAM user (§3 step 5), never the app's own. #56 |
 | `BACKUP_AWS_SECRET_ACCESS_KEY` | Same | Same |
 
@@ -136,7 +141,7 @@ here until 2026-09-28, when alerts went to a private status page instead of emai
 **Rules, not preferences:**
 
 - Nothing in the repo. `.env.local` is gitignored; `.env.example` carries **names and comments only, never values.**
-- **A missing or malformed variable fails the boot, loudly.** Application modules read `process.env` only through `lib/config.ts`, which validates it with Zod at startup. `playwright.config.ts` builds the test server's environment (`06`, 2026-09-21); the local-only `scripts/dev-session.mts` loads and checks its own environment before calling `lib/config.ts` (`06`, 2026-09-25). A `DATABASE_URL` that is empty must not silently become a dev default; an unset `OPENAI_API_KEY` must not silently skip a model call.
+- **A missing or malformed variable fails the boot, loudly.** The one exception is the Sentry pair, whose absence means Sentry is off; a malformed DSN, or a DSN without its token, still fails it. Application modules read `process.env` only through `lib/config.ts`, which validates it with Zod at startup. `playwright.config.ts` builds the test server's environment (`06`, 2026-09-21); the local-only `scripts/dev-session.mts` loads and checks its own environment before calling `lib/config.ts` (`06`, 2026-09-25). A `DATABASE_URL` that is empty must not silently become a dev default; an unset `OPENAI_API_KEY` must not silently skip a model call.
 - **No model string and no prompt version is an environment variable.** Model strings are constants in `lib/ai/models.ts` (`03` §4) and prompt versions come from the prompt filename in `lib/prompts/`. Both are **stamps** (`04`): changing one is a measurement event, not a config tweak, so it arrives as a reviewed commit and triggers §5's stamp-change procedure. The transcription model, `gpt-transcribe`, **requires API Tier 1+** — the Free tier does not serve it, which is a property of the `OPENAI_API_KEY`'s account.
 - Keys are distinct per environment. **Nothing deployed from `develop` or a feature branch may hold a credential that reaches Neon `main` or the `prod/` prefix.** That is the §1 mapping expressed as secrets rather than as a rule someone remembers.
 
@@ -158,7 +163,7 @@ In this order. Steps 3 and 4 are the ones that fail silently if skipped.
    > **Adding a variable to an existing environment is the same step, later.** `OPENAI_API_KEY` joins the `develop` branch's Preview scope when CV extraction lands — branch-scoped, like every other §2 variable for `develop` (step 7). Because `lib/config.ts` validates at boot and a missing variable fails the boot loudly, the deploy that first reads it must not land before the variable does.
 9. **Seed production:** migrations, then the single `users` row, the set-piece questions, and rubric **`v1.0`** for both `ja` and `en`. *Amended 2026-09-27:* this said `v1.2`, a label from the artboards' sample data; no rubric existed (`06`). The set pieces are 自己紹介, 自己PR and 転職理由 (`hr`) and 志望動機 (`ceo`), with their English counterparts, each carrying its content version — **no 逆質問**. Both seeds are real, checked-in data (`11` §8), written by the round loop's tracer (English) and Japanese slices; this step waits for them. The user row is inserted by the hand-run seed script from `ALLOWED_EMAIL`, with `email_verified = true` — **not by migration**, which would commit the email to a public repository. `disableSignUp: true` means it cannot be created by signing in (`08` §2).
 10. **Verify the allowlist twice:** sign in with the allowlisted account (works), and confirm a second Google account is rejected. `08` §2 deliberately has two independent mechanisms; this checks both, before there is anything to protect.
-11. **Sentry:** project, DSN, and the scrubbing configuration in §7 — **configured before the first real error, not after.** The integration itself is #54.
+11. **Sentry:** project, DSN, and the scrubbing configuration in §7 — **configured before the first real error, not after.** The integration is built (#54); what is left is the owner's: a Sentry project **named `suburi`** (`next.config.ts` names it), an **organization** auth token with the source-map upload scope, and both variables in Production and the `develop` branch's Preview scope, never general Preview (step 7). In the project's settings, leave server-side data scrubbing on. Then prove it on `develop`: one deliberate test exception arrives tagged `develop`, with no body in it. A bad token does not fail the build; it logs `401` from the upload step, so read `develop`'s first build log.
 12. **`CRON_SECRET`:** generate one (`openssl rand -base64 32`) and add it to **Production only**, before the first production deploy that carries the cron routes — `lib/config.ts` refuses to boot production without it (§2). The user's step (#55); the first *scheduled* run on the status page is #21's criterion (`06`, 2026-09-29).
 
 ---
@@ -367,11 +372,12 @@ sentinel strings.
 
 Sentry configuration, decided here so it is not decided under pressure:
 
-- `sendDefaultPii: false`.
+- `sendDefaultPii: false`. *SDK v11 removed that option and collects everything by default, bodies included;* its replacement, `dataCollection`, turns every category off (`lib/sentry.ts`, `06`, 2026-09-30).
 - A `beforeSend` that **drops request and response bodies entirely** rather than filtering fields — an allowlist of safe keys is a list someone forgets to extend when a column is added.
-- Breadcrumbs from `fetch` keep the URL and status, never the body.
-- Source maps uploaded at build and **not served publicly**.
-- **No performance tracing and no Session Replay** (`06`, 2026-09-29). Replay records the DOM, which shows CV and transcript text; a tracing sample carries request detail `beforeSend` never sees. The SDK's setup wizard can turn both on; they stay off.
+- Breadcrumbs from `fetch` keep the URL and status, never the body. The URL loses its query string: a presigned S3 URL carries its signature there, and the OAuth callback its code.
+- Source maps uploaded at build and **not served publicly**: the SDK deletes the browser's maps from `.next/static` after upload and strips their `sourceMappingURL` comments. Where Sentry is off, no browser map is generated at all.
+- **No performance tracing and no Session Replay** (`06`, 2026-09-29). Replay records the DOM, which shows CV and transcript text; a tracing sample carries request detail `beforeSend` never sees. The SDK's setup wizard can turn both on; they stay off. Release-health sessions, which are counts, are left on (`06`, 2026-09-30).
+- The configuration is one module, `lib/sentry.ts`, shared by the server, edge and browser inits. `lib/sentry.test.ts` sends a request carrying `11` §3.10's sentinel strings through the real SDK and asserts none reaches the envelope; `lib/sentry.defaults.test.ts` shows the SDK's defaults would have sent them.
 - The status page and the cron runs behind it hold numbers and identifiers only, including model
   identifiers for unpriced spend. Never the answer.
 

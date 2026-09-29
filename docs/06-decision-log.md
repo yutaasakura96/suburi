@@ -3,6 +3,55 @@
 Newest first. Every entry records what was chosen, why, and what was rejected.
 
 ---
+## Phase 6 — Sentry (#54)
+
+### [2026-09-30] Sentry is optional at boot, and on only where Vercel says production or `develop`
+
+**Decided:** `SENTRY_DSN` and `SENTRY_AUTH_TOKEN` are the one optional pair in `lib/config.ts`. With
+no DSN, Sentry is off and the app boots; a malformed DSN, or a DSN without its token, still fails the
+boot. Even with a DSN, Sentry is on only when Vercel's `VERCEL_ENV` is `production` (tagged
+`production`) or `preview` with `VERCEL_GIT_COMMIT_REF` = `develop` (tagged `develop`).
+**Alternatives considered:** both variables required at boot, which would put a Sentry value in every
+`.env.local`, in CI and in Playwright's environment; required in production only.
+**Reason:** `12` §1 has Sentry off locally, and CI and Playwright must set nothing real. Deriving the
+tag from Vercel's system variables means no one can hand-set it, and a DSN copied into `.env.local`
+cannot switch a laptop on.
+**Cost, accepted:** a production deploy with the DSN missing boots without Sentry instead of failing.
+`12` §3 step 11 and §9's smoke check are where that is caught.
+
+### [2026-09-30] SDK v11's `dataCollection` stands in for `sendDefaultPii: false`
+
+**Decided:** `@sentry/nextjs` 11.1.0, the current major. v11 removed `sendDefaultPii` and now collects
+cookies, headers, user info and every request and response body by default. `lib/sentry.ts` sets
+`dataCollection` with every category off, stack-frame variables included, and keeps the `beforeSend`
+that drops bodies wholesale as the second lock.
+**Alternatives considered:** pinning v10 to keep the literal option #54 names.
+**Reason:** the intent of `sendDefaultPii: false` is "collect nothing about the request", and
+`dataCollection` says it more strictly than v10 did. Pinning an old major for an option's name
+trades that for Dependabot noise and a forced migration later.
+**Consequence:** `lib/sentry.defaults.test.ts` shows v11's defaults sending the sentinel body; if a
+later SDK changes a default, that test notices before production does.
+
+### [2026-09-30] The DSN reaches the browser; nothing else does
+
+**Decided:** `next.config.ts` inlines the DSN and the environment tag into the browser bundle at
+build, from `lib/config.ts`, as `SENTRY_BROWSER_DSN` and `SENTRY_BROWSER_ENVIRONMENT`. Both are empty
+where Sentry is off, and the browser SDK does not start.
+**Alternatives considered:** server-only Sentry, which would leave exceptions on the recording
+screens unreported; a `NEXT_PUBLIC_SENTRY_DSN` variable, against `12` §2's rule.
+**Reason:** the browser SDK cannot report without a DSN, and a DSN only sends events in (2026-09-28).
+`12` §2 says so where it says nothing else is shipped to the browser.
+
+### [2026-09-30] Fetch breadcrumbs lose their query string; release-health sessions stay
+
+**Decided:** fetch, XHR and Node HTTP breadcrumbs keep the method, the URL without its query and
+fragment, and the status, built from those three keys. The event's request URL and Next.js's
+`request_path` lose their query too. The SDK's release-health sessions are left on.
+**Reason:** a presigned S3 URL carries its signature in the query, and the OAuth callback its code.
+Sessions are counts (started, errored, crashed) and carry no request detail; the 2026-09-29 entry
+rules out tracing and Replay, which do.
+
+---
 ## Phase 6 — #55, the monitoring jobs and the status page
 
 The daily `self-check`, the weekly `digest` and the private status page they write to, built from the
