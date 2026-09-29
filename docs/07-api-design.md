@@ -491,7 +491,7 @@ question repeats within a round (`04`).
 **The near-duplicate guard.** A generated question is embedded (`text-embedding-3-small`, `03` §4) and
 compared by cosine similarity within the same slice; **at or above the threshold the existing row is
 reused instead of inserted** (`04`, `03` §11). **The threshold starts at 0.90, an unverified guess.**
-Every near-miss is logged with its score — the log is what tunes it, not intuition.
+Every near-miss is stored with its score (`04`); the weekly digest reads those records (`12` §6).
 
 **Starting a round abandons any open round** (`04` `rounds`). Nothing is written to the old round:
 abandonment is derived, and §6 still refuses an abandon endpoint.
@@ -968,7 +968,7 @@ convert a guarantee in `04` §6 into a preference.
   The trigger is `after()` inside `submit` (§5.10); the model is `gpt-transcribe` at $0.0045/minute
   (`03` §4), and §5.7's response carries the real string.
 - **The near-duplicate threshold** used in §5.4. **Starts at cosine similarity 0.90** (`06`,
-  2026-09-27) — an unverified guess until there is real data; log every near-miss with its score.
+  2026-09-27) — an unverified guess until there is real data; see §5.4 and `04`.
 - **The TTS model** behind §5.15, pinned only once verified. ~~What realistic mode does when synthesis
   fails~~ — **decided 2026-09-28**: text, a notice, `speech_failed` (§5.15).
 - **`complete`'s wait bound** (§5.12 step 2), from the round loop's latency measurement (`03` §4).

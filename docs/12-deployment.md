@@ -417,6 +417,7 @@ Not a substitute for `11`; these are the things only production can answer.
 - [ ] Reach the feedback screen and confirm it **renders while you are still sitting there** (PRD §9).
 - [ ] Play the take back from History.
 - [ ] Confirm no sensitive string from the round appears in Vercel logs or Sentry.
+- [ ] After the first scheduled run only: confirm `self-check` appears on the status page (§6).
 - [ ] After the first deploy only: run the restore drill (§8).
 
 ---

@@ -29,7 +29,7 @@ re-measure.
 **The round loop is planned:** grilled 2026-09-27, its decisions written into the docs, and its
 eleven slice issues confirmed on 2026-09-28 and labeled `ready-for-agent`, #41–#51, the user's own
 steps marked in each (Next).
-**Updated:** 2026-09-28 (the round-loop plan; #38 on 2026-09-27)
+**Updated:** 2026-09-29 (#54–#56 triage; the round-loop plan on 2026-09-28)
 
 ## Done
 - Phase 1 — `docs/01-project-brief.md`, `docs/02-product-requirements.md`, `docs/06-decision-log.md`.
@@ -489,8 +489,8 @@ in 4b):
   language; Home, Setup, Progress and History are in English (`10` §0). The CV screen keeps its
   per-panel rule (`10` §13).
 - **The near-duplicate similarity threshold** — a guess until there is real data; it **starts at
-  cosine similarity 0.90, unverified** (`06`, 2026-09-27). `12` §6 puts the near-miss log in the weekly
-  digest so it is tunable from data.
+  cosine similarity 0.90, unverified** (`06`, 2026-09-27). `12` §6 puts stored near-miss records in the
+  weekly digest so it is tunable from data.
 - **CV claim extraction quality** — measured on the real CVs locally and judged good, windowed, on
   2026-09-27 (#20, #27, #29; `03` §4). Each new CV upload is still eyeballed (`11` §5).
 - ~~**Who sends the alert mail.**~~ **Decided 2026-09-28:** no mail. Alerts go to a private status

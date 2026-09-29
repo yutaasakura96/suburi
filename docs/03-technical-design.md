@@ -622,7 +622,8 @@ measurement — five questions with one first attempt each instead of one with f
 every question on insert, store the vector in `pgvector`, and check cosine similarity against the
 same `(language, round_type)` slice before writing a new row. Above threshold, reuse the existing
 question instead of inserting. **The threshold is a guess until there is real data — start strict,
-log every near-miss with its score, and tune from the log rather than from intuition.** It starts at
+store every near-miss with its score (`04`), and tune from those records rather than from
+intuition.** It starts at
 **cosine similarity 0.90 = the same question** (`06`, 2026-09-27); no measurement stands behind that
 number. Set pieces stay out of the problem by construction: each is one row in one round type (`04`).
 
