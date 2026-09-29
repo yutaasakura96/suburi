@@ -1,6 +1,6 @@
-# no-mistakes gate config. commands/agent/pr.base_branch are read only from the
-# default branch (develop), so this file must exist there too.
-allow_repo_commands: true
+# no-mistakes gate config. The commands, agent, and pr.base_branch fields are read
+# only from the default branch (develop), not from feature branches. allow_repo_commands
+# is off to enforce this: gate logic is governed by develop, not by pushed branches.
 
 commands:
   # The run worktree has tracked files only; copy the local, gitignored env files in.
