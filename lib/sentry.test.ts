@@ -1,10 +1,14 @@
 import { afterAll, describe, expect, it } from "vitest";
 import * as Sentry from "@sentry/nextjs";
+import { httpIntegration } from "@sentry/node";
 import { scrubBreadcrumb, scrubEvent, sentryOptions } from "./sentry";
 import { initCapturing, SENTINELS, startFailingApp } from "./test/sentry-request";
 
 // The real SDK with this app's configuration, inited once for the file (lib/test/sentry-request.ts).
-const sent = initCapturing(sentryOptions({ dsn: "unused", environment: "develop" }));
+const sent = initCapturing(sentryOptions(
+  { dsn: "unused", environment: "develop" },
+  httpIntegration({ sessions: false, disableIncomingRequestSpans: true }),
+));
 const app = await startFailingApp();
 afterAll(() => app.close());
 
@@ -26,7 +30,7 @@ describe("Sentry integrations", () => {
       "GlobalHandlers",
     ]);
 
-    const http = Sentry.httpIntegration({ sessions: false, disableIncomingRequestSpans: true });
+    const http = httpIntegration({ sessions: false, disableIncomingRequestSpans: true });
     const server = sentryOptions(config, http).integrations(defaults);
     expect(server.map(({ name }) => name)).toEqual(["GlobalHandlers", "Http"]);
     expect(server.at(-1)).toBe(http);
@@ -92,5 +96,8 @@ describe("an exception while handling a request", () => {
     expectNoSentinel(serialized);
     expect(serialized).not.toContain("session=secret");
     expect(serialized).not.toContain("draft=1");
+    const envelopeTypes = (sent as [unknown, [{ type: string }, unknown][]][])
+      .flatMap(([, items]) => items.map(([header]) => header.type));
+    expect(envelopeTypes).toEqual(["event"]);
   });
 });
