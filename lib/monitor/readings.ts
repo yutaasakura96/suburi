@@ -37,12 +37,13 @@ export interface Reading {
   readonly isRed: boolean | null;
   /** The rows that tripped the signal. Empty when it is not red. */
   readonly subjectIds: readonly string[];
+  readonly unpricedModelIds: readonly (string | null)[];
   readonly window: Week | null;
 }
 
-function judged(signal: SelfCheckSignal, value: number | null, threshold: number, subjectIds: readonly string[], window: Week | null = null): Reading {
-  const red = isRed(value, threshold);
-  return { signal, value, threshold, isRed: red, subjectIds: red ? subjectIds : [], window };
+function judged(signal: SelfCheckSignal, value: number | null, threshold: number, subjectIds: readonly string[], window: Week | null = null, unpricedModelIds: readonly (string | null)[] = []): Reading {
+  const red = isRed(value, threshold) || unpricedModelIds.length > 0;
+  return { signal, value, threshold, isRed: red, subjectIds: red ? subjectIds : [], unpricedModelIds, window };
 }
 
 function counted(signal: SelfCheckSignal, ids: readonly string[]): Reading {
@@ -168,21 +169,21 @@ export async function selfCheckReadings(db: Db, userId: string, now: Date): Prom
   const pending = await pendingScores(db, userId, now);
   const failed = await unsupersededFailures(db, userId, now);
   const totals = await tokenTotals(db, userId, week);
+  const spend = spendUsd(totals);
   const roundsStarted = await roundCount(db, userId, s.rounds.startedAt, week);
   const cv = await cvCounterReadings(db, userId, now);
   const missingFeedback = await roundsWithoutFeedback(db, userId, now);
   return [
     counted("scoring_pending_over_24h", pending),
     counted("scoring_failed_unsuperseded", failed),
-    // No single row trips the spend signal, so it names none.
-    judged("spend_week_to_date_usd", spendUsd(totals), spendThresholdUsd(roundsStarted), [], week),
+    judged("spend_week_to_date_usd", spend.usd, spendThresholdUsd(roundsStarted), [], week, spend.unpricedModelIds),
     ...cv,
     counted("round_feedback_missing_over_24h", missingFeedback),
   ];
 }
 
-function figure(signal: DigestFigure, value: number, window: Week): Reading {
-  return { signal, value, threshold: null, isRed: null, subjectIds: [], window };
+function figure(signal: DigestFigure, value: number, window: Week, unpricedModelIds: readonly (string | null)[] = []): Reading {
+  return { signal, value, threshold: null, isRed: null, subjectIds: [], unpricedModelIds, window };
 }
 
 /** The Asia/Tokyo week that ended before `now`: rounds, tokens and spend. #47 adds the near-miss row. */
@@ -191,12 +192,13 @@ export async function digestReadings(db: Db, userId: string, now: Date): Promise
   const started = await roundCount(db, userId, s.rounds.startedAt, week);
   const completed = await roundCount(db, userId, s.rounds.completedAt, week);
   const totals = await tokenTotals(db, userId, week);
+  const spend = spendUsd(totals);
   const sum = (pick: (row: TokenTotals) => number) => totals.reduce((n, row) => n + pick(row), 0);
   return [
     figure("digest_rounds_started", started, week),
     figure("digest_rounds_completed", completed, week),
     figure("digest_tokens_in", sum((row) => row.tokensIn), week),
     figure("digest_tokens_out", sum((row) => row.tokensOut), week),
-    figure("digest_spend_usd", spendUsd(totals), week),
+    figure("digest_spend_usd", spend.usd, week, spend.unpricedModelIds),
   ];
 }

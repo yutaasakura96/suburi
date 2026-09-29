@@ -16,6 +16,7 @@ export interface CheckReading {
   readonly value: number | null;
   readonly threshold: number | null;
   readonly isRed: boolean;
+  readonly unpricedModelIds: readonly (string | null)[];
 }
 
 /** What the status page and Home's status line read (10 §1, §14). Counts only, never ids or text. */
@@ -28,6 +29,7 @@ export interface Status {
     readonly start: Date;
     readonly end: Date;
     readonly figures: Readonly<Record<DigestFigure, number | null>>;
+    readonly unpricedModelIds: readonly (string | null)[];
   } | null;
 }
 
@@ -48,6 +50,7 @@ async function readingsOf(db: Db, runId: string, userId: string) {
       value: s.cronReadings.value,
       threshold: s.cronReadings.threshold,
       isRed: s.cronReadings.isRed,
+      unpricedModelIds: s.cronReadings.unpricedModelIds,
       windowStart: s.cronReadings.windowStart,
       windowEnd: s.cronReadings.windowEnd,
     })
@@ -64,7 +67,7 @@ export async function loadStatus(db: Db, userId: string, now: Date): Promise<Sta
 
   const checks = s.SELF_CHECK_SIGNALS.map((signal) => {
     const row = checkRows.find((reading) => reading.signal === signal);
-    return { signal, value: row?.value ?? null, threshold: row?.threshold ?? null, isRed: row?.isRed === true };
+    return { signal, value: row?.value ?? null, threshold: row?.threshold ?? null, isRed: row?.isRed === true, unpricedModelIds: row?.unpricedModelIds ?? [] };
   });
 
   const window = digestRows.find((row) => row.windowStart !== null && row.windowEnd !== null);
@@ -75,6 +78,7 @@ export async function loadStatus(db: Db, userId: string, now: Date): Promise<Sta
         figures: Object.fromEntries(
           s.DIGEST_FIGURES.map((figure) => [figure, digestRows.find((row) => row.signal === figure)?.value ?? null]),
         ) as Record<DigestFigure, number | null>,
+        unpricedModelIds: digestRows.find((row) => row.signal === "digest_spend_usd")?.unpricedModelIds ?? [],
       }
     : null;
 

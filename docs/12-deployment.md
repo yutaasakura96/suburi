@@ -307,8 +307,9 @@ How the rows are read, decided in #55 (`06`):
   reports the week that has ended.
 - **Spend prices each token row by its own model's rate** — `MODEL_PRICES` beside the pinned strings in
   `lib/ai/models.ts`, per million tokens, verified against OpenAI's pricing page with the date. Every
-  input token is priced as uncached, so the figure can only overstate. A row stamped with a model that
-  has no price is priced at the dearest known rate rather than skipped, for the same reason.
+  input token is priced as uncached. A row stamped with a model that has no price is excluded from the
+  dollar sum; `self-check` is red and names that model even below the dollar threshold. A missing model
+  stamp is named as such. The digest likewise names any model excluded from its spend figure.
 - **The five CV rows read the current version in each language** (`04` `cron_readings`): null
   counters are no reading, never zero.
 
@@ -371,7 +372,8 @@ Sentry configuration, decided here so it is not decided under pressure:
 - Breadcrumbs from `fetch` keep the URL and status, never the body.
 - Source maps uploaded at build and **not served publicly**.
 - **No performance tracing and no Session Replay** (`06`, 2026-09-29). Replay records the DOM, which shows CV and transcript text; a tracing sample carries request detail `beforeSend` never sees. The SDK's setup wizard can turn both on; they stay off.
-- The status page and the cron runs behind it hold counts and ids only. Never the answer.
+- The status page and the cron runs behind it hold counts and ids only, including model identifiers
+  for unpriced spend. Never the answer.
 
 **The threat model that makes this strict** (`03` §9): the worst outcome here is not financial, it is
 someone reading the CV, the salary expectations and the notes on companies being interviewed with —

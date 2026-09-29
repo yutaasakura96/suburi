@@ -91,7 +91,7 @@ Solid primary button `Start a round`, then 12px/1.6 `--ink-6`:
 **One line, only when something is wrong** (`06`, 2026-09-29): shown when any `12` §6 check on the
 status page is red, or `self-check` has not run for over 48 hours; absent otherwise, never an
 "all clear". It says which, in English (§0), and links to the status page. It carries counts and
-names of checks only, never text from a CV, transcript or note (`12` §7).
+names of checks and any unpriced model identifiers only, never text from a CV, transcript or note (`12` §7).
 
 **Placement:** the first thing inside the page frame, above every card, at the full content width,
 with the standard `14px` card gap below it. Outside the cards, because it is about the instrument,
@@ -733,13 +733,19 @@ One row per `12` §6 row `self-check` covers, **always all nine, in `12` §6's o
 | Threshold | 12px mono `--ink-label`, right-aligned: `above 0`, `above 2,000`, `above $1.20` |
 | State | 12px, right-aligned: `Red` in `--attention-ink`/500; `OK` in `--ink-4`; `No reading` in `--ink-9` |
 
+When spend includes a model without a price, its row is red regardless of the dollar threshold. Under
+the check name, 12px `--attention-ink` names each unpriced model (or `missing model ID`). The dollar
+reading counts priced rows only. Home's one line names the same model beside `Spend this week`. Last
+week's digest names excluded models beneath its figures.
+
 **No reading is not OK.** A CV counter whose current versions all predate the counter columns has no
 reading (`04` `cv_versions`), and says so rather than showing `0`. With no run at all, every row reads
 `—` and `No reading`.
 
 Under the table, 12px/1.7 `--ink-6`: `Spend counts the stored token columns only, priced at
-lib/ai/models.ts's rates. The threshold is 3 × $0.40 per round started this week, with a floor of one
-round.` — the loose-until-re-measured caveat of `12` §6, stated where the number is read.
+lib/ai/models.ts's rates. Unpriced models are named and excluded from the dollar figure. The threshold
+is 3 × $0.40 per round started this week, with a floor of one round.` — the loose-until-re-measured
+caveat of `12` §6, stated where the number is read.
 
 ### Last week — `LAST WEEK`
 
@@ -751,8 +757,8 @@ has run yet.` at 12px `--ink-6`. **The near-miss row joins this list with #47** 
 ### Refuses
 
 - **No text from the record** — no transcript, CV, claim or note, and no id rendered either. The
-  run holds counts and ids only (`04` `cron_readings`, `12` §7); the ids behind a red check stay in the
-  database for investigation, not on the page.
+  run holds counts and ids only (`04` `cron_readings`, `12` §7); model ids are configuration identifiers,
+  not record text. The ids behind a red check stay in the database for investigation, not on the page.
 - **No share, export or public link** (§11 refusal 6), and **no run-now button**: a run comes from the
   cron, or by hand with `CRON_SECRET` (`07` §5.17); the page reads, it never writes.
 - **No delete, no acknowledge, no mute.** A red check clears when a later run finds it clear, and not

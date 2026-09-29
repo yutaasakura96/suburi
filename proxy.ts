@@ -9,7 +9,8 @@ function isPublic(pathname: string) {
     pathname === "/sign-in" ||
     pathname === "/api/auth" ||
     pathname.startsWith("/api/auth/") ||
-    pathname.startsWith("/api/cron/")
+    pathname === "/api/cron/self-check" ||
+    pathname === "/api/cron/digest"
   );
 }
 

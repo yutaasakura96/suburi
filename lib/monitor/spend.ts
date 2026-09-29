@@ -4,7 +4,7 @@ import { MODEL_PRICES } from "../ai/models";
 
 /** One model's stored token pairs, summed over a window. */
 export interface TokenTotals {
-  /** Null only on a row with tokens but no model stamp, which should not exist; priced as unknown. */
+  /** Null only on a row with tokens but no model stamp, which should not exist. */
   readonly modelId: string | null;
   readonly tokensIn: number;
   readonly tokensOut: number;
@@ -12,24 +12,19 @@ export interface TokenTotals {
 
 type Price = { readonly inputPerMillion: number; readonly outputPerMillion: number };
 
-/**
- * A model with no price is priced at the dearest known rates rather than skipped, so a new model
- * string can only make spend read high, never hide it (06, #55).
- */
-function dearest(prices: Readonly<Record<string, Price>>): Price {
-  const all = Object.values(prices);
-  return {
-    inputPerMillion: Math.max(...all.map((price) => price.inputPerMillion)),
-    outputPerMillion: Math.max(...all.map((price) => price.outputPerMillion)),
-  };
-}
-
 /** US dollars, to the micro-dollar. */
-export function spendUsd(totals: readonly TokenTotals[], prices: Readonly<Record<string, Price>> = MODEL_PRICES): number {
-  const unknown = dearest(prices);
+export function spendUsd(totals: readonly TokenTotals[], prices: Readonly<Record<string, Price>> = MODEL_PRICES) {
+  const unpricedModelIds = new Set<string | null>();
   const usd = totals.reduce((sum, { modelId, tokensIn, tokensOut }) => {
-    const price = (modelId !== null && prices[modelId]) || unknown;
+    const price = modelId !== null && Object.hasOwn(prices, modelId) ? prices[modelId] : undefined;
+    if (!price) {
+      unpricedModelIds.add(modelId);
+      return sum;
+    }
     return sum + (tokensIn * price.inputPerMillion + tokensOut * price.outputPerMillion) / 1_000_000;
   }, 0);
-  return Math.round(usd * 1_000_000) / 1_000_000;
+  return {
+    usd: Math.round(usd * 1_000_000) / 1_000_000,
+    unpricedModelIds: [...unpricedModelIds].sort((a, b) => (a ?? "").localeCompare(b ?? "")),
+  };
 }

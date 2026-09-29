@@ -60,6 +60,7 @@ function toRow(runId: string, userId: string, reading: Reading): typeof s.cronRe
     threshold: reading.threshold,
     isRed: reading.isRed,
     subjectIds: [...reading.subjectIds],
+    unpricedModelIds: [...reading.unpricedModelIds],
     windowStart: reading.window?.start ?? null,
     windowEnd: reading.window?.end ?? null,
   };

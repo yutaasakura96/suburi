@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { SELF_CHECK_SIGNALS } from "../../../db/schema";
 import type { Status } from "../../../lib/monitor/status";
-import { CHECK_NAMES, formatThreshold, formatValue, stalenessNotice, stateOf, statusLine, weekRange } from "./copy";
+import { CHECK_NAMES, formatThreshold, formatValue, stalenessNotice, stateOf, statusLine, unpricedModelsText, weekRange } from "./copy";
 
 // 10 §1 and §14's copy: names and counts only, and a line only when something is wrong.
 
@@ -11,7 +11,7 @@ function status({ stale = false, lastRun = RAN as Date | null, red = [] as strin
   return {
     selfCheck: { lastRun, stale },
     digest: { lastRun: null },
-    checks: SELF_CHECK_SIGNALS.map((signal) => ({ signal, value: 0, threshold: 0, isRed: red.includes(signal) })),
+    checks: SELF_CHECK_SIGNALS.map((signal) => ({ signal, value: 0, threshold: 0, isRed: red.includes(signal), unpricedModelIds: [] })),
     lastWeek: null,
   };
 }
@@ -39,6 +39,14 @@ describe("Home's status line", () => {
     expect(statusLine(status({ stale: true, red: ["spend_week_to_date_usd"] }))).toBe(
       "Self-check has not run since 2026-09-28 04:12. 1 check is red: Spend this week.",
     );
+  });
+
+  it("names an unpriced model on Home", () => {
+    const original = status({ red: ["spend_week_to_date_usd"] });
+    const data = { ...original, checks: original.checks.map((check) => check.signal === "spend_week_to_date_usd"
+      ? { ...check, unpricedModelIds: ["unpriced-model"] }
+      : check) };
+    expect(statusLine(data)).toBe("1 check is red: Spend this week (Unpriced model: unpriced-model).");
   });
 });
 
@@ -68,9 +76,13 @@ describe("the status page", () => {
   });
 
   it("states no reading apart from OK", () => {
-    expect(stateOf({ signal: "cv_spans_rejected", value: null, threshold: 0, isRed: false })).toBe("No reading");
-    expect(stateOf({ signal: "cv_spans_rejected", value: 0, threshold: 0, isRed: false })).toBe("OK");
-    expect(stateOf({ signal: "cv_spans_rejected", value: 2, threshold: 0, isRed: true })).toBe("Red");
+    expect(stateOf({ signal: "cv_spans_rejected", value: null, threshold: 0, isRed: false, unpricedModelIds: [] })).toBe("No reading");
+    expect(stateOf({ signal: "cv_spans_rejected", value: 0, threshold: 0, isRed: false, unpricedModelIds: [] })).toBe("OK");
+    expect(stateOf({ signal: "cv_spans_rejected", value: 2, threshold: 0, isRed: true, unpricedModelIds: [] })).toBe("Red");
+  });
+
+  it("names an unpriced and a missing model stamp", () => {
+    expect(unpricedModelsText(["future-model", null])).toBe("Unpriced models: future-model, missing model ID.");
   });
 
   it("shows a Tokyo week as its Monday and Sunday", () => {

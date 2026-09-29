@@ -104,7 +104,7 @@ async function attempt(
 ) {
   const [row] = await db
     .insert(s.scoringAttempts)
-    .values({ ...attemptValues(world, answerId), ...overrides })
+    .values({ ...attemptValues(world, answerId), modelId: CV_EXTRACTION_MODEL, ...overrides })
     .returning({ id: s.scoringAttempts.id });
   return row.id;
 }
@@ -314,14 +314,20 @@ describe("self-check", () => {
         expect(reading).toMatchObject({ value: 2.4, threshold: 2.4, isRed: false });
       }));
 
-    it("prices a model with no price at the dearest known rate rather than skipping it", () =>
+    it("turns red for an unpriced model and names it in the stored run and status", () =>
       inRolledBackTransaction(async (db) => {
         const world = await insertWorld(db);
         const answerId = await answer(db, world, await round(db, world));
         await attempt(db, world, answerId, { status: "ok", modelId: "unpriced-model-2031-01-01", tokensIn: 300_001, createdAt: at(-HOUR) });
+        await tokenQuestion(db, world, at(-HOUR), 100_000, 0);
 
         const { spend_week_to_date_usd: reading } = await selfCheck(db, world.userId);
-        expect(reading.isRed).toBe(true);
+        expect(reading).toMatchObject({ value: 0.4, threshold: 1.2, isRed: true, unpricedModelIds: ["unpriced-model-2031-01-01"] });
+        const status = await loadStatus(db, world.userId, at(HOUR));
+        expect(status.checks.find((check) => check.signal === "spend_week_to_date_usd")).toMatchObject({
+          value: 0.4, isRed: true, unpricedModelIds: ["unpriced-model-2031-01-01"],
+        });
+        expect(statusLine(status)).toContain("Unpriced model: unpriced-model-2031-01-01");
       }));
   });
 
@@ -424,6 +430,24 @@ describe("self-check", () => {
 });
 
 describe("digest", () => {
+  it("retains priced spend and names unpriced models in last week's digest", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await insertWorld(db);
+      const inLastWeek = new Date(WEEK_START.getTime() - HOUR);
+      await tokenQuestion(db, world, inLastWeek, 100_000, 0);
+      const answerId = await answer(db, world, await round(db, world));
+      await attempt(db, world, answerId, { status: "ok", modelId: "unpriced-model-2031-01-01", tokensIn: 300_001, createdAt: inLastWeek });
+
+      const { status, json } = await call(db, "digest");
+      expect(status).toBe(200);
+      expect((await readingsOf(db, json.run_id, world.userId)).digest_spend_usd).toMatchObject({
+        value: 0.4, unpricedModelIds: ["unpriced-model-2031-01-01"],
+      });
+      expect((await loadStatus(db, world.userId, NOW)).lastWeek).toMatchObject({
+        unpricedModelIds: ["unpriced-model-2031-01-01"],
+      });
+    }));
+
   it("reports the Tokyo week that ended before the run: rounds, tokens and spend, judged by nothing", () =>
     inRolledBackTransaction(async (db) => {
       const world = await insertWorld(db);

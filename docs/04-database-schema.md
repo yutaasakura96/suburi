@@ -665,8 +665,8 @@ page reads the newest.
 
 **Append-only, written with its run.** One row per signal per user per run: every `12` §6 row that
 `self-check` covers, and the figures `digest` reports. **It holds numbers, thresholds and ids, never
-text** (`12` §7): the column types cannot carry a transcript, a CV, a claim or a note, and the one
-text column is value-checked against the signal names.
+record text** (`12` §7): the only unrestricted strings are model identifiers for unpriced spend
+rows, not transcripts, CVs, claims or notes. The signal column is value-checked.
 
 | Column | Type | Null | Default | Notes |
 | --- | --- | --- | --- | --- |
@@ -676,13 +676,15 @@ text column is value-checked against the signal names.
 | `signal` | `text` | no | — | one of the names below — value-checked |
 | `value` | `double precision` | yes | — | the reading: a count, code points, or US dollars. **Null is no reading**, never zero — a CV counter whose current versions all predate the columns (`cv_versions`) |
 | `threshold` | `double precision` | yes | — | red when `value` is **above** it. **Null exactly when the row is a digest figure**, which is reported, not judged |
-| `is_red` | `boolean` | yes | — | `value > threshold`. Null exactly when `threshold` is; never true without a `value` |
+| `is_red` | `boolean` | yes | — | `value > threshold`, or an unpriced model on the self-check spend row. Null exactly when `threshold` is; never true without a `value` |
 | `subject_ids` | `uuid[]` | no | `'{}'` | the rows that tripped the signal — attempt, round or CV version ids. Empty when it is not red. Never rendered |
+| `unpriced_model_ids` | `text[]` | no | `'{}'` | identifiers without a price, including a null element for a missing model stamp; only spend rows may hold them. Never logged |
 | `window_start` / `window_end` | `timestamptz` | yes | — | the period a figure covers: the Asia/Tokyo week for spend and the digest. Null for the age and CV signals |
 | `created_at` | `timestamptz` | no | `now()` | |
 
 **Constraints:** `check ((threshold is null) = (is_red is null))`; `check (value is not null or
-is_red is not true)`; `unique (run_id, user_id, signal)`.
+is_red is not true)`; `check (cardinality(unpriced_model_ids) = 0 or signal in
+('spend_week_to_date_usd', 'digest_spend_usd'))`; `unique (run_id, user_id, signal)`.
 
 **The signals.** `self-check`, one row each per user per run:
 
@@ -690,7 +692,7 @@ is_red is not true)`; `unique (run_id, user_id, signal)`.
 | --- | --- | --- |
 | `scoring_pending_over_24h` | `scoring_attempts` in `pending` created more than 24 hours before the run | 0 |
 | `scoring_failed_unsuperseded` | `scoring_attempts` in `failed` with no later `ok` attempt for the same answer | 0 |
-| `spend_week_to_date_usd` | the Asia/Tokyo week-to-date spend, from every stored token pair | 3 × the round-cost baseline × max(1, rounds started that week) |
+| `spend_week_to_date_usd` | the Asia/Tokyo week-to-date priced spend; red and names model ids if any token row is unpriced | 3 × the round-cost baseline × max(1, rounds started that week) |
 | `cv_spans_rejected` | the highest `spans_rejected` among the current CV versions, one per language | 0 |
 | `cv_claims_split` | as above, `claims_split` | 0 |
 | `cv_claims_duplicated` | as above, `claims_duplicated` | 0 |

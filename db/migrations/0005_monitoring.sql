@@ -7,13 +7,15 @@ CREATE TABLE "cron_readings" (
 	"threshold" double precision,
 	"is_red" boolean,
 	"subject_ids" uuid[] DEFAULT '{}'::uuid[] NOT NULL,
+	"unpriced_model_ids" text[] DEFAULT '{}'::text[] NOT NULL,
 	"window_start" timestamp with time zone,
 	"window_end" timestamp with time zone,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "cron_readings_run_id_user_id_signal_unique" UNIQUE("run_id","user_id","signal"),
 	CONSTRAINT "cron_readings_signal_check" CHECK ("cron_readings"."signal" in ('scoring_pending_over_24h', 'scoring_failed_unsuperseded', 'spend_week_to_date_usd', 'cv_spans_rejected', 'cv_claims_split', 'cv_claims_duplicated', 'cv_unclaimed_run_max', 'cv_quotes_outside_window', 'round_feedback_missing_over_24h', 'digest_rounds_started', 'digest_rounds_completed', 'digest_tokens_in', 'digest_tokens_out', 'digest_spend_usd')),
 	CONSTRAINT "cron_readings_judged_check" CHECK (("cron_readings"."threshold" is null) = ("cron_readings"."is_red" is null)),
-	CONSTRAINT "cron_readings_red_needs_value_check" CHECK ("cron_readings"."value" is not null or "cron_readings"."is_red" is not true)
+	CONSTRAINT "cron_readings_red_needs_value_check" CHECK ("cron_readings"."value" is not null or "cron_readings"."is_red" is not true),
+	CONSTRAINT "cron_readings_unpriced_models_spend_check" CHECK (cardinality("cron_readings"."unpriced_model_ids") = 0 or "cron_readings"."signal" in ('spend_week_to_date_usd', 'digest_spend_usd'))
 );
 --> statement-breakpoint
 CREATE TABLE "cron_runs" (

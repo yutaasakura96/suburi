@@ -1,5 +1,5 @@
 {
-  "id": "7fef4596-f06a-439d-b09e-e43f56b83518",
+  "id": "6fc1de7a-efc2-4bf6-a940-6743b9e0acea",
   "prevId": "0bddeef4-b88d-4e0b-80bf-19b5d2bd460d",
   "version": "7",
   "dialect": "postgresql",
@@ -552,6 +552,13 @@
           "notNull": true,
           "default": "'{}'::uuid[]"
         },
+        "unpriced_model_ids": {
+          "name": "unpriced_model_ids",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::text[]"
+        },
         "window_start": {
           "name": "window_start",
           "type": "timestamp with time zone",
@@ -626,6 +633,10 @@
         "cron_readings_red_needs_value_check": {
           "name": "cron_readings_red_needs_value_check",
           "value": "\"cron_readings\".\"value\" is not null or \"cron_readings\".\"is_red\" is not true"
+        },
+        "cron_readings_unpriced_models_spend_check": {
+          "name": "cron_readings_unpriced_models_spend_check",
+          "value": "cardinality(\"cron_readings\".\"unpriced_model_ids\") = 0 or \"cron_readings\".\"signal\" in ('spend_week_to_date_usd', 'digest_spend_usd')"
         }
       },
       "isRLSEnabled": false

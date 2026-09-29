@@ -10,6 +10,7 @@ import {
   lastRunText,
   stalenessNotice,
   stateOf,
+  unpricedModelsText,
   weekRange,
 } from "./copy";
 
@@ -92,7 +93,12 @@ export default async function StatusPage() {
                   const state = stateOf(check);
                   return (
                     <tr key={check.signal} className="border-b border-rule-hairline" data-testid={`check-${check.signal}`}>
-                      <td className="py-[11px] text-[13px] text-ink-2">{CHECK_NAMES[check.signal]}</td>
+                      <td className="py-[11px] text-[13px] text-ink-2">
+                        {CHECK_NAMES[check.signal]}
+                        {unpricedModelsText(check.unpricedModelIds) ? (
+                          <span className="block text-[12px] text-attention-ink">{unpricedModelsText(check.unpricedModelIds)}</span>
+                        ) : null}
+                      </td>
                       <td className={`w-[140px] py-[11px] text-right font-mono text-[13px] ${check.value === null ? "text-ink-9" : "text-ink-2"}`}>
                         {formatValue(check.signal, check.value)}
                       </td>
@@ -106,8 +112,9 @@ export default async function StatusPage() {
               </tbody>
             </table>
             <p className="text-[12px] leading-[1.7] text-ink-6">
-              Spend counts the stored token columns only, priced at lib/ai/models.ts&apos;s rates. The threshold is 3 ×
-              $0.40 per round started this week, with a floor of one round.
+              Spend counts the stored token columns only, priced at lib/ai/models.ts&apos;s rates. Unpriced
+              models are named and excluded from the dollar figure. The threshold is 3 × $0.40 per round
+              started this week, with a floor of one round.
             </p>
           </section>
 
@@ -130,6 +137,9 @@ export default async function StatusPage() {
                     </div>
                   ))}
                 </dl>
+                {unpricedModelsText(lastWeek.unpricedModelIds) ? (
+                  <p className="text-[12px] text-attention-ink">{unpricedModelsText(lastWeek.unpricedModelIds)}</p>
+                ) : null}
               </>
             ) : (
               <p className="text-[12px] text-ink-6">No weekly digest has run yet.</p>

@@ -37,9 +37,11 @@ describe("proxy", () => {
     expect(proxy(request(path)).headers.get("x-middleware-next")).toBe("1");
   });
 
-  it("does not treat /api/cron itself, or a path that merely starts with it, as public", () => {
+  it("does not exempt any other cron path", () => {
     expect(proxy(request("/api/cron")).status).toBe(401);
     expect(proxy(request("/api/cronjobs")).status).toBe(401);
+    expect(proxy(request("/api/cron/other")).status).toBe(401);
+    expect(proxy(request("/api/cron/self-check/other")).status).toBe(401);
   });
 
   it("keeps /status behind the session like every other page", () => {

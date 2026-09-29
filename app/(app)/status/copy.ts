@@ -43,6 +43,11 @@ export function formatThreshold(signal: SelfCheckSignal, threshold: number | nul
   return `above ${formatValue(signal, threshold)}`;
 }
 
+export function unpricedModelsText(modelIds: readonly (string | null)[]) {
+  if (modelIds.length === 0) return null;
+  return `Unpriced model${modelIds.length === 1 ? "" : "s"}: ${modelIds.map((id) => id ?? "missing model ID").join(", ")}.`;
+}
+
 export function stateOf(check: CheckReading): "Red" | "OK" | "No reading" {
   if (check.value === null) return "No reading";
   return check.isRed ? "Red" : "OK";
@@ -77,7 +82,10 @@ export function statusLine(status: Status): string | null {
         : `Self-check has not run since ${tokyoDateTime(status.selfCheck.lastRun)}.`,
     );
   }
-  const red = status.checks.filter((check) => check.isRed).map((check) => CHECK_NAMES[check.signal]);
+  const red = status.checks.filter((check) => check.isRed).map((check) => {
+    const unpriced = unpricedModelsText(check.unpricedModelIds);
+    return unpriced ? `${CHECK_NAMES[check.signal]} (${unpriced.slice(0, -1)})` : CHECK_NAMES[check.signal];
+  });
   if (red.length > 0) {
     parts.push(`${red.length} ${red.length === 1 ? "check is" : "checks are"} red: ${red.join(", ")}.`);
   }

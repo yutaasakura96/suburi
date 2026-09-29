@@ -70,10 +70,11 @@ Monday morning's practice in the previous week. Tokyo keeps no daylight saving, 
 input tokens), $4.00 input, $0.40 cached input, $20.00 output per 1M tokens. The page also notes
 GPT-5.6 Sol's promotional pricing runs at least through 2026-11-21. The rates are `MODEL_PRICES` in
 `lib/ai/models.ts`, beside the pinned string.
-**Decided:** every stored input token is priced as uncached, and a token row stamped with a model that
-has no price is priced at the dearest known rate. Both can only overstate spend, never hide it.
-**Reason:** only `tokens_in`/`tokens_out` are stored, not the cached split, and a spend signal that
-silently skipped an unpriced model would read low exactly when a model string changed.
+**Decided:** every stored input token is priced as uncached. A token row whose model has no rate is
+excluded from the dollar sum and named in the spend reading; `self-check` is red even below the dollar
+threshold. A missing model stamp is also named. The digest names excluded models beside its spend.
+**Reason:** only `tokens_in`/`tokens_out` are stored, not the cached split. A guessed rate can read low
+when a model string changes; an explicit red reading makes the missing price visible.
 
 ### [2026-09-30] The status page is `/status`, reached from Home, not from the nav
 

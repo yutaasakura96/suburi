@@ -558,6 +558,7 @@ export const cronReadings = pgTable(
       .array()
       .notNull()
       .default(sql`'{}'::uuid[]`),
+    unpricedModelIds: text("unpriced_model_ids").array().$type<(string | null)[]>().notNull().default(sql`'{}'::text[]`),
     windowStart: timestamp("window_start", { withTimezone: true }),
     windowEnd: timestamp("window_end", { withTimezone: true }),
     createdAt: createdAt(),
@@ -566,6 +567,7 @@ export const cronReadings = pgTable(
     oneOf("cron_readings", "signal", t.signal, CRON_SIGNALS),
     check("cron_readings_judged_check", sql`(${t.threshold} is null) = (${t.isRed} is null)`),
     check("cron_readings_red_needs_value_check", sql`${t.value} is not null or ${t.isRed} is not true`),
+    check("cron_readings_unpriced_models_spend_check", sql`cardinality(${t.unpricedModelIds}) = 0 or ${t.signal} in ('spend_week_to_date_usd', 'digest_spend_usd')`),
     unique("cron_readings_run_id_user_id_signal_unique").on(t.runId, t.userId, t.signal),
   ],
 );
