@@ -29,7 +29,7 @@ re-measure.
 **The round loop is planned:** grilled 2026-09-27, its decisions written into the docs, and its
 eleven slice issues confirmed on 2026-09-28 and labeled `ready-for-agent`, #41–#51, the user's own
 steps marked in each (Next).
-**Updated:** 2026-09-29 (#54–#56 triage; the round-loop plan on 2026-09-28)
+**Updated:** 2026-09-30 (#55 built; #54–#56 triage on 2026-09-29)
 
 ## Done
 - Phase 1 — `docs/01-project-brief.md`, `docs/02-product-requirements.md`, `docs/06-decision-log.md`.
@@ -341,6 +341,15 @@ console work and takes `12` §3 steps 3–5 out of #21, whose body now points at
 #55 are `ready-for-agent`, and #56 is ready once #55 closes. The two criteria only production could
 meet, #55's first scheduled `self-check` and #56's restore drill, moved into #21, so all three finish
 before release.
+
+**#55 is built (2026-09-30), on `fm/suburi-55`:** `GET /api/cron/self-check` (daily) and
+`GET /api/cron/digest` (weekly) behind `CRON_SECRET`, appending to `cron_runs` and `cron_readings`
+(`04`); the five CV counters as columns on `cv_versions`, written by the save; `/status` (`10` §14)
+and Home's one line (`10` §1). Migration `0005_monitoring` is expand-only and **not yet applied to
+either Neon branch** (`12` §4 steps 3 and 5). **The user's step:** `CRON_SECRET` in Vercel's
+Production scope before the first production deploy (`12` §3 step 12). Decisions in `06`, "Phase 6 —
+#55". #47 wires the digest's near-miss row if it merges second; #56 adds the `pg_dump` to
+`self-check`.
 
 **Done, 2026-09-27: the read of `docs/checklists/native-read-cv.md` (#38) — an AI review, not a
 native read.** The user does not read Japanese and asked Claude to do the check. All 22 panel strings

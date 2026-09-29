@@ -32,6 +32,7 @@ function input(userId: string, text: string, supporting?: string) {
     claims: texts.map((part, index) => ({ span: ranges[index], textNormalised: normaliseClaimText(part) })),
     extractorModelId: "fake-extractor",
     extractorPromptVersion: "cv-extract-en-fake",
+    reading: null,
   };
 }
 

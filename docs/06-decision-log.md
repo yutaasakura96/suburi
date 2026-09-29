@@ -3,6 +3,104 @@
 Newest first. Every entry records what was chosen, why, and what was rejected.
 
 ---
+## Phase 6 — #55, the monitoring jobs and the status page
+
+The daily `self-check`, the weekly `digest` and the private status page they write to, built from the
+2026-09-28 and 2026-09-29 decisions below. Two Vercel facts were checked first; the rest are the
+choices the build needed that no earlier entry made.
+
+### [2026-09-30] Only the two cron routes pass the proxy without a cookie
+
+**Supersedes** the `/api/cron/*` exception below: only `/api/cron/self-check` and
+`/api/cron/digest` pass `proxy.ts` without a session cookie. Each still requires `CRON_SECRET` in its
+handler; every other `/api/cron/` path receives the normal session check.
+**Reason:** a prefix exception would also exempt future routes that have no cron secret check.
+
+### [2026-09-30] Verified: Vercel invokes cron jobs only for production, and sends the secret as a bearer token
+
+**Checked** against Vercel's *Getting started with cron jobs* ("Vercel invokes cron jobs only for
+production deployments and not for preview deployments"), *Cron Jobs* (a GET to the production
+deployment URL, user agent `vercel-cron/1.0`) and *Managing Cron Jobs* (`CRON_SECRET` "automatically
+sent as an `Authorization` header", compared as `Bearer <CRON_SECRET>`; a recommended 16 characters or
+more; delivery is best effort and occasionally duplicated; no retry on failure; timezone always UTC).
+**Consequence:** `develop` needs no refusal of its own. Its deployment is Preview, which Vercel never
+calls on a schedule, and `CRON_SECRET` is Production-only (`12` §2), so a hand call there is `401`
+like any call without the secret. The routes refuse outright when the secret is unset rather than
+checking the environment, so the one rule covers `develop`, local and a misconfigured production.
+
+### [2026-09-30] `CRON_SECRET` is required in production and optional elsewhere, keyed on `VERCEL_ENV`
+
+**Decided:** `lib/config.ts` accepts an absent `CRON_SECRET` unless `VERCEL_ENV` is `production`, and
+refuses one shorter than 16 characters anywhere. `VERCEL_ENV` is Vercel's own system variable,
+available at build and runtime (verified 2026-09-30), read through `lib/config.ts` like everything else.
+**Alternatives considered:** required everywhere, which would break `develop`'s boot for a variable
+`12` §2 keeps out of Preview; optional everywhere, which would let production boot with its cron
+routes refusing every scheduled call, discovered only when the status page went stale two days later.
+**Reason:** the boot-time failure is the loud one `12` §2 asks for, and it belongs only where the
+variable is required.
+
+### [2026-09-30] Cron runs are two append-only tables with typed readings, not a JSON blob
+
+**Decided:** `cron_runs` (one row per invocation: job, time) and `cron_readings` (one row per signal
+per user per run: value, threshold, red, subject ids, window), designed in `04`. Readings carry
+`user_id`; runs do not. Nothing is updated or deleted.
+**Alternatives considered:** one table with a `jsonb` readings column; one run row per user.
+**Reason:** typed columns make `12` §7 structural: a number, a threshold and a uuid array cannot hold a
+transcript, and `signal` is value-checked. Per-user readings keep the tenancy rule (every query scoped
+by `user_id`) true on a page that reads them; "when each job last ran" is a fact about the job, so it
+stays one row whether there is one user or none.
+
+### [2026-09-30] A CV counter reads the current version in each language
+
+**Decided:** each of the five CV rows reads the newest version per language, takes the highest
+non-null counter among them, and names the versions that trip it. Null on every current version is
+no reading.
+**Alternatives considered:** every version ever saved, which keeps one old bad reading red forever;
+versions saved since the last run, which shows a bad reading for one day and then forgets it even
+though rounds are still scored against that version.
+**Reason:** the current version is the one every new round is scored against, so a bad reading
+matters exactly as long as it is current. Saving a new version is what clears it.
+
+### [2026-09-30] "This week" is the Asia/Tokyo week from Monday; the schedules follow it
+
+**Decided:** spend is week-to-date from Monday 00:00 in Tokyo, and rounds are counted the same way.
+The digest reports the Tokyo week that ended before it ran. `self-check` runs at `0 19 * * *` UTC
+(04:00–04:59 in Tokyo) and `digest` at `0 20 * * 0` UTC (Monday 05:00–05:59 in Tokyo), both inside
+Hobby's once-a-day floor.
+**Reason:** "today" is already the user's local day in Asia/Tokyo (2026-09-28). A UTC week would put
+Monday morning's practice in the previous week. Tokyo keeps no daylight saving, so the week is a fixed
++9 hours from UTC.
+
+### [2026-09-30] `gpt-5.6-sol` is priced at $4.00 in and $20.00 out per million tokens
+
+**Verified:** against OpenAI's API pricing page on 2026-09-30: Standard, short context (up to 272K
+input tokens), $4.00 input, $0.40 cached input, $20.00 output per 1M tokens. The page also notes
+GPT-5.6 Sol's promotional pricing runs at least through 2026-11-21. The rates are `MODEL_PRICES` in
+`lib/ai/models.ts`, beside the pinned string.
+**Decided:** every stored input token is priced as uncached. A token row whose model has no rate is
+excluded from the dollar sum and named in the spend reading; `self-check` is red even below the dollar
+threshold. A missing model stamp is also named. The digest names excluded models beside its spend.
+**Reason:** only `tokens_in`/`tokens_out` are stored, not the cached split. A guessed rate can read low
+when a model string changes; an explicit red reading makes the missing price visible.
+
+### [2026-09-30] The status page is `/status`, reached from Home, not from the nav
+
+**Decided:** specified in `10` §14 and §1 before building. One card: the staleness line first, then
+the two jobs with their last run, the nine checks with reading, threshold and state, then last week's
+digest. Home's line is a `05` §5.8 attention rail above the cards. The app header's nav stays
+`Home · Progress · History · CV`.
+**Reason:** the page is read when something is wrong, and Home's line says when that is; a fifth nav
+item would make an instrument page look like a practice screen. The ids behind a red check stay in the
+database, not on the page.
+
+### [2026-09-30] The cron routes pass the proxy without a cookie
+
+**Decided:** `proxy.ts` lets `/api/cron/*` through without a session cookie, and each route refuses
+without `CRON_SECRET` before it reads anything. `07` §1 rule 1 and `08` §5 name the exception.
+**Reason:** Vercel Cron sends no cookie, so the proxy's optimistic cookie check would `401` every
+scheduled call. The proxy is not the security boundary (`08` §5); the handler's secret check is.
+
+---
 ## Phase 6 — triage of the audit's tickets
 
 A read-only triage on 2026-09-29 found #55 could not be built unattended: three of its signals were

@@ -73,7 +73,9 @@ CV's, and never call a model.
 
 **Cron is off on `develop` on purpose.** The self-check alerts on pending scores and cost drift (§6);
 run against synthetic data it would fill the status page with noise, and an alert channel that cries
-wolf is one you stop reading — which is the whole failure §6 exists to prevent.
+wolf is one you stop reading — which is the whole failure §6 exists to prevent. The routes and the
+status page still exist there (#55). With no manual run in its database, `develop`'s Home carries
+`Self-check has never run.` rather than implying a check it never made (`10` §1).
 
 **Sentry is on for `develop`, tagged.** Not for the error reports, but so that §7's scrubbing
 configuration is exercised before production has anything worth leaking. So `SENTRY_DSN` and
@@ -123,7 +125,8 @@ in this application is safe to ship to the browser**, and none is.
 | `S3_PREFIX` | `prod/` or `dev/` | Vercel env — **this is the only thing separating `develop` audio from real audio**. `lib/config.ts` accepts exactly these two values |
 | `SENTRY_DSN` | Exception reporting | Vercel encrypted env. **Production and the `develop` branch's Preview scope** (§1); one Sentry project, events tagged by environment. #54 |
 | `SENTRY_AUTH_TOKEN` | Source-map upload at build | Same scopes as `SENTRY_DSN`: both builds upload their maps |
-| `CRON_SECRET` | Authenticates the cron routes against forgery | Vercel encrypted env, **Production only**: cron is off on `develop` (§1). #55 |
+| `CRON_SECRET` | Authenticates the cron routes against forgery: Vercel sends it as `Authorization: Bearer <CRON_SECRET>` (`07` §5.17) | Vercel encrypted env, **Production only**: cron is off on `develop` (§1). At least 16 characters (`openssl rand -base64 32`). **`lib/config.ts` requires it when `VERCEL_ENV` is `production`** and accepts its absence anywhere else, where the cron routes then refuse every call. Locally, in `.env.local` only to run a job by hand |
+| `VERCEL_ENV` | Which Vercel environment is running: `production`, `preview` or `development` | **Set by Vercel, not by us** — a system variable available at build and runtime (verified 2026-09-30). Read only to decide whether `CRON_SECRET` is required. Unset locally |
 | `BACKUP_AWS_ACCESS_KEY_ID` | The daily `pg_dump`'s write to `backups/` (§8) | Vercel encrypted env, **Production only**. The dedicated backup-writer IAM user (§3 step 5), never the app's own. #56 |
 | `BACKUP_AWS_SECRET_ACCESS_KEY` | Same | Same |
 
@@ -156,6 +159,7 @@ In this order. Steps 3 and 4 are the ones that fail silently if skipped.
 9. **Seed production:** migrations, then the single `users` row, the set-piece questions, and rubric **`v1.0`** for both `ja` and `en`. *Amended 2026-09-27:* this said `v1.2`, a label from the artboards' sample data; no rubric existed (`06`). The set pieces are 自己紹介, 自己PR and 転職理由 (`hr`) and 志望動機 (`ceo`), with their English counterparts, each carrying its content version — **no 逆質問**. Both seeds are real, checked-in data (`11` §8), written by the round loop's tracer (English) and Japanese slices; this step waits for them. The user row is inserted by the hand-run seed script from `ALLOWED_EMAIL`, with `email_verified = true` — **not by migration**, which would commit the email to a public repository. `disableSignUp: true` means it cannot be created by signing in (`08` §2).
 10. **Verify the allowlist twice:** sign in with the allowlisted account (works), and confirm a second Google account is rejected. `08` §2 deliberately has two independent mechanisms; this checks both, before there is anything to protect.
 11. **Sentry:** project, DSN, and the scrubbing configuration in §7 — **configured before the first real error, not after.** The integration itself is #54.
+12. **`CRON_SECRET`:** generate one (`openssl rand -base64 32`) and add it to **Production only**, before the first production deploy that carries the cron routes — `lib/config.ts` refuses to boot production without it (§2). The user's step (#55); the first *scheduled* run on the status page is #21's criterion (`06`, 2026-09-29).
 
 ---
 
@@ -248,11 +252,11 @@ retry loop or a prompt that doubled in size shows up on a bill, not on a screen.
 | `scoring_attempts` in `pending` for over **24 hours** | any | status page — Hobby cron is daily-only, see below |
 | `scoring_attempts` in `failed`, not superseded by an `ok` attempt | any | status page |
 | Week-to-date OpenAI spend, from every stored token column, each row counted in its own `created_at` week | > 3× the round-cost baseline × max(1, rounds started that week) | status page — the baseline is a fixed constant, see below |
-| `spans_rejected > 0` on a CV upload | any | status page — the anti-hallucination guard actually firing (`07` §5.2) |
-| `claims_split > 0` on a CV upload | any | status page — the extractor is cutting sentences into fragments again (`07` §5.2) |
-| `claims_duplicated > 0` on a CV upload | any | status page — the same assertion returned more than once |
-| `unclaimed_run_max` on a CV upload | > **2,000** code points | status page — a section of the CV may have gone unread |
-| `quotes_outside_window > 0` on a CV upload | any | status page — an extraction call quoted outside the window it was given (`07` §5.2, #29) |
+| `spans_rejected > 0` on the current CV | any | status page — the anti-hallucination guard actually firing (`07` §5.2) |
+| `claims_split > 0` on the current CV | any | status page — the extractor is cutting sentences into fragments again (`07` §5.2) |
+| `claims_duplicated > 0` on the current CV | any | status page — the same assertion returned more than once |
+| `unclaimed_run_max` on the current CV | > **2,000** code points | status page — a section of the CV may have gone unread |
+| `quotes_outside_window > 0` on the current CV | any | status page — an extraction call quoted outside the window it was given (`07` §5.2, #29) |
 | A completed round with no `round_feedback` | for over **24 hours** | status page — feedback failed and was never retried (`07` §5.12) |
 | Near-duplicate near-misses | weekly count and score distribution | the weekly digest — this is the log the threshold gets tuned from (`03` §11). The threshold starts at **0.90, unverified**. Stored and reported by #47, not #55 |
 | Unhandled exception | any | Sentry, scrubbed per §7 (#54) |
@@ -269,7 +273,7 @@ there is more than one CV's worth of readings to tune from, the way §6's near-d
 
 **The five CV-upload rows read columns on `cv_versions`** (`04`), written by the save in the same
 insert. A cron cannot read Vercel logs, and the counters used to live only there and in the save's
-response (`06`, 2026-09-29).
+response (`06`, 2026-09-29). The current-version selection rule is in `04` `cron_readings`.
 
 **The round-cost baseline is a constant, not a measurement yet** (`06`, 2026-09-29). It is set from
 `03` §6's estimate, **about $0.40 a round**, because no real round exists to measure. Spend is counted
@@ -285,12 +289,29 @@ paragraph-sized claims leaves coverage complete, abuts nothing and repeats nothi
 reads clean. It is prevented by windowed extraction, not detected. The `quotes_outside_window` row
 guards the windowing itself and is strict, because it measured 0 across every windowed call.
 
-**Implementation:** two Vercel Cron routes under `/api/cron/`, authenticated with `CRON_SECRET`,
-returning `401` without it. `self-check` (daily) covers the first nine rows **and writes the daily
-`pg_dump`** (§8); `digest` (weekly) covers the near-miss row and reports the week's rounds, tokens and
-spend. Both write to the status page below. Not built yet: #55 (the routes and the page), #56 (the
-dump) and #47 (the near-miss log and its digest row; #55 builds the digest without that row, and
-whichever of the two merges second wires it).
+**Implementation** (#55): two Vercel Cron routes under `/api/cron/` (`07` §5.17, §5.18), authenticated
+with `CRON_SECRET`, returning `401` without it. `self-check` (daily, `0 19 * * *` UTC) covers the first
+nine rows **and will write the daily `pg_dump`** (§8, #56); `digest` (weekly, `0 20 * * 0` UTC, Monday
+morning in Tokyo) reports the Asia/Tokyo week's rounds, tokens and spend. Each run is **appended** to
+`cron_runs` with its `cron_readings` (`04`) and the status page reads the newest. Still to come: #56
+(the dump) and #47 (the near-miss log and its digest row; whichever of #47 and #55 merges second wires
+it).
+
+How the rows are read, decided in #55 (`06`):
+
+- **Every threshold is a named constant** in `lib/monitor/thresholds.ts`, red when the reading is
+  **above** it; each has a unit test at, below and above it. The ages are strict: an attempt pending
+  for exactly 24 hours is not yet red.
+- **"This week" is the Asia/Tokyo week, Monday 00:00 to Monday 00:00**, the user's local week, as
+  "today" is the user's local day (`06`, 2026-09-28). Spend is week-to-date at the run; the digest
+  reports the week that has ended.
+- **Spend prices each token row by its own model's rate** — `MODEL_PRICES` beside the pinned strings in
+  `lib/ai/models.ts`, per million tokens, verified against OpenAI's pricing page with the date. Every
+  input token is priced as uncached. A row stamped with a model that has no price is excluded from the
+  dollar sum; `self-check` is red and names that model even below the dollar threshold. A missing model
+  stamp is named as such. The digest likewise names any model excluded from its spend figure.
+- **The five CV rows read the current version in each language** (`04` `cron_readings`): null
+  counters are no reading, never zero.
 
 **Vercel Hobby cron, verified 2026-09-12:** 100 cron jobs per project, **minimum interval once per
 day**, **per-hour scheduling precision** — a job set to `0 1 * * *` fires somewhere between 01:00 and
@@ -351,7 +372,8 @@ Sentry configuration, decided here so it is not decided under pressure:
 - Breadcrumbs from `fetch` keep the URL and status, never the body.
 - Source maps uploaded at build and **not served publicly**.
 - **No performance tracing and no Session Replay** (`06`, 2026-09-29). Replay records the DOM, which shows CV and transcript text; a tracing sample carries request detail `beforeSend` never sees. The SDK's setup wizard can turn both on; they stay off.
-- The status page and the cron runs behind it hold counts and ids only. Never the answer.
+- The status page and the cron runs behind it hold numbers and identifiers only, including model
+  identifiers for unpriced spend. Never the answer.
 
 **The threat model that makes this strict** (`03` §9): the worst outcome here is not financial, it is
 someone reading the CV, the salary expectations and the notes on companies being interviewed with —

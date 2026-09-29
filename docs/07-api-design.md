@@ -45,6 +45,10 @@ by round end the scores are already rows.
 
 1. **Session required.** No public endpoint exists except Better Auth's own. Enforced in the proxy
    *and* re-asserted inside the handler (`08` §5) — the proxy's matcher is not a security boundary.
+   **The one exception is the two cron routes (§5.17, §5.18),** which Vercel calls with no session:
+   each authenticates the caller with `CRON_SECRET` instead, and answers `401` without it (`06`,
+   #55). They are not public — a request without the secret is refused before anything is read —
+   and they return counts and ids only.
 2. **Every query is scoped by the session's `user_id`.** A row belonging to another `user_id` is
    `404`, never `403`: the API does not confirm that someone else's id exists.
 3. **Zod at the boundary, server-side.** Client validation is for feedback speed and counts for
@@ -936,6 +940,48 @@ The retry path for §5.12's step 3, and nothing else — the way §5.10's `run` 
 A round with feedback returns it with `200` and makes no model call. An incomplete round is
 `409 round_not_complete`. Failure is `502 feedback_generation_failed` again, and the note stays
 pending.
+
+### 5.17 `GET /api/cron/self-check`
+
+The daily monitoring job (`12` §6), called by Vercel Cron (`vercel.json`) at `0 19 * * *` UTC —
+between 04:00 and 04:59 in Tokyo, given Hobby's hour of jitter. **No session: the caller proves itself
+with `CRON_SECRET`**, which Vercel sends as `Authorization: Bearer <CRON_SECRET>` (verified
+2026-09-30 against Vercel's *Managing Cron Jobs*, `06`). The comparison is constant-time.
+
+```http
+GET /api/cron/self-check
+Authorization: Bearer <CRON_SECRET>
+```
+```json
+200
+{ "run_id": "5b0c…", "job": "self-check", "created_at": "2026-09-30T19:12:40Z", "red": 1, "readings": 9 }
+```
+```json
+401
+{ "error": { "code": "unauthenticated", "message": "Missing or wrong cron secret.", "detail": {} } }
+```
+
+It reads every `12` §6 row it covers, for every user, and **appends one `cron_runs` row with its
+`cron_readings` in one transaction** (`04`). Nothing is updated; a run that fails writes nothing and
+returns `500`, and the status page's staleness line is how that shows (`10` §14). The response carries
+the run id, time and counts; the log also carries the duration — never a reading's subjects' text, which the run
+does not hold in the first place (`12` §7).
+
+**`401` when `CRON_SECRET` is unset**, whatever the header says: an unset secret must not mean
+"anyone may run it". It is set in Production only (`12` §2), and Vercel invokes crons only for
+production deployments (`06`, 2026-09-30), so on `develop` the route exists and refuses every call.
+Locally, set it in `.env.local` to run the job by hand.
+
+**Not rate-limited** (§1 rule 5 is for the ⚡ routes, keyed by session): it calls no model and holds no
+session, and a caller without the secret is refused before the database is read.
+
+### 5.18 `GET /api/cron/digest`
+
+The weekly job (`12` §6), at `0 20 * * 0` UTC — Monday between 05:00 and 05:59 in Tokyo, so the week
+it reports has ended. Authenticated exactly as §5.17. It appends a `digest` run whose readings are the
+week's rounds started and completed, tokens in and out, and spend, over **the Asia/Tokyo week (Monday
+00:00 to Monday 00:00) that ended before the run**. The same response shape, with `red: 0`: a digest
+reports, it does not judge. **The near-miss row is #47's** (`06`, 2026-09-29).
 
 ---
 

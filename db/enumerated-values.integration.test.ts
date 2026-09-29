@@ -24,6 +24,8 @@ const ENUMERATED = [
   ["claim_citations", "relation"],
   ["cv_documents", "kind"],
   ["rate_limit_windows", "route"],
+  ["cron_runs", "job"],
+  ["cron_readings", "signal"],
 ] as const;
 
 // One valid row in every table that has an enumerated column.
@@ -67,6 +69,15 @@ async function insertOneOfEach(db: TestDb) {
     route: "cv-versions",
     windowStartedAt: new Date(),
     count: 1,
+  });
+  const [run] = await db.insert(s.cronRuns).values({ job: "self-check" }).returning({ id: s.cronRuns.id });
+  await db.insert(s.cronReadings).values({
+    runId: run.id,
+    userId: world.userId,
+    signal: "scoring_pending_over_24h",
+    value: 0,
+    threshold: 0,
+    isRed: false,
   });
 }
 

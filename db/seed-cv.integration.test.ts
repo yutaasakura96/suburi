@@ -48,6 +48,27 @@ describe("the synthetic CV seed", () => {
       ]);
     }));
 
+  // No model read the fixture claims, so there is no reading: self-check treats null as none (04).
+  it("leaves the five reading counters null", () =>
+    inRolledBackTransaction(async (db) => {
+      const userId = await insertUser(db);
+      await seedSyntheticCv(db, userId, "ja");
+      await seedSyntheticCv(db, userId, "en");
+
+      const counters = await db
+        .select({
+          spansRejected: s.cvVersions.spansRejected,
+          claimsSplit: s.cvVersions.claimsSplit,
+          claimsDuplicated: s.cvVersions.claimsDuplicated,
+          unclaimedRunMax: s.cvVersions.unclaimedRunMax,
+          quotesOutsideWindow: s.cvVersions.quotesOutsideWindow,
+        })
+        .from(s.cvVersions)
+        .where(eq(s.cvVersions.userId, userId));
+      expect(counters).toHaveLength(2);
+      for (const row of counters) expect(Object.values(row)).toEqual([null, null, null, null, null]);
+    }));
+
   it("stores spans that Postgres slices back to every fixture quote", () =>
     inRolledBackTransaction(async (db) => {
       const userId = await insertUser(db);

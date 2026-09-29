@@ -2,6 +2,7 @@ import { sql, type SQL } from "drizzle-orm";
 import {
   boolean,
   check,
+  doublePrecision,
   index,
   integer,
   jsonb,
@@ -29,6 +30,27 @@ export const CITATION_RELATIONS = ["supported_by", "contradicted_by"] as const;
 export const CV_DOCUMENT_KINDS = ["rirekisho", "shokumu_keirekisho", "cv", "additional"] as const;
 // Every ⚡ route (07 §1 rule 5). A new one extends this list in its own migration.
 export const RATE_LIMITED_ROUTES = ["cv-versions"] as const;
+// 12 §6's monitoring jobs and what they read (04 cron_readings). #47 adds the near-miss row.
+export const CRON_JOBS = ["self-check", "digest"] as const;
+export const SELF_CHECK_SIGNALS = [
+  "scoring_pending_over_24h",
+  "scoring_failed_unsuperseded",
+  "spend_week_to_date_usd",
+  "cv_spans_rejected",
+  "cv_claims_split",
+  "cv_claims_duplicated",
+  "cv_unclaimed_run_max",
+  "cv_quotes_outside_window",
+  "round_feedback_missing_over_24h",
+] as const;
+export const DIGEST_FIGURES = [
+  "digest_rounds_started",
+  "digest_rounds_completed",
+  "digest_tokens_in",
+  "digest_tokens_out",
+  "digest_spend_usd",
+] as const;
+export const CRON_SIGNALS = [...SELF_CHECK_SIGNALS, ...DIGEST_FIGURES] as const;
 
 const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
 
@@ -119,6 +141,13 @@ export const cvVersions = pgTable(
     sourceFilename: text("source_filename"),
     extractorModelId: text("extractor_model_id"),
     extractorPromptVersion: text("extractor_prompt_version"),
+    // The save's reading counters (07 §5.2), written in the version's insert and never updated, so
+    // 12 §6's self-check can read them. Null before the columns existed and on develop's seed.
+    spansRejected: integer("spans_rejected"),
+    claimsSplit: integer("claims_split"),
+    claimsDuplicated: integer("claims_duplicated"),
+    unclaimedRunMax: integer("unclaimed_run_max"),
+    quotesOutsideWindow: integer("quotes_outside_window"),
     createdAt: createdAt(),
   },
   (t) => [
@@ -490,5 +519,55 @@ export const rateLimitWindows = pgTable(
   (t) => [
     oneOf("rate_limit_windows", "route", t.route, RATE_LIMITED_ROUTES),
     unique("rate_limit_windows_session_id_route_unique").on(t.sessionId, t.route),
+  ],
+);
+
+// 12 §6: one row per monitoring-job invocation, appended with its readings, never updated (04).
+// No user_id: a run is the job's own record; what it found about a user is in cron_readings.
+export const cronRuns = pgTable(
+  "cron_runs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    job: text("job", { enum: CRON_JOBS }).notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    oneOf("cron_runs", "job", t.job, CRON_JOBS),
+    index("cron_runs_job_created_at_idx").on(t.job, t.createdAt.desc()),
+  ],
+);
+
+// Numbers, thresholds and ids only — no column here can hold record text (12 §7).
+export const cronReadings = pgTable(
+  "cron_readings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    runId: uuid("run_id")
+      .notNull()
+      .references(() => cronRuns.id, { onDelete: "restrict" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    signal: text("signal", { enum: CRON_SIGNALS }).notNull(),
+    // Null is no reading, never zero.
+    value: doublePrecision("value"),
+    // Null exactly when the row is a digest figure: reported, not judged.
+    threshold: doublePrecision("threshold"),
+    isRed: boolean("is_red"),
+    subjectIds: uuid("subject_ids")
+      .array()
+      .notNull()
+      .default(sql`'{}'::uuid[]`),
+    unpricedModelIds: text("unpriced_model_ids").array().$type<(string | null)[]>().notNull().default(sql`'{}'::text[]`),
+    windowStart: timestamp("window_start", { withTimezone: true }),
+    windowEnd: timestamp("window_end", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    oneOf("cron_readings", "signal", t.signal, CRON_SIGNALS),
+    check("cron_readings_judged_check", sql`(${t.threshold} is null) = (${t.isRed} is null)`),
+    check("cron_readings_red_needs_value_check", sql`${t.value} is not null or ${t.isRed} is not true`),
+    check("cron_readings_unpriced_models_spend_check", sql`cardinality(${t.unpricedModelIds}) = 0 or ${t.signal} in ('spend_week_to_date_usd', 'digest_spend_usd')`),
+    unique("cron_readings_run_id_user_id_signal_unique").on(t.runId, t.userId, t.signal),
   ],
 );

@@ -184,6 +184,8 @@ export function syntheticCvVersion(userId: string, language: Language, documents
     // No model produced these claims, and a null stamp says so (06, #19).
     extractorModelId: null,
     extractorPromptVersion: null,
+    // No model read these claims, so there is no reading to record (04 cv_versions).
+    reading: null,
   };
 }
 
