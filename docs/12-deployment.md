@@ -105,10 +105,10 @@ see step 4 of §4.
 
 ## 2. Environment variables — the full inventory
 
-Every variable, its purpose, and where the secret lives. Nothing here is `NEXT_PUBLIC_`: **no variable
-in this application is safe to ship to the browser**, and none is. **One value derived from one is:**
-`next.config.ts` inlines `SENTRY_DSN` into the browser bundle at build, because the browser SDK needs it
-to report. A DSN only sends events in (`06`, 2026-09-28); `SENTRY_AUTH_TOKEN` never leaves the build.
+Every variable, its purpose, and where the secret lives. Nothing here is `NEXT_PUBLIC_`. Of the
+variables below, only `SENTRY_DSN` reaches the browser: `next.config.ts` inlines it and a derived
+environment tag at build because the browser SDK needs both to report. A DSN only sends events in
+(`06`, 2026-09-28); `SENTRY_AUTH_TOKEN` never leaves the build.
 
 | Name | Purpose | Where the secret lives |
 | --- | --- | --- |
@@ -122,7 +122,7 @@ to report. A DSN only sends events in (`06`, 2026-09-28); `SENTRY_AUTH_TOKEN` ne
 | `GOOGLE_CLIENT_SECRET` | Google OAuth | Same |
 | `ALLOWED_EMAIL` | The allowlist assertion on session creation (`08` §2) | Vercel env. Not a secret, but environment-scoped |
 | `OPENAI_API_KEY` | **Every model call** — question generation, follow-ups, scoring, round feedback, **CV claim extraction** (`03` §4), transcription, TTS, embeddings | Vercel encrypted env. **Separate key per environment** with its own usage cap (§6). **First needed by CV claim extraction**, which is the first model call the app makes at all; added to the `develop` branch's Preview scope and to `.env.example` with that slice |
-| `OPENAI_BASE_URL` | **Playwright only.** Points the server under test at `e2e/mock-openai.ts` | Set by `playwright.config.ts` and nowhere else — **never in Vercel, never in `.env`**. The one optional variable: `lib/config.ts` refuses any host but `localhost`/`127.0.0.1`, so no value can send `OPENAI_API_KEY` to another server (`06`, 2026-09-21) |
+| `OPENAI_BASE_URL` | **Playwright only.** Points the server under test at `e2e/mock-openai.ts` | Set by `playwright.config.ts` and nowhere else — **never in Vercel, never in `.env`**. Optional; `lib/config.ts` refuses any host but `localhost`/`127.0.0.1`, so no value can send `OPENAI_API_KEY` to another server (`06`, 2026-09-21) |
 | `AWS_ACCESS_KEY_ID` | S3 presigning | Vercel encrypted env. Dedicated IAM user (§7) |
 | `AWS_SECRET_ACCESS_KEY` | S3 presigning | Same |
 | `AWS_REGION` | S3 region | Vercel env |
@@ -141,7 +141,7 @@ here until 2026-09-28, when alerts went to a private status page instead of emai
 **Rules, not preferences:**
 
 - Nothing in the repo. `.env.local` is gitignored; `.env.example` carries **names and comments only, never values.**
-- **A missing or malformed variable fails the boot, loudly.** The one exception is the Sentry pair, whose absence means Sentry is off; a malformed DSN, or a DSN without its token, still fails it. Application modules read `process.env` only through `lib/config.ts`, which validates it with Zod at startup. `playwright.config.ts` builds the test server's environment (`06`, 2026-09-21); the local-only `scripts/dev-session.mts` loads and checks its own environment before calling `lib/config.ts` (`06`, 2026-09-25). A `DATABASE_URL` that is empty must not silently become a dev default; an unset `OPENAI_API_KEY` must not silently skip a model call.
+- **A missing or malformed required variable fails the boot, loudly.** `OPENAI_BASE_URL` is optional for Playwright only. The Sentry pair may be absent, leaving Sentry off; in production or `develop`, a malformed DSN or a DSN without its token fails configuration. Application modules read `process.env` only through `lib/config.ts`, which validates it with Zod at startup. `playwright.config.ts` builds the test server's environment (`06`, 2026-09-21); the local-only `scripts/dev-session.mts` loads and checks its own environment before calling `lib/config.ts` (`06`, 2026-09-25). A `DATABASE_URL` that is empty must not silently become a dev default; an unset `OPENAI_API_KEY` must not silently skip a model call.
 - **No model string and no prompt version is an environment variable.** Model strings are constants in `lib/ai/models.ts` (`03` §4) and prompt versions come from the prompt filename in `lib/prompts/`. Both are **stamps** (`04`): changing one is a measurement event, not a config tweak, so it arrives as a reviewed commit and triggers §5's stamp-change procedure. The transcription model, `gpt-transcribe`, **requires API Tier 1+** — the Free tier does not serve it, which is a property of the `OPENAI_API_KEY`'s account.
 - Keys are distinct per environment. **Nothing deployed from `develop` or a feature branch may hold a credential that reaches Neon `main` or the `prod/` prefix.** That is the §1 mapping expressed as secrets rather than as a rule someone remembers.
 
@@ -377,7 +377,7 @@ Sentry configuration, decided here so it is not decided under pressure:
 - Breadcrumbs from `fetch` keep the URL and status, never the body. The URL loses its query string: a presigned S3 URL carries its signature there, and the OAuth callback its code.
 - Source maps uploaded at build and **not served publicly**: the SDK deletes the browser's maps from `.next/static` after upload and strips their `sourceMappingURL` comments. Where Sentry is off, no browser map is generated at all.
 - **No performance tracing and no Session Replay** (`06`, 2026-09-29). Replay records the DOM, which shows CV and transcript text; a tracing sample carries request detail `beforeSend` never sees. The SDK's setup wizard can turn both on; they stay off. Release-health sessions, which are counts, are left on (`06`, 2026-09-30).
-- The configuration is one module, `lib/sentry.ts`, shared by the server, edge and browser inits. `lib/sentry.test.ts` sends a request carrying `11` §3.10's sentinel strings through the real SDK and asserts none reaches the envelope; `lib/sentry.defaults.test.ts` shows the SDK's defaults would have sent them.
+- The configuration is one module, `lib/sentry.ts`, shared by the server, edge and browser inits. The sentinel test is specified in `11` §3.10.
 - The status page and the cron runs behind it hold numbers and identifiers only, including model
   identifiers for unpriced spend. Never the answer.
 

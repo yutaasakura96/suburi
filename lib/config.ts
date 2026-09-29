@@ -1,9 +1,8 @@
 import { z } from "zod";
 
-// The only application module that reads process.env (docs/12-deployment.md §2). Every variable is
-// required and none has a default, except OPENAI_BASE_URL, which only Playwright sets, and
-// CRON_SECRET, which only production requires. Errors name the variable, never its value. The Sentry
-// variables are optional as a pair and parsed on their own (parseSentryConfig, below).
+// The only application module that reads process.env (docs/12-deployment.md §2). The application
+// variables are required except OPENAI_BASE_URL, which only Playwright sets, CRON_SECRET, which only
+// production requires, and the Sentry pair parsed below. Errors name the variable, never its value.
 
 const localHosts = new Set(["localhost", "127.0.0.1"]);
 
