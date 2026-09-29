@@ -1,10 +1,9 @@
-import type { Breadcrumb, ErrorEvent } from "@sentry/nextjs";
+import type { Breadcrumb, ErrorEvent, Integration } from "@sentry/nextjs";
 
 // The one Sentry configuration, shared by the server, edge and browser inits, so 12 §7 is decided
 // in one place. Imports nothing that reads process.env: the browser bundle includes it.
 //
-// Errors only (06, 2026-09-29): no tracesSampleRate, so no performance tracing, and no
-// replayIntegration, so no Session Replay. The SDK's release-health sessions stay; they are counts.
+// Errors only (06, 2026-09-29): no performance tracing, Session Replay or release-health sessions.
 
 // The HTTP breadcrumb categories: the browser's fetch and XHR, and Node's outgoing requests.
 const httpCategories = new Set(["fetch", "xhr", "http"]);
@@ -60,7 +59,7 @@ export type SentryInit = {
   environment: string;
 };
 
-export function sentryOptions({ dsn, environment }: SentryInit) {
+export function sentryOptions({ dsn, environment }: SentryInit, serverHttp?: Integration) {
   return {
     dsn,
     environment,
@@ -78,6 +77,12 @@ export function sentryOptions({ dsn, environment }: SentryInit) {
       queues: false,
       stackFrameVariables: false,
     },
+    integrations: (defaults: Integration[]) => [
+      ...defaults.filter(({ name }) =>
+        name !== "BrowserSession" && name !== "ProcessSession" && (serverHttp === undefined || name !== "Http"),
+      ),
+      ...(serverHttp ? [serverHttp] : []),
+    ],
     beforeBreadcrumb: scrubBreadcrumb,
     beforeSend: scrubEvent,
   };

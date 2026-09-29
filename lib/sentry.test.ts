@@ -1,4 +1,5 @@
 import { afterAll, describe, expect, it } from "vitest";
+import * as Sentry from "@sentry/nextjs";
 import { scrubBreadcrumb, scrubEvent, sentryOptions } from "./sentry";
 import { initCapturing, SENTINELS, startFailingApp } from "./test/sentry-request";
 
@@ -10,6 +11,27 @@ afterAll(() => app.close());
 function expectNoSentinel(serialized: string) {
   for (const sentinel of Object.values(SENTINELS)) expect(serialized).not.toContain(sentinel);
 }
+
+describe("Sentry integrations", () => {
+  it("removes release-health integrations in every runtime and replaces Node HTTP", () => {
+    const defaults = [
+      { name: "BrowserSession" },
+      { name: "ProcessSession" },
+      { name: "Http" },
+      { name: "GlobalHandlers" },
+    ] as Sentry.Integration[];
+    const config = { dsn: "unused", environment: "develop" };
+    expect(sentryOptions(config).integrations(defaults).map(({ name }) => name)).toEqual([
+      "Http",
+      "GlobalHandlers",
+    ]);
+
+    const http = Sentry.httpIntegration({ sessions: false, disableIncomingRequestSpans: true });
+    const server = sentryOptions(config, http).integrations(defaults);
+    expect(server.map(({ name }) => name)).toEqual(["GlobalHandlers", "Http"]);
+    expect(server.at(-1)).toBe(http);
+  });
+});
 
 describe("scrubBreadcrumb", () => {
   it.each(["fetch", "xhr", "http"])("keeps only method, URL and status on a %s breadcrumb", (category) => {

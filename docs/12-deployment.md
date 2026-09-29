@@ -376,7 +376,7 @@ Sentry configuration, decided here so it is not decided under pressure:
 - A `beforeSend` that **drops request and response bodies entirely** rather than filtering fields — an allowlist of safe keys is a list someone forgets to extend when a column is added.
 - Breadcrumbs from `fetch` keep the URL and status, never the body. The URL loses its query string: a presigned S3 URL carries its signature there, and the OAuth callback its code.
 - Source maps uploaded at build and **not served publicly**: the SDK deletes the browser's maps from `.next/static` after upload and strips their `sourceMappingURL` comments. Where Sentry is off, no browser map is generated at all.
-- **No performance tracing and no Session Replay** (`06`, 2026-09-29). Replay records the DOM, which shows CV and transcript text; a tracing sample carries request detail `beforeSend` never sees. The SDK's setup wizard can turn both on; they stay off. Release-health sessions, which are counts, are left on (`06`, 2026-09-30).
+- **Errors only: no performance tracing, Session Replay or release-health sessions** (`06`, 2026-09-29; 2026-09-30). Replay records the DOM, which shows CV and transcript text; a tracing sample carries request detail `beforeSend` never sees. The SDK's setup wizard can turn tracing and Replay on; both stay off. Browser and process session integrations are removed, and Node HTTP request sessions are disabled.
 - The configuration is one module, `lib/sentry.ts`, shared by the server, edge and browser inits. The sentinel test is specified in `11` §3.10.
 - The status page and the cron runs behind it hold numbers and identifiers only, including model
   identifiers for unpriced spend. Never the answer.

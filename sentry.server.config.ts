@@ -4,4 +4,6 @@ import { sentryOptions } from "@/lib/sentry";
 
 // Off unless this is production or the develop branch's preview with SENTRY_DSN set (12 §1).
 const config = getSentryConfig();
-if (config) Sentry.init(sentryOptions(config));
+if (config) {
+  Sentry.init(sentryOptions(config, Sentry.httpIntegration({ sessions: false, disableIncomingRequestSpans: true })));
+}

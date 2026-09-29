@@ -42,14 +42,13 @@ screens unreported; a `NEXT_PUBLIC_SENTRY_DSN` variable, against `12` §2's rule
 **Reason:** the browser SDK cannot report without a DSN, and a DSN only sends events in (2026-09-28).
 `12` §2 says so where it says nothing else is shipped to the browser.
 
-### [2026-09-30] Fetch breadcrumbs lose their query string; release-health sessions stay
+### [2026-09-30] Fetch breadcrumbs lose their query string; release-health sessions are off
 
 **Decided:** fetch, XHR and Node HTTP breadcrumbs keep the method, the URL without its query and
 fragment, and the status, built from those three keys. The event's request URL and Next.js's
-`request_path` lose their query too. The SDK's release-health sessions are left on.
+`request_path` lose their query too. Browser, process and Node HTTP request sessions are off.
 **Reason:** a presigned S3 URL carries its signature in the query, and the OAuth callback its code.
-Sessions are counts (started, errored, crashed) and carry no request detail; the 2026-09-29 entry
-rules out tracing and Replay, which do.
+Sentry reports exceptions only; session counts are outside #54's exception-reporting scope.
 
 ---
 ## Phase 6 — #55, the monitoring jobs and the status page
