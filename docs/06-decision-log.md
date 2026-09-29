@@ -149,8 +149,8 @@ hidden a real cost on the save path for any document with a highly repeated phra
 
 The round loop's first slice. The user chose the local storage and then handed the console steps to
 the agent ("AWS CLI is already setup. you can do this all for me"), so the bucket, its CORS rule, the
-IAM users and the Vercel variables were done from the already-configured AWS and Vercel CLIs. Only the
-`develop` OpenAI key's tier is still unchecked.
+IAM users and the Vercel variables were done from the already-configured AWS and Vercel CLIs.
+The `develop` OpenAI key check is recorded under 2026-09-30 below.
 
 ### [2026-09-28] Local development uses the real bucket under `dev/`, not MinIO
 
@@ -234,7 +234,12 @@ usual shape of a `MediaRecorder` file. Each file was posted to `/v1/audio/transc
 without the source's comma), `usage` billed as 7 seconds. OpenAI's reference lists `webm` among the
 accepted formats; this confirms it for the file Chrome actually writes, missing duration included.
 **Also shows:** the local key's account is served `gpt-transcribe`, so it is at Tier 1 or above
-(`03` §4). The `develop` key is not held locally and is **not** checked.
+(`03` §4). The separate `develop` key check is recorded under 2026-09-30 below.
+
+### [2026-09-30] The `develop` API key's OpenAI account is Tier 1
+
+**Checked:** the OpenAI account behind suburi's `develop` API key (test site) was verified as Usage tier 1.
+**Result:** `gpt-transcribe` requires Tier 1 or above (`03` §4), so this satisfies the transcription requirement.
 
 ---
 ## Phase 6 — the round loop's open answers
