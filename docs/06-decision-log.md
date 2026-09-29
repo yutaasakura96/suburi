@@ -9,6 +9,13 @@ The daily `self-check`, the weekly `digest` and the private status page they wri
 2026-09-28 and 2026-09-29 decisions below. Two Vercel facts were checked first; the rest are the
 choices the build needed that no earlier entry made.
 
+### [2026-09-30] Only the two cron routes pass the proxy without a cookie
+
+**Supersedes** the `/api/cron/*` exception below: only `/api/cron/self-check` and
+`/api/cron/digest` pass `proxy.ts` without a session cookie. Each still requires `CRON_SECRET` in its
+handler; every other `/api/cron/` path receives the normal session check.
+**Reason:** a prefix exception would also exempt future routes that have no cron secret check.
+
 ### [2026-09-30] Verified: Vercel invokes cron jobs only for production, and sends the secret as a bearer token
 
 **Checked** against Vercel's *Getting started with cron jobs* ("Vercel invokes cron jobs only for
