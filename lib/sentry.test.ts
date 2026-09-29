@@ -1,5 +1,4 @@
 import { afterAll, describe, expect, it } from "vitest";
-import * as Sentry from "@sentry/nextjs";
 import { httpIntegration } from "@sentry/node";
 import { scrubBreadcrumb, scrubEvent, sentryOptions } from "./sentry";
 import { initCapturing, SENTINELS, startFailingApp } from "./test/sentry-request";
@@ -23,7 +22,7 @@ describe("Sentry integrations", () => {
       { name: "ProcessSession" },
       { name: "Http" },
       { name: "GlobalHandlers" },
-    ] as Sentry.Integration[];
+    ];
     const config = { dsn: "unused", environment: "develop" };
     expect(sentryOptions(config).integrations(defaults).map(({ name }) => name)).toEqual([
       "Http",

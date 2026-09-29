@@ -1,4 +1,4 @@
-import type { Breadcrumb, ErrorEvent, Integration } from "@sentry/nextjs";
+import type { Breadcrumb, ErrorEvent } from "@sentry/nextjs";
 
 // The one Sentry configuration, shared by the server, edge and browser inits, so 12 §7 is decided
 // in one place. Imports nothing that reads process.env: the browser bundle includes it.
@@ -59,7 +59,10 @@ export type SentryInit = {
   environment: string;
 };
 
-export function sentryOptions({ dsn, environment }: SentryInit, serverHttp?: Integration) {
+// Integrations are typed by shape: @sentry/nextjs exports no Integration type.
+type Named = { name: string };
+
+export function sentryOptions<H extends Named>({ dsn, environment }: SentryInit, serverHttp?: H) {
   return {
     dsn,
     environment,
@@ -77,7 +80,7 @@ export function sentryOptions({ dsn, environment }: SentryInit, serverHttp?: Int
       queues: false,
       stackFrameVariables: false,
     },
-    integrations: (defaults: Integration[]) => [
+    integrations: <T extends Named>(defaults: T[]): (T | H)[] => [
       ...defaults.filter(({ name }) =>
         name !== "BrowserSession" && name !== "ProcessSession" && (serverHttp === undefined || name !== "Http"),
       ),
