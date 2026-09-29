@@ -16,8 +16,11 @@ function withoutQuery(url: string): string {
 }
 
 // fetch, XHR and Node HTTP breadcrumbs keep the URL, method and status, never a body (12 §7). Built
-// from an allowlist of three keys, not by deleting the ones known to carry a body.
-export function scrubBreadcrumb(breadcrumb: Breadcrumb): Breadcrumb {
+// from an allowlist of three keys, not by deleting the ones known to carry a body. Console
+// breadcrumbs are dropped: a logged failed query carries its parameters, a session token or an
+// answer's transcript among them.
+export function scrubBreadcrumb(breadcrumb: Breadcrumb): Breadcrumb | null {
+  if (breadcrumb.category === "console") return null;
   if (!breadcrumb.category || !httpCategories.has(breadcrumb.category)) return breadcrumb;
   const data = breadcrumb.data ?? {};
   return {
@@ -50,7 +53,14 @@ export function scrubEvent(event: ErrorEvent): ErrorEvent {
   if (event.contexts?.response) {
     event.contexts.response = { status_code: event.contexts.response.status_code };
   }
-  if (event.breadcrumbs) event.breadcrumbs = event.breadcrumbs.map(scrubBreadcrumb);
+  // Drizzle's DrizzleQueryError puts the query's parameters in its message; the SQL before them is
+  // placeholders only.
+  for (const exception of event.exception?.values ?? []) {
+    if (exception.value) exception.value = exception.value.replace(/\nparams: [\s\S]*$/, "");
+  }
+  if (event.breadcrumbs) {
+    event.breadcrumbs = event.breadcrumbs.map(scrubBreadcrumb).filter((b): b is Breadcrumb => b !== null);
+  }
   return event;
 }
 

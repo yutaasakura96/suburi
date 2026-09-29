@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import * as Sentry from "@sentry/nextjs";
+import { DrizzleQueryError } from "drizzle-orm/errors";
 
 // Recognisable text standing in for what 12 §7 never lets reach Sentry (11 §3.10).
 export const SENTINELS = {
@@ -45,7 +46,8 @@ function listen(server: Server): Promise<string> {
 
 // A request whose body carries the sentinels, an outgoing call that sends and receives them, as an
 // answer's trip to a model does, and an exception thrown while handling it, reported the way Next.js
-// reports it (instrumentation.ts's onRequestError).
+// reports it (instrumentation.ts's onRequestError). The exception is a failed query whose parameters
+// carry the transcript, logged first to the console as Better Auth logs one.
 export async function startFailingApp() {
   const upstream = createServer(async (request, response) => {
     await readBody(request);
@@ -58,8 +60,13 @@ export async function startFailingApp() {
     const { transcript } = JSON.parse(await readBody(request)) as typeof SENTINELS;
     await fetch(upstreamUrl, { method: "POST", body: transcript }).then((r) => r.text());
     try {
-      throw new Error("Scoring failed: pg_23514");
+      throw new DrizzleQueryError(
+        "insert into answers (transcript) values ($1)",
+        [transcript],
+        new Error("Scoring failed: pg_23514"),
+      );
     } catch (error) {
+      console.error(error);
       Sentry.captureRequestError(
         error,
         { path: request.url ?? "", method: request.method ?? "", headers: request.headers },

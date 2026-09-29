@@ -56,6 +56,13 @@ describe("scrubBreadcrumb", () => {
     });
   });
 
+  it("drops console breadcrumbs, which carry a failed query's parameters", () => {
+    expect(scrubBreadcrumb({
+      category: "console",
+      message: `Failed query: select 1 where token = $1\nparams: ${SENTINELS.notes}`,
+    })).toBeNull();
+  });
+
   it("leaves other categories alone", () => {
     const breadcrumb = { category: "navigation", data: { from: "/", to: "/cv" } };
     expect(scrubBreadcrumb(breadcrumb)).toEqual(breadcrumb);
