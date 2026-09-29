@@ -26,21 +26,18 @@ describes, as the `extractor_*` stamps already do. Null covers versions saved be
 ### [2026-09-29] The round-cost baseline is a constant from `03` §6, re-measured after eight real rounds
 
 **Decided:** by the user. `12` §6's "eight-round baseline" is a fixed constant now, about **$0.40
-per round** (`03` §6), and spend is counted from every stored `tokens_in`/`tokens_out` pair
-(`questions`, `follow_ups`, `scoring_attempts`, `round_feedback`). The threshold stays 3× the
-baseline × rounds started that week, and **each round's spend is attributed to the week the round
-started**, whenever the tokens were spent; a generated question counts once, for the round of its
-earliest `round_questions` row, or by its own `created_at` if no round ever asked it. After eight real rounds the constant is replaced by their
-measured cost, with an entry here.
+per round** (`03` §6). Week-to-date spend is every stored `tokens_in`/`tokens_out` row (`questions`,
+`scoring_attempts`, `round_feedback`, and `follow_ups` once built), each counted in the week of its own
+`created_at`, with no round attribution. The threshold is 3× the baseline × max(1, rounds started that
+week). After eight real rounds the constant is replaced by their measured cost, with an entry here.
 **Alternatives considered:** computing the baseline from the first eight completed rounds in the
-data, which leaves the signal dead until then; counting spend by the week it was spent, with a floor
-of one round on the threshold.
+data, which leaves the signal dead until then; attributing each row's spend to the week its round
+started.
 **Reason:** no round exists yet (#42–#51 are unbuilt), and a check that cannot fire until month two
 is no check. Transcription is billed per minute, and extraction, speech and embeddings store no
-tokens, so only the model calls that stamp a token pair are counted. Attributing by the round's start
-week keeps spend and rounds in the same week: counted by when it was spent, a round started late one
-week and scored the next, or a `failed` attempt retried later, puts spend in a week whose threshold
-is 0 and turns the check red with nothing wrong.
+tokens, so only the model calls that stamp a token pair are counted. Counting each row by its own
+`created_at` needs no join back to a round; the floor of one round keeps a week with late scoring or
+a retry but no round started from having a threshold of 0.
 **Cost, accepted:** $0.40 covers the whole round, the token columns only part of it, so the threshold
 is loose until the re-measure.
 
