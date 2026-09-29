@@ -112,8 +112,9 @@ deleted"* as a deliberate pressure countermeasure.
 | --- | --- | --- |
 | `/sign-in` | public | — |
 | `/api/auth/*` | Better Auth's own | — |
-| `/` (Home), `/round/*`, `/progress`, `/history`, `/cv` | session required | `/sign-in` |
+| `/` (Home), `/round/*`, `/progress`, `/history`, `/cv`, `/status` | session required | `/sign-in` |
 | `/api/*` (presign, transcribe, score) | session required | `401`, no redirect |
+| `/api/cron/*` | **`CRON_SECRET`**, not a session — Vercel Cron sends none (`07` §5.17) | `401`, no redirect |
 
 Enforced in the proxy **and** re-asserted inside every page, Server Action and Route Handler. Next.js
 16 renamed middleware to proxy. The proxy's session check is **optimistic** — Better Auth's own docs
@@ -121,7 +122,9 @@ say so, since it reads the cookie without validating the session — so it only 
 redirect. The proxy alone is not a security boundary — a route added later that its matcher does not
 cover would otherwise be silently public.
 
-In code: `proxy.ts` matches every path but build output, and keeps the public list itself. Pages and
+In code: `proxy.ts` matches every path but build output, and keeps the public list itself.
+`/api/cron/*` passes the proxy without a cookie and is refused inside the handler instead, by the
+secret check every cron route runs first (`06`, #55). Pages and
 Server Actions re-check with `requireSession()`, route handlers with `requireApiSession()`, both in
 `lib/auth/session.ts`.
 

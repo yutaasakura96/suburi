@@ -2,8 +2,15 @@ import { getSessionCookie } from "better-auth/cookies";
 import { type NextRequest, NextResponse } from "next/server";
 import { unauthenticated } from "./lib/api/errors";
 
+// The cron routes pass without a cookie, because Vercel Cron sends none; each refuses a caller without
+// CRON_SECRET before it reads anything (07 §5.17, 06 #55).
 function isPublic(pathname: string) {
-  return pathname === "/sign-in" || pathname === "/api/auth" || pathname.startsWith("/api/auth/");
+  return (
+    pathname === "/sign-in" ||
+    pathname === "/api/auth" ||
+    pathname.startsWith("/api/auth/") ||
+    pathname.startsWith("/api/cron/")
+  );
 }
 
 /**

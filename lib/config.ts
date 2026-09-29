@@ -1,8 +1,8 @@
 import { z } from "zod";
 
 // The only application module that reads process.env (docs/12-deployment.md §2). Every variable is
-// required and none has a default, except OPENAI_BASE_URL, which only Playwright sets. Errors name
-// the variable, never its value.
+// required and none has a default, except OPENAI_BASE_URL, which only Playwright sets, and
+// CRON_SECRET, which only production requires. Errors name the variable, never its value.
 
 const localHosts = new Set(["localhost", "127.0.0.1"]);
 
@@ -50,6 +50,17 @@ const schema = z.object({
   S3_BUCKET: bucketName,
   // The only thing separating develop's audio from real audio (12 §2), so exactly one of the two.
   S3_PREFIX: z.enum(["prod/", "dev/"]),
+  // The cron routes' caller check (07 §5.17). Production scope only (12 §2); elsewhere absent, and the
+  // routes then refuse every call. Vercel recommends at least 16 characters.
+  CRON_SECRET: z.string().min(16).optional(),
+  // Set by Vercel itself at build and runtime (06, 2026-09-30); unset locally.
+  VERCEL_ENV: z.enum(["production", "preview", "development"]).optional(),
+}).superRefine((env, context) => {
+  // A production that booted without it would refuse every scheduled run, found only when the status
+  // page went stale two days later. So it fails the boot instead (06, #55).
+  if (env.VERCEL_ENV === "production" && env.CRON_SECRET === undefined) {
+    context.addIssue({ code: "custom", path: ["CRON_SECRET"], message: "required in production" });
+  }
 });
 
 export type Config = z.infer<typeof schema>;

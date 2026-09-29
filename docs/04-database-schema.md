@@ -31,7 +31,7 @@ None of it is migrated yet — each change lands with the slice that first needs
   `rounds.round_type`, `rounds.language`, `rounds.mode`, `answers.language`,
   `scoring_attempts.status`, `scoring_attempts.answered_language`, `round_feedback.language`,
   `claim_citations.relation`, `cv_documents.kind`, `rate_limit_windows.route`, `follow_ups.status`,
-  `answer_flags.kind`.
+  `answer_flags.kind`, `cron_runs.job`, `cron_readings.signal`.
   `scores.dimension` is **not** checked here: its valid set depends on the rubric row (`keigo` is
   `ja` only), which a column check cannot see.
 - Every table holding user data carries `user_id` (tenancy decision, `03` §2).
@@ -63,6 +63,8 @@ None of it is migrated yet — each change lands with the slice that first needs
 | `answer_flags` | A span of an answer's corrected text that the scorer flagged — today only `unsupported`: nothing in the CV backs it. |
 | `held_out_rescores` | A past answer re-scored under new stamps, to make drift visible. |
 | `rate_limit_windows` | One session's current fixed window on one ⚡ route: when it began and how many requests it has counted (`07` §1 rule 5). Not measurement. |
+| `cron_runs` | One run of a monitoring job, `self-check` or `digest` (`12` §6): which job, and when. |
+| `cron_readings` | One signal's reading for one user in one run: a number, its threshold, whether it was red, and the ids behind it. Counts and ids only. |
 
 ---
 
@@ -641,6 +643,73 @@ reviewed code change, and a bucket's window is only ever read against the consta
 
 ---
 
+### `cron_runs`
+
+**Append-only. One row per invocation of a `12` §6 monitoring job**, written with its readings in one
+transaction by `GET /api/cron/self-check` or `GET /api/cron/digest` (`07` §5.17, §5.18), and never
+updated or deleted (`06`, #55). A job that fails writes nothing, which is how a dead or failing cron
+shows: the newest row gets old, and the status page says so first (`10` §14).
+
+| Column | Type | Null | Default | Notes |
+| --- | --- | --- | --- | --- |
+| `id` | `uuid` | no | `gen_random_uuid()` | PK |
+| `job` | `text` | no | — | `self-check` \| `digest` — value-checked |
+| `created_at` | `timestamptz` | no | `now()` | when the run read the database; every age and week in its readings is measured from this instant |
+
+**No `user_id`.** A run is the job's own record, not user data: it says only that the job ran and
+when. What it found about a user is in `cron_readings`, which carries the `user_id`. Vercel delivers
+a cron "best effort" and occasionally twice (`12` §6); a duplicate is a second row, and the status
+page reads the newest.
+
+### `cron_readings`
+
+**Append-only, written with its run.** One row per signal per user per run: every `12` §6 row that
+`self-check` covers, and the figures `digest` reports. **It holds numbers, thresholds and ids, never
+text** (`12` §7): the column types cannot carry a transcript, a CV, a claim or a note, and the one
+text column is value-checked against the signal names.
+
+| Column | Type | Null | Default | Notes |
+| --- | --- | --- | --- | --- |
+| `id` | `uuid` | no | `gen_random_uuid()` | PK |
+| `run_id` | `uuid` | no | — | → `cron_runs.id` **restrict** |
+| `user_id` | `text` | no | — | → `users.id` **restrict** |
+| `signal` | `text` | no | — | one of the names below — value-checked |
+| `value` | `double precision` | yes | — | the reading: a count, code points, or US dollars. **Null is no reading**, never zero — a CV counter whose current versions all predate the columns (`cv_versions`) |
+| `threshold` | `double precision` | yes | — | red when `value` is **above** it. **Null exactly when the row is a digest figure**, which is reported, not judged |
+| `is_red` | `boolean` | yes | — | `value > threshold`. Null exactly when `threshold` is; never true without a `value` |
+| `subject_ids` | `uuid[]` | no | `'{}'` | the rows that tripped the signal — attempt, round or CV version ids. Empty when it is not red. Never rendered |
+| `window_start` / `window_end` | `timestamptz` | yes | — | the period a figure covers: the Asia/Tokyo week for spend and the digest. Null for the age and CV signals |
+| `created_at` | `timestamptz` | no | `now()` | |
+
+**Constraints:** `check ((threshold is null) = (is_red is null))`; `check (value is not null or
+is_red is not true)`; `unique (run_id, user_id, signal)`.
+
+**The signals.** `self-check`, one row each per user per run:
+
+| `signal` | `value` | Threshold (`12` §6) |
+| --- | --- | --- |
+| `scoring_pending_over_24h` | `scoring_attempts` in `pending` created more than 24 hours before the run | 0 |
+| `scoring_failed_unsuperseded` | `scoring_attempts` in `failed` with no later `ok` attempt for the same answer | 0 |
+| `spend_week_to_date_usd` | the Asia/Tokyo week-to-date spend, from every stored token pair | 3 × the round-cost baseline × max(1, rounds started that week) |
+| `cv_spans_rejected` | the highest `spans_rejected` among the current CV versions, one per language | 0 |
+| `cv_claims_split` | as above, `claims_split` | 0 |
+| `cv_claims_duplicated` | as above, `claims_duplicated` | 0 |
+| `cv_unclaimed_run_max` | as above, `unclaimed_run_max` | 2,000 code points |
+| `cv_quotes_outside_window` | as above, `quotes_outside_window` | 0 |
+| `round_feedback_missing_over_24h` | rounds completed more than 24 hours before the run with no `round_feedback` | 0 |
+
+`digest`, figures without a threshold, over the Asia/Tokyo week that ended before the run:
+`digest_rounds_started`, `digest_rounds_completed`, `digest_tokens_in`, `digest_tokens_out`,
+`digest_spend_usd`. **The near-miss row is #47's** (`06`, 2026-09-29): #47 extends this list with it,
+in its own migration, or #55 does if it merges second.
+
+**A CV counter reads the current version in each language**, not every version ever saved (`06`,
+#55): a bad reading stays red while the version it describes is the one rounds are scored against,
+and clears when a new version is saved. Versions whose counter is null are skipped; if every current
+version's is null, the reading is null.
+
+---
+
 ## 3. Indexes, each with the query that justifies it
 
 | Index | Query it serves |
@@ -667,6 +736,8 @@ reviewed code change, and a bucket's window is only ever read against the consta
 | `cv_versions (user_id, language, version_label)` *(unique)* | Makes per-language `v{n}` numbering race-safe. Two concurrent saves cannot both land a `v4`. |
 | `cv_documents (cv_version_id, position)` *(unique)* | Render a version's documents in order, and locate the range a claim's span falls in. |
 | `rate_limit_windows (session_id, route)` *(unique)* | The limiter's upsert on every ⚡ request — its conflict target. |
+| `cron_runs (job, created_at desc)` | **When each job last ran** — the status page's first line and Home's status line (`10` §1, §14). |
+| `cron_readings (run_id, user_id, signal)` *(unique)* | The newest run's readings for the signed-in user. |
 
 **Why `language` is denormalised onto `answers`.** The six-month criterion is per-dimension trends
 across first attempts, **per language** — the single hottest query in the app. Keeping `language` on
@@ -751,6 +822,7 @@ characters per minute. The rubric label `v1.2` is the artboards' sample; the fir
 | Audio in S3 | Retained; PRD §144 makes it replayable from History. Deleting a key leaves `audio_s3_key` dangling, so the play control must tolerate a missing object. |
 | `sessions` | Expire normally. The only genuinely ephemeral data here. |
 | `rate_limit_windows` | Updated in place, never deleted. A row outlives its session and is then inert (§2). |
+| `cron_runs`, `cron_readings` | Never deleted. Never updated. Each run is appended beside the last; the status page reads the newest. |
 | `rounds` with `completed_at is null` | Abandoned rounds are **kept**. An abandoned round is evidence about pressure, not garbage. |
 
 There is no "delete my round" feature and screen-spec refusal #3 is the reason: a scoring record you
@@ -789,3 +861,7 @@ Stated so a later session recognises these as decisions, not oversights:
     `status = 'missing'`; the hole is data.
 12. **An answer-side quote taken from model output.** `answer_flags` stores a span into
     `transcript_corrected`, never text, exactly as `cv_claims` stores a span into `body`.
+13. **A monitoring run that carries text, or one rewritten after the fact.** `cron_readings` has
+    numbers, thresholds and ids, and one value-checked name; no column could hold a transcript, a CV
+    or a note (`12` §7). Runs are appended, never updated, so "all clear" can only ever be a fresh
+    run's finding, never an old one edited.

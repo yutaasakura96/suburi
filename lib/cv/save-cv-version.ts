@@ -29,6 +29,19 @@ export interface NewCvVersion {
   /** Null only for the synthetic seed's fixture claims, which no model produced (06, #19). */
   readonly extractorModelId: string | null;
   readonly extractorPromptVersion: string | null;
+  /**
+   * The save's reading counters (07 §5.2), stored on the version for 12 §6's self-check. Null only
+   * for the synthetic seed, whose claims no model read (04 cv_versions).
+   */
+  readonly reading: ReadingCounters | null;
+}
+
+export interface ReadingCounters {
+  readonly spansRejected: number;
+  readonly claimsSplit: number;
+  readonly claimsDuplicated: number;
+  readonly unclaimedRunMax: number;
+  readonly quotesOutsideWindow: number;
 }
 
 export type SaveOutcome =
@@ -89,6 +102,11 @@ export async function saveCvVersion(tx: Db, input: NewCvVersion): Promise<SaveOu
       body: input.body,
       extractorModelId: input.extractorModelId,
       extractorPromptVersion: input.extractorPromptVersion,
+      spansRejected: input.reading?.spansRejected ?? null,
+      claimsSplit: input.reading?.claimsSplit ?? null,
+      claimsDuplicated: input.reading?.claimsDuplicated ?? null,
+      unclaimedRunMax: input.reading?.unclaimedRunMax ?? null,
+      quotesOutsideWindow: input.reading?.quotesOutsideWindow ?? null,
       createdAt: sql`clock_timestamp()`,
     })
     .returning();

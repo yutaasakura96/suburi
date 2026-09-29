@@ -242,6 +242,47 @@ describe("POST /api/cv-versions", () => {
       expect((await rowCounts(db, userId)).claims).toBe(4);
     }));
 
+  // 12 §6's self-check cannot read logs, so the counters land on the version too, in the same insert
+  // (04 cv_versions, 06 2026-09-29). The response and the log line still carry them unchanged.
+  it("stores the five reading counters on the version it saves, exactly as it reports them", () =>
+    inRolledBackTransaction(async (db) => {
+      const { post, versionsOf } = await setUp(db, () => [
+        ...CLAIMS,
+        { document: 0, quote: "Cut invoicing time by 50%.", start_hint: 80 },
+        { document: 0, quote: "Cut invoicing time by 40%.", start_hint: 80 },
+      ]);
+      const { status, json } = await post(cvRequest());
+
+      expect(status).toBe(201);
+      const [version] = await versionsOf();
+      expect({
+        spans_rejected: version.spansRejected,
+        claims_split: version.claimsSplit,
+        claims_duplicated: version.claimsDuplicated,
+        unclaimed_run_max: version.unclaimedRunMax,
+        quotes_outside_window: version.quotesOutsideWindow,
+      }).toEqual({
+        spans_rejected: json.validation.spans_rejected,
+        claims_split: json.validation.claims_split,
+        claims_duplicated: json.validation.claims_duplicated,
+        unclaimed_run_max: json.validation.unclaimed_run_max,
+        quotes_outside_window: json.validation.quotes_outside_window,
+      });
+      expect(version.spansRejected).toBe(1);
+      expect(version.claimsDuplicated).toBe(1);
+      expect(Object.keys(json).sort()).toEqual([
+        "claims",
+        "created_at",
+        "documents",
+        "extractor_model_id",
+        "extractor_prompt_version",
+        "id",
+        "language",
+        "validation",
+        "version_label",
+      ]);
+    }));
+
   // #27: what spans_rejected cannot say. Every claim here slices back verbatim, so the guard reports
   // 0 while one sentence is read as two fragments, one claim is returned twice, and 122 code points
   // go unread. 12 §6 alerts on these three, so they have to be on the line.

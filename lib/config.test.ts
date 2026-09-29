@@ -112,6 +112,35 @@ describe("parseConfig", () => {
     );
   });
 
+  // The cron routes' caller check (07 §5.17): Production scope only, so required only there (06, #55).
+  describe("CRON_SECRET", () => {
+    const secret = "cron-secret-not-a-real-one";
+
+    it.each([[undefined], ["preview"], ["development"]])("is optional when VERCEL_ENV is %s", (vercelEnv) => {
+      expect(parseConfig({ ...valid, VERCEL_ENV: vercelEnv }).CRON_SECRET).toBeUndefined();
+    });
+
+    it("is required in production, and names itself as missing", () => {
+      const error = errorFrom({ ...valid, VERCEL_ENV: "production" });
+      expect(error.problems).toEqual([{ name: "CRON_SECRET", problem: "missing" }]);
+    });
+
+    it("is accepted in production", () => {
+      expect(parseConfig({ ...valid, VERCEL_ENV: "production", CRON_SECRET: secret }).CRON_SECRET).toBe(secret);
+    });
+
+    it("refuses one shorter than 16 characters without echoing it", () => {
+      const error = errorFrom({ ...valid, CRON_SECRET: "fifteen-chars-x" });
+      expect(error.problems).toEqual([{ name: "CRON_SECRET", problem: "malformed" }]);
+      expect(error.message).not.toContain("fifteen-chars-x");
+    });
+
+    it("refuses a VERCEL_ENV Vercel never sets", () => {
+      const error = errorFrom({ ...valid, VERCEL_ENV: "staging" });
+      expect(error.problems).toEqual([{ name: "VERCEL_ENV", problem: "malformed" }]);
+    });
+  });
+
   // The prefix is the only thing separating develop's audio from real audio (12 §2).
   it.each(["prod/", "dev/"])("accepts S3_PREFIX %s", (value) => {
     expect(parseConfig({ ...valid, S3_PREFIX: value }).S3_PREFIX).toBe(value);

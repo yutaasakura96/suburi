@@ -1,6 +1,6 @@
 import { loadEnvConfig } from "@next/env";
 import { defineConfig, devices } from "@playwright/test";
-import { E2E_URL, MOCK_OPENAI_BASE_URL } from "./e2e/database";
+import { E2E_CRON_SECRET, E2E_URL, MOCK_OPENAI_BASE_URL } from "./e2e/database";
 
 // Load .env files exactly as `next start` does (.env.local ahead of .env, never over the real
 // environment), so the tests mint sessions with the secret the server verifies them with. CI sets
@@ -24,6 +24,8 @@ const serverEnv = Object.fromEntries(
     // request the mock misses fails instead of spending (06, 2026-09-21).
     OPENAI_API_KEY: "e2e-not-a-real-key",
     OPENAI_BASE_URL: MOCK_OPENAI_BASE_URL,
+    // The cron routes' caller check (07 §5.17). A placeholder, known to e2e/status.spec.ts.
+    CRON_SECRET: E2E_CRON_SECRET,
     // Nothing under test reaches S3 yet, and no real credential is ever handed to it: a request
     // signed with these fails instead of writing.
     ...e2eStorage,

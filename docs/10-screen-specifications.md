@@ -1,7 +1,8 @@
 # Screen specifications — Suburi
 
 Nine screens, extracted from the Direction B artboards in `design/`, **and a tenth — the CV screen
-(§13) — specified from `05` components with no artboard behind it.** Tokens referenced here are
+(§13) — specified from `05` components with no artboard behind it, and an eleventh, the status page
+(§14), specified the same way.** Tokens referenced here are
 defined in [`05-design-system.md`](05-design-system.md); this document specifies **what each screen
 contains, in what state, and what it must refuse to do**.
 
@@ -90,8 +91,28 @@ Solid primary button `Start a round`, then 12px/1.6 `--ink-6`:
 **One line, only when something is wrong** (`06`, 2026-09-29): shown when any `12` §6 check on the
 status page is red, or `self-check` has not run for over 48 hours; absent otherwise, never an
 "all clear". It says which, in English (§0), and links to the status page. It carries counts and
-names of checks only, never text from a CV, transcript or note (`12` §7). Its placement and styling
-are specified here from `05` components by #55, before it is built.
+names of checks only, never text from a CV, transcript or note (`12` §7).
+
+**Placement:** the first thing inside the page frame, above every card, at the full content width,
+with the standard `14px` card gap below it. Outside the cards, because it is about the instrument,
+not about practice, and it must not push the Due list's order around.
+
+**Styling:** a `05` §5.8 callout rail — a `3px` `--attention-mark` bar, gap `10px`, text 12px/1.7 in
+`--ink-3` — on `--ground`, with no card and no border: one sentence, then the link `Open the status
+page` in `--link`, underlined on hover. Nothing else: no icon, no dismiss control (it clears itself
+when the check does), no count badge.
+
+**Copy**, the staleness clause first, because a dead cron makes every other reading old:
+
+| State | Line |
+| --- | --- |
+| `self-check` has never run | `Self-check has never run.` |
+| Last run over 48 hours ago | `Self-check has not run since 2026-09-27 04:12.` — Asia/Tokyo, 24-hour |
+| Red checks | `2 checks are red: Scores pending over 24 hours, CV claims split.` — one check: `1 check is red: …` |
+| Both | the staleness sentence, then the red one, on the same line |
+
+The check names are the status page's own (§14). A red reading from a stale run still counts: the
+line says the run is old and what it last found.
 
 ### Empty state
 Zero rounds ever: Due shows nothing to be due from. Show the four round types unsorted with `未実施`
@@ -664,3 +685,76 @@ what the CV stamp on an old answer means.
 - **No upload of the file itself.** The browser extracts text; the file does not leave it.
 - **No score, no quality figure, no "CV strength".** This screen shows what was extracted and where it
   came from. Rating a CV is a different product.
+
+---
+
+## 14. Status — `/status`, no artboard
+
+**Purpose.** Show whether the two things `12` §6 watches for — scores quietly not landing and cost
+drifting — have happened, and whether the job that watches is still running. Specified from `05`
+components, like §13, before it is built (#55).
+
+Session-required like every other screen (`08` §5), **the user's own page**: not an admin route (`07`
+§6 — there are no roles) and not a sharing surface (§11 refusal 6). English chrome (§0). Reached from
+Home's status line (§1); it is **not in the app header's nav**, which stays `Home · Progress · History
+· CV` (`05` §5.1).
+
+### Layout
+
+The standard frame, `padding: 40px 44px`, **one card** at 1280px (`05` §4): a card header holding the
+§3.3 section label `STATUS`, then the body at `26px 32px 32px`, its three blocks gapped `28px`, each
+headed by a §3.3 section label.
+
+### Staleness, first
+
+**If `self-check` has not run for over 48 hours, the page says so before anything else** (`12` §6,
+`06` 2026-09-28): an `--attention-mark` callout rail (`05` §5.8) at the top of the body —
+`Self-check has not run since 2026-09-27 04:12. Every reading below is from that run or earlier.` —
+or, with no run at all, `Self-check has never run. Nothing below has been checked.` A dead cron must
+never read as "all clear". Nothing is shown when the last run is within 48 hours.
+
+### Jobs — `JOBS`
+
+Two rows on `--rule-hairline` separators, `padding: 11px 0`: the job name at 13px (`Self-check`,
+`Weekly digest`), its schedule at 12px `--ink-6` (`Daily, 04:00–05:00`, `Mondays, 05:00–06:00`), and
+right-aligned in 12px mono `--ink-3`, when it last ran — `2026-09-30 04:12`, or `Never` in
+`--ink-9`. Times are Asia/Tokyo, 24-hour, as everywhere in this app (`06`, 2026-09-28).
+
+### Checks — `CHECKS`
+
+One row per `12` §6 row `self-check` covers, **always all nine, in `12` §6's order**, from the newest
+`self-check` run. A grid `minmax(0,1fr) 140px 160px 96px`, rows on `--rule-hairline`, `padding: 11px
+0`:
+
+| Column | Spec |
+| --- | --- |
+| Check | 13px `--ink-2`: `Scores pending over 24 hours`, `Failed scores not retried`, `Spend this week`, `CV quotes not found in text`, `CV claims split`, `CV claims duplicated`, `CV longest unread run`, `CV quotes outside window`, `Rounds without feedback over 24 hours` |
+| Reading | 13px mono, right-aligned: a count (`0`, `3`), code points (`1,071`), or dollars (`$0.84`). `—` in `--ink-9` when there is no reading |
+| Threshold | 12px mono `--ink-label`, right-aligned: `above 0`, `above 2,000`, `above $1.20` |
+| State | 12px, right-aligned: `Red` in `--attention-ink`/500; `OK` in `--ink-4`; `No reading` in `--ink-9` |
+
+**No reading is not OK.** A CV counter whose current versions all predate the counter columns has no
+reading (`04` `cv_versions`), and says so rather than showing `0`. With no run at all, every row reads
+`—` and `No reading`.
+
+Under the table, 12px/1.7 `--ink-6`: `Spend counts the stored token columns only, priced at
+lib/ai/models.ts's rates. The threshold is 3 × $0.40 per round started this week, with a floor of one
+round.` — the loose-until-re-measured caveat of `12` §6, stated where the number is read.
+
+### Last week — `LAST WEEK`
+
+From the newest `digest` run: the week it covers (`2026-09-21 – 2026-09-27`) at 12px mono `--ink-6`,
+then a two-column list of label (13px `--ink-3`) and figure (13px mono, right-aligned): `Rounds
+started`, `Rounds completed`, `Tokens in`, `Tokens out`, `Spend`. With no digest run: `No weekly digest
+has run yet.` at 12px `--ink-6`. **The near-miss row joins this list with #47** (`06`, 2026-09-29).
+
+### Refuses
+
+- **No text from the record** — no transcript, CV, claim or note, and no id rendered either. The
+  run holds counts and ids only (`04` `cron_readings`, `12` §7); the ids behind a red check stay in the
+  database for investigation, not on the page.
+- **No share, export or public link** (§11 refusal 6), and **no run-now button**: a run comes from the
+  cron, or by hand with `CRON_SECRET` (`07` §5.17); the page reads, it never writes.
+- **No delete, no acknowledge, no mute.** A red check clears when a later run finds it clear, and not
+  otherwise.
+- **No score** of any kind (§11 refusal 1). Spend is money, not a measure of the user.

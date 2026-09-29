@@ -76,6 +76,7 @@ describe("0004_claim-text-nfkc", () => {
           claims: [{ span: ranges[0], textNormalised: normalise(text) }],
           extractorModelId: "fake-extractor",
           extractorPromptVersion: "cv-extract-ja-fake",
+          reading: null,
         });
       };
 

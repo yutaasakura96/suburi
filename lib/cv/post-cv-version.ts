@@ -251,6 +251,13 @@ export function createPostCvVersion(deps: PostCvVersionDeps) {
           claims,
           extractorModelId: deps.extractor.modelId,
           extractorPromptVersion: deps.extractor.promptVersions[language],
+          reading: {
+            spansRejected,
+            claimsSplit,
+            claimsDuplicated,
+            unclaimedRunMax,
+            quotesOutsideWindow,
+          },
         }),
       );
     } catch (error) {

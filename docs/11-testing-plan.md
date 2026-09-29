@@ -285,6 +285,27 @@ With a stubbed generator and embedder.
 - Nothing the call would have written exists afterwards, and `GET /api/rounds/{id}` resumes at the
   same call.
 
+### 3.17 The monitoring jobs (#55)
+
+The one failure `12` §6 exists to prevent is a check that reads "all clear" when it is not, so each
+row is tested firing as well as quiet.
+
+- **Every `12` §6 threshold is a named constant with a unit test at, below and above it** — the two
+  24-hour ages, the 48-hour staleness, `unclaimed_run_max`'s 2,000, the spend threshold's 3× baseline ×
+  max(1, rounds), and zero for every "any" row.
+- **Against the real database:** seeded rows that trip each of the nine `self-check` signals appear red
+  on the next run, with the tripping rows' ids; a healthy fixture yields none red; a CV version with
+  null counters is no reading, not zero; the Asia/Tokyo week boundary puts a token row on the right
+  side; `digest` reports the ended week's rounds, tokens and spend.
+- **A request without `CRON_SECRET` writes nothing** — no header, a wrong one, and an unset secret
+  each return `401` and leave `cron_runs` as it was.
+- **Runs are appended:** a second run is a new row, and the first run's readings are unchanged.
+- **§3.10's sentinel test, for the run and the page:** with sentinel text in a CV body, a transcript,
+  a question and round feedback, neither a stored run's rows nor the rendered status page nor the
+  route's response and log lines contain it.
+- **Playwright:** an authenticated call to each route writes a run the status page then shows, and
+  Home's status line appears for a red check and a stale `self-check`, and is absent when neither.
+
 ---
 
 ## 4. End-to-end, in Playwright
