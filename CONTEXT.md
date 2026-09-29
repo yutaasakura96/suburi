@@ -160,8 +160,8 @@ Carry these; do not silently decide them in a ticket.
   one fixed app language. The CV screen keeps its per-panel rule (`10` §13), and `/sign-in` still shows
   both. The artboards' Japanese chrome on the app-level screens is layout, not copy (`10` §0).
 - **The near-duplicate similarity threshold.** A guess until there is real data. **It starts at cosine
-  similarity 0.90 = the same question — unverified** (`06`, 2026-09-27). Log every near-miss with its
-  score, tune from the log.
+  similarity 0.90 = the same question — unverified** (`06`, 2026-09-27). Store every near-miss with its
+  score (`04`); tune from those records.
 - **CV claim extraction quality — judged no on 2026-09-23, fixed and re-measured on 2026-09-24,
   re-measured windowed and judged good on 2026-09-27 (#20/#29, `03` §4).**
   The real 履歴書 + 職務経歴書 and the real English CV went through `/cv` locally against Docker

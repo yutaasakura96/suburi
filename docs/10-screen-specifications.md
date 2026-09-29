@@ -86,6 +86,13 @@ target, not quality. It must never appear on a screen where it could be confused
 Solid primary button `Start a round`, then 12px/1.6 `--ink-6`:
 `Defaults to 行動面接 · 日本語 · realistic · 5. All four overridable.`
 
+### Status line
+**One line, only when something is wrong** (`06`, 2026-09-29): shown when any `12` §6 check on the
+status page is red, or `self-check` has not run for over 48 hours; absent otherwise, never an
+"all clear". It says which, in English (§0), and links to the status page. It carries counts and
+names of checks only, never text from a CV, transcript or note (`12` §7). Its placement and styling
+are specified here from `05` components by #55, before it is built.
+
 ### Empty state
 Zero rounds ever: Due shows nothing to be due from. Show the four round types unsorted with `未実施`
 and no bars; First attempts shows `0 / 30` with empty tracks; the caption becomes the primary content.

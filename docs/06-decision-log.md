@@ -3,6 +3,89 @@
 Newest first. Every entry records what was chosen, why, and what was rejected.
 
 ---
+## Phase 6 — triage of the audit's tickets
+
+A read-only triage on 2026-09-29 found #55 could not be built unattended: three of its signals were
+stored nowhere a cron can read, its cost baseline was undefined, and its near-miss row read a log
+line. #55 and #56 each held a criterion only production could meet, while #21 (production) was
+blocked by both. The user answered each point.
+
+### [2026-09-29] The five CV-upload counters are columns on `cv_versions`
+
+**Decided:** by the user. `spans_rejected`, `claims_split`, `claims_duplicated`, `unclaimed_run_max`
+and `quotes_outside_window` become nullable integer columns on `cv_versions`, written by the save in
+the same insert and never updated. #55 adds them (expand-only) and `self-check` reads them.
+**Alternatives considered:** a separate readings table keyed to the version; the save writing an
+alert row straight into #55's run table; dropping the five rows from `self-check` and leaving them to
+the per-upload eyeball (`11` §5).
+**Reason:** until now the counters were only logged and returned in the save's response, and a
+daily cron cannot read Vercel logs. On the version row, the reading sits beside the version it
+describes, as the `extractor_*` stamps already do. Null covers versions saved before the columns and
+`develop`'s synthetic seed.
+
+### [2026-09-29] The round-cost baseline is a constant from `03` §6, re-measured after eight real rounds
+
+**Decided:** by the user. `12` §6's "eight-round baseline" is a fixed constant now, about **$0.40
+per round** (`03` §6). Week-to-date spend is every stored `tokens_in`/`tokens_out` row (`questions`,
+`scoring_attempts`, `round_feedback`, and `follow_ups` once built), each counted in the week of its own
+`created_at`, with no round attribution. The threshold is 3× the baseline × max(1, rounds started that
+week). After eight real rounds the constant is replaced by their measured cost, with an entry here.
+**Alternatives considered:** computing the baseline from the first eight completed rounds in the
+data, which leaves the signal dead until then; attributing each row's spend to the week its round
+started.
+**Reason:** no round exists yet (#42–#51 are unbuilt), and a check that cannot fire until month two
+is no check. Transcription is billed per minute, and extraction, speech and embeddings store no
+tokens, so only the model calls that stamp a token pair are counted. Counting each row by its own
+`created_at` needs no join back to a round; the floor of one round keeps a week with late scoring or
+a retry but no round started from having a threshold of 0.
+**Cost, accepted:** $0.40 covers the whole round, the token columns only part of it, so the threshold
+is loose until the re-measure.
+
+### [2026-09-29] The near-miss row moves from #55 to #47
+
+**Decided:** by the user. #47, which builds the near-duplicate guard, also stores the near-miss log
+(designed in `04` first) and owns the digest's near-miss row. #55 builds `digest` without it;
+whichever of the two merges second wires the row.
+**Reason:** "log every near-miss" was a log line, and the digest reads the database. The guard and
+its log belong to the ticket that builds them.
+
+### [2026-09-29] A red or stale check puts one line on Home
+
+**Decided:** by the user, answering the question the 2026-09-28 status-page entry left open on #55.
+Home shows one line when any check is red or `self-check` is over 48 hours stale, and nothing
+otherwise (`10` §1). #55 builds it.
+**Alternatives considered:** the status page alone, with its staleness line as the minimum.
+**Reason:** `12` §6 already warns that an alert nobody opens is not monitoring, and Home is where the
+user already looks.
+
+### [2026-09-29] Backups are kept forever, without the auth tables
+
+**Decided:** by the user. `backups/` gets no lifecycle rule, like `prod/`. The dump leaves out
+`sessions`, `accounts` and `verifications`.
+**Alternatives considered:** expiring after N days; daily copies for N days plus a monthly copy kept
+forever.
+**Reason:** nothing in this project is deleted, and a daily dump at this size costs next to nothing.
+The three tables hold session and Google OAuth tokens, which a file kept forever should not carry
+and a restore does not need: signing in again rebuilds them.
+
+### [2026-09-29] Sentry sends errors only: no performance tracing, no Session Replay
+
+**Decided:** by the user, before #54 is built; a line in `12` §7 and in #54.
+**Reason:** Replay records the DOM, and the DOM shows CV and transcript text, which `12` §7 never lets
+reach Sentry. Tracing is not needed for the one thing Sentry is here for, and its events carry request
+detail outside `beforeSend`. The SDK's setup wizard can turn both on by default, so the ticket says so.
+
+### [2026-09-29] The production-only proofs move to #21
+
+**Decided:** by the user. #55's "first scheduled `self-check` appears on the status page" and #56's
+restore drill are criteria of #21, not of #55 and #56.
+**Reason:** both can only be met after the first production deploy, which is #21, and #21 is blocked
+by #55 and #56. As written, neither ticket could close before release. #54 has no such criterion: it
+is proven on `develop`.
+**Consequence:** the native `blocked_by` edges now match the bodies: #21 is blocked by #54, #55 and
+#56, and #56 by #55.
+
+---
 ## Phase 6 — the infrastructure audit's fixes
 
 A read-only audit on 2026-09-28 found production's missing pieces unowned: no ticket for Sentry, the
