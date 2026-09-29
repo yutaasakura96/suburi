@@ -26,14 +26,20 @@ describes, as the `extractor_*` stamps already do. Null covers versions saved be
 ### [2026-09-29] The round-cost baseline is a constant from `03` §6, re-measured after eight real rounds
 
 **Decided:** by the user. `12` §6's "eight-round baseline" is a fixed constant now, about **$0.40
-per round** (`03` §6), and spend is counted from the three stored token columns (`tokens_in`/
-`tokens_out` on `questions`, `scoring_attempts`, `round_feedback`). After eight real rounds the
-constant is replaced by their measured cost, with an entry here.
+per round** (`03` §6), and spend is counted from every stored `tokens_in`/`tokens_out` pair
+(`questions`, `follow_ups`, `scoring_attempts`, `round_feedback`). The threshold stays 3× the
+baseline × rounds started that week, and **each round's spend is attributed to the week the round
+started**, whenever the tokens were spent. After eight real rounds the constant is replaced by their
+measured cost, with an entry here.
 **Alternatives considered:** computing the baseline from the first eight completed rounds in the
-data, which leaves the signal dead until then.
+data, which leaves the signal dead until then; counting spend by the week it was spent, with a floor
+of one round on the threshold.
 **Reason:** no round exists yet (#42–#51 are unbuilt), and a check that cannot fire until month two
-is no check. The three stored columns are the only tokens in the database; transcription is billed
-per minute, and extraction, speech and embeddings store none.
+is no check. Transcription is billed per minute, and extraction, speech and embeddings store no
+tokens, so only the model calls that stamp a token pair are counted. Attributing by the round's start
+week keeps spend and rounds in the same week: counted by when it was spent, a round started late one
+week and scored the next, or a `failed` attempt retried later, puts spend in a week whose threshold
+is 0 and turns the check red with nothing wrong.
 **Cost, accepted:** $0.40 covers the whole round, the token columns only part of it, so the threshold
 is loose until the re-measure.
 

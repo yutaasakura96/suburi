@@ -247,7 +247,7 @@ retry loop or a prompt that doubled in size shows up on a bill, not on a screen.
 | --- | --- | --- |
 | `scoring_attempts` in `pending` for over **24 hours** | any | status page — Hobby cron is daily-only, see below |
 | `scoring_attempts` in `failed`, not superseded by an `ok` attempt | any | status page |
-| Week-to-date OpenAI spend, from the three stored token columns | > 3× the round-cost baseline × rounds started that week | status page — the baseline is a fixed constant, see below |
+| Week-to-date OpenAI spend, from every stored token column, attributed to the week its round started | > 3× the round-cost baseline × rounds started that week | status page — the baseline is a fixed constant, see below |
 | `spans_rejected > 0` on a CV upload | any | status page — the anti-hallucination guard actually firing (`07` §5.2) |
 | `claims_split > 0` on a CV upload | any | status page — the extractor is cutting sentences into fragments again (`07` §5.2) |
 | `claims_duplicated > 0` on a CV upload | any | status page — the same assertion returned more than once |
@@ -273,11 +273,18 @@ response (`06`, 2026-09-29).
 
 **The round-cost baseline is a constant, not a measurement yet** (`06`, 2026-09-29). It is set from
 `03` §6's estimate, **about $0.40 a round**, because no real round exists to measure. Spend is counted
-from the three stored token columns only (`tokens_in`/`tokens_out` on `questions`,
-`scoring_attempts` and `round_feedback`), priced by per-model constants beside the pinned strings in
-`lib/ai/models.ts`. Transcription, speech, embeddings and CV extraction store no tokens and are not in
-it, so the threshold is loose until it is re-measured: **after eight real rounds, the constant is
-replaced by the measured cost of those rounds**, recorded in `06`.
+from every stored `tokens_in`/`tokens_out` pair — today `questions`, `follow_ups`, `scoring_attempts`
+and `round_feedback` (`04`), and any table that gains the pair later — priced by per-model constants
+beside the pinned strings in `lib/ai/models.ts`. Transcription, speech, embeddings and CV extraction
+store no tokens and are not in it, so the threshold is loose until it is re-measured: **after eight
+real rounds, the constant is replaced by the measured cost of those rounds**, recorded in `06`.
+
+**Spend is attributed to the week its round started**, not the week it was spent. Each row's cost
+goes to its round — `round_feedback` directly, `scoring_attempts` and `follow_ups` through their
+answer, a question through the `round_questions` row of the round that generated it — and that
+round's `started_at` picks the week. Both sides of the comparison then count the same rounds, so a
+week with no round started has no spend and cannot turn red from a late score, a retried `failed`
+attempt or feedback written after the week boundary.
 
 **One failure no row here sees: a lumped reading** (#29). A late, dense section returned as a few
 paragraph-sized claims leaves coverage complete, abuts nothing and repeats nothing, so every counter
