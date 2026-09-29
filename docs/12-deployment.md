@@ -281,8 +281,10 @@ real rounds, the constant is replaced by the measured cost of those rounds**, re
 
 **Spend is attributed to the week its round started**, not the week it was spent. Each row's cost
 goes to its round — `round_feedback` directly, `scoring_attempts` and `follow_ups` through their
-answer, a question through the `round_questions` row of the round that generated it — and that
-round's `started_at` picks the week. Both sides of the comparison then count the same rounds, so a
+answer, a question through its **earliest** `round_questions` row, the round that generated it, never
+a later round that reuses it — and that round's `started_at` picks the week. A question with tokens
+but no `round_questions` row (its round never started, e.g. a `503` preflight) is not dropped: it
+counts in the week of its own `created_at`. Both sides of the comparison then count the same rounds, so a
 week with no round started has no spend and cannot turn red from a late score, a retried `failed`
 attempt or feedback written after the week boundary.
 

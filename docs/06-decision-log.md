@@ -29,7 +29,8 @@ describes, as the `extractor_*` stamps already do. Null covers versions saved be
 per round** (`03` §6), and spend is counted from every stored `tokens_in`/`tokens_out` pair
 (`questions`, `follow_ups`, `scoring_attempts`, `round_feedback`). The threshold stays 3× the
 baseline × rounds started that week, and **each round's spend is attributed to the week the round
-started**, whenever the tokens were spent. After eight real rounds the constant is replaced by their
+started**, whenever the tokens were spent; a generated question counts once, for the round of its
+earliest `round_questions` row, or by its own `created_at` if no round ever asked it. After eight real rounds the constant is replaced by their
 measured cost, with an entry here.
 **Alternatives considered:** computing the baseline from the first eight completed rounds in the
 data, which leaves the signal dead until then; counting spend by the week it was spent, with a floor
