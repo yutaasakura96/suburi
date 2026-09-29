@@ -49,7 +49,7 @@ describe("scrubBreadcrumb", () => {
         body: SENTINELS.notes,
       },
     });
-    expect(scrubbed.data).toEqual({
+    expect(scrubbed?.data).toEqual({
       method: "POST",
       url: "https://bucket.s3.amazonaws.com/dev/audio/1.webm",
       status_code: 200,
