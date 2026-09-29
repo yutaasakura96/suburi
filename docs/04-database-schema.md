@@ -327,9 +327,9 @@ distance against non-retired questions in the same `(user_id, language, round_ty
 threshold, **reuse the existing row instead of inserting.** Rationale in `03` §11: five rephrasings
 of one question fragment the first-attempt measurement into five points of one instead of one of
 five. **The threshold starts at cosine similarity 0.90** — an unverified guess, a constant beside the
-guard, not a column. Log every near-miss with its score and tune the threshold from that log, not from
-intuition. **The log is stored, not only logged,** because `12` §6's weekly digest reads it from the
-database; #47 designs its table or columns here before building the guard (`06`, 2026-09-29).
+guard, not a column. Store every near-miss with its score and tune the threshold from those records,
+not from intuition. `12` §6's weekly digest reads them from the database; #47 designs the table or
+columns here before building the guard (`06`, 2026-09-29).
 
 ---
 

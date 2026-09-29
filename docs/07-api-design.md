@@ -357,9 +357,9 @@ every windowed call, so it alerts at any non-zero value, like `spans_rejected` (
 
 **None of the five refuses a save.** `spans_rejected` does not, and neither do the three reading
 counters: a bad reading is the model's judgement rather than an invariant, and there is no edit the
-user could make that would clear it. They are logged, returned here, and alerted on (`12` §6). The one
-case that still fails is every claim being rejected, which leaves nothing to store —
-`502 cv_extraction_failed` with `no_claims_survived`.
+user could make that would clear it. They are logged, returned here, stored on the new `cv_versions`
+row (`04`), and alerted on (`12` §6). The one case that still fails is every claim being rejected,
+which leaves nothing to store — `502 cv_extraction_failed` with `no_claims_survived`.
 
 `unclaimed_run_max` is the loosest of the three and is read with that in mind: a document that
 deliberately repeats another's qualifications now leaves that whole block unclaimed, which is the
