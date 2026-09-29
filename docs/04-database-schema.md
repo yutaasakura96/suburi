@@ -64,7 +64,7 @@ None of it is migrated yet — each change lands with the slice that first needs
 | `held_out_rescores` | A past answer re-scored under new stamps, to make drift visible. |
 | `rate_limit_windows` | One session's current fixed window on one ⚡ route: when it began and how many requests it has counted (`07` §1 rule 5). Not measurement. |
 | `cron_runs` | One run of a monitoring job, `self-check` or `digest` (`12` §6): which job, and when. |
-| `cron_readings` | One signal's reading for one user in one run: a number, its threshold, whether it was red, and the ids behind it. Counts and ids only. |
+| `cron_readings` | One signal's reading for one user in one run: a number, its threshold, whether it was red, and the ids behind it. Unpriced spend also names model identifiers; no record text. |
 
 ---
 
@@ -863,7 +863,7 @@ Stated so a later session recognises these as decisions, not oversights:
     `status = 'missing'`; the hole is data.
 12. **An answer-side quote taken from model output.** `answer_flags` stores a span into
     `transcript_corrected`, never text, exactly as `cv_claims` stores a span into `body`.
-13. **A monitoring run that carries text, or one rewritten after the fact.** `cron_readings` has
-    numbers, thresholds and ids, and one value-checked name; no column could hold a transcript, a CV
-    or a note (`12` §7). Runs are appended, never updated, so "all clear" can only ever be a fresh
+13. **A monitoring run that carries record text, or one rewritten after the fact.** `cron_readings`
+    has numbers, thresholds, ids and unpriced model identifiers; no column is used for a transcript,
+    a CV or a note (`12` §7). Runs are appended, never updated, so "all clear" can only ever be a fresh
     run's finding, never an old one edited.

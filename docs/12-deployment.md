@@ -73,9 +73,9 @@ CV's, and never call a model.
 
 **Cron is off on `develop` on purpose.** The self-check alerts on pending scores and cost drift (§6);
 run against synthetic data it would fill the status page with noise, and an alert channel that cries
-wolf is one you stop reading — which is the whole failure §6 exists to prevent. The routes and the status page still
-exist there (#55), and **`develop`'s Home always carries `Self-check has never run.`**, which is true:
-a signed-in `develop` says so rather than implying a check it never made (`10` §1).
+wolf is one you stop reading — which is the whole failure §6 exists to prevent. The routes and the
+status page still exist there (#55). With no manual run in its database, `develop`'s Home carries
+`Self-check has never run.` rather than implying a check it never made (`10` §1).
 
 **Sentry is on for `develop`, tagged.** Not for the error reports, but so that §7's scrubbing
 configuration is exercised before production has anything worth leaking. So `SENTRY_DSN` and
@@ -252,11 +252,11 @@ retry loop or a prompt that doubled in size shows up on a bill, not on a screen.
 | `scoring_attempts` in `pending` for over **24 hours** | any | status page — Hobby cron is daily-only, see below |
 | `scoring_attempts` in `failed`, not superseded by an `ok` attempt | any | status page |
 | Week-to-date OpenAI spend, from every stored token column, each row counted in its own `created_at` week | > 3× the round-cost baseline × max(1, rounds started that week) | status page — the baseline is a fixed constant, see below |
-| `spans_rejected > 0` on a CV upload | any | status page — the anti-hallucination guard actually firing (`07` §5.2) |
-| `claims_split > 0` on a CV upload | any | status page — the extractor is cutting sentences into fragments again (`07` §5.2) |
-| `claims_duplicated > 0` on a CV upload | any | status page — the same assertion returned more than once |
-| `unclaimed_run_max` on a CV upload | > **2,000** code points | status page — a section of the CV may have gone unread |
-| `quotes_outside_window > 0` on a CV upload | any | status page — an extraction call quoted outside the window it was given (`07` §5.2, #29) |
+| `spans_rejected > 0` on the current CV | any | status page — the anti-hallucination guard actually firing (`07` §5.2) |
+| `claims_split > 0` on the current CV | any | status page — the extractor is cutting sentences into fragments again (`07` §5.2) |
+| `claims_duplicated > 0` on the current CV | any | status page — the same assertion returned more than once |
+| `unclaimed_run_max` on the current CV | > **2,000** code points | status page — a section of the CV may have gone unread |
+| `quotes_outside_window > 0` on the current CV | any | status page — an extraction call quoted outside the window it was given (`07` §5.2, #29) |
 | A completed round with no `round_feedback` | for over **24 hours** | status page — feedback failed and was never retried (`07` §5.12) |
 | Near-duplicate near-misses | weekly count and score distribution | the weekly digest — this is the log the threshold gets tuned from (`03` §11). The threshold starts at **0.90, unverified**. Stored and reported by #47, not #55 |
 | Unhandled exception | any | Sentry, scrubbed per §7 (#54) |
@@ -273,7 +273,7 @@ there is more than one CV's worth of readings to tune from, the way §6's near-d
 
 **The five CV-upload rows read columns on `cv_versions`** (`04`), written by the save in the same
 insert. A cron cannot read Vercel logs, and the counters used to live only there and in the save's
-response (`06`, 2026-09-29).
+response (`06`, 2026-09-29). The current-version selection rule is in `04` `cron_readings`.
 
 **The round-cost baseline is a constant, not a measurement yet** (`06`, 2026-09-29). It is set from
 `03` §6's estimate, **about $0.40 a round**, because no real round exists to measure. Spend is counted
@@ -372,8 +372,8 @@ Sentry configuration, decided here so it is not decided under pressure:
 - Breadcrumbs from `fetch` keep the URL and status, never the body.
 - Source maps uploaded at build and **not served publicly**.
 - **No performance tracing and no Session Replay** (`06`, 2026-09-29). Replay records the DOM, which shows CV and transcript text; a tracing sample carries request detail `beforeSend` never sees. The SDK's setup wizard can turn both on; they stay off.
-- The status page and the cron runs behind it hold counts and ids only, including model identifiers
-  for unpriced spend. Never the answer.
+- The status page and the cron runs behind it hold numbers and identifiers only, including model
+  identifiers for unpriced spend. Never the answer.
 
 **The threat model that makes this strict** (`03` §9): the worst outcome here is not financial, it is
 someone reading the CV, the salary expectations and the notes on companies being interviewed with —

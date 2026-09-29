@@ -554,8 +554,8 @@ serverless instances (`07` §1 rule 5, `04` §2 `rate_limit_windows`).
 suburi/
 ├── app/
 │   ├── (auth)/                sign-in
-│   ├── (app)/                 home · round · progress · history · cv
-│   └── api/                   route handlers — auth, presign, transcribe, score
+│   ├── (app)/                 home · round · progress · history · cv · status
+│   └── api/                   route handlers — auth, round actions, cv, cron
 ├── components/                design-system primitives, per 05
 │   └── ui/                    shadcn source on Base UI, vendored and restyled to 05 §10
 ├── db/
@@ -567,7 +567,7 @@ suburi/
 │   │   └── models.ts          every model string, pinned — the only place one is written
 │   ├── api/                   the 07 §2 envelope and the 07 §3 code table — no user-visible string
 │   │   └── rate-limit.ts      the one per-session limiter every ⚡ route calls, and each route's limit
-│   ├── copy/                  every user-visible string, ja and en — no status, no logic
+│   ├── copy/                  API error copy, ja and en — no status, no logic
 │   ├── prompts/               versioned prompt files; the version is in the filename
 │   ├── cv/                    composition rules, body assembly, span validation, quote slicing
 │   ├── rubric/                rubric versions as data, not prose — v1.0, ja and en, with per-level anchors
@@ -577,8 +577,9 @@ suburi/
 ```
 
 **`lib/api/` and `lib/copy/` are split on purpose, and the dependency runs one way.** `lib/api/`
-holds the codes and their statuses and no user-visible string; `lib/copy/` holds the strings and no
-status, and imports `ErrorCode` from `lib/api/`. §8's rule that a server `message` can never be the
+holds the codes and their statuses and no user-visible string; `lib/copy/` holds the API error strings
+and no status, and imports `ErrorCode` from `lib/api/`. Screen copy lives with its screen, such as
+`app/(app)/status/copy.ts` (`10` §14). §8's rule that a server `message` can never be the
 Japanese one is what forces the split, and `07` §2 adds a second reason: which language a string renders in is
 the screen's decision (`10` §0), and an API layer that cannot reach a rendered string cannot get it
 wrong. It is

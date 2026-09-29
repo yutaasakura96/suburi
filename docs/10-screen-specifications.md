@@ -26,7 +26,7 @@ words, the questions, and the feedback's content.
 | Screens | Chrome is in |
 | --- | --- |
 | **Inside a round** — record (§3–5, and practice's frames), transcript correction (§6), felt pressure (§7), round feedback (§8) | **The round's language.** A Japanese round is Japanese throughout; an English round is English throughout. |
-| **App-level** — Home (§1), Setup (§2), Progress (§9), History (§10) | **English**, one fixed app language. |
+| **App-level** — Home (§1), Setup (§2), Progress (§9), History (§10), Status (§14) | **English**, one fixed app language. |
 | CV (§13) | Each panel in its own language — its own rule, unchanged. |
 | `/sign-in` | Both languages side by side (§12), unchanged. |
 

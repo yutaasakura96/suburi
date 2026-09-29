@@ -67,6 +67,7 @@ test("the cron routes are 401 without the secret, with no cookie in play", async
     expect((await request.get(`/api/cron/${job}`)).status()).toBe(401);
     expect((await request.get(`/api/cron/${job}`, { headers: { authorization: "Bearer wrong-secret-entirely" } })).status()).toBe(401);
   }
+  expect((await request.get("/api/cron/unrecognized")).status()).toBe(401);
 });
 
 test("before any run, Home and the status page both say self-check has never run", async ({ page }) => {
@@ -80,6 +81,9 @@ test("before any run, Home and the status page both say self-check has never run
   await expect(page.getByTestId("job-selfCheck")).toContainText("Never");
   await expect(page.getByTestId("check-scoring_pending_over_24h")).toContainText("No reading");
   await expect(page.getByText("No weekly digest has run yet.")).toBeVisible();
+  if (process.env.NO_MISTAKES_EVIDENCE_DIR) {
+    await page.screenshot({ path: `${process.env.NO_MISTAKES_EVIDENCE_DIR}/status-never-run.png`, fullPage: true });
+  }
 });
 
 test("a self-check older than 48 hours is stale, on Home and first on the page", async ({ page }) => {
@@ -135,11 +139,46 @@ test("a red check puts one line on Home, and no record text reaches either page"
   await expect(statusLine(page)).toContainText("red:");
   await expect(statusLine(page)).toContainText("Spend this week");
   expect(await page.content()).not.toContain(SENTINEL);
+  if (process.env.NO_MISTAKES_EVIDENCE_DIR) {
+    await page.screenshot({ path: `${process.env.NO_MISTAKES_EVIDENCE_DIR}/home-red-status.png`, fullPage: true });
+  }
 
   await page.goto("/status");
   await expect(page.getByTestId("check-spend_week_to_date_usd")).toContainText("$4.00");
   await expect(page.getByTestId("check-spend_week_to_date_usd")).toContainText("Red");
   expect(await page.content()).not.toContain(SENTINEL);
+  if (process.env.NO_MISTAKES_EVIDENCE_DIR) {
+    await page.screenshot({ path: `${process.env.NO_MISTAKES_EVIDENCE_DIR}/status-red-spend.png`, fullPage: true });
+  }
+});
+
+test("an unpriced model turns spend red and is named on Home and Status", async ({ page, request }) => {
+  const userId = await seededUserId();
+  await withDb((db) =>
+    db.insert(s.questions).values({
+      userId,
+      language: "en",
+      roundType: "hr",
+      origin: "generated",
+      body: "Describe a project.",
+      generatorModelId: "e2e-unpriced-model",
+      generatorPromptVersion: "generate-e2e",
+      tokensIn: 100,
+      tokensOut: 200,
+    }),
+  );
+  const run = await request.get("/api/cron/self-check", { headers: { authorization: `Bearer ${E2E_CRON_SECRET}` } });
+  expect(run.status()).toBe(200);
+
+  await signIn(page);
+  await page.goto("/");
+  await expect(statusLine(page)).toContainText("e2e-unpriced-model");
+  await page.goto("/status");
+  await expect(page.getByTestId("check-spend_week_to_date_usd")).toContainText("e2e-unpriced-model");
+  await expect(page.getByTestId("check-spend_week_to_date_usd")).toContainText("Red");
+  if (process.env.NO_MISTAKES_EVIDENCE_DIR) {
+    await page.screenshot({ path: `${process.env.NO_MISTAKES_EVIDENCE_DIR}/status-unpriced-model.png`, fullPage: true });
+  }
 });
 
 test("Home shows nothing when the newest self-check is fresh and clear", async ({ page }) => {
@@ -148,4 +187,7 @@ test("Home shows nothing when the newest self-check is fresh and clear", async (
   await page.goto("/");
   await expect(page.locator("main")).toBeVisible();
   await expect(statusLine(page)).toHaveCount(0);
+  if (process.env.NO_MISTAKES_EVIDENCE_DIR) {
+    await page.screenshot({ path: `${process.env.NO_MISTAKES_EVIDENCE_DIR}/home-clear-status.png`, fullPage: true });
+  }
 });

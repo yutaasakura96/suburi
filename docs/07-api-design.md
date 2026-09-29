@@ -963,8 +963,8 @@ Authorization: Bearer <CRON_SECRET>
 
 It reads every `12` §6 row it covers, for every user, and **appends one `cron_runs` row with its
 `cron_readings` in one transaction** (`04`). Nothing is updated; a run that fails writes nothing and
-returns `500`, and the status page's staleness line is how that shows (`10` §14). The response and the
-log line carry the run id, counts and the duration — never a reading's subjects' text, which the run
+returns `500`, and the status page's staleness line is how that shows (`10` §14). The response carries
+the run id, time and counts; the log also carries the duration — never a reading's subjects' text, which the run
 does not hold in the first place (`12` §7).
 
 **`401` when `CRON_SECRET` is unset**, whatever the header says: an unset secret must not mean
