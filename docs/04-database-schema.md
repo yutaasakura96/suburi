@@ -108,6 +108,11 @@ version of the whole set.
 | `source_filename` | `text` | yes | — | **Retired.** Always null; not dropped — migrations are expand-only. A filename belongs to a document, not to the set: `cv_documents.source_filename`. |
 | `extractor_model_id` | `text` | yes | — | model that produced the claims. **Null only on `develop`'s synthetic seed**, whose claims are fixtures no model produced (`12` §1) |
 | `extractor_prompt_version` | `text` | yes | — | null exactly when `extractor_model_id` is |
+| `spans_rejected` | `integer` | yes | — | the save's reading counters (`07` §5.2), written in the same insert, never updated. `12` §6's daily `self-check` reads them here, since a cron cannot read logs. Null on a version saved before the columns existed and on `develop`'s synthetic seed |
+| `claims_split` | `integer` | yes | — | as `spans_rejected` |
+| `claims_duplicated` | `integer` | yes | — | as `spans_rejected` |
+| `unclaimed_run_max` | `integer` | yes | — | as `spans_rejected`; code points, the longest over the set's documents |
+| `quotes_outside_window` | `integer` | yes | — | as `spans_rejected` |
 | `created_at` | `timestamptz` | no | `now()` | this is the date screen 2 shows. **Written as `clock_timestamp()`** by the save, not left to the default — see below. |
 
 **`version_label` is derived, and numbering is per language.** `応募書類 v{n}` for `ja`, `CV v{n}` for
@@ -323,7 +328,8 @@ threshold, **reuse the existing row instead of inserting.** Rationale in `03` §
 of one question fragment the first-attempt measurement into five points of one instead of one of
 five. **The threshold starts at cosine similarity 0.90** — an unverified guess, a constant beside the
 guard, not a column. Log every near-miss with its score and tune the threshold from that log, not from
-intuition.
+intuition. **The log is stored, not only logged,** because `12` §6's weekly digest reads it from the
+database; #47 designs its table or columns here before building the guard (`06`, 2026-09-29).
 
 ---
 

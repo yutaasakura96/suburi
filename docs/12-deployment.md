@@ -247,14 +247,14 @@ retry loop or a prompt that doubled in size shows up on a bill, not on a screen.
 | --- | --- | --- |
 | `scoring_attempts` in `pending` for over **24 hours** | any | status page — Hobby cron is daily-only, see below |
 | `scoring_attempts` in `failed`, not superseded by an `ok` attempt | any | status page |
-| Week-to-date OpenAI tokens | > 3× the eight-round baseline | status page |
+| Week-to-date OpenAI spend, from the three stored token columns | > 3× the round-cost baseline × rounds started that week | status page — the baseline is a fixed constant, see below |
 | `spans_rejected > 0` on a CV upload | any | status page — the anti-hallucination guard actually firing (`07` §5.2) |
 | `claims_split > 0` on a CV upload | any | status page — the extractor is cutting sentences into fragments again (`07` §5.2) |
 | `claims_duplicated > 0` on a CV upload | any | status page — the same assertion returned more than once |
 | `unclaimed_run_max` on a CV upload | > **2,000** code points | status page — a section of the CV may have gone unread |
 | `quotes_outside_window > 0` on a CV upload | any | status page — an extraction call quoted outside the window it was given (`07` §5.2, #29) |
 | A completed round with no `round_feedback` | for over **24 hours** | status page — feedback failed and was never retried (`07` §5.12) |
-| Near-duplicate near-misses | weekly count and score distribution | the weekly digest — this is the log the threshold gets tuned from (`03` §11). The threshold starts at **0.90, unverified** |
+| Near-duplicate near-misses | weekly count and score distribution | the weekly digest — this is the log the threshold gets tuned from (`03` §11). The threshold starts at **0.90, unverified**. Stored and reported by #47, not #55 |
 | Unhandled exception | any | Sentry, scrubbed per §7 (#54) |
 | App down | — | **not alerted.** You will know. |
 
@@ -267,6 +267,18 @@ repeats another's qualifications now leaves that whole block unclaimed by design
 1,071 code points, while the skipped `PROJECTS` block that started #27 measured 3,875. Tighten it when
 there is more than one CV's worth of readings to tune from, the way §6's near-duplicate row is tuned.
 
+**The five CV-upload rows read columns on `cv_versions`** (`04`), written by the save in the same
+insert. A cron cannot read Vercel logs, and the counters used to live only there and in the save's
+response (`06`, 2026-09-29).
+
+**The round-cost baseline is a constant, not a measurement yet** (`06`, 2026-09-29). It is set from
+`03` §6's estimate, **about $0.40 a round**, because no real round exists to measure. Spend is counted
+from the three stored token columns only (`tokens_in`/`tokens_out` on `questions`,
+`scoring_attempts` and `round_feedback`), priced by per-model constants beside the pinned strings in
+`lib/ai/models.ts`. Transcription, speech, embeddings and CV extraction store no tokens and are not in
+it, so the threshold is loose until it is re-measured: **after eight real rounds, the constant is
+replaced by the measured cost of those rounds**, recorded in `06`.
+
 **One failure no row here sees: a lumped reading** (#29). A late, dense section returned as a few
 paragraph-sized claims leaves coverage complete, abuts nothing and repeats nothing, so every counter
 reads clean. It is prevented by windowed extraction, not detected. The `quotes_outside_window` row
@@ -275,8 +287,9 @@ guards the windowing itself and is strict, because it measured 0 across every wi
 **Implementation:** two Vercel Cron routes under `/api/cron/`, authenticated with `CRON_SECRET`,
 returning `401` without it. `self-check` (daily) covers the first nine rows **and writes the daily
 `pg_dump`** (§8); `digest` (weekly) covers the near-miss row and reports the week's rounds, tokens and
-spend. Both write to the status page below. Not built yet: #55 (the routes and the page) and #56 (the
-dump).
+spend. Both write to the status page below. Not built yet: #55 (the routes and the page), #56 (the
+dump) and #47 (the near-miss log and its digest row; #55 builds the digest without that row, and
+whichever of the two merges second wires it).
 
 **Vercel Hobby cron, verified 2026-09-12:** 100 cron jobs per project, **minimum interval once per
 day**, **per-hour scheduling precision** — a job set to `0 1 * * *` fires somewhere between 01:00 and
@@ -305,8 +318,9 @@ vendor, which keeps `08` §2's reason for rejecting magic links intact.
 monitoring. Two things narrow that. Both signals are slow by nature (a day-late discovery loses
 nothing, as the `pending` threshold already accepts), and **the page leads with staleness**: if
 `self-check` has not run for over 48 hours it says so before anything else, so a dead cron never reads
-as "all clear". Whether the app should also surface a red check where the user already looks is an
-open question on #55.
+as "all clear". **Home also carries one line when any check is red or `self-check` is stale**, and
+nothing when all is well (`10` §1, decided 2026-09-29, `06`), so a red check shows where the user
+already looks.
 
 **Cost ceiling as a control, not a chart:** each `OPENAI_API_KEY` carries a monthly usage cap at a
 multiple of the expected $3–5 (`03` §6). A runaway loop then fails closed instead of quietly spending.
@@ -335,6 +349,7 @@ Sentry configuration, decided here so it is not decided under pressure:
 - A `beforeSend` that **drops request and response bodies entirely** rather than filtering fields — an allowlist of safe keys is a list someone forgets to extend when a column is added.
 - Breadcrumbs from `fetch` keep the URL and status, never the body.
 - Source maps uploaded at build and **not served publicly**.
+- **No performance tracing and no Session Replay** (`06`, 2026-09-29). Replay records the DOM, which shows CV and transcript text; a tracing sample carries request detail `beforeSend` never sees. The SDK's setup wizard can turn both on; they stay off.
 - The status page and the cron runs behind it hold counts and ids only. Never the answer.
 
 **The threat model that makes this strict** (`03` §9): the worst outcome here is not financial, it is
@@ -359,6 +374,12 @@ system, because `04` §5 means nothing can be rebuilt from a later state.
 The `pg_dump` exists because Neon's retention window is a plan feature and this data outlives any
 plan. **It runs daily, from the `self-check` cron route** (§6) — not weekly, as this section
 originally said.
+
+**Retention: every dump in `backups/` is kept forever**, with no lifecycle rule, like `prod/`
+(`06`, 2026-09-29). Nothing here is deleted, and at this data size a daily object costs next to
+nothing. **The dump leaves out `sessions`, `accounts` and `verifications`**: they hold session tokens
+and Google's OAuth tokens, a restore does not need them (signing in again rebuilds them), and a
+forever-kept file should not carry credentials.
 
 **Neon's history window, verified 2026-09-12:** Free is **6 hours by default and 6 hours at maximum**,
 capped at 1 GB of change history. Launch is 1 day rising to 7; Scale is 1 day rising to 30. Six hours

@@ -336,7 +336,11 @@ without a score that ended `failed`, which is retried alone; "today" is Asia/Tok
 confirmed the slices, and #41–#51 moved from `needs-triage` to `ready-for-agent`. Slice 0 (#41) is the user's own
 console work and takes `12` §3 steps 3–5 out of #21, whose body now points at it.
 
-**#21 is next. #20, #29 and #38 are done.**
+**#54, #55 and #56 are next, then #21. #20, #29 and #38 are done.** #21 is blocked by all three
+(native `blocked_by` edges, 2026-09-29), and #56 by #55. They were triaged 2026-09-29 (`06`): #54 and
+#55 are `ready-for-agent`, and #56 is ready once #55 closes. The two criteria only production could
+meet, #55's first scheduled `self-check` and #56's restore drill, moved into #21, so all three finish
+before release.
 
 **Done, 2026-09-27: the read of `docs/checklists/native-read-cv.md` (#38) — an AI review, not a
 native read.** The user does not read Japanese and asked Claude to do the check. All 22 panel strings
@@ -350,7 +354,7 @@ real CVs were re-read windowed and the user judged the result good on-screen, fi
 verbatim, unclaimed text by design (`03` §4, `06`). Both came in under the one-call 59.5 s and
 48.0 s, and `lib/cv/limits.ts`'s caps hold unchanged. #20 and #29 are closed.
 
-**Then #21.** #27 no longer blocks it: the CV feature can reach `main` without stamping every scored
+**Then #21**, after #54–#56. #27 no longer blocks it: the CV feature can reach `main` without stamping every scored
 answer with a reading already known to be bad. **Never merge into `main` before #21.**
 
 **#27's record:** `03` §4 (the measurement, old beside new), `07` §5.2 (the `validation` block),
@@ -491,7 +495,7 @@ in 4b):
   2026-09-27 (#20, #27, #29; `03` §4). Each new CV upload is still eyeballed (`11` §5).
 - ~~**Who sends the alert mail.**~~ **Decided 2026-09-28:** no mail. Alerts go to a private status
   page (`12` §6, `06`). Sentry, the cron routes with that page, and the daily `pg_dump` are #54, #55
-  and #56, and #21 is blocked by all three.
+  and #56, and #21 is blocked by all three. Their open points were answered 2026-09-29 (`06`).
 - **One drawn-but-unspecified screen:** practice mode's record frames differ from realistic mode's.
   `10-screen-specifications.md` §12. **The CV screen came off this list in #12** — still no artboard,
   but specified in `10` §13 from `05` components.
