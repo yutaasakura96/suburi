@@ -195,7 +195,7 @@ With a stubbed embedder returning fixed vectors, so the test is about the decisi
 - Below → insert, with its embedding stored.
 - Candidate slice is `(user_id, language, round_type) where retired_at is null` — a near-identical question in another language or round type does **not** suppress the insert.
 - A retired question does not suppress an insert but **keeps** every answer that referenced it.
-- Every near-miss is logged with its score (that log is how the threshold gets tuned; a test that it is written is a test that tuning is possible).
+- Every near-miss is stored with its score (`04`); test that the record persists so the threshold can be tuned from the weekly digest.
 
 ### 3.8 CV carry-forward
 
