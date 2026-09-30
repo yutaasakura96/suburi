@@ -9,6 +9,21 @@ The daily dump `12` §8 requires, written by `self-check` with its own write-onl
 the 2026-09-28 and 2026-09-29 decisions below. The one open question was how a dump runs inside a
 Vercel Function at all; the rest are the choices the build needed.
 
+### [2026-09-30] `suburi-backup-writer` exists, and can only write under `backups/`
+
+**Done** with the AWS CLI, as #41 did for the app users: the IAM user `suburi-backup-writer`, with one
+inline policy, `suburi-backups-put`, allowing `s3:PutObject` on `arn:aws:s3:::<bucket>/backups/*` and
+nothing else; no groups, no managed policies. One access key, created by the CLI and piped straight
+into Vercel's **Production** scope as `BACKUP_AWS_ACCESS_KEY_ID` and `BACKUP_AWS_SECRET_ACCESS_KEY`
+(Secret), never printed or written to a file. The bucket name was read from `suburi-s3-prod`'s own
+policy, not typed.
+**Verified with the IAM policy simulator:** the backup writer is allowed `PutObject` on a `backups/`
+key and implicitly denied `GetObject`, `DeleteObject`, `AbortMultipartUpload` and
+`ListMultipartUploadParts` there, `PutObject` and `GetObject` on `prod/` and `dev/`, `PutObject` on a
+`backupsX/` key, and `ListBucket` and `ListBucketMultipartUploads` on the bucket. `suburi-s3-prod`
+and `suburi-s3-dev` are implicitly denied `PutObject`, `GetObject` and `DeleteObject` on `backups/`,
+and each is still allowed `PutObject` and `GetObject` on its own prefix. Neither app user was changed.
+
 ### [2026-09-30] The dump is written in-process, not by a bundled `pg_dump` binary
 
 **Checked** against Vercel's *Vercel Functions Limits* and *Configuring Maximum Duration* (both last
