@@ -143,8 +143,11 @@ test("a realistic English round: Setup → record → correct → pressure → f
     if (position === 1) await expect(page.getByTestId("round-question")).toHaveText("Could you start by introducing yourself?");
     await expect(page.getByText("The feedback comes together when the round ends. Nothing is shown along the way.")).toBeVisible();
 
+    const asked = await page.getByTestId("round-question").boundingBox();
     await page.getByRole("button", { name: "Start recording" }).click();
     await expect(page.getByRole("status").filter({ hasText: "Recording" })).toBeVisible();
+    // The question does not shrink or move when recording starts (10 §4).
+    expect(await page.getByTestId("round-question").boundingBox()).toEqual(asked);
     await expect(page.getByTestId("record-timer")).toHaveText("0:01", { timeout: 5_000 });
     await page.getByRole("button", { name: "Stop and transcribe" }).click();
 

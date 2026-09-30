@@ -72,7 +72,7 @@ export function CalloutRail({ tone, children }: { tone: "attention" | "informati
 export const LOW_END = 2;
 
 /**
- * 05 §5.3: label 100px, a 300px five-tick scale with the dot at the score, the numeral, and an empty
+ * 05 §5.3: the label, a 300px five-tick scale with the dot at the score, the numeral, and an empty
  * flex spacer — **empty by design** (05 §7: no prose beside a dimension). `value` null is an unscored
  * row: no dot, and the numeral column says why.
  */
@@ -84,7 +84,8 @@ export function ScoreRow({ label, value, unscored }: { label: string; value: num
       data-testid="score-row"
       data-dimension={label}
     >
-      <span className="w-[100px] shrink-0 text-[13px] text-ink-3">{label}</span>
+      {/* 05 §5.3 draws 100px for the Japanese labels; `Length and pacing` needs 120 to stay on one line. */}
+      <span className="w-[120px] shrink-0 text-[13px] text-ink-3">{label}</span>
       <span className="relative grid h-[16px] w-[300px] shrink-0 grid-cols-5" aria-hidden>
         <span className="absolute inset-x-0 top-[7px] h-px bg-rule-axis" />
         {[1, 2, 3, 4, 5].map((point) => (

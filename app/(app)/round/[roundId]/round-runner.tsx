@@ -250,12 +250,16 @@ function RecordFrame({
 
   return (
     <div className="flex flex-grow flex-col gap-[26px] px-[32px] pt-[36px] pb-[32px]">
-      {recording ? (
-        <div className="flex items-center gap-[9px]" role="status">
-          <span className="size-[9px] rounded-full bg-attention-mark" aria-hidden />
-          <span className="text-[12px] text-attention-ink">{copy.recording}</span>
-        </div>
-      ) : null}
+      {/* The status replaces the speaker line (10 §4); until speech arrives (#45) the line is empty but
+          keeps its height, so the question does not move when recording starts. */}
+      <div className="flex h-[18px] items-center gap-[9px]" role="status">
+        {recording ? (
+          <>
+            <span className="size-[9px] rounded-full bg-attention-mark" aria-hidden />
+            <span className="text-[12px] text-attention-ink">{copy.recording}</span>
+          </>
+        ) : null}
+      </div>
 
       <p className="max-w-[880px] text-[19px] leading-[1.9] text-ink-2" data-testid="round-question">
         {question.text}
