@@ -53,8 +53,8 @@ another host, which the dump's size does not call for.
 
 **Decided:** the file has no DDL. The schema is the migrations in git (`12` §8 already backs Git up),
 and the header names the newest migration the database had applied, from `drizzle.__drizzle_migrations`,
-by its `db/migrations` tag. A restore loads onto a Neon branch made Schema only from `main`, or an empty
-database migrated to that tag. The file sets `ON_ERROR_STOP`, runs as one transaction, refuses a
+by its `db/migrations` tag. A restore loads onto a Neon branch made Schema only from `main` while `main` has
+applied no migration since the dump, or an empty database migrated to that tag. The file sets `ON_ERROR_STOP`, runs as one transaction, refuses a
 target that already holds rows, and checks every table's row count against the dump before its
 `COMMIT`, so a file cut short or loaded twice writes nothing. drizzle's journal travels with the
 data: the rows of `drizzle.__drizzle_migrations` load into a temporary table and go into the target's

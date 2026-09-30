@@ -320,7 +320,11 @@ restores it.
   holding a sentinel token, the dump names none of them and contains no sentinel, and the restored
   tables are empty.
 - **The file guards its own restore:** loaded into a target that already holds rows it fails and
-  writes nothing; cut short before its `COMMIT`, it commits nothing.
+  writes nothing; cut short before its `COMMIT`, it commits nothing; loaded into a target whose schema
+  differs (a migrated database with one extra column), it is refused and writes neither rows nor journal.
+- **drizzle's journal travels with it:** into a migrated target whose journal was emptied (a Schema
+  only branch), the journal afterwards matches the source's and `drizzle-kit migrate` applies nothing;
+  into a target `drizzle-kit migrate` built, the journal is left as it was.
 - **The S3 write goes through the `BackupStore` port** with a fake: the object lands under the run's
   dated key and its size is the logged size; a refused write is an outcome with S3's error class, never
   a throw, and its log line carries the key, duration and error class only (§3.10).
