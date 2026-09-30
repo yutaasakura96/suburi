@@ -40,6 +40,7 @@ export async function insertQuestion(db: TestDb, userId: string) {
       roundType: "behavioural",
       origin: "set_piece",
       body: "これまでで最も困難だった課題を教えてください。",
+      generatorPromptVersion: "set-piece-ja-fixture",
     })
     .returning({ id: s.questions.id });
   return row.id;

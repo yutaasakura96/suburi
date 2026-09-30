@@ -2,12 +2,14 @@ import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { users } from "../db/schema.ts";
 import { seedSyntheticCv } from "../db/seed-cv.ts";
+import { seedRubrics, seedSetPieces, seedSyntheticQuestions } from "../db/seed-questions.ts";
 import { seedUser } from "../db/seed.ts";
 import { getConfig } from "../lib/config.ts";
 
-// Hand-run against Neon `develop` only: `npm run db:seed:develop`. The user row, then the synthetic CV
-// in each language (docs/12-deployment.md §1). Production runs `db:seed`, which never writes a CV.
-// Logs outcomes, never the email or any CV text.
+// Hand-run against Neon `develop` only: `npm run db:seed:develop`. The user row, the synthetic CV in
+// each language, the rubrics and set pieces, and the synthetic generated-origin bank questions
+// (docs/12-deployment.md §1). Production runs `db:seed`, which never writes a CV or a synthetic
+// question. Logs outcomes, never the email or any CV text.
 const { DATABASE_URL_UNPOOLED, ALLOWED_EMAIL } = getConfig();
 const db = drizzle(DATABASE_URL_UNPOOLED);
 
@@ -24,6 +26,10 @@ try {
         : `The ${language} CV already has a version; nothing changed. Reset the branch to reseed.`,
     );
   }
+
+  console.log(`Seeded ${await seedRubrics(db)} rubric version(s).`);
+  console.log(`Seeded ${await seedSetPieces(db, user.id)} set piece(s).`);
+  console.log(`Seeded ${await seedSyntheticQuestions(db, user.id)} synthetic bank question(s).`);
 } finally {
   await db.$client.end();
 }

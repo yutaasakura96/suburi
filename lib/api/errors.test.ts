@@ -5,7 +5,7 @@ const codes = Object.keys(ERROR_STATUS) as ErrorCode[];
 
 // 07 §2's status table. A code mapped to anything outside this set is a code the table does not
 // define a body for.
-const STATUSES_DEFINED_BY_07 = [400, 401, 404, 409, 422, 429, 502, 503];
+const STATUSES_DEFINED_BY_07 = [400, 401, 404, 409, 422, 429, 500, 502, 503];
 
 async function envelopeOf(response: Response) {
   return (await response.json()) as { error: { code: string; message: string; detail: unknown } };
@@ -34,6 +34,8 @@ describe("the error code table", () => {
       "pressure_required",
       "round_already_complete",
       "round_not_complete",
+      "feedback_generation_failed",
+      "write_failed",
       "cv_unchanged",
       "cv_too_large",
       "cv_extraction_failed",

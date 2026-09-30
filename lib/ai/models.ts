@@ -6,6 +6,18 @@
  */
 export const CV_EXTRACTION_MODEL = "gpt-5.6-sol";
 
+/** Stamp 4 on every scored answer. Changing it is the 12 §5 procedure: a re-score and a boundary. */
+export const SCORING_MODEL = "gpt-5.6-sol";
+
+/** Round feedback, stamped on `round_feedback`. */
+export const FEEDBACK_MODEL = "gpt-5.6-sol";
+
+/**
+ * Speech-to-text (03 §4). Its only snapshot shares its name, so unlike the scoring model it cannot be
+ * a dated string; `answers.transcriber_model_id` is what makes a repoint visible.
+ */
+export const TRANSCRIPTION_MODEL = "gpt-transcribe";
+
 /**
  * US dollars per million tokens, beside the strings they price, for 12 §6's spend signal. Standard
  * tier, short context (up to 272K input tokens), verified against OpenAI's API pricing page on

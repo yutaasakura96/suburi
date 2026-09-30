@@ -21,6 +21,14 @@ export type RateLimitedRoute = (typeof RATE_LIMITED_ROUTES)[number];
 /** Per route, in code rather than rows: changing one is a reviewed change (04 §2). */
 export const RATE_LIMITS: Record<RateLimitedRoute, { limit: number; windowSeconds: number }> = {
   "cv-versions": { limit: 6, windowSeconds: 600 },
+  // The round routes, from the round's own shape (07 §1 rule 5): a 7-question round opens one round,
+  // makes 14 `transcribe` and 14 `submit` calls over roughly 40 minutes, and one `complete`. Each
+  // bound leaves room for retries and a second round in the same window, and no more.
+  rounds: { limit: 6, windowSeconds: 600 },
+  transcribe: { limit: 30, windowSeconds: 600 },
+  submit: { limit: 30, windowSeconds: 600 },
+  complete: { limit: 6, windowSeconds: 600 },
+  feedback: { limit: 6, windowSeconds: 600 },
 };
 
 export interface RateLimitKey {
