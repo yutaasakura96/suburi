@@ -407,7 +407,7 @@ a time — never the whole dump in memory. The key is `backups/<run instant>.sql
 (`backups/2026-09-30T19-12-40.123Z.sql`), fixed by the run, never by a caller. A failed dump is a red
 row on the status page (§6), and its log line carries the key, size, duration and error class only
 (§7). The schema is not in the file; it is the migrations in git, and the file's header names the one
-it was taken at.
+it was taken at. drizzle's migration journal, `drizzle.__drizzle_migrations`, is in the file.
 
 **Restoring one** (the drill is #21's criterion, `06` 2026-09-29):
 
@@ -417,7 +417,10 @@ it was taken at.
    database migrated with `drizzle-kit migrate` at a commit that has the migration the header names.
 3. `psql "<target's unpooled URL>" -f <file>`. The file sets `ON_ERROR_STOP` itself and is one
    transaction: it refuses a target that already holds rows, checks every table's row count before it
-   commits, and a file cut short commits nothing.
+   commits, and a file cut short commits nothing. It writes the source's migration journal into the
+   target's only when the target's is empty: a Schema only branch copies the table but not its rows,
+   and a branch promoted with an empty journal would have `drizzle-kit migrate` re-run `0000` against
+   tables that exist. A target `drizzle-kit migrate` built keeps its own journal.
 4. Sign in again: `sessions`, `accounts` and `verifications` are not in the file.
 
 CI restores a dump this way on every run (`11` §3.18), into a fresh database, and compares every

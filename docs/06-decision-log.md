@@ -56,7 +56,12 @@ and the header names the newest migration the database had applied, from `drizzl
 by its `db/migrations` tag. A restore loads onto a Neon branch made Schema only from `main`, or an empty
 database migrated to that tag. The file sets `ON_ERROR_STOP`, runs as one transaction, refuses a
 target that already holds rows, and checks every table's row count against the dump before its
-`COMMIT`, so a file cut short or loaded twice writes nothing.
+`COMMIT`, so a file cut short or loaded twice writes nothing. drizzle's journal travels with the
+data: the rows of `drizzle.__drizzle_migrations` load into a temporary table and go into the target's
+journal only if it is empty, then its `id` sequence is set past them. A Schema only branch has the
+table and none of its rows, so without them a promoted branch would have `drizzle-kit migrate` re-run
+`0000` and fail on tables that exist. A target `drizzle-kit migrate` built already holds the same rows
+and keeps them.
 **Alternatives considered:** rebuilding `CREATE TABLE` statements from the catalogs, which is
 `pg_dump`'s hardest job, done a second time and worse; a data-only file without the guards, which
 would merge silently into a database that was not empty.

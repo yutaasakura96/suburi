@@ -89,6 +89,13 @@ async function inLoadOrder(client: ClientBase, tables: Table[]): Promise<Table[]
   return ordered;
 }
 
+const JOURNAL = "drizzle.__drizzle_migrations";
+
+async function hasJournal(client: ClientBase) {
+  const result = await client.query<{ present: boolean }>(`select to_regclass('${JOURNAL}') is not null as present`);
+  return result.rows[0].present;
+}
+
 /** The migration the database is at, by its `db/migrations` tag, so a restorer knows what to migrate to. */
 async function schemaNote(client: ClientBase) {
   const result = await client.query<{ created_at: string | null }>(`
@@ -110,7 +117,8 @@ function header(tables: readonly Table[], takenAt: Date, schema: string) {
     "-- made Schema only from main:",
     "--   psql \"$DATABASE_URL_UNPOOLED\" -f <this file>",
     "-- One transaction. It refuses a target that already holds rows, and checks every table's row count",
-    "-- before it commits; a file cut short commits nothing.",
+    "-- before it commits; a file cut short commits nothing. drizzle's migration journal travels too, written",
+    "-- only where the target's is empty, so a restored branch that is promoted migrates from where it was.",
     "\\set ON_ERROR_STOP on",
     "SET client_encoding = 'UTF8';",
     "SET standard_conforming_strings = on;",
@@ -120,6 +128,25 @@ function header(tables: readonly Table[], takenAt: Date, schema: string) {
     "DO $restore$",
     "BEGIN",
     ...empty,
+    "END",
+    "$restore$;",
+    "",
+  ].join("\n");
+}
+
+/**
+ * The journal's rows go to a temporary table, then into the target's journal only if that is empty: a
+ * Schema only branch has the table and no rows, and a target `drizzle-kit migrate` built already holds
+ * the same rows. Without them a promoted branch would re-run every migration from the first.
+ */
+function journalRestore() {
+  return [
+    "DO $restore$",
+    "BEGIN",
+    `  IF NOT EXISTS (SELECT 1 FROM ${JOURNAL}) THEN`,
+    `    INSERT INTO ${JOURNAL} (id, hash, created_at) SELECT id, hash, created_at FROM pg_temp.restore_journal ORDER BY id;`,
+    `    PERFORM setval(pg_get_serial_sequence('${JOURNAL}', 'id'), max(id)) FROM ${JOURNAL};`,
+    "  END IF;",
     "END",
     "$restore$;",
     "",
@@ -149,7 +176,7 @@ function footer(counts: readonly [Table, number][]) {
  * own output settings with `set local`.
  *
  * Data only: the schema is the migrations in git (12 §8), and the header names the one to restore
- * onto. `summary` is filled in as the dump is read.
+ * onto. drizzle's journal rows come last, outside `summary`. `summary` is filled in as the dump is read.
  */
 export function createDump(client: ClientBase, takenAt: Date) {
   const summary: DumpSummary = { tables: 0, rows: 0 };
@@ -179,6 +206,15 @@ export function createDump(client: ClientBase, takenAt: Date) {
       counts.push([table, rows]);
       summary.tables++;
       summary.rows += rows;
+    }
+
+    if (await hasJournal(client)) {
+      yield Buffer.from("CREATE TEMPORARY TABLE restore_journal (id integer, hash text, created_at bigint) ON COMMIT DROP;\n");
+      yield Buffer.from("COPY pg_temp.restore_journal (id, hash, created_at) FROM stdin;\n");
+      for await (const chunk of client.query(copyTo(`COPY (SELECT id, hash, created_at FROM ${JOURNAL} ORDER BY id) TO STDOUT`))) {
+        yield chunk as Buffer;
+      }
+      yield Buffer.from(`\\.\n\n${journalRestore()}`);
     }
     yield Buffer.from(footer(counts));
   }

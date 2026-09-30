@@ -42,12 +42,7 @@ async function freshDatabase() {
   await admin(`create database ${name}`);
   created.push(name);
   const url = ADMIN_URL.replace(/\/postgres$/, `/${name}`);
-  const db = drizzle(url);
-  try {
-    await migrate(db, { migrationsFolder: "db/migrations" });
-  } finally {
-    await db.$client.end();
-  }
+  await migrateTo(url);
   return url;
 }
 
@@ -85,6 +80,22 @@ async function fingerprint(client: ClientBase) {
     out[name] = result.rows[0];
   }
   return out;
+}
+
+async function journalOf(client: ClientBase) {
+  const result = await client.query<{ id: number; hash: string; created_at: string }>(
+    "select id, hash, created_at::text from drizzle.__drizzle_migrations order by id",
+  );
+  return result.rows;
+}
+
+async function migrateTo(url: string) {
+  const db = drizzle(url);
+  try {
+    await migrate(db, { migrationsFolder: "db/migrations" });
+  } finally {
+    await db.$client.end();
+  }
 }
 
 async function dumpOf(client: ClientBase) {
@@ -167,13 +178,15 @@ async function seedEverything(db: TestDb) {
 
 /** Seeds every table, then dumps and fingerprints from one repeatable-read snapshot. */
 async function seededDump() {
-  let result: { bytes: Buffer; summary: { tables: number; rows: number }; source: Awaited<ReturnType<typeof fingerprint>> } | undefined;
+  let result:
+    | { bytes: Buffer; summary: { tables: number; rows: number }; source: Awaited<ReturnType<typeof fingerprint>>; journal: Awaited<ReturnType<typeof journalOf>> }
+    | undefined;
   await inRolledBackTransaction(async (db) => {
     const client = (db as TestDb & { $client: ClientBase }).$client;
     await client.query("set transaction isolation level repeatable read");
     await seedEverything(db);
     const { bytes, summary } = await dumpOf(client);
-    result = { bytes, summary, source: await fingerprint(client) };
+    result = { bytes, summary, source: await fingerprint(client), journal: await journalOf(client) };
   });
   return result!;
 }
@@ -226,6 +239,28 @@ describe("the daily dump (12 §8)", () => {
     expect(text).toContain(`migrated through db/migrations ${journal.entries.at(-1)!.tag}`);
     const copied = [...text.matchAll(/^COPY public\."([^"]+)"/gm)].map((match) => match[1]).sort();
     expect(copied).toEqual(Object.keys(seeded.source).filter((name) => !EXCLUDED_TABLES.includes(name)).sort());
+  });
+
+  it("carries drizzle's journal onto a Schema only target, so migrate afterwards applies nothing", async () => {
+    const url = await freshDatabase();
+    await withClient(url, (client) => client.query("delete from drizzle.__drizzle_migrations"));
+    psql(url, seeded.bytes);
+    expect(seeded.journal.length).toBeGreaterThan(0);
+    expect(await withClient(url, journalOf)).toEqual(seeded.journal);
+
+    const before = await withClient(url, fingerprint);
+    await migrateTo(url);
+    expect(await withClient(url, journalOf)).toEqual(seeded.journal);
+    expect(await withClient(url, fingerprint)).toEqual(before);
+    const next = await withClient(url, (client) => client.query<{ id: number }>("select nextval(pg_get_serial_sequence('drizzle.__drizzle_migrations', 'id'))::int as id"));
+    expect(next.rows[0].id).toBe(Math.max(...seeded.journal.map((row) => row.id)) + 1);
+  });
+
+  it("leaves the journal of a target drizzle-kit migrate built as it was", async () => {
+    const url = await freshDatabase();
+    const before = await withClient(url, journalOf);
+    psql(url, seeded.bytes);
+    expect(await withClient(url, journalOf)).toEqual(before);
   });
 
   it("refuses a target that already holds rows, and writes nothing to it", async () => {
