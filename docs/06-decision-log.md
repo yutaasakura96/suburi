@@ -110,6 +110,24 @@ is refused would replace the real error with `AccessDenied`. A failed dump over 
 ---
 ## Phase 6 — Sentry (#54)
 
+### [2026-10-01] `next.config.ts` names the Sentry organization
+
+**Decided:** `withSentryConfig` gets `org: "personal-projects-ge"` beside `project: "suburi"`. This
+replaces the 2026-09-30 reading that an organization token names its organization, so no org slug is
+needed.
+**Found:** `develop`'s first build with the Sentry variables (2026-09-30) logged `Failed to create
+release: 403 Forbidden` and `API request failed: 403 Forbidden` from the upload step. The upload is
+done by the `sentry` JS CLI (0.44.1, through `@sentry/bundler-plugins` 11.1.0). That CLI does not
+read the organization out of an org token. Without an `org` it finds the organization from
+`SENTRY_DSN` by calling `GET /api/0/organizations/`, and an `org:ci` token is refused there (403),
+as it is on the organization and project detail endpoints. The same token is allowed on
+`chunk-upload`, on the project's releases and on creating a release. So the scopes were enough; the
+lookup was not.
+**Alternatives considered:** `SENTRY_ORG` in Vercel, which leaves the fix outside the repository; a
+personal token with wider scopes, which Sentry advises against for CI and which would still need the
+org named.
+**Reason:** one line in the file that already names the project, with no new credential.
+
 ### [2026-09-30] Sentry is optional at boot, and on only where Vercel says production or `develop`
 
 **Decided:** `SENTRY_DSN` and `SENTRY_AUTH_TOKEN` are the one optional pair in `lib/config.ts`. With
