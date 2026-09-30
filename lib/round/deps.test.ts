@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { COMPLETE_WAIT_BOUND_MS, FEEDBACK_TIMEOUT_MS } from "./complete";
 import { ROUTE_MAX_DURATION_SECONDS, invocationDeadline } from "./deps";
 
 // Next reads `maxDuration` only as a literal, so each model-calling round route spells the number, and
@@ -19,5 +20,9 @@ describe("the round routes' duration", () => {
 
   it("ends the invocation's work 15 s before the ceiling", () => {
     expect(invocationDeadline(1_000)).toBe(1_000 + (ROUTE_MAX_DURATION_SECONDS - 15) * 1000);
+  });
+
+  it("fits complete's wait and its feedback call inside the deadline (07 §5.12)", () => {
+    expect(COMPLETE_WAIT_BOUND_MS + FEEDBACK_TIMEOUT_MS).toBeLessThan(invocationDeadline(0));
   });
 });

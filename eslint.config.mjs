@@ -32,8 +32,10 @@ export default defineConfig([
     // test boots with, so it has to write it. The dev:session guard reads the environment before
     // getConfig() may, and its tests build the environment the script runs with.
     // instrumentation-client.ts reads the two constants next.config.ts inlines from lib/config.ts
-    // at build; the browser has no environment to read.
+    // at build; the browser has no environment to read. The latency script needs the OpenAI key and
+    // nothing else of the app's configuration, and runs where no database is.
     files: [
+      "scripts/measure-round-latency.mts",
       "lib/config.ts",
       "instrumentation-client.ts",
       "playwright.config.ts",

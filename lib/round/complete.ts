@@ -25,13 +25,14 @@ import { latestAttempts, roundAnswers, roundStep, scoringCounts, type RoundRow }
  */
 
 /**
- * How long `complete` waits for the last pending score. From the round loop's latency measurement
- * (03 §4): scoring's slowest measured call plus one backoff, inside the route's 300 s with room left
- * for generating the feedback itself.
+ * How long `complete` waits for the last pending score (07 §5.12). From the round loop's latency
+ * measurement, 2026-10-01 (03 §4): scoring's slowest call was 38.1 s against a 7.1 s median, so 60 s
+ * covers that call, a 2 s backoff and a median retry — and with the feedback call's own 120 s it
+ * stays inside the route's 285 s. Usually nothing is pending by then: screen 7 is where it lands.
  */
-export const COMPLETE_WAIT_BOUND_MS = 120_000;
+export const COMPLETE_WAIT_BOUND_MS = 60_000;
 const POLL_MS = 1_000;
-const FEEDBACK_TIMEOUT_MS = 120_000;
+export const FEEDBACK_TIMEOUT_MS = 120_000;
 
 export interface CompleteDeps extends RoundDeps {
   readonly generator: RoundFeedbackGenerator;
