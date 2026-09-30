@@ -1,8 +1,8 @@
 import { z } from "zod";
 
-// The only application module that reads process.env (docs/12-deployment.md §2). Every variable is
-// required and none has a default, except OPENAI_BASE_URL, which only Playwright sets, and
-// CRON_SECRET, which only production requires. Errors name the variable, never its value.
+// The only application module that reads process.env (docs/12-deployment.md §2). The application
+// variables are required except OPENAI_BASE_URL, which only Playwright sets, CRON_SECRET, which only
+// production requires, and the Sentry pair parsed below. Errors name the variable, never its value.
 
 const localHosts = new Set(["localhost", "127.0.0.1"]);
 
@@ -86,8 +86,12 @@ export function parseConfig(env: Env): Config {
   const result = schema.safeParse(env);
   if (result.success) return result.data;
 
-  const names = [...new Set(result.error.issues.map((issue) => String(issue.path[0])))];
-  throw new ConfigError(
+  throw configError(result.error, env);
+}
+
+function configError(error: z.ZodError, env: Env): ConfigError {
+  const names = [...new Set(error.issues.map((issue) => String(issue.path[0])))];
+  return new ConfigError(
     names.map((name) => ({ name, problem: env[name] ? "malformed" : "missing" })),
   );
 }
@@ -97,4 +101,53 @@ let cached: Config | undefined;
 export function getConfig(): Config {
   cached ??= parseConfig(process.env);
   return cached;
+}
+
+// Sentry is the one optional service (12 §1, 06): off locally, in CI and under Playwright, on only
+// in the two deployments below. Parsed apart from the schema above because next.config.ts reads it
+// at build time, where the runtime variables are not all present.
+const sentrySchema = z.object({
+  SENTRY_DSN: z.url({ protocol: /^https$/ }),
+  // Source-map upload at build (12 §2). Same scopes as the DSN, so a DSN without it is a half-done
+  // setup, refused rather than shipping unreadable stack traces.
+  SENTRY_AUTH_TOKEN: z.string().min(1),
+});
+
+export type SentryEnvironment = "develop" | "production";
+
+export type SentryConfig = {
+  dsn: string;
+  authToken: string;
+  environment: SentryEnvironment;
+};
+
+// The environment tag comes from Vercel's system variables, never from a variable someone sets.
+// Anything that is neither production nor the develop branch's preview has no Sentry.
+function sentryEnvironment(env: Env): SentryEnvironment | undefined {
+  if (env.VERCEL_ENV === "production") return "production";
+  if (env.VERCEL_ENV === "preview" && env.VERCEL_GIT_COMMIT_REF === "develop") return "develop";
+  return undefined;
+}
+
+export function parseSentryConfig(env: Env): SentryConfig | undefined {
+  if (!env.SENTRY_DSN) return undefined;
+  const environment = sentryEnvironment(env);
+  if (!environment) return undefined;
+
+  const result = sentrySchema.safeParse(env);
+  if (!result.success) throw configError(result.error, env);
+  return {
+    dsn: result.data.SENTRY_DSN,
+    authToken: result.data.SENTRY_AUTH_TOKEN,
+    environment,
+  };
+}
+
+export function getSentryConfig(): SentryConfig | undefined {
+  return parseSentryConfig(process.env);
+}
+
+// Set by Next.js itself in instrumentation.ts's register(): which server runtime is booting.
+export function nextRuntime(): string | undefined {
+  return process.env.NEXT_RUNTIME;
 }

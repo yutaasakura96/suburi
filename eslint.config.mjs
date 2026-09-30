@@ -31,8 +31,11 @@ export default defineConfig([
     // lib/config.ts is the reader. playwright.config.ts builds the environment the server under
     // test boots with, so it has to write it. The dev:session guard reads the environment before
     // getConfig() may, and its tests build the environment the script runs with.
+    // instrumentation-client.ts reads the two constants next.config.ts inlines from lib/config.ts
+    // at build; the browser has no environment to read.
     files: [
       "lib/config.ts",
+      "instrumentation-client.ts",
       "playwright.config.ts",
       "scripts/dev-session.mts",
       "scripts/dev-session-guard.test.ts",

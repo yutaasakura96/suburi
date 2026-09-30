@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ConfigError, parseConfig } from "./config";
+import { ConfigError, parseConfig, parseSentryConfig } from "./config";
 
 const valid = {
   DATABASE_URL: "postgresql://suburi:pw@localhost:5432/suburi",
@@ -156,5 +156,72 @@ describe("parseConfig", () => {
   it("reports every problem at once", () => {
     const error = errorFrom({});
     expect(error.problems.map((p) => p.name).sort()).toEqual(Object.keys(valid).sort());
+  });
+});
+
+// Sentry is optional and off unless the deployment is production or develop (12 §1, 06).
+describe("parseSentryConfig", () => {
+  const sentry = {
+    SENTRY_DSN: "https://0123456789abcdef@o1.ingest.sentry.io/2",
+    SENTRY_AUTH_TOKEN: "sntrys_test-not-a-real-token",
+  };
+  const production = { ...sentry, VERCEL_ENV: "production", VERCEL_GIT_COMMIT_REF: "main" };
+  const develop = { ...sentry, VERCEL_ENV: "preview", VERCEL_GIT_COMMIT_REF: "develop" };
+
+  function sentryErrorFrom(env: Record<string, string | undefined>): ConfigError {
+    try {
+      parseSentryConfig(env);
+    } catch (error) {
+      if (error instanceof ConfigError) return error;
+      throw error;
+    }
+    throw new Error("expected parseSentryConfig to throw");
+  }
+
+  it("is on in production, tagged production", () => {
+    expect(parseSentryConfig(production)).toEqual({
+      dsn: sentry.SENTRY_DSN,
+      authToken: sentry.SENTRY_AUTH_TOKEN,
+      environment: "production",
+    });
+  });
+
+  it("is on for the develop branch's preview, tagged develop", () => {
+    expect(parseSentryConfig(develop)?.environment).toBe("develop");
+  });
+
+  it.each([
+    ["locally", { ...sentry }],
+    ["in Vercel development", { ...sentry, VERCEL_ENV: "development" }],
+    ["on another branch's preview", { ...develop, VERCEL_GIT_COMMIT_REF: "feature/x" }],
+    ["without SENTRY_DSN", { ...production, SENTRY_DSN: undefined }],
+    ["with an empty SENTRY_DSN", { ...production, SENTRY_DSN: "" }],
+  ])("is off %s", (_, env) => {
+    expect(parseSentryConfig(env)).toBeUndefined();
+  });
+
+  it("never reads the environment tag from a variable someone sets", () => {
+    expect(parseSentryConfig({ ...sentry, SENTRY_ENVIRONMENT: "production" })).toBeUndefined();
+    expect(parseSentryConfig({ ...develop, SENTRY_ENVIRONMENT: "production" })?.environment).toBe(
+      "develop",
+    );
+  });
+
+  it("refuses a DSN without the auth token, naming it", () => {
+    const error = sentryErrorFrom({ ...production, SENTRY_AUTH_TOKEN: undefined });
+    expect(error.problems).toEqual([{ name: "SENTRY_AUTH_TOKEN", problem: "missing" }]);
+  });
+
+  it.each(["not a url", "http://0123456789abcdef@o1.ingest.sentry.io/2"])(
+    "refuses a malformed SENTRY_DSN without echoing it",
+    (value) => {
+      const error = sentryErrorFrom({ ...develop, SENTRY_DSN: value });
+      expect(error.problems).toEqual([{ name: "SENTRY_DSN", problem: "malformed" }]);
+      expect(error.message).not.toContain(value);
+    },
+  );
+
+  it("leaves parseConfig unchanged: the rest of the environment never needs Sentry", () => {
+    expect(() => parseConfig({ ...valid, SENTRY_DSN: undefined })).not.toThrow();
   });
 });
