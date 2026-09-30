@@ -226,6 +226,7 @@ is one of them: 800 characters in 192 seconds is 250 per minute.
 - Every endpoint in `07` §5: response validated against its schema; `401` with no session; `404` — **not `403`** — for another user's row; unknown query parameter → `400`.
 - **Every code in `07` §3 has copy in both `ja` and `en`, and no copy key exists without a code.** Both directions. A `502` with no Japanese sentence is `03` §8's generic-error rule broken in production.
 - **No error response body contains anything on `03` §8's never-log list.** Asserted by forcing each failure with recognisable sentinel text in the transcript, CV and notes, then scanning every envelope and every log line for it. This is the one test that guards the privacy posture directly.
+- **No Sentry event contains those sentinels.** `lib/sentry.test.ts` sends a request carrying them through the real SDK, triggers an exception during handling, and checks the captured event. `lib/sentry.defaults.test.ts` confirms the SDK's default configuration would have included the request-body sentinel. The deployed `develop` check is in `12` §3 step 11.
 
 ### 3.11 Session scoping
 
