@@ -75,7 +75,7 @@ auto-merged (`11` §7).
 | Package | Pinned | Why this line |
 | --- | --- | --- |
 | Node.js | 24 | Active LTS and Vercel's default. 26 is not LTS until 2026-10-28, and Vercel offers only 20, 22 and 24 |
-| `next` | 16.3.5 | 16.x is Next.js's Active LTS |
+| `next` | 16.3.8 | 16.x is Next.js's Active LTS. 16.3.8 carries the fix for the `next/og` `ImageResponse` advisory GHSA-vcvr-r3jv-pc5j |
 | `react`, `react-dom` | 19.3.0 | Latest stable |
 | `typescript` | 6.0.3 | **The fallback, taken.** 7.0.2 passes `tsc --noEmit`, but `typescript-eslint` refuses to load on 7 (`06`) |
 | `tailwindcss`, `@tailwindcss/postcss` | 4.3.3 | Latest stable |
@@ -88,10 +88,11 @@ auto-merged (`11` §7).
 | `openai` | 7.20.0 | Latest stable, checked 2026-09-21. Lists `gpt-5.6-sol`, and its `zodTextFormat` takes Zod 4. Never auto-merged (`11` §7) |
 | `mammoth` | 1.12.3 | Latest stable, checked 2026-09-22. `.docx` → text in the browser (`extractRawText`), loaded only when a file is picked (`06`) |
 | `pdfjs-dist` | 6.3.289 | Latest stable, checked 2026-09-22. `.pdf` → text in the browser. Its worker is bundled by Next; its CMaps are copied to `public/pdfjs/cmaps/` at build, because a Japanese PDF with a non-embedded font cannot be read without them (`06`) |
-| `@next/env` | 16.3.5 | Pinned with `next`. Playwright loads env files with it exactly as `next start` does (`06`) |
+| `@next/env` | 16.3.8 | Pinned with `next`. Playwright loads env files with it exactly as `next start` does (`06`) |
 | `vitest`, `@playwright/test`, `vite` | 5.0.1, 1.63.0, 8.3.0 | Latest stable. `vite` is Vitest's peer, pinned so it is not left to resolution |
 | `eslint` | 10.11.0 | Latest stable. 9.x reached end-of-life 2026-08-06 |
-| `@next/eslint-plugin-next`, `eslint-plugin-react-hooks`, `typescript-eslint` | 16.3.5, 7.1.1, 8.70.0 | Assembled by hand in place of `eslint-config-next`, whose react, import and jsx-a11y plugins do not support ESLint 10 (`06`) |
+| `@next/eslint-plugin-next`, `eslint-plugin-react-hooks`, `typescript-eslint` | 16.3.8, 7.1.1, 8.70.0 | Assembled by hand in place of `eslint-config-next`, whose react, import and jsx-a11y plugins do not support ESLint 10 (`06`) |
+| `esbuild` under `@esbuild-kit/core-utils` | 0.25.12 | An npm `overrides` entry, not a dependency. `drizzle-kit` reaches `~0.18.20` through the deprecated `@esbuild-kit/esm-loader` → `core-utils`, which carries GHSA-67mh-4wv8-2f99 and fails `npm audit --audit-level=high` (`11` §7). Drop it once `drizzle-kit` stops depending on `@esbuild-kit` |
 | Postgres | 18 | Newest supported major (18.6, supported to 2030). Neon ships `pgvector` 0.8.6 on 18 against 0.8.0 on 17 (`06`) |
 
 ---
