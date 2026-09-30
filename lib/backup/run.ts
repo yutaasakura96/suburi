@@ -23,8 +23,8 @@ export function backupKey(now: Date) {
 
 /** An SQLSTATE, a DumpError, S3's error code or Node's system code; never a message (12 §7). */
 export function backupErrorClass(error: unknown): string {
-  const cause = ((error as { cause?: unknown })?.cause ?? error) as { code?: unknown; name?: unknown; $metadata?: unknown };
-  if (typeof cause.code === "string" && /^[0-9A-Z]{5}$/.test(cause.code)) return `pg_${cause.code}`;
+  const cause = ((error as { cause?: unknown })?.cause ?? error) as { code?: unknown; severity?: unknown; name?: unknown; $metadata?: unknown };
+  if (typeof cause.severity === "string" && typeof cause.code === "string" && /^[0-9A-Z]{5}$/.test(cause.code)) return `pg_${cause.code}`;
   if (cause.name === "DumpError") return "dump_refused";
   if (cause.$metadata !== undefined && typeof cause.name === "string" && /^[A-Za-z]+$/.test(cause.name)) return `s3_${cause.name}`;
   if (typeof cause.code === "string" && /^[A-Z][A-Z0-9_]+$/.test(cause.code)) return `node_${cause.code}`;
