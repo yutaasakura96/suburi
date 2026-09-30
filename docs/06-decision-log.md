@@ -3,6 +3,100 @@
 Newest first. Every entry records what was chosen, why, and what was rejected.
 
 ---
+## Phase 6 — #42, the round-loop tracer
+
+The thinnest round, end to end: realistic, English, `hr`, length 3, General practice, rubric `en` v1.0.
+The plan was settled on 2026-09-27 and 2026-09-28 (below); these are the choices the build needed, and
+the latency measurement those entries asked for.
+
+### [2026-10-01] The round's model latencies are measured; `complete` waits 60 s
+
+`scripts/measure-round-latency.mts`, five runs of each against OpenAI with synthetic answers (`03` §4
+has the table). Scoring: 7.1 s median, 38.1 s slowest of 15. Round feedback: 10.0 s median, 11.0 s
+slowest. Transcription of a near-cap take: about 6 s. TTS's first byte: about 1 s. Follow-up and
+question generation ran **draft** prompts, since their ports do not exist yet (#44, #47): about 3 s
+and 4 s. **`complete`'s wait bound is 60 s**: the slowest scoring call, a 2 s backoff and a median retry,
+and with the feedback call's 120 s timeout it stays inside the route's 285 s deadline — a unit test
+holds that sum. **Generating every question at round start is tolerable**: seven and their embeddings
+take about 4 s beside the preflight. **Rejected:** a bound of the full remaining budget (the user would
+wait minutes for a tail the retry path already covers), and a bound from the median alone (one call in
+fifteen was five times it).
+
+### [2026-10-01] The round routes' rate limits
+
+`rounds`, `complete` and `feedback` 6 per 10 minutes; `transcribe` and `submit` 30 per 10 minutes —
+a 7-question round with follow-ups makes 14 of each, so 30 is two such rounds with retries to spare.
+Each its own bucket (`07` §1 rule 5), and `rate_limit_windows.route` names all five (`04`).
+
+### [2026-10-01] The tracer is English and General practice only, and says so
+
+`POST /api/rounds` takes `language: "en"` only — `ja` is a `400` until #43 brings its rubric and set
+pieces, rather than a round with nothing to score it against. `POST /api/role-contexts` takes
+`general` only until #47 builds postings with their measured cap. **Setup states both** instead of
+drawing controls that do nothing: round type and length are chosen; English, realistic and General
+practice are shown as the only options that exist. Home carries a plain `Start a round` until #51
+builds it.
+
+### [2026-10-01] Until generation exists, a short bank falls back to seen questions
+
+The tracer has no question generation (#47), so `07` §5.4's step 3 cannot run. A realistic round short
+of unseen bank questions takes seen generated ones — never first attempts (§5.6) — and a bank that
+cannot fill the round at all is `502 question_generation_failed` with `error_class: "bank_too_small"`,
+nothing written. **Rejected:** refusing any round that would repeat a question, which would stop the
+loop on `develop` after a few rounds; and silently asking a set piece twice, which `07` §5.4 rules out.
+
+### [2026-10-01] Set pieces are asked in the order the content lists them
+
+Seeded rows share one statement's `now()`, and selection broke that tie on a random id, so a first
+round could open with the reason for leaving. The seed now dates each row a millisecond apart in the
+listed order, so the self-introduction comes first. The order is content, checked in with it.
+
+### [2026-10-01] The scoring and feedback prompts 1.0 read no CV
+
+`score-en-1.0` and `feedback-en-1.0` read the rubric, the question, the corrected answer, its duration
+and pace — and not the CV version's claims, citations or untouched material, which arrive with #46 as
+new prompt versions. The stamps already say which prompt scored what, so the boundary is drawn where
+the prompt changes.
+
+### [2026-10-01] A take's duration is the transcriber's, not the browser's
+
+`answers.audio_duration_ms` comes from `gpt-transcribe`'s `usage.seconds`, and the pace from it and the
+raw transcript. The browser's clock is never sent: the client chooses nothing that is measured (`07`
+§1 rule 6), and the transcriber has the audio the pace describes.
+
+### [2026-10-01] Slot and submit edges `07` left implicit
+
+`audio_s3_key` is written when the slot opens: the key is server-derived and fixed for the row, so a
+retried open presigns the same one. Opening a slot when every position is submitted is
+`422 answer_already_submitted`. Submitting before transcription is `400 invalid_request` naming
+`transcript_raw` — there is nothing to correct. An already-complete round's `409` carries
+`has_feedback`, not the feedback: the envelope's `detail` is flat (#13), and screen 8 reads the
+feedback from the round.
+
+### [2026-10-01] `S3_ENDPOINT`, local hosts only, for Playwright's bucket
+
+Playwright's round spec needs the browser's presigned `PUT` and the server's read to reach a bucket
+that is not S3. `S3_ENDPOINT` points the SDK at `e2e/mock-s3.ts`, path-style, and `lib/config.ts`
+refuses any host but a local one, so no value can send the AWS key elsewhere — the same rule as
+`OPENAI_BASE_URL`. **This does not reopen MinIO**: local development still uses the real bucket under
+`dev/` (2026-09-28); the variable is unset everywhere but Playwright. Playwright now runs **one
+worker**: every spec is the one user against one database, and the mocks listen on fixed ports.
+
+### [2026-10-01] Rubric `en` v1.0 is drafted and seeded on `develop` only
+
+Six dimensions, each a definition `{summary, anchors}` with exactly five anchors, level 1 first, and
+both labels (`04` `rubric_versions`). It is on `develop` for the tracer's proof; **production's
+`db:seed` gains it only after the user's review** (`12` §3 step 9). A changed rubric after review is
+`v1.1`, never an edit to `v1.0`.
+
+### [2026-10-01] Round-screen details the artboards could not settle in English
+
+A score at the **low end is 2 or below** — the artboard's `長さ・配分 2` takes the attention colour and
+its 3s do not. The score row's label column is **120px, not 100**: `Length and pacing` wraps at 100px,
+and the artboard measured Japanese labels. Until speech exists (#45) the record frame keeps an empty
+line where the speaker line goes, so the question does not move when recording starts (`10` §4).
+
+---
 ## Phase 6 — #56, the daily dump
 
 The daily dump `12` §8 requires, written by `self-check` with its own write-only IAM user, built from

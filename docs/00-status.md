@@ -29,7 +29,10 @@ re-measure.
 **The round loop is planned:** grilled 2026-09-27, its decisions written into the docs, and its
 eleven slice issues confirmed on 2026-09-28 and labeled `ready-for-agent`, #41–#51, the user's own
 steps marked in each (Next).
-**Updated:** 2026-09-30 (#55 and #56 built; #54–#56 triage on 2026-09-29)
+**#42, the round-loop tracer, is built (2026-10-01), on `fm/suburi-42`:** an English realistic round
+end to end, its latencies measured (`03` §4). Two steps are the user's before it closes: reviewing
+rubric `en` v1.0, and the proof round on `develop` (Next).
+**Updated:** 2026-10-01 (#42 built; #55 and #56 on 2026-09-30)
 
 ## Done
 - Phase 1 — `docs/01-project-brief.md`, `docs/02-product-requirements.md`, `docs/06-decision-log.md`.
@@ -335,6 +338,22 @@ every round route; a failed synthesis goes on as text with `speech_failed`; feed
 without a score that ended `failed`, which is retried alone; "today" is Asia/Tokyo's. The user
 confirmed the slices, and #41–#51 moved from `needs-triage` to `ready-for-agent`. Slice 0 (#41) is the user's own
 console work and takes `12` §3 steps 3–5 out of #21, whose body now points at it.
+
+**#42 is built (2026-10-01), on `fm/suburi-42`, and waits on two steps of the user's.** Built: migration
+`0007` (`round_questions`, stamp 3 `not null` on `questions` and `scoring_attempts`, the
+General-practice index, the round routes' limiter names); rubric `en` v1.0 and the English set pieces
+in `lib/`; 17 synthetic English bank questions seeded on `develop` only; `POST /api/role-contexts`
+(General practice), `POST /api/rounds`, the answer slot, `transcribe`, `submit` scoring in `after()`,
+`complete` and its `feedback` retry; the English round screens — Setup, record in three states,
+correction with the live meter, felt pressure, feedback with six rows, the fix list, what worked and
+"findings not ready"; integration tests for every route and a Playwright round with a fake microphone
+and mock S3 and OpenAI. **Measured** (`scripts/measure-round-latency.mts`, `03` §4): scoring 7.1 s
+median and 38.1 s slowest, so `complete` waits 60 s (`07` §5.12). **The user's steps:** (1) review
+`lib/rubric/en-1.0.ts` — only then does production's `db:seed` gain the rubric and set pieces (`12` §3
+step 9); (2) the proof round on `develop`: `npm run db:migrate` and `npm run db:seed:develop` against
+Neon `develop`, then a real English round from a real browser, audio under `dev/`, feedback on screen
+before leaving the machine. The two new Japanese error strings are in
+`docs/checklists/native-read-round-loop.md`.
 
 **#54, #55 and #56 are next, then #21. #20, #29 and #38 are done.** #21 is blocked by all three
 (native `blocked_by` edges, 2026-09-29), and #56 by #55. They were triaged 2026-09-29 (`06`): #54 and

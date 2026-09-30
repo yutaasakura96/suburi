@@ -193,7 +193,13 @@ export function createComplete(deps: CompleteDeps) {
           .for("update");
         if (!round) return notFound("round");
         if (round.completedAt !== null) {
-          return apiError("round_already_complete", "The round is already complete.", { round_id: roundId });
+          // The envelope's detail is flat (07 §2), so it says whether feedback exists, not what it is:
+          // screen 8 reads it from the round.
+          const existing = await existingFeedback(tx, roundId);
+          return apiError("round_already_complete", "The round is already complete.", {
+            round_id: roundId,
+            has_feedback: existing !== null,
+          });
         }
         if (round.mode === "realistic" && pressure === null) {
           return apiError("pressure_required", "A realistic round needs its felt-pressure rating.", { round_id: roundId });

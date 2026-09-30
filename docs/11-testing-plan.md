@@ -65,7 +65,8 @@ Testing Firefox and WebKit would be testing a claim the product does not make. `
 format also differs across browsers, and only one is supported.
 
 **No test ever calls OpenAI or S3.** Every model path goes through the port in `lib/ai/` with a fake;
-S3 is intercepted at the network boundary in Playwright and faked at the port in integration tests.
+S3 is intercepted at the network boundary in Playwright — `e2e/mock-s3.ts`, reached through a
+localhost-only `S3_ENDPOINT` (`06`, 2026-10-01) — and faked at the port in integration tests.
 Determinism is the point, but so is cost and so is the key.
 
 ---
