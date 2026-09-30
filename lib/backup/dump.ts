@@ -96,6 +96,39 @@ async function hasJournal(client: ClientBase) {
   return result.rows[0].present;
 }
 
+/**
+ * One text for every table in `public`, bar partitions and extension members: its columns, constraints
+ * and indexes. The dump takes it on the source and the restore runs the same query on the target, so a
+ * target at another migration is refused before a row is written, and the journal written with the rows
+ * always describes the schema they land in.
+ */
+const SCHEMA_FINGERPRINT = `
+  select md5(coalesce(string_agg(t.def, E'\\n' order by t.def collate "C"), '')) as fingerprint
+  from (
+    select c.relname || ' ' || c.relkind::text
+      || ' columns[' || coalesce((
+        select string_agg(a.attname || ' ' || format_type(a.atttypid, a.atttypmod)
+          || case when a.attnotnull then ' not null' else '' end
+          || coalesce(' default ' || pg_get_expr(d.adbin, d.adrelid), ''), ', ' order by a.attname)
+        from pg_attribute a
+        left join pg_attrdef d on d.adrelid = a.attrelid and d.adnum = a.attnum
+        where a.attrelid = c.oid and a.attnum > 0 and not a.attisdropped), '') || ']'
+      || ' constraints[' || coalesce((
+        select string_agg(k.conname || ' ' || pg_get_constraintdef(k.oid), ', ' order by k.conname)
+        from pg_constraint k where k.conrelid = c.oid), '') || ']'
+      || ' indexes[' || coalesce((
+        select string_agg(pg_get_indexdef(i.indexrelid), ', ' order by pg_get_indexdef(i.indexrelid) collate "C")
+        from pg_index i where i.indrelid = c.oid), '') || ']' as def
+    from pg_class c
+    where c.relnamespace = 'public'::regnamespace and c.relkind in ('r', 'p') and not c.relispartition
+      and not exists (select 1 from pg_depend e where e.classid = 'pg_class'::regclass and e.objid = c.oid and e.deptype = 'e')
+  ) t`;
+
+async function schemaFingerprint(client: ClientBase) {
+  const result = await client.query<{ fingerprint: string }>(SCHEMA_FINGERPRINT);
+  return result.rows[0].fingerprint;
+}
+
 /** The migration the database is at, by its `db/migrations` tag, so a restorer knows what to migrate to. */
 async function schemaNote(client: ClientBase) {
   const result = await client.query<{ created_at: string | null }>(`
@@ -107,14 +140,14 @@ async function schemaNote(client: ClientBase) {
   return entry ? `migrated through db/migrations ${entry.tag}` : `migrated through the journal entry dated ${when}, newer than this build`;
 }
 
-function header(tables: readonly Table[], takenAt: Date, schema: string) {
+function header(tables: readonly Table[], takenAt: Date, schema: string, fingerprint: string) {
   const empty = tables.map((table) =>
     `  IF EXISTS (SELECT 1 FROM ${qualified(table)}) THEN RAISE EXCEPTION ${literal(`restore target is not empty: ${table.name}`)}; END IF;`);
   return [
     `-- Suburi daily backup (docs/12-deployment.md §8). Data only, schema public, taken ${takenAt.toISOString()}.`,
     `-- Left out: ${EXCLUDED_TABLES.join(", ")}. Signing in again rebuilds them.`,
     `-- Restore onto an empty database whose schema is ${schema}, such as a Neon branch`,
-    "-- made Schema only from main:",
+    "-- made Schema only from main while main has applied no migration since. Any other schema is refused:",
     "--   psql \"$DATABASE_URL_UNPOOLED\" -f <this file>",
     "-- One transaction. It refuses a target that already holds rows, and checks every table's row count",
     "-- before it commits; a file cut short commits nothing. drizzle's migration journal travels too, written",
@@ -124,9 +157,13 @@ function header(tables: readonly Table[], takenAt: Date, schema: string) {
     "SET standard_conforming_strings = on;",
     "SET datestyle = 'ISO, YMD';",
     "SET intervalstyle = 'postgres';",
+    "SET search_path = public;",
     "BEGIN;",
     "DO $restore$",
     "BEGIN",
+    `  IF (${SCHEMA_FINGERPRINT}) IS DISTINCT FROM ${literal(fingerprint)} THEN`,
+    `    RAISE EXCEPTION ${literal(`restore target schema differs from the dump's (${schema})`)};`,
+    "  END IF;",
     ...empty,
     "END",
     "$restore$;",
@@ -187,9 +224,10 @@ export function createDump(client: ClientBase, takenAt: Date) {
     await client.query("set local intervalstyle = 'postgres'");
     await client.query("set local extra_float_digits = 3");
     await client.query("set local timezone = 'UTC'");
+    await client.query("set local search_path = public");
 
     const tables = await inLoadOrder(client, await listTables(client));
-    yield Buffer.from(header(tables, takenAt, await schemaNote(client)));
+    yield Buffer.from(header(tables, takenAt, await schemaNote(client), await schemaFingerprint(client)));
 
     const counts: [Table, number][] = [];
     for (const table of tables) {

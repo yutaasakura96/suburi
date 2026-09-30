@@ -263,6 +263,18 @@ describe("the daily dump (12 §8)", () => {
     expect(await withClient(url, journalOf)).toEqual(before);
   });
 
+  it("refuses a target at another migration, and writes neither rows nor journal to it", async () => {
+    const url = await freshDatabase();
+    await withClient(url, async (client) => {
+      await client.query("alter table public.rounds add column later_migration text");
+      await client.query("delete from drizzle.__drizzle_migrations");
+    });
+    expect(() => psql(url, seeded.bytes)).toThrow(/restore target schema differs from the dump's \(migrated through db\/migrations /);
+    const restored = await withClient(url, fingerprint);
+    for (const [name, table] of Object.entries(restored)) expect(table.rows, name).toBe(0);
+    expect(await withClient(url, journalOf)).toEqual([]);
+  });
+
   it("refuses a target that already holds rows, and writes nothing to it", async () => {
     const url = await freshDatabase();
     psql(url, seeded.bytes);

@@ -413,8 +413,11 @@ it was taken at. drizzle's migration journal, `drizzle.__drizzle_migrations`, is
 
 1. Download the object as the account owner. The backup-writer cannot read it back, and nothing
    deployed can.
-2. Make the target: a Neon branch created **Schema only** from `main` (§3 step 8), or any empty
-   database migrated with `drizzle-kit migrate` at a commit that has the migration the header names.
+2. Make the target: a Neon branch created **Schema only** from `main` (§3 step 8), which fits only
+   while `main` has applied no migration since the dump; otherwise an empty database migrated with
+   `drizzle-kit migrate` at the commit that has the migration the header names. The file refuses any
+   other schema: it carries a fingerprint of `public`'s tables, columns, constraints and indexes, and
+   checks the target's against it before it writes a row.
 3. `psql "<target's unpooled URL>" -f <file>`. The file sets `ON_ERROR_STOP` itself and is one
    transaction: it refuses a target that already holds rows, checks every table's row count before it
    commits, and a file cut short commits nothing. It writes the source's migration journal into the

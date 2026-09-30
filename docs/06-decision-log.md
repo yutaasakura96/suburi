@@ -61,7 +61,11 @@ data: the rows of `drizzle.__drizzle_migrations` load into a temporary table and
 journal only if it is empty, then its `id` sequence is set past them. A Schema only branch has the
 table and none of its rows, so without them a promoted branch would have `drizzle-kit migrate` re-run
 `0000` and fail on tables that exist. A target `drizzle-kit migrate` built already holds the same rows
-and keeps them.
+and keeps them. The file also carries an md5 of `public`'s tables with their columns, constraints and
+indexes, taken in the dump's snapshot, and the restore runs the same query on the target and refuses
+before any row if it differs. A Schema only branch from a `main` that migrated since the dump would
+otherwise take a journal older than its schema, and the next `drizzle-kit migrate` would re-run the
+newer migration against objects that exist.
 **Alternatives considered:** rebuilding `CREATE TABLE` statements from the catalogs, which is
 `pg_dump`'s hardest job, done a second time and worse; a data-only file without the guards, which
 would merge silently into a database that was not empty.
