@@ -5,6 +5,7 @@ import * as s from "../db/schema";
 import { createAuth } from "../lib/auth/auth";
 import { mintSessionCookie } from "../lib/auth/test/session";
 import { getConfig } from "../lib/config";
+import { spendThresholdUsd } from "../lib/monitor/thresholds";
 import { E2E_CRON_SECRET, E2E_URL } from "./database";
 
 // The monitoring jobs, the status page and Home's status line (11 §3.17, 10 §1 and §14), against the
@@ -106,7 +107,10 @@ test("an authenticated call to each route writes a run the status page shows", a
   await expect(page.getByTestId("job-selfCheck")).not.toContainText("Never");
   await expect(page.getByTestId("job-digest")).not.toContainText("Never");
   await expect(page.getByTestId("check-scoring_pending_over_24h")).toContainText("OK");
-  await expect(page.getByTestId("check-spend_week_to_date_usd")).toContainText("above $1.20");
+  // The threshold scales with the rounds started this week, and round.spec.ts runs first. The
+  // database is fresh each run, so every round in it started this week.
+  const rounds = await withDb((db) => db.$count(s.rounds));
+  await expect(page.getByTestId("check-spend_week_to_date_usd")).toContainText(`above $${spendThresholdUsd(rounds).toFixed(2)}`);
   await expect(page.getByTestId("digest-week")).toHaveText(/^\d{4}-\d{2}-\d{2} – \d{4}-\d{2}-\d{2}$/);
   await expect(page.getByTestId("figure-digest_rounds_started")).toHaveText("0");
 });

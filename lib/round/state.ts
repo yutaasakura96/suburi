@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import * as s from "../../db/schema";
 import type { Db } from "./http";
 
@@ -61,12 +61,22 @@ export function roundStep(round: Pick<RoundRow, "length" | "mode" | "completedAt
   return round.mode === "realistic" ? { kind: "pressure" } : { kind: "finish" };
 }
 
-/** Starting a round abandons any older open one (04 `rounds`); this is the "newer" half of that. */
-export async function newerRoundExists(db: Reader, round: Pick<RoundRow, "id" | "userId" | "startedAt">) {
+/**
+ * Starting a round abandons any older open one (04 `rounds`); this is the "newer" half of that.
+ * Compared in SQL against the stored `started_at`: a JS `Date` keeps milliseconds and Postgres keeps
+ * microseconds, so a round read back into JS would otherwise be older than itself.
+ */
+export async function newerRoundExists(db: Reader, round: Pick<RoundRow, "id" | "userId">) {
   const [row] = await db
     .select({ id: s.rounds.id })
     .from(s.rounds)
-    .where(and(eq(s.rounds.userId, round.userId), gt(s.rounds.startedAt, round.startedAt)))
+    .where(
+      and(
+        eq(s.rounds.userId, round.userId),
+        ne(s.rounds.id, round.id),
+        sql`${s.rounds.startedAt} > (select started_at from rounds where id = ${round.id})`,
+      ),
+    )
     .limit(1);
   return row !== undefined;
 }

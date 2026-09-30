@@ -1,6 +1,6 @@
 import { loadEnvConfig } from "@next/env";
 import { defineConfig, devices } from "@playwright/test";
-import { E2E_CRON_SECRET, E2E_URL, MOCK_OPENAI_BASE_URL } from "./e2e/database";
+import { E2E_CRON_SECRET, E2E_URL, MOCK_OPENAI_BASE_URL, MOCK_S3_ENDPOINT } from "./e2e/database";
 
 // Load .env files exactly as `next start` does (.env.local ahead of .env, never over the real
 // environment), so the tests mint sessions with the secret the server verifies them with. CI sets
@@ -26,9 +26,10 @@ const serverEnv = Object.fromEntries(
     OPENAI_BASE_URL: MOCK_OPENAI_BASE_URL,
     // The cron routes' caller check (07 §5.17). A placeholder, known to e2e/status.spec.ts.
     CRON_SECRET: E2E_CRON_SECRET,
-    // Nothing under test reaches S3 yet, and no real credential is ever handed to it: a request
-    // signed with these fails instead of writing.
+    // The round's audio goes to e2e/mock-s3.ts, never to S3, and no real credential is ever handed
+    // to it: a request that missed the mock would be signed with these and fail instead of writing.
     ...e2eStorage,
+    S3_ENDPOINT: MOCK_S3_ENDPOINT,
   }).filter((entry): entry is [string, string] => entry[1] !== undefined),
 );
 // The test processes read the same config (e2e/cv.spec.ts mints a session through lib/auth).
@@ -42,9 +43,22 @@ export default defineConfig({
   testDir: "e2e",
   forbidOnly: true,
   retries: 0,
+  // One worker: every spec signs in as the one user against one database, and the mocks listen on
+  // fixed ports the server read at boot, so two specs at once would share all three.
+  workers: 1,
   globalSetup: "./e2e/global-setup.ts",
   use: { baseURL: "http://localhost:3100" },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  projects: [
+    {
+      name: "chromium",
+      use: {
+        ...devices["Desktop Chrome"],
+        // The round's recorder (10 §4): a fake microphone that plays a tone, granted without a prompt.
+        permissions: ["microphone"],
+        launchOptions: { args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream"] },
+      },
+    },
+  ],
   // Off 3000 so a running `next dev` never collides with the production build under test.
   webServer: {
     command: "npm run start -- -p 3100",

@@ -117,7 +117,7 @@ async function seedEverything(db: TestDb) {
     .insert(s.cvClaims)
     .values({ cvVersionId: cv.id, userId: world.userId, textNormalised: "tab", spanStart: 0, spanEnd: 3 })
     .returning({ id: s.cvClaims.id });
-  await db.insert(s.questions).values({
+  const [question] = await db.insert(s.questions).values({
     userId: world.userId,
     language: "en",
     roundType: "behavioural",
@@ -128,8 +128,9 @@ async function seedEverything(db: TestDb) {
     generatorPromptVersion: "generate-fixture",
     tokensIn: 1_200,
     tokensOut: 300,
-  });
+  }).returning({ id: s.questions.id });
   const [round] = await db.insert(s.rounds).values(roundValues(world, { completedAt: TAKEN_AT })).returning({ id: s.rounds.id });
+  await db.insert(s.roundQuestions).values({ roundId: round.id, userId: world.userId, position: 1, questionId: question.id });
   const [first] = await db
     .insert(s.answers)
     .values(answerValues(world, round.id, { transcriptRaw: AWKWARD, transcriptCorrected: null, rewriteMagnitude: 0.125, isFirstAttempt: true }))

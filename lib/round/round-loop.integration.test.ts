@@ -23,6 +23,7 @@ import { createOpenAnswer } from "./open-answer";
 import { createPostRound } from "./post-round";
 import { createPostRoleContext } from "./role-context";
 import { createSubmit } from "./submit";
+import { newerRoundExists } from "./state";
 import { createTranscribe } from "./transcribe";
 
 // The round-loop tracer (#42) through its handlers, against the migrated test database, with a real
@@ -350,6 +351,23 @@ describe("POST /api/rounds — a round's questions, chosen once (11 §3.13)", ()
       expect(json.error).toMatchObject({ code: "write_failed", detail: { error_class: "pg_57014" } });
       expect(await count(db, s.rounds)).toBe(0);
       expect(await count(db, s.roundQuestions)).toBe(0);
+    }));
+});
+
+describe("abandoned, derived (04 `rounds`)", () => {
+  it("a lone round is not abandoned, and starting another abandons it", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const first = await world.startRound();
+      const [row] = await db.select().from(s.rounds).where(eq(s.rounds.id, first.json.round.id));
+      expect(await newerRoundExists(db, row)).toBe(false);
+      // One transaction shares one now(): the second round is dated as a later request would date it.
+      const second = await world.startRound();
+      await db
+        .update(s.rounds)
+        .set({ startedAt: sql`${s.rounds.startedAt} + interval '1 second'` })
+        .where(eq(s.rounds.id, second.json.round.id));
+      expect(await newerRoundExists(db, row)).toBe(true);
     }));
 });
 

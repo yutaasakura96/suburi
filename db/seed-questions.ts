@@ -55,8 +55,13 @@ async function seedBank(
   const held = new Set(existing.map((row) => row.body));
   const missing = pieces.filter((piece) => !held.has(piece.body));
   if (missing.length === 0) return 0;
+  // One statement shares one now(), and selection breaks a created_at tie on the random id. A
+  // millisecond apart, in the listed order, makes the order the content lists them in the order they
+  // are asked: the self-introduction before the reason for leaving.
+  const base = Date.now();
   await db.insert(questions).values(
     missing.map((piece) => ({
+      createdAt: new Date(base + pieces.indexOf(piece)),
       userId,
       language,
       roundType: piece.roundType,

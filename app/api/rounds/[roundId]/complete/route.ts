@@ -1,8 +1,9 @@
 import { createComplete } from "@/lib/round/complete";
-import { roundDeps, ROUTE_MAX_DURATION_SECONDS } from "@/lib/round/deps";
+import { roundDeps } from "@/lib/round/deps";
 
 // The bounded wait and the feedback call share this one budget (07 §5.12).
-export const maxDuration = ROUTE_MAX_DURATION_SECONDS;
+// A literal, as Next requires of segment config; lib/round/deps.ts holds the same number for the deadline.
+export const maxDuration = 300;
 
 export async function POST(request: Request, context: RouteContext<"/api/rounds/[roundId]/complete">) {
   const { roundId } = await context.params;
