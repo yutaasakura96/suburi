@@ -5,6 +5,7 @@ import { closePool, inRolledBackTransaction, type TestDb } from "../../db/test/d
 import { answerValues, attemptValues, insertWorld, roundValues, type World } from "../../db/test/fixtures";
 import { statusLine } from "../../app/(app)/status/copy";
 import { CV_EXTRACTION_MODEL } from "../ai/models";
+import type { BackupOutcome } from "../backup/run";
 import { createCronRoute } from "./cron-route";
 import { loadStatus } from "./status";
 
@@ -52,8 +53,10 @@ function savepointTransaction(db: TestDb) {
   };
 }
 
-function route(db: TestDb, job: "self-check" | "digest", { secret = SECRET as string | undefined, now = NOW } = {}) {
-  return createCronRoute(job, { secret, db, transaction: savepointTransaction(db), now: () => now });
+type Backup = (now: Date) => Promise<BackupOutcome>;
+
+function route(db: TestDb, job: "self-check" | "digest", { secret = SECRET as string | undefined, now = NOW, backup = undefined as Backup | undefined } = {}) {
+  return createCronRoute(job, { secret, db, transaction: savepointTransaction(db), now: () => now, backup });
 }
 
 async function call(db: TestDb, job: "self-check" | "digest", authorization: string | null = `Bearer ${SECRET}`, options = {}) {
@@ -195,7 +198,7 @@ describe("the cron routes refuse a caller without CRON_SECRET, and write nothing
 });
 
 describe("self-check", () => {
-  it("writes all nine rows for a healthy fixture, none red", () =>
+  it("writes every row for a healthy fixture, none red", () =>
     inRolledBackTransaction(async (db) => {
       const world = await insertWorld(db);
       await cvVersion(db, world, "応募書類 v2", at(-HOUR), CLEAN);
@@ -550,5 +553,60 @@ describe("no record text reaches a run, a response, a log line or the status rea
       ];
       expect(everything.length).toBeGreaterThan(20);
       for (const text of everything) expect(text).not.toContain(SENTINEL);
+    }));
+});
+
+describe("self-check's daily dump (12 §8, #56)", () => {
+  const written: BackupOutcome = { ok: true, key: "backups/2030-01-02T04-00-00.000Z.sql", bytes: 2_048, durationMs: 12 };
+  const refused: BackupOutcome = { ok: false, key: "backups/2030-01-02T04-00-00.000Z.sql", errorClass: "s3_AccessDenied", durationMs: 12 };
+
+  async function backupRow(db: TestDb, userId: string, backup?: Backup) {
+    const { status, json } = await call(db, "self-check", `Bearer ${SECRET}`, { backup });
+    expect(status).toBe(200);
+    return (await readingsOf(db, json.run_id, userId)).backup_dump_failed;
+  }
+
+  it("runs once per self-check, at the run's instant, and a written dump is quiet", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await insertWorld(db);
+      const backup = vi.fn<Backup>(async () => written);
+      expect(await backupRow(db, world.userId, backup)).toMatchObject({ value: 0, threshold: 0, isRed: false, subjectIds: [] });
+      expect(backup).toHaveBeenCalledTimes(1);
+      expect(backup).toHaveBeenCalledWith(NOW);
+    }));
+
+  it("a failed dump is red on the status page and Home, and the run's other rows still land", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await insertWorld(db);
+      expect(await backupRow(db, world.userId, async () => refused)).toMatchObject({ value: 1, threshold: 0, isRed: true });
+
+      const status = await loadStatus(db, world.userId, NOW);
+      expect(status.checks).toHaveLength(s.SELF_CHECK_SIGNALS.length);
+      expect(status.checks.find((check) => check.signal === "backup_dump_failed")).toMatchObject({ value: 1, isRed: true });
+      expect(statusLine(status)).toBe("1 check is red: Daily backup failed.");
+    }));
+
+  it("no backup key, as everywhere but production, is no reading rather than a pass", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await insertWorld(db);
+      expect(await backupRow(db, world.userId)).toMatchObject({ value: null, isRed: false });
+    }));
+
+  it("a caller without the secret starts no dump", () =>
+    inRolledBackTransaction(async (db) => {
+      await insertWorld(db);
+      const backup = vi.fn<Backup>(async () => written);
+      const response = await route(db, "self-check", { backup })(new Request("http://localhost:3000/api/cron/self-check"));
+      expect(response.status).toBe(401);
+      expect(backup).not.toHaveBeenCalled();
+    }));
+
+  it("digest writes no dump", () =>
+    inRolledBackTransaction(async (db) => {
+      await insertWorld(db);
+      const backup = vi.fn<Backup>(async () => written);
+      const { status } = await call(db, "digest", `Bearer ${SECRET}`, { backup });
+      expect(status).toBe(200);
+      expect(backup).not.toHaveBeenCalled();
     }));
 });

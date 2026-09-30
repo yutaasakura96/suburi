@@ -954,15 +954,18 @@ Authorization: Bearer <CRON_SECRET>
 ```
 ```json
 200
-{ "run_id": "5b0c…", "job": "self-check", "created_at": "2026-09-30T19:12:40Z", "red": 1, "readings": 9 }
+{ "run_id": "5b0c…", "job": "self-check", "created_at": "2026-09-30T19:12:40Z", "red": 1, "readings": 10 }
 ```
 ```json
 401
 { "error": { "code": "unauthenticated", "message": "Missing or wrong cron secret.", "detail": {} } }
 ```
 
-It reads every `12` §6 row it covers, for every user, and **appends one `cron_runs` row with its
-`cron_readings` in one transaction** (`04`). Nothing is updated; a run that fails writes nothing and
+**It first writes the daily dump** (`12` §8, #56) to `backups/` with the backup-writer's key, where
+that key is set (production only, `12` §2). The dump never fails the run: its outcome is the
+`backup_dump_failed` reading, and its own log line carries the key, size, duration and error class
+only. Then it reads every `12` §6 row it covers, for every user, and **appends one `cron_runs` row
+with its `cron_readings` in one transaction** (`04`). Nothing is updated; a run that fails writes nothing and
 returns `500`, and the status page's staleness line is how that shows (`10` §14). The response carries
 the run id, time and counts; the log also carries the duration — never a reading's subjects' text, which the run
 does not hold in the first place (`12` §7).

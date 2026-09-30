@@ -127,7 +127,7 @@ in this application is safe to ship to the browser**, and none is.
 | `SENTRY_AUTH_TOKEN` | Source-map upload at build | Same scopes as `SENTRY_DSN`: both builds upload their maps |
 | `CRON_SECRET` | Authenticates the cron routes against forgery: Vercel sends it as `Authorization: Bearer <CRON_SECRET>` (`07` §5.17) | Vercel encrypted env, **Production only**: cron is off on `develop` (§1). At least 16 characters (`openssl rand -base64 32`). **`lib/config.ts` requires it when `VERCEL_ENV` is `production`** and accepts its absence anywhere else, where the cron routes then refuse every call. Locally, in `.env.local` only to run a job by hand |
 | `VERCEL_ENV` | Which Vercel environment is running: `production`, `preview` or `development` | **Set by Vercel, not by us** — a system variable available at build and runtime (verified 2026-09-30). Read only to decide whether `CRON_SECRET` is required. Unset locally |
-| `BACKUP_AWS_ACCESS_KEY_ID` | The daily `pg_dump`'s write to `backups/` (§8) | Vercel encrypted env, **Production only**. The dedicated backup-writer IAM user (§3 step 5), never the app's own. #56 |
+| `BACKUP_AWS_ACCESS_KEY_ID` | The daily `pg_dump`'s write to `backups/` (§8) | Vercel encrypted env, **Production only**. The dedicated backup-writer IAM user (§3 step 5), never the app's own. **`lib/config.ts` requires both when `VERCEL_ENV` is `production`**, refuses one without the other anywhere, and refuses the app's own `AWS_ACCESS_KEY_ID`. Absent elsewhere, where `self-check` writes no dump (#56) |
 | `BACKUP_AWS_SECRET_ACCESS_KEY` | Same | Same |
 
 **No alert-mail variables.** `ALERT_EMAIL` and a sender key (`RESEND_API_KEY`) were placeholders
@@ -258,6 +258,7 @@ retry loop or a prompt that doubled in size shows up on a bill, not on a screen.
 | `unclaimed_run_max` on the current CV | > **2,000** code points | status page — a section of the CV may have gone unread |
 | `quotes_outside_window > 0` on the current CV | any | status page — an extraction call quoted outside the window it was given (`07` §5.2, #29) |
 | A completed round with no `round_feedback` | for over **24 hours** | status page — feedback failed and was never retried (`07` §5.12) |
+| The daily dump (§8) failed | any | status page — a missing dump is the staleness line: no `self-check` run, no dump (#56) |
 | Near-duplicate near-misses | weekly count and score distribution | the weekly digest — this is the log the threshold gets tuned from (`03` §11). The threshold starts at **0.90, unverified**. Stored and reported by #47, not #55 |
 | Unhandled exception | any | Sentry, scrubbed per §7 (#54) |
 | App down | — | **not alerted.** You will know. |
@@ -290,11 +291,11 @@ reads clean. It is prevented by windowed extraction, not detected. The `quotes_o
 guards the windowing itself and is strict, because it measured 0 across every windowed call.
 
 **Implementation** (#55): two Vercel Cron routes under `/api/cron/` (`07` §5.17, §5.18), authenticated
-with `CRON_SECRET`, returning `401` without it. `self-check` (daily, `0 19 * * *` UTC) covers the first
-nine rows **and will write the daily `pg_dump`** (§8, #56); `digest` (weekly, `0 20 * * 0` UTC, Monday
-morning in Tokyo) reports the Asia/Tokyo week's rounds, tokens and spend. Each run is **appended** to
-`cron_runs` with its `cron_readings` (`04`) and the status page reads the newest. Still to come: #56
-(the dump) and #47 (the near-miss log and its digest row; whichever of #47 and #55 merges second wires
+with `CRON_SECRET`, returning `401` without it. `self-check` (daily, `0 19 * * *` UTC) **writes the
+daily dump first** (§8, #56) and then covers the first ten rows; `digest` (weekly, `0 20 * * 0` UTC,
+Monday morning in Tokyo) reports the Asia/Tokyo week's rounds, tokens and spend. Each run is
+**appended** to `cron_runs` with its `cron_readings` (`04`) and the status page reads the newest.
+Still to come: #47 (the near-miss log and its digest row; whichever of #47 and #55 merges second wires
 it).
 
 How the rows are read, decided in #55 (`06`):
@@ -389,7 +390,7 @@ system, because `04` §5 means nothing can be rebuilt from a later state.
 
 | What | How | Restore path |
 | --- | --- | --- |
-| Postgres | Neon point-in-time restore, **6 hours and not extendable on Free**, plus a **daily `pg_dump`** written to `s3://<bucket>/backups/`, SSE-encrypted, by its own write-only IAM user (§3 step 5). Not built yet: #56 | Restore into a Neon branch, verify, then promote |
+| Postgres | Neon point-in-time restore, **6 hours and not extendable on Free**, plus a **daily dump** written to `s3://<bucket>/backups/`, SSE-S3, by its own write-only IAM user (§3 step 5). Built by #56, below | Restore into a Neon branch, verify, then promote |
 | Audio in S3 | Bucket versioning on; no lifecycle rule on `prod/` | Object version restore |
 | Prompts, rubrics, seeds | Git | Checkout |
 | Secrets | Vercel env is the store of record; not backed up | Regenerate from the source consoles (§3) |
@@ -397,6 +398,30 @@ system, because `04` §5 means nothing can be rebuilt from a later state.
 The `pg_dump` exists because Neon's retention window is a plan feature and this data outlives any
 plan. **It runs daily, from the `self-check` cron route** (§6) — not weekly, as this section
 originally said.
+
+**How it is written** (#56, `06` 2026-09-30). Not the `pg_dump` binary: `lib/backup/` writes a
+**logical, data-only dump in-process**, inside the function, from one `repeatable read` snapshot over
+`DATABASE_URL_UNPOOLED` (verify-full). Each table's rows are the text Postgres writes for `COPY … TO
+STDOUT`, in a psql script of `COPY … FROM stdin` blocks ordered parents first, streamed to S3 a part at
+a time — never the whole dump in memory. The key is `backups/<run instant>.sql`
+(`backups/2026-09-30T19-12-40.123Z.sql`), fixed by the run, never by a caller. A failed dump is a red
+row on the status page (§6), and its log line carries the key, size, duration and error class only
+(§7). The schema is not in the file; it is the migrations in git, and the file's header names the one
+it was taken at.
+
+**Restoring one** (the drill is #21's criterion, `06` 2026-09-29):
+
+1. Download the object as the account owner. The backup-writer cannot read it back, and nothing
+   deployed can.
+2. Make the target: a Neon branch created **Schema only** from `main` (§3 step 8), or any empty
+   database migrated with `drizzle-kit migrate` at a commit that has the migration the header names.
+3. `psql "<target's unpooled URL>" -f <file>`. The file sets `ON_ERROR_STOP` itself and is one
+   transaction: it refuses a target that already holds rows, checks every table's row count before it
+   commits, and a file cut short commits nothing.
+4. Sign in again: `sessions`, `accounts` and `verifications` are not in the file.
+
+CI restores a dump this way on every run (`11` §3.18), into a fresh database, and compares every
+table's rows. What CI cannot do is the drill against a real production dump.
 
 **Retention: every dump in `backups/` is kept forever**, with no lifecycle rule, like `prod/`
 (`06`, 2026-09-29). Nothing here is deleted, and at this data size a daily object costs next to

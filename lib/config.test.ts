@@ -115,18 +115,19 @@ describe("parseConfig", () => {
   // The cron routes' caller check (07 §5.17): Production scope only, so required only there (06, #55).
   describe("CRON_SECRET", () => {
     const secret = "cron-secret-not-a-real-one";
+    const backup = { BACKUP_AWS_ACCESS_KEY_ID: "AKIA-backup-not-a-real-id", BACKUP_AWS_SECRET_ACCESS_KEY: "backup-not-a-real-secret" };
 
     it.each([[undefined], ["preview"], ["development"]])("is optional when VERCEL_ENV is %s", (vercelEnv) => {
       expect(parseConfig({ ...valid, VERCEL_ENV: vercelEnv }).CRON_SECRET).toBeUndefined();
     });
 
     it("is required in production, and names itself as missing", () => {
-      const error = errorFrom({ ...valid, VERCEL_ENV: "production" });
+      const error = errorFrom({ ...valid, ...backup, VERCEL_ENV: "production" });
       expect(error.problems).toEqual([{ name: "CRON_SECRET", problem: "missing" }]);
     });
 
     it("is accepted in production", () => {
-      expect(parseConfig({ ...valid, VERCEL_ENV: "production", CRON_SECRET: secret }).CRON_SECRET).toBe(secret);
+      expect(parseConfig({ ...valid, ...backup, VERCEL_ENV: "production", CRON_SECRET: secret }).CRON_SECRET).toBe(secret);
     });
 
     it("refuses one shorter than 16 characters without echoing it", () => {
@@ -138,6 +139,43 @@ describe("parseConfig", () => {
     it("refuses a VERCEL_ENV Vercel never sets", () => {
       const error = errorFrom({ ...valid, VERCEL_ENV: "staging" });
       expect(error.problems).toEqual([{ name: "VERCEL_ENV", problem: "malformed" }]);
+    });
+  });
+
+  // The daily dump's own write-only user (12 §2, §3 step 5): Production scope only, so required only
+  // there, and never the app's own key (06, #56).
+  describe("BACKUP_AWS_ACCESS_KEY_ID and BACKUP_AWS_SECRET_ACCESS_KEY", () => {
+    const backup = { BACKUP_AWS_ACCESS_KEY_ID: "AKIA-backup-not-a-real-id", BACKUP_AWS_SECRET_ACCESS_KEY: "backup-not-a-real-secret" };
+    const production = { ...valid, VERCEL_ENV: "production", CRON_SECRET: "cron-secret-not-a-real-one" };
+
+    it.each([[undefined], ["preview"], ["development"]])("are optional when VERCEL_ENV is %s", (vercelEnv) => {
+      const config = parseConfig({ ...valid, VERCEL_ENV: vercelEnv });
+      expect(config.BACKUP_AWS_ACCESS_KEY_ID).toBeUndefined();
+      expect(config.BACKUP_AWS_SECRET_ACCESS_KEY).toBeUndefined();
+    });
+
+    it("are required in production, each named as missing", () => {
+      const error = errorFrom(production);
+      expect(error.problems).toEqual([
+        { name: "BACKUP_AWS_ACCESS_KEY_ID", problem: "missing" },
+        { name: "BACKUP_AWS_SECRET_ACCESS_KEY", problem: "missing" },
+      ]);
+    });
+
+    it("are accepted in production", () => {
+      expect(parseConfig({ ...production, ...backup })).toMatchObject(backup);
+    });
+
+    it.each(Object.keys(backup))("refuses half a key: %s alone is not enough anywhere", (name) => {
+      const other = Object.keys(backup).find((key) => key !== name)!;
+      const error = errorFrom({ ...valid, [name]: backup[name as keyof typeof backup] });
+      expect(error.problems).toEqual([{ name: other, problem: "missing" }]);
+    });
+
+    it("refuses the app's own key without echoing it", () => {
+      const error = errorFrom({ ...valid, ...backup, BACKUP_AWS_ACCESS_KEY_ID: valid.AWS_ACCESS_KEY_ID });
+      expect(error.problems).toEqual([{ name: "BACKUP_AWS_ACCESS_KEY_ID", problem: "malformed" }]);
+      expect(error.message).not.toContain(valid.AWS_ACCESS_KEY_ID);
     });
   });
 

@@ -29,7 +29,7 @@ re-measure.
 **The round loop is planned:** grilled 2026-09-27, its decisions written into the docs, and its
 eleven slice issues confirmed on 2026-09-28 and labeled `ready-for-agent`, #41–#51, the user's own
 steps marked in each (Next).
-**Updated:** 2026-09-30 (#55 built; #54–#56 triage on 2026-09-29)
+**Updated:** 2026-09-30 (#55 and #56 built; #54–#56 triage on 2026-09-29)
 
 ## Done
 - Phase 1 — `docs/01-project-brief.md`, `docs/02-product-requirements.md`, `docs/06-decision-log.md`.
@@ -348,8 +348,16 @@ before release.
 and Home's one line (`10` §1). Migration `0005_monitoring` is expand-only and **not yet applied to
 either Neon branch** (`12` §4 steps 3 and 5). **The user's step:** `CRON_SECRET` in Vercel's
 Production scope before the first production deploy (`12` §3 step 12). Decisions in `06`, "Phase 6 —
-#55". #47 wires the digest's near-miss row if it merges second; #56 adds the `pg_dump` to
-`self-check`.
+#55". #47 wires the digest's near-miss row if it merges second.
+
+**#56 is built (2026-09-30), on `fm/suburi-56`:** `self-check` writes the daily dump before its
+readings, in-process rather than with the `pg_dump` binary (`06`, "Phase 6 — #56"): a data-only psql
+script of `COPY` blocks from one snapshot, without `sessions`, `accounts` and `verifications`, streamed
+to `backups/<run instant>.sql` with the backup-writer's key. A failed dump is the tenth `self-check`
+row, `backup_dump_failed`, red on `/status` and Home. CI restores a dump into a fresh database on every
+run (`11` §3.18); the drill against a real production dump stays #21's. Migration `0006_backup-signal`
+widens `cron_readings.signal` only and is **not yet applied to either Neon branch** (`12` §4 steps 3
+and 5). `12` §8 has the restore steps.
 
 **Done, 2026-09-27: the read of `docs/checklists/native-read-cv.md` (#38) — an AI review, not a
 native read.** The user does not read Japanese and asked Claude to do the check. All 22 panel strings
@@ -509,8 +517,9 @@ in 4b):
   `10-screen-specifications.md` §12. **The CV screen came off this list in #12** — still no artboard,
   but specified in `10` §13 from `05` components.
 
-**The weakest link in the whole plan, named so it is not forgotten:** the backup restore is untested.
-`11` §9 says so and `12` §8 schedules the drill — restore into a Neon branch immediately after the
+**The weakest link in the whole plan, named so it is not forgotten:** a real backup has never been
+restored. CI restores synthetic dumps (`11` §3.18); `11` §9 says the production one is untested, and
+`12` §8 schedules the drill — restore into a Neon branch immediately after the
 first production deploy and read a round back whole. An untested restore is a hope, and it is guarding
 the only irreplaceable thing here.
 

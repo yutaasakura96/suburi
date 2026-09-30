@@ -2,7 +2,8 @@ import { z } from "zod";
 
 // The only application module that reads process.env (docs/12-deployment.md §2). Every variable is
 // required and none has a default, except OPENAI_BASE_URL, which only Playwright sets, and
-// CRON_SECRET, which only production requires. Errors name the variable, never its value.
+// CRON_SECRET and the two BACKUP_ keys, which only production requires. Errors name the variable,
+// never its value.
 
 const localHosts = new Set(["localhost", "127.0.0.1"]);
 
@@ -53,6 +54,10 @@ const schema = z.object({
   // The cron routes' caller check (07 §5.17). Production scope only (12 §2); elsewhere absent, and the
   // routes then refuse every call. Vercel recommends at least 16 characters.
   CRON_SECRET: z.string().min(16).optional(),
+  // The daily dump's write to backups/ (12 §2, §8): the backup-writer IAM user, exactly s3:PutObject on
+  // backups/*, never the app's own. Production scope only; elsewhere absent, and self-check writes no dump.
+  BACKUP_AWS_ACCESS_KEY_ID: z.string().min(1).optional(),
+  BACKUP_AWS_SECRET_ACCESS_KEY: z.string().min(1).optional(),
   // Set by Vercel itself at build and runtime (06, 2026-09-30); unset locally.
   VERCEL_ENV: z.enum(["production", "preview", "development"]).optional(),
 }).superRefine((env, context) => {
@@ -60,6 +65,18 @@ const schema = z.object({
   // page went stale two days later. So it fails the boot instead (06, #55).
   if (env.VERCEL_ENV === "production" && env.CRON_SECRET === undefined) {
     context.addIssue({ code: "custom", path: ["CRON_SECRET"], message: "required in production" });
+  }
+  // Likewise the dump: production without its key would write no backup at all, and half a key is
+  // no key anywhere (06, #56).
+  const backupKeys = ["BACKUP_AWS_ACCESS_KEY_ID", "BACKUP_AWS_SECRET_ACCESS_KEY"] as const;
+  if (env.VERCEL_ENV === "production" || backupKeys.some((name) => env[name] !== undefined)) {
+    for (const name of backupKeys) {
+      if (env[name] === undefined) context.addIssue({ code: "custom", path: [name], message: "required with its pair" });
+    }
+  }
+  // The app's credential reaching backups/ is what the separate user exists to prevent (06, 2026-09-28).
+  if (env.BACKUP_AWS_ACCESS_KEY_ID !== undefined && env.BACKUP_AWS_ACCESS_KEY_ID === env.AWS_ACCESS_KEY_ID) {
+    context.addIssue({ code: "custom", path: ["BACKUP_AWS_ACCESS_KEY_ID"], message: "must not be the app's own key" });
   }
 });
 

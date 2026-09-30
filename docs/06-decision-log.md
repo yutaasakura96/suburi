@@ -3,6 +3,87 @@
 Newest first. Every entry records what was chosen, why, and what was rejected.
 
 ---
+## Phase 6 — #56, the daily dump
+
+The daily dump `12` §8 requires, written by `self-check` with its own write-only IAM user, built from
+the 2026-09-28 and 2026-09-29 decisions below. The one open question was how a dump runs inside a
+Vercel Function at all; the rest are the choices the build needed.
+
+### [2026-09-30] The dump is written in-process, not by a bundled `pg_dump` binary
+
+**Checked** against Vercel's *Vercel Functions Limits* and *Configuring Maximum Duration* (both last
+updated 2026-08-24) and *Build image overview*: with Fluid compute, Hobby functions run at most
+**300 s** (default and maximum), with **2 GB / 1 vCPU**, and a function bundle may be **250 MB
+uncompressed**; in Next.js, extra files join a function only through `outputFileTracingIncludes`.
+The build image is Amazon Linux 2023, and no Postgres client is in its package list.
+**So a binary would fit:** a Postgres 18 `pg_dump` with `libpq` is a few megabytes, and this
+database dumps in seconds. **It was still rejected.** Nothing on the runtime provides it, so it would
+be a Linux build copied from PGDG's packages with its shared libraries (`libpq`, OpenSSL, `zstd`,
+`lz4`), matched by hand to an image Vercel can change underneath it. It could not run in CI or on a
+Mac, so the test that proves the file restores would test something other than what production
+runs, and whether it runs on Vercel at all can only be seen on a deploy; feature branches are not
+deployed (`12` §1). Its TLS would also be libpq's, which needs `sslrootcert=system` beside
+`verify-full`, a second rule `lib/config.ts` does not enforce.
+**Decided:** `lib/backup/dump.ts` writes a logical dump from Node over the same `pg` driver and URL
+rule as the app. One `repeatable read, read only` transaction; for each table in `public`, parents
+first, a `COPY … FROM stdin` block holding exactly what Postgres writes for `COPY (SELECT …) TO
+STDOUT` (`pg-copy-streams`), with `datestyle`, `intervalstyle` and `extra_float_digits` set as
+`pg_dump` sets them. `psql -f` loads it. The body streams through `@aws-sdk/lib-storage`: one
+PutObject under 5 MB, otherwise parts of 5 MB, at most two in memory.
+**Alternatives considered:** the binary, above; `INSERT` statements built in JavaScript, which would
+reimplement every type's literal syntax that `COPY` gets from Postgres itself; a Vercel Workflow or
+another host, which the dump's size does not call for.
+
+### [2026-09-30] The dump carries data, not schema, and checks its own restore
+
+**Decided:** the file has no DDL. The schema is the migrations in git (`12` §8 already backs Git up),
+and the header names the newest migration the database had applied, from `drizzle.__drizzle_migrations`,
+by its `db/migrations` tag. A restore loads onto a Neon branch made Schema only from `main`, or an empty
+database migrated to that tag. The file sets `ON_ERROR_STOP`, runs as one transaction, refuses a
+target that already holds rows, and checks every table's row count against the dump before its
+`COMMIT`, so a file cut short or loaded twice writes nothing.
+**Alternatives considered:** rebuilding `CREATE TABLE` statements from the catalogs, which is
+`pg_dump`'s hardest job, done a second time and worse; a data-only file without the guards, which
+would merge silently into a database that was not empty.
+**Reason:** `12` §8's restore path is already "into a Neon branch", and a Schema only branch is exactly
+the empty, migrated target this file needs. The guards make a mistaken restore fail rather than
+half-succeed.
+
+### [2026-09-30] A failed dump is a red row, not a failed run
+
+**Decided:** `self-check` writes the dump first, then reads its other rows. A tenth signal,
+`backup_dump_failed`, is 1 when the dump failed and 0 when it was written, recorded for every user
+because the dump is the whole database. The run's other readings still land when the dump fails.
+With no backup key, which is everywhere but production, the row is no reading, not a pass. A missing
+dump is `self-check` not running, and the staleness line already says that first. Migration
+`0006_backup-signal` widens `cron_readings_signal_check`.
+**Alternatives considered:** a `backups` table with its own "last dump" line; failing the whole run,
+which would hide nine good readings behind one bad one.
+**Reason:** `12` §6's rows already carry exactly this shape, and the status page and Home show a red
+row without new UI.
+
+### [2026-09-30] Production refuses to boot without the backup key
+
+**Decided:** `BACKUP_AWS_ACCESS_KEY_ID` and `BACKUP_AWS_SECRET_ACCESS_KEY` are required when
+`VERCEL_ENV` is `production`, as `CRON_SECRET` is; either one without the other is refused anywhere;
+and the backup key may not equal `AWS_ACCESS_KEY_ID`.
+**Reason:** a production that booted without it would write no backup and show only a "no reading"
+row. The equality check catches the one mistake the separate user exists to prevent.
+
+### [2026-09-30] Dated keys, SSE-S3, plain SQL, and multipart parts left on failure
+
+**Decided:** the key is `backups/<the run's instant>.sql`, colons as hyphens
+(`backups/2026-09-30T19-12-40.123Z.sql`), so a duplicate Vercel delivery writes a second object rather
+than overwriting the first. Each PUT sends `x-amz-server-side-encryption: AES256`, the bucket's own
+default made explicit. The file is not compressed: at this size the saving is cents, and `psql -f`
+reads it as it is. The upload sets `leavePartsOnError`.
+**Reason for the last:** AWS's multipart permissions table (*Uploading and copying objects using
+multipart upload*, checked 2026-09-30) needs `s3:PutObject` to create, upload a part and complete, and
+`s3:AbortMultipartUpload` to stop one, which the backup-writer's policy does not grant. An abort that
+is refused would replace the real error with `AccessDenied`. A failed dump over 5 MB therefore leaves unlisted parts under
+`backups/`, which cost almost nothing at this size, and `backups/` gets no lifecycle rule (2026-09-29).
+
+---
 ## Phase 6 — #55, the monitoring jobs and the status page
 
 The daily `self-check`, the weekly `digest` and the private status page they write to, built from the

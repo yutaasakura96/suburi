@@ -43,6 +43,13 @@
       "when": 1790714994993,
       "tag": "0005_monitoring",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790717627348,
+      "tag": "0006_backup-signal",
+      "breakpoints": true
     }
   ]
 }
