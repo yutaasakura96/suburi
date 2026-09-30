@@ -30,7 +30,8 @@ export const CITATION_RELATIONS = ["supported_by", "contradicted_by"] as const;
 export const CV_DOCUMENT_KINDS = ["rirekisho", "shokumu_keirekisho", "cv", "additional"] as const;
 // Every ⚡ route (07 §1 rule 5). A new one extends this list in its own migration.
 export const RATE_LIMITED_ROUTES = ["cv-versions"] as const;
-// 12 §6's monitoring jobs and what they read (04 cron_readings). #47 adds the near-miss row.
+// 12 §6's monitoring jobs and what they read (04 cron_readings). #47 adds the near-miss row; #56
+// added the daily dump's.
 export const CRON_JOBS = ["self-check", "digest"] as const;
 export const SELF_CHECK_SIGNALS = [
   "scoring_pending_over_24h",
@@ -42,6 +43,7 @@ export const SELF_CHECK_SIGNALS = [
   "cv_unclaimed_run_max",
   "cv_quotes_outside_window",
   "round_feedback_missing_over_24h",
+  "backup_dump_failed",
 ] as const;
 export const DIGEST_FIGURES = [
   "digest_rounds_started",

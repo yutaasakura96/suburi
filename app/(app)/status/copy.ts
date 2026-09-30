@@ -15,6 +15,7 @@ export const CHECK_NAMES: Record<SelfCheckSignal, string> = {
   cv_unclaimed_run_max: "CV longest unread run",
   cv_quotes_outside_window: "CV quotes outside window",
   round_feedback_missing_over_24h: "Rounds without feedback over 24 hours",
+  backup_dump_failed: "Daily backup failed",
 };
 
 export const FIGURE_NAMES: Record<DigestFigure, string> = {

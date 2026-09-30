@@ -1,6 +1,7 @@
 import { and, desc, eq, gte, lt, lte, sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import * as s from "../../db/schema";
+import type { BackupOutcome } from "../backup/run";
 import { type TokenTotals, spendUsd } from "./spend";
 import {
   ANY,
@@ -162,7 +163,16 @@ async function cvCounterReadings(db: Db, userId: string, now: Date): Promise<Rea
   });
 }
 
-/** The nine `self-check` rows of 12 §6, in its order. */
+/**
+ * The daily dump's row (12 §6, §8): 1 when this run's dump failed, 0 when it was written. No dump
+ * configured, which is everywhere but production (12 §2), is no reading. A dump that never ran because
+ * `self-check` never ran is the staleness line's to say (10 §14).
+ */
+export function backupReading(outcome: BackupOutcome | null): Reading {
+  return judged("backup_dump_failed", outcome === null ? null : outcome.ok ? 0 : 1, ANY, []);
+}
+
+/** The first nine `self-check` rows of 12 §6, in its order; the run adds `backupReading` last. */
 export async function selfCheckReadings(db: Db, userId: string, now: Date): Promise<Reading[]> {
   const week = weekToDate(now);
   // One query at a time, so a run can read through a single connection.

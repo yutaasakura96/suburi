@@ -1,0 +1,2 @@
+ALTER TABLE "cron_readings" DROP CONSTRAINT "cron_readings_signal_check";--> statement-breakpoint
+ALTER TABLE "cron_readings" ADD CONSTRAINT "cron_readings_signal_check" CHECK ("cron_readings"."signal" in ('scoring_pending_over_24h', 'scoring_failed_unsuperseded', 'spend_week_to_date_usd', 'cv_spans_rejected', 'cv_claims_split', 'cv_claims_duplicated', 'cv_unclaimed_run_max', 'cv_quotes_outside_window', 'round_feedback_missing_over_24h', 'backup_dump_failed', 'digest_rounds_started', 'digest_rounds_completed', 'digest_tokens_in', 'digest_tokens_out', 'digest_spend_usd'));

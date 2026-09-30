@@ -294,7 +294,7 @@ row is tested firing as well as quiet.
 - **Every `12` §6 threshold is a named constant with a unit test at, below and above it** — the two
   24-hour ages, the 48-hour staleness, `unclaimed_run_max`'s 2,000, the spend threshold's 3× baseline ×
   max(1, rounds), and zero for every "any" row.
-- **Against the real database:** seeded rows that trip each of the nine `self-check` signals appear red
+- **Against the real database:** seeded rows that trip each of the ten `self-check` signals appear red
   on the next run, with the tripping rows' ids; a healthy fixture yields none red; a CV version with
   null counters is no reading, not zero; the Asia/Tokyo week boundary puts a token row on the right
   side; `digest` reports the ended week's rounds, tokens and spend.
@@ -306,6 +306,32 @@ row is tested firing as well as quiet.
   route's response and log lines contain it.
 - **Playwright:** an authenticated call to each route writes a run the status page then shows, and
   Home's status line appears for a red check and a stale `self-check`, and is absent when neither.
+
+### 3.18 The daily dump (#56)
+
+The one failure `12` §8 exists to prevent is a backup that exists and does not restore, so the test
+restores it.
+
+- **Round trip, with psql:** a row in every table, with the values COPY must escape (tabs, newlines,
+  backslashes, a `\.` line, Japanese), a `vector`, `jsonb`, arrays with a null element and both
+  self-references on `answers`, is dumped from one snapshot and loaded with `psql -f` into a fresh
+  database built by the migrations. **Every table's row count and a digest of its rows' full text
+  match the source.**
+- **The three auth tables are left out:** with rows in `sessions`, `accounts` and `verifications`
+  holding a sentinel token, the dump names none of them and contains no sentinel, and the restored
+  tables are empty.
+- **The file guards its own restore:** loaded into a target that already holds rows it fails and
+  writes nothing; cut short before its `COMMIT`, it commits nothing; loaded into a target whose schema
+  differs (a migrated database with one extra column), it is refused and writes neither rows nor journal.
+- **drizzle's journal travels with it:** into a migrated target whose journal was emptied (a Schema
+  only branch), the journal afterwards matches the source's and `drizzle-kit migrate` applies nothing;
+  into a target `drizzle-kit migrate` built, the journal is left as it was.
+- **The S3 write goes through the `BackupStore` port** with a fake: the object lands under the run's
+  dated key and its size is the logged size; a refused write is an outcome with S3's error class, never
+  a throw, and its log line carries the key, duration and error class only (§3.10).
+- **Against the cron route:** a written dump is `0`, a failed one is red on the status page and Home
+  while the run's other rows still land, no backup key is no reading, and neither a caller without the
+  secret nor `digest` starts a dump.
 
 ---
 
@@ -445,7 +471,7 @@ Each of these is a decision, with what would change it.
 | **Load and performance** | One user, eight rounds a month. The only latency that matters is feedback rendering while the user is there, and that is §5's checklist item. | A second user exists. |
 | **Multi-user isolation beyond query scoping** | §3.11 covers scoping, which is the part that is free to test now. Invite flows, roles and sharing do not exist and must not (`08` §7, refusal #6). | Tenancy activates — and then `08` §7's step 3 comes first. |
 | **Accessibility beyond keyboard reachability and contrast** | One known user, desktop, with the design system's contrast already fixed in `05`. | Anyone else uses it. |
-| **Backup restoration** | Untested until `12` §8 is exercised. **This is the weakest link in this document** — an untested restore is a hope. | Immediately after the first production deploy: restore into a Neon branch and check a round reads back whole. |
+| **Backup restoration against production** | §3.18 restores a dump of synthetic rows on every CI run; a real production dump restored into a Neon branch is not tested until `12` §8's drill. **This is the weakest link in this document** — an untested restore is a hope. | Immediately after the first production deploy (#21): restore into a Neon branch and check a round reads back whole. |
 
 ---
 

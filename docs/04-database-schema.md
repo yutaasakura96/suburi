@@ -699,6 +699,7 @@ is_red is not true)`; `check (cardinality(unpriced_model_ids) = 0 or signal in
 | `cv_unclaimed_run_max` | as above, `unclaimed_run_max` | 2,000 code points |
 | `cv_quotes_outside_window` | as above, `quotes_outside_window` | 0 |
 | `round_feedback_missing_over_24h` | rounds completed more than 24 hours before the run with no `round_feedback` | 0 |
+| `backup_dump_failed` | **1** when this run's daily dump (`12` §8) failed, **0** when it was written; null when no backup key is set, as everywhere but production. The same value for every user, since the dump is the whole database (#56) | 0 |
 
 `digest`, figures without a threshold, over the Asia/Tokyo week that ended before the run:
 `digest_rounds_started`, `digest_rounds_completed`, `digest_tokens_in`, `digest_tokens_out`,

@@ -23,7 +23,7 @@ export interface CheckReading {
 export interface Status {
   readonly selfCheck: { readonly lastRun: Date | null; readonly stale: boolean };
   readonly digest: { readonly lastRun: Date | null };
-  /** All nine `self-check` rows, in 12 §6's order, from the newest run. */
+  /** Every `self-check` row, in 12 §6's order, from the newest run. */
   readonly checks: readonly CheckReading[];
   readonly lastWeek: {
     readonly start: Date;

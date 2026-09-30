@@ -722,13 +722,13 @@ right-aligned in 12px mono `--ink-3`, when it last ran — `2026-09-30 04:12`, o
 
 ### Checks — `CHECKS`
 
-One row per `12` §6 row `self-check` covers, **always all nine, in `12` §6's order**, from the newest
+One row per `12` §6 row `self-check` covers, **always all ten, in `12` §6's order**, from the newest
 `self-check` run. A grid `minmax(0,1fr) 140px 160px 96px`, rows on `--rule-hairline`, `padding: 11px
 0`:
 
 | Column | Spec |
 | --- | --- |
-| Check | 13px `--ink-2`: `Scores pending over 24 hours`, `Failed scores not retried`, `Spend this week`, `CV quotes not found in text`, `CV claims split`, `CV claims duplicated`, `CV longest unread run`, `CV quotes outside window`, `Rounds without feedback over 24 hours` |
+| Check | 13px `--ink-2`: `Scores pending over 24 hours`, `Failed scores not retried`, `Spend this week`, `CV quotes not found in text`, `CV claims split`, `CV claims duplicated`, `CV longest unread run`, `CV quotes outside window`, `Rounds without feedback over 24 hours`, `Daily backup failed` |
 | Reading | 13px mono, right-aligned: a count (`0`, `3`), code points (`1,071`), or dollars (`$0.84`). `—` in `--ink-9` when there is no reading |
 | Threshold | 12px mono `--ink-label`, right-aligned: `above 0`, `above 2,000`, `above $1.20` |
 | State | 12px, right-aligned: `Red` in `--attention-ink`/500; `OK` in `--ink-4`; `No reading` in `--ink-9` |
@@ -739,8 +739,9 @@ reading counts priced rows only. Home's one line names the same model beside `Sp
 week's digest names excluded models beneath its figures.
 
 **No reading is not OK.** A CV counter whose current versions all predate the counter columns has no
-reading (`04` `cv_versions`), and says so rather than showing `0`. With no run at all, every row reads
-`—` and `No reading`.
+reading (`04` `cv_versions`), and says so rather than showing `0`; so does `Daily backup failed`
+anywhere without a backup key, which is everywhere but production (#56). With no run at all, every row
+reads `—` and `No reading`.
 
 Under the table, 12px/1.7 `--ink-6`: `Spend counts the stored token columns only, priced at
 lib/ai/models.ts's rates. Unpriced models are named and excluded from the dollar figure. The threshold
