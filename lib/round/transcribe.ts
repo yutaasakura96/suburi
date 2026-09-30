@@ -77,16 +77,18 @@ export function createTranscribe(deps: TranscribeDeps) {
     let stored;
     try {
       // Written only while still null: a concurrent call that finished first keeps its transcript.
-      [stored] = await deps.db
-        .update(s.answers)
-        .set({
-          transcriptRaw: result.text,
-          audioDurationMs: result.durationMs,
-          wordsPerMinute: pace(answer.language, result.text, result.durationMs),
-          transcriberModelId: deps.transcriber.modelId,
-        })
-        .where(and(eq(s.answers.id, answerId), isNull(s.answers.transcriptRaw)))
-        .returning();
+      [stored] = await deps.transaction((tx) =>
+        tx
+          .update(s.answers)
+          .set({
+            transcriptRaw: result.text,
+            audioDurationMs: result.durationMs,
+            wordsPerMinute: pace(answer.language, result.text, result.durationMs),
+            transcriberModelId: deps.transcriber.modelId,
+          })
+          .where(and(eq(s.answers.id, answerId), isNull(s.answers.transcriptRaw)))
+          .returning(),
+      );
     } catch (error) {
       return writeFailed("transcript_write_failed", error, { answer_id: answerId });
     }

@@ -23,7 +23,7 @@ import { createOpenAnswer } from "./open-answer";
 import { createPostRound } from "./post-round";
 import { createPostRoleContext } from "./role-context";
 import { createSubmit } from "./submit";
-import { newerRoundExists } from "./state";
+import { answeredBefore, newerRoundExists, promptAt } from "./state";
 import { createTranscribe } from "./transcribe";
 
 // The round-loop tracer (#42) through its handlers, against the migrated test database, with a real
@@ -58,9 +58,10 @@ afterAll(closePool);
 
 // The handler's transaction, as a savepoint inside the test's rolled-back transaction, so a failed
 // write really is undone. `fail` forces a database failure on the next write, for write_failed.
-function savepointTransaction(db: TestDb, fail: { next: boolean }) {
+function savepointTransaction(db: TestDb, fail: { next: boolean }, depth: { open: number }) {
   return async <T>(work: (tx: TestDb) => Promise<T>) => {
     await db.execute(sql`savepoint round_write`);
+    depth.open += 1;
     try {
       if (fail.next) {
         fail.next = false;
@@ -73,6 +74,8 @@ function savepointTransaction(db: TestDb, fail: { next: boolean }) {
     } catch (error) {
       await db.execute(sql`rollback to savepoint round_write`);
       throw error;
+    } finally {
+      depth.open -= 1;
     }
   };
 }
@@ -90,6 +93,7 @@ async function setUp(db: TestDb, { healthy = true } = {}) {
   const auth = createAuth({ db, transaction: false });
   const cookie = await mintSessionCookie(auth, user.id);
   const fail = { next: false };
+  const depth = { open: 0 };
   const scheduled: (() => Promise<unknown>)[] = [];
   const slept: number[] = [];
   const store = fakeAudioStore();
@@ -97,7 +101,7 @@ async function setUp(db: TestDb, { healthy = true } = {}) {
   const transcriber = fakeTranscriber(() => ({ text: `I led the migration at ${SENTINEL}, um, in six months.`, durationMs: 90_000 }));
   const generator = fakeFeedbackGenerator(() => FIXTURE_FEEDBACK);
   const health = fakeModelHealth(healthy);
-  const base = { auth, db, transaction: savepointTransaction(db, fail) };
+  const base = { auth, db, transaction: savepointTransaction(db, fail, depth) };
   const timing = { waitBoundMs: 50, sleep: async () => {} };
 
   const handlers = {
@@ -171,6 +175,8 @@ async function setUp(db: TestDb, { healthy = true } = {}) {
   return {
     userId: user.id,
     fail,
+    /** True while a handler's transaction is open: no model call may run then (11 §3.14). */
+    inTransaction: () => depth.open > 0,
     slept,
     store,
     scorer,
@@ -221,6 +227,16 @@ describe("POST /api/role-contexts", () => {
       expect(rows).toHaveLength(1);
     }));
 
+  it("is 500 write_failed on a failed write, and writes nothing", () =>
+    inRolledBackTransaction(async (db) => {
+      const { post, handlers, fail, userId } = await setUp(db);
+      fail.next = true;
+      const { status, json } = await post(handlers.roleContext, { kind: "general" });
+      expect(status).toBe(500);
+      expect(json.error).toMatchObject({ code: "write_failed", detail: { error_class: "pg_57014" } });
+      expect(await db.select().from(s.roleContexts).where(eq(s.roleContexts.userId, userId))).toHaveLength(0);
+    }));
+
   it.each([{ kind: "posting", body: "A posting." }, { kind: "researched" }, { kind: "general", company_name: "Invented" }])(
     "refuses %o in this slice",
     (body) =>
@@ -268,6 +284,24 @@ describe("POST /api/rounds — a round's questions, chosen once (11 §3.13)", ()
         .orderBy(s.roundQuestions.position);
       expect(chosen.map((row) => row.origin)).toEqual(["set_piece", "generated", "generated"]);
       expect(chosen.every((row) => row.roundType === "hr")).toBe(true);
+    }));
+
+  it("asks the question fixed at each position, however often it is read", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const { json } = await world.startRound();
+      const fixed = await db
+        .select({ position: s.roundQuestions.position, questionId: s.roundQuestions.questionId })
+        .from(s.roundQuestions)
+        .where(eq(s.roundQuestions.roundId, json.round.id))
+        .orderBy(s.roundQuestions.position);
+      for (const { position, questionId } of fixed) {
+        // A reload reads the same prompt; so does the slot that is opened for it.
+        expect((await promptAt(db, json.round.id, position))?.questionId).toBe(questionId);
+        expect((await promptAt(db, json.round.id, position))?.questionId).toBe(questionId);
+        const { opened } = await world.answerCurrent(json.round.id);
+        expect(opened.json.question_id).toBe(questionId);
+      }
     }));
 
   it("gives a behavioural round no set piece", () =>
@@ -445,6 +479,16 @@ describe("first attempts, computed at slot-open (11 §3.4)", () => {
       expect(flags).toEqual([true, true, false]);
     }));
 
+  it("counts an answer in one language only: the same question in the other is still unseen", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const { json } = await world.startRound();
+      const { answerId } = await world.answerCurrent(json.round.id);
+      const question = await questionOf(db, answerId);
+      expect(await answeredBefore(db, question, "en")).toBe(true);
+      expect(await answeredBefore(db, question, "ja")).toBe(false);
+    }));
+
   it("is false for every answer in a practice round", () =>
     inRolledBackTransaction(async (db) => {
       const world = await setUp(db);
@@ -558,6 +602,22 @@ describe("POST /api/answers/{id}/transcribe", () => {
       expect(world.transcriber.calls).toBe(1);
     }));
 
+  it("is 500 write_failed when the transcript cannot be stored, and the column stays null for the retry", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const { json } = await world.startRound();
+      const opened = await world.call(world.handlers.open, json.round.id, { content_type: "audio/webm", expected_bytes: 10 });
+      world.store.put(world.store.presigned[0].key, AUDIO);
+      world.fail.next = true;
+      const failed = await world.call(world.handlers.transcribe, opened.json.answer_id, {});
+      expect(failed.status).toBe(500);
+      expect(failed.json.error.code).toBe("write_failed");
+      const [row] = await db.select().from(s.answers).where(eq(s.answers.id, opened.json.answer_id));
+      expect(row.transcriptRaw).toBeNull();
+      const retried = await world.call(world.handlers.transcribe, opened.json.answer_id, {});
+      expect(retried.status).toBe(200);
+    }));
+
   it("keeps the take and leaves the transcript null when transcription fails", () =>
     inRolledBackTransaction(async (db) => {
       const world = await setUp(db);
@@ -621,6 +681,7 @@ describe("POST /api/answers/{id}/submit", () => {
       const { json } = await world.startRound();
       const seen: string[] = [];
       world.scorer.score = async (input) => {
+        expect(world.inTransaction()).toBe(false);
         seen.push(input.answer);
         return uniformScores(4)(input);
       };
@@ -716,6 +777,7 @@ describe("POST /api/rounds/{id}/complete (11 §3.14)", () => {
       await world.drainAfter();
       let ratedWhenCalled: number | null = null;
       world.generator.generate = async (input) => {
+        expect(world.inTransaction()).toBe(false);
         const [round] = await db.select().from(s.rounds).where(eq(s.rounds.id, roundId));
         ratedWhenCalled = round.feltPressure;
         expect(input.answers.every((answer) => answer.scores?.length === 6)).toBe(true);
@@ -775,6 +837,21 @@ describe("POST /api/rounds/{id}/complete (11 §3.14)", () => {
       expect(second.status).toBe(200);
       expect(second.json.feedback).toEqual(retried.json.feedback);
       expect(world.generator.calls).toBe(1);
+      expect(await count(db, s.roundFeedback)).toBe(1);
+    }));
+
+  it("is 500 write_failed when the retry cannot store the feedback, and a later retry writes it", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const { roundId } = await playThrough(world);
+      expect((await world.call(world.handlers.complete, roundId, { felt_pressure: 3 })).status).toBe(502);
+      await world.drainAfter();
+      world.fail.next = true;
+      const failed = await world.call(world.handlers.feedback, roundId, {});
+      expect(failed.status).toBe(500);
+      expect(failed.json.error.code).toBe("write_failed");
+      expect(await count(db, s.roundFeedback)).toBe(0);
+      expect((await world.call(world.handlers.feedback, roundId, {})).status).toBe(201);
       expect(await count(db, s.roundFeedback)).toBe(1);
     }));
 

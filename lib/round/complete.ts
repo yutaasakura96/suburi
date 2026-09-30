@@ -139,21 +139,23 @@ async function writeRoundFeedback(deps: CompleteDeps, round: RoundRow): Promise<
   // Step 4: written once. A concurrent retry that wrote first keeps its row.
   let feedback: FeedbackRow | null;
   try {
-    [feedback] = await deps.db
-      .insert(s.roundFeedback)
-      .values({
-        roundId: round.id,
-        toFix: result.toFix,
-        whatWorked: result.whatWorked,
-        language: round.language,
-        bodyTranslated: null,
-        modelId: deps.generator.modelId,
-        promptVersion,
-        tokensIn: result.tokensIn,
-        tokensOut: result.tokensOut,
-      })
-      .onConflictDoNothing({ target: s.roundFeedback.roundId })
-      .returning();
+    [feedback] = await deps.transaction((tx) =>
+      tx
+        .insert(s.roundFeedback)
+        .values({
+          roundId: round.id,
+          toFix: result.toFix,
+          whatWorked: result.whatWorked,
+          language: round.language,
+          bodyTranslated: null,
+          modelId: deps.generator.modelId,
+          promptVersion,
+          tokensIn: result.tokensIn,
+          tokensOut: result.tokensOut,
+        })
+        .onConflictDoNothing({ target: s.roundFeedback.roundId })
+        .returning(),
+    );
     feedback ??= await existingFeedback(deps.db, round.id);
   } catch (error) {
     return { ok: false, response: writeFailed("round_feedback_write_failed", error, { round_id: round.id }) };

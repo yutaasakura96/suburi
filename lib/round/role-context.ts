@@ -31,17 +31,20 @@ export function createPostRoleContext(deps: RoundDeps) {
     if (body instanceof Response) return body;
 
     try {
-      // The partial unique index is the conflict target, so a race between two first requests still
-      // leaves one row (04 `role_contexts`).
-      const inserted = await deps.db.execute<{ id: string }>(sql`
-        insert into role_contexts (user_id, kind) values (${userId}, 'general')
-        on conflict (user_id) where kind = 'general' do nothing
-        returning id`);
-      const [row] = await deps.db
-        .select()
-        .from(s.roleContexts)
-        .where(and(eq(s.roleContexts.userId, userId), eq(s.roleContexts.kind, "general")));
-      return Response.json(view(row), { status: inserted.rows.length > 0 ? 201 : 200 });
+      const { created, row } = await deps.transaction(async (tx) => {
+        // The partial unique index is the conflict target, so a race between two first requests still
+        // leaves one row (04 `role_contexts`).
+        const inserted = await tx.execute<{ id: string }>(sql`
+          insert into role_contexts (user_id, kind) values (${userId}, 'general')
+          on conflict (user_id) where kind = 'general' do nothing
+          returning id`);
+        const [general] = await tx
+          .select()
+          .from(s.roleContexts)
+          .where(and(eq(s.roleContexts.userId, userId), eq(s.roleContexts.kind, "general")));
+        return { created: inserted.rows.length > 0, row: general };
+      });
+      return Response.json(view(row), { status: created ? 201 : 200 });
     } catch (error) {
       return writeFailed("role_context_write_failed", error, {});
     }
