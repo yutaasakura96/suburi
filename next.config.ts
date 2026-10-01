@@ -17,8 +17,10 @@ const nextConfig: NextConfig = {
 };
 
 export default withSentryConfig(nextConfig, {
-  // The project the owner creates (12 §3 step 11). An organization token names its organization,
-  // so no org slug is configured.
+  // The organization and project the owner created (12 §3 step 11). The org is named because the
+  // upload CLI ignores the one inside the token and would look it up with a call org:ci is refused
+  // (06, 2026-10-01).
+  org: "personal-projects-ge",
   project: "suburi",
   authToken: sentry?.authToken,
   sourcemaps: {
