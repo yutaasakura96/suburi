@@ -197,10 +197,40 @@ Five text jobs on one pinned model, and three more on models of their own:
 | Text-to-speech | **not yet pinned** — verified at implementation | user is waiting, at ask time | Low — not retained |
 | Embeddings | `text-embedding-3-small`, 1536 dimensions | at question generation | High — the near-duplicate guard (§11) |
 
-**None of the round's latencies is measured yet** — every row but CV extraction. The round-loop
-tracer measures them against synthetic answers before the loop is built further, the way #20
-measured extraction, and records them here (`06`, 2026-09-27). Its numbers set `complete`'s wait
-bound, and say whether generating every question at round start is tolerable.
+**The round's latencies, measured 2026-10-01 (#42)** with `scripts/measure-round-latency.mts`
+against OpenAI, five runs of each, from the development machine, the way #20 measured extraction. Synthetic
+answers of the lengths a realistic round produces (one to three and a half minutes spoken). Scoring
+and round feedback ran through the real ports and prompts (`score-en-1.0`, `feedback-en-1.0`);
+**follow-up and question generation ran draft prompts**, since their ports do not exist yet (#44,
+#47), so theirs are the right order of magnitude, not the final figures. Transcription read takes
+synthesised by TTS and re-encoded to webm/opus by ffmpeg, the browser's format.
+
+| Job | Model | n | median | p90 | slowest | tokens in / out |
+| --- | --- | --- | --- | --- | --- | --- |
+| Answer scoring | `gpt-5.6-sol` | 15 | 7.1 s | 9.1 s | **38.1 s** | 1,812 / 440 |
+| Round feedback, 3 answers | `gpt-5.6-sol` | 5 | 10.0 s | 10.7 s | 11.0 s | 1,370 / 477 |
+| Follow-up generation (draft) | `gpt-5.6-sol` | 15 | 3.1 s | 3.7 s | 4.8 s | 411 / 88 |
+| Question generation, 3 (draft) | `gpt-5.6-sol` | 5 | 2.8 s | 2.8 s | 2.8 s | 150 / 83 |
+| Question generation, 7 (draft) | `gpt-5.6-sol` | 5 | 4.0 s | 5.5 s | 6.1 s | 150 / 166 |
+| Embeddings, 7 questions | `text-embedding-3-small` | 5 | 0.2 s | 0.2 s | 0.2 s | — |
+| Transcription, 38 s take | `gpt-transcribe` | 5 | 1.8 s | 2.1 s | 2.2 s | — |
+| Transcription, 92 s take | `gpt-transcribe` | 5 | 3.8 s | 4.0 s | 4.1 s | — |
+| Transcription, 198 s take | `gpt-transcribe` | 5 | 5.8 s | 7.2 s | 7.3 s | — |
+| TTS, a question, first byte | `gpt-4o-mini-tts-2025-12-15` | 5 | 1.0 s | 1.4 s | 1.5 s | — |
+| TTS, a question, whole | `gpt-4o-mini-tts-2025-12-15` | 5 | 1.6 s | 2.8 s | 3.3 s | — |
+
+What they settle:
+
+- **`complete`'s wait bound is 60 s** (`07` §5.12). Scoring's median sits well inside screen 7, so the
+  last score is normally in before the rating is; the bound is for the tail — one call of 38 s in 15 —
+  and covers that call, a 2 s backoff and a median retry.
+- **Generating every question at round start is tolerable**: seven questions and their embeddings
+  take about 4 s, beside a preflight the round already waits for.
+- **The user's waits inside a round are short**: a near-cap take transcribes in about 6 s, a follow-up
+  about 3 s. TTS starts playing in about a second; #45 pins the speech model and may re-measure.
+- **Scoring's slowest call is the one to watch.** One in fifteen took five times the median, with no
+  error. It is why the bound has a margin, and why scoring runs in `after()` rather than in front of
+  the user.
 
 **The embedding model is `text-embedding-3-small`**, pinned in `lib/ai/models.ts` like every other
 model string: `questions.embedding` is `vector(1536)`, that model's default dimension (OpenAI docs, per

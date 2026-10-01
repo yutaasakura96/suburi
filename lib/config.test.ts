@@ -112,6 +112,27 @@ describe("parseConfig", () => {
     );
   });
 
+  // Playwright's mock S3 (e2e/mock-s3.ts), under OPENAI_BASE_URL's rule: a remote value would send the
+  // AWS key to whoever runs that host.
+  describe("S3_ENDPOINT", () => {
+    it("is absent unless set, and the SDK talks to S3", () => {
+      expect(parseConfig(valid).S3_ENDPOINT).toBeUndefined();
+    });
+
+    it("accepts a local host", () => {
+      expect(parseConfig({ ...valid, S3_ENDPOINT: "http://localhost:3198" }).S3_ENDPOINT).toBe("http://localhost:3198");
+    });
+
+    it.each(["https://s3.ap-northeast-1.amazonaws.com", "http://localhost.evil.example", "not a url"])(
+      "refuses %s",
+      (value) => {
+        const error = errorFrom({ ...valid, S3_ENDPOINT: value });
+        expect(error.problems).toEqual([{ name: "S3_ENDPOINT", problem: "malformed" }]);
+        expect(error.message).not.toContain(value);
+      },
+    );
+  });
+
   // The cron routes' caller check (07 §5.17): Production scope only, so required only there (06, #55).
   describe("CRON_SECRET", () => {
     const secret = "cron-secret-not-a-real-one";

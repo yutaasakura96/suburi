@@ -65,7 +65,8 @@ Testing Firefox and WebKit would be testing a claim the product does not make. `
 format also differs across browsers, and only one is supported.
 
 **No test ever calls OpenAI or S3.** Every model path goes through the port in `lib/ai/` with a fake;
-S3 is intercepted at the network boundary in Playwright and faked at the port in integration tests.
+S3 is intercepted at the network boundary in Playwright — `e2e/mock-s3.ts`, reached through a
+localhost-only `S3_ENDPOINT` (`06`, 2026-10-01) — and faked at the port in integration tests.
 Determinism is the point, but so is cost and so is the key.
 
 ---
@@ -270,6 +271,9 @@ With a stubbed generator and embedder.
 - The retry (`07` §5.16) writes the row once; a second retry returns it and calls nothing.
 - **A score that ended `failed`** → the feedback is generated without that answer; retrying the answer's
   score later writes a new attempt and **never touches `round_feedback`**.
+- **That answer never reaches the generator** — its transcript is absent from the feedback call.
+- **Every answer's score ended `failed`** → `502 feedback_generation_failed` with `no_scores`, no model
+  call, and screen 8 states the findings are unavailable without offering a retry.
 
 ### 3.15 The derived round status
 

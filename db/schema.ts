@@ -29,7 +29,7 @@ export const SCORING_STATUSES = ["pending", "ok", "failed"] as const;
 export const CITATION_RELATIONS = ["supported_by", "contradicted_by"] as const;
 export const CV_DOCUMENT_KINDS = ["rirekisho", "shokumu_keirekisho", "cv", "additional"] as const;
 // Every ⚡ route (07 §1 rule 5). A new one extends this list in its own migration.
-export const RATE_LIMITED_ROUTES = ["cv-versions"] as const;
+export const RATE_LIMITED_ROUTES = ["cv-versions", "rounds", "transcribe", "submit", "complete", "feedback"] as const;
 // 12 §6's monitoring jobs and what they read (04 cron_readings). #47 adds the near-miss row; #56
 // added the daily dump's.
 export const CRON_JOBS = ["self-check", "digest"] as const;
@@ -239,7 +239,13 @@ export const roleContexts = pgTable(
     body: text("body"),
     createdAt: createdAt(),
   },
-  (t) => [oneOf("role_contexts", "kind", t.kind, ROLE_CONTEXT_KINDS)],
+  (t) => [
+    oneOf("role_contexts", "kind", t.kind, ROLE_CONTEXT_KINDS),
+    // General practice is one row per user (04), so its rounds are never grouped as two.
+    uniqueIndex("role_contexts_general_uniq")
+      .on(t.userId)
+      .where(sql`${t.kind} = 'general'`),
+  ],
 );
 
 export const rubricVersions = pgTable(
@@ -270,7 +276,8 @@ export const questions = pgTable(
     body: text("body").notNull(),
     embedding: vector("embedding", { dimensions: 1536 }),
     generatorModelId: text("generator_model_id"),
-    generatorPromptVersion: text("generator_prompt_version"),
+    // Stamp 3's source: the generator prompt version, or a set piece's content version (06, 2026-09-27).
+    generatorPromptVersion: text("generator_prompt_version").notNull(),
     tokensIn: integer("tokens_in"),
     tokensOut: integer("tokens_out"),
     retiredAt: timestamp("retired_at", { withTimezone: true }),
@@ -332,6 +339,31 @@ export const rounds = pgTable(
   ],
 );
 
+// Immutable: every bank question a round will ask, fixed in the transaction that creates the round
+// (04). A refresh, a resume or a retry can only ever see the question already chosen.
+export const roundQuestions = pgTable(
+  "round_questions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    roundId: uuid("round_id")
+      .notNull()
+      .references(() => rounds.id, { onDelete: "restrict" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    position: integer("position").notNull(),
+    questionId: uuid("question_id")
+      .notNull()
+      .references(() => questions.id, { onDelete: "restrict" }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    check("round_questions_position_check", sql`${t.position} >= 1`),
+    unique("round_questions_round_id_position_unique").on(t.roundId, t.position),
+    unique("round_questions_round_id_question_id_unique").on(t.roundId, t.questionId),
+  ],
+);
+
 export const answers = pgTable(
   "answers",
   {
@@ -380,6 +412,9 @@ export const answers = pgTable(
       .where(sql`${t.isFirstAttempt}`),
     index("answers_round_id_position_idx").on(t.roundId, t.position),
     index("answers_user_id_created_at_idx").on(t.userId, t.createdAt.desc()),
+    // "Has this question been answered in this language, in either mode?" — first attempts and
+    // unseen-first selection (04 §3).
+    index("answers_question_id_language_idx").on(t.questionId, t.language),
   ],
 );
 
@@ -402,7 +437,7 @@ export const scoringAttempts = pgTable(
     rubricVersionId: uuid("rubric_version_id")
       .notNull()
       .references(() => rubricVersions.id, { onDelete: "restrict" }),
-    generatorPromptVersion: text("generator_prompt_version"),
+    generatorPromptVersion: text("generator_prompt_version").notNull(),
     // Exact pinned string, never an alias.
     modelId: text("model_id").notNull(),
     scoringPromptVersion: text("scoring_prompt_version").notNull(),

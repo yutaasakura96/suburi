@@ -62,8 +62,11 @@ by round end the scores are already rows.
    taken right after the session check and before the body is parsed**, so every authenticated
    request counts, a refused one included, and a flood never reaches Zod or the database's real work.
    `POST /api/cv-versions`: **6 per 10 minutes.** Why not Vercel's WAF: `06` "Phase 6 — #18".
-   **Each round route's limit is set in the slice that builds it**, from the round's own shape — a
-   7-question round makes 14 `transcribe` and 14 `submit` calls — and recorded here beside this one.
+   **The round routes' limits (#42), from the round's own shape** — a 7-question round makes 14
+   `transcribe` and 14 `submit` calls: `POST /api/rounds` **6 per 10 minutes**; `transcribe` and
+   `submit` **30 per 10 minutes** each, two of the longest rounds with retries to spare; `complete` and
+   `feedback` **6 per 10 minutes** each. Every one its own bucket. A later slice's ⚡ route sets its
+   own here the same way.
 6. **The client never chooses an S3 key, an object prefix, a `user_id`, a `position`, an
    `is_first_attempt`, a question, a CV version, text to be spoken, or any version stamp.** All are
    server-derived. This is not defensive coding; it is what makes the four stamps and first-attempt
@@ -144,16 +147,17 @@ that asserts the two lists match.
 | `unsupported_content_type` | 422 | `POST …/answers` | screen 3 |
 | `audio_missing` | 404 | `transcribe`, `audio` | screen 4 / History playback |
 | `transcription_failed` | 502 | `transcribe` | screen 5 — keep take, retry or type |
-| `transcript_already_final` | 422 | `transcribe`, `transcript` | screen 5 |
-| `answer_already_submitted` | 422 | `submit` | screen 6 |
+| `transcript_already_final` | 422 | `transcribe`, `transcript`, `POST …/answers` | screen 5 |
+| `answer_already_submitted` | 422 | `submit`, `POST …/answers` | screen 6 |
 | `followup_generation_failed` | 502 | `submit` | screen 6 — answer is saved |
 | `scoring_failed` | 502 | `scoring-attempts/{id}/run` | screen 8 — stated as pending |
 | `scoring_not_retryable` | 422 | `POST /api/scoring-attempts` | History |
 | `pressure_not_applicable` | 422 | `complete` | — (a client bug in practice mode) |
 | `pressure_required` | 422 | `complete` | screen 7 |
-| `round_already_complete` | 409 | `complete`, `answers` | — |
+| `round_already_complete` | 409 | `complete`, `answers`, `submit` | — |
 | `round_not_complete` | 409 | `complete` | screen 7 |
-| `feedback_generation_failed` | 502 | `complete`, `feedback` | screen 8 — the round is complete and its scores show; the round-level note is pending and retryable (§5.12) |
+| `round_abandoned` | 409 | `answers`, `submit`, `complete` | the round screen — the round takes no more writes; start a new one (§5.5) |
+| `feedback_generation_failed` | 502 | `complete`, `feedback` | screen 8 — the round is complete and its scores show; the round-level note is pending and retryable, unless `detail.error_class` is `no_scores`, which no retry can fix (§5.12) |
 | `role_context_too_large` | 422 | `POST /api/role-contexts` | Setup — before anything is saved. **Its cap is measured first** (§5.3) |
 | `speech_failed` | 502 | `speech` | screen 3 — a short notice; the question stays as text and the round goes on (§5.15) |
 | `write_failed` | 500 | every round route | the screen that made the call — nothing half-written; the round stays resumable |
@@ -162,10 +166,15 @@ that asserts the two lists match.
 | `cv_extraction_failed` | 502 | `POST /api/cv-versions` | CV screen |
 | `upstream_s3` / `upstream_openai` | 502 | any | per the table in `03` §5 |
 
-**Four codes are added by the round loop** (`06`, 2026-09-27 and 2026-09-28) and are not yet in
-`lib/api/errors.ts`: `feedback_generation_failed` and `write_failed`, with the round-loop tracer;
-`speech_failed`, with the spoken question; `role_context_too_large`, with its measured cap. Each lands
-with its `ja` and `en` copy in the same change, as `11` §3.10 requires.
+**Four codes are added by the round loop** (`06`, 2026-09-27 and 2026-09-28).
+`feedback_generation_failed` and `write_failed` **landed with the round-loop tracer (#42)**, in
+`lib/api/errors.ts` with their `ja` and `en` copy; `speech_failed` lands with the spoken question (#45)
+and `role_context_too_large` with its measured cap (#47), each with its copy in the same change, as
+`11` §3.10 requires.
+
+**`round_abandoned` landed with the tracer too** (#42 review): `answers`, `submit` and `complete` read
+the derived status (§5.5) inside their locked transaction, so a stale tab cannot write into a round a
+newer one, or a new Asia/Tokyo day, has abandoned.
 
 **`write_failed` is the one answer to a database failure mid-write, on every round route** (`06`,
 2026-09-28). The write is one transaction, so a failure leaves nothing half-written; the handler
@@ -423,7 +432,8 @@ POST /api/role-contexts
   "created_at": "2026-09-12T03:02:00Z" }
 ```
 
-**Round one accepts `posting` and `general`** (`06`, 2026-09-27). `researched` is a `400` until US-16
+**Round one accepts `posting` and `general`** (`06`, 2026-09-27). **The tracer (#42) accepts
+`general` alone**; `posting` is a `400` until #47 builds it with its measured cap. `researched` is a `400` until US-16
 ships, and arrives with "the file wins" (PRD US-2). A posting is pasted, or imported with the CV
 screen's importer (`lib/cv/import/`): the browser extracts the text, the user checks it, and only the
 text and the filename are sent — the file never reaches the server, as in §5.2.
@@ -502,6 +512,12 @@ abandonment is derived, and §6 still refuses an abandon endpoint.
 
 Failures: `503 model_unavailable` (preflight — the round is not created);
 `502 question_generation_failed` (nothing created).
+
+**Until generation exists (#47)** the tracer fills step 3 from the bank alone: a realistic round
+short of unseen questions takes seen generated ones, which are never first attempts (§5.6), and a bank
+that cannot fill the round at all is `502 question_generation_failed` with `error_class:
+"bank_too_small"`. **English only until #43**: `language: "ja"` is a `400`, rather than a round with no
+rubric (`06`, 2026-10-01).
 
 ### 5.5 `GET /api/rounds/{roundId}`
 
@@ -597,7 +613,12 @@ it means this computation was wrong.
 
 Failures: `422 upload_too_large` (the take's size against `max_bytes`, **after recording and before any
 upload** — the take is still in the browser); `422 unsupported_content_type`;
-`409 round_already_complete`; `502 presign_failed`.
+`409 round_already_complete`; `409 round_abandoned` (§5.5); `502 presign_failed` — the slot is kept, and the retry lands on it;
+`422 answer_already_submitted` when every position is already submitted — there is no slot left to
+open; `422 transcript_already_final` when the open slot's take is already transcribed.
+
+`audio_s3_key` is written when the slot opens, before the upload: the key is server-derived and fixed
+for the row, so a retried open presigns the same one.
 
 Presign constraints (`03` §9): content type, maximum size, **and a server-generated key — the client
 never chooses the object key.** Key shape: `{prefix}/{user_id}/{round_id}/{answer_id}.webm`.
@@ -691,11 +712,12 @@ requires one (`04` §6).
 **No follow-up is generated for** a follow-up's own answer, or for practice's "answer again" (§5.6).
 A retry's `next` is whatever the round was already on.
 
-**Its latency is not yet known.** The user waits for it inside a timed round; it is measured with the
-rest of the round's model calls before the loop is built beyond the tracer (`03` §4).
+**Its latency, measured with a draft prompt** (`03` §4, 2026-10-01): 3.1 s median, 4.8 s slowest of
+15. The user waits for it inside a timed round; #44 re-measures it with the real prompt.
 
-Failures: `422 answer_already_submitted` (idempotent alternative: the same body returns `200` with the
-existing attempt — a different body is the `422`); `502 followup_generation_failed`, which is **not
+Failures: `400 invalid_request` naming `transcript_raw` when the answer has no transcript yet — there
+is nothing to correct; `422 answer_already_submitted` (idempotent alternative: the same body returns `200` with the
+existing attempt — a different body is the `422`); `409 round_already_complete`; `409 round_abandoned` (§5.5); `502 followup_generation_failed`, which is **not
 fatal** — the answer is saved and scored, the `missing` row is written, and `next` degrades to
 `question`, `pressure` or `feedback`. A missing follow-up costs one prompt; a lost answer costs a
 measurement.
@@ -826,9 +848,12 @@ has to remember.
 
 1. **One transaction writes `felt_pressure` and `completed_at`, and commits.** The rating is on record
    before anything else happens, whatever happens next.
-2. **Wait for the round's pending scores**, bounded, inside the route's 300 s. The bound is set from
-   the round loop's latency measurement (`03` §4) and is not chosen yet; screen 7 is where most of the
-   wait has already been spent.
+2. **Wait for the round's pending scores**, bounded, inside the route's 300 s. **The bound is 60 s**
+   (`COMPLETE_WAIT_BOUND_MS`), set from the round loop's latency measurement (`03` §4, 2026-10-01):
+   scoring's slowest call was 38.1 s against a 7.1 s median, so 60 s covers that call, a 2 s backoff
+   and a median retry, and with the feedback call's own 120 s timeout it stays inside the route's 285 s
+   deadline. A unit test holds the sum under the deadline. Screen 7 is where most of the wait has
+   already been spent.
 3. **Generate the round feedback, outside any transaction** — from every answer's scores and flags,
    and the never-cited claims of the round's CV version, from which the model picks two or three
    relevant ones as untouched material. Their ids are validated against that set.
@@ -844,16 +869,26 @@ shows every score that landed and a pending round-level note, and generation is 
 - `mode = 'practice'` and a `felt_pressure` → `422 pressure_not_applicable`. The check constraint is
   the backstop. **A practice round is completed the same way, without a rating**, and gets the same
   round feedback (`06`, 2026-09-27).
-- Already complete → `409 round_already_complete`, returning the existing feedback, or none if it is
-  still pending.
+- Already complete → `409 round_already_complete`, with `detail.has_feedback` saying whether the
+  feedback exists. The envelope's `detail` is flat (§2), so it cannot carry the feedback itself;
+  screen 8 reads it from the round (`06`, 2026-10-01).
 - Not all answers submitted → `409 round_not_complete`.
+- Abandoned (§5.5) → `409 round_abandoned`. **An abandoned round is never completed**, and nothing is
+  written.
 - Feedback could not be generated → `502 feedback_generation_failed`, as above.
+- **No answer scored and none is pending** — every answer's latest attempt ended `failed` → `502
+  feedback_generation_failed` with `detail.error_class = "no_scores"`, and no model call. Feedback is
+  never generated from transcripts alone, and this slice has no re-score (History's, §5.11), so the
+  §5.16 retry refuses the same way. **Screen 8 derives the state from the latest attempts** and states
+  that no answer in the round could be scored, so its findings are unavailable — it offers no retry
+  that cannot succeed.
 
 **`scoring` reports what is in.** The feedback screen states anything pending plainly rather than
 spinning (`03` §5, §8). **A score that ended `failed`** (its three retries spent, `03` §8) is not
 pending, so step 2 does not wait for it: **the feedback is generated without that answer**, the answer
 is marked unscored on the feedback screen, and History offers a retry **for that answer alone**
-(§5.11) — which never regenerates the round feedback (`06`, 2026-09-28). Holding the feedback until
+(§5.11) — which never regenerates the round feedback (`06`, 2026-09-28). **That answer never reaches
+the generator**: only answers whose latest attempt is `ok` are sent. Holding the feedback until
 the retry was rejected: the user would leave the machine without it.
 
 **An abandoned round is never completed and never cleaned up.** There is no endpoint to abandon one:
@@ -1020,12 +1055,14 @@ convert a guarantee in `04` §6 into a preference.
   2026-09-27) — an unverified guess until there is real data; see §5.4 and `04`.
 - **The TTS model** behind §5.15, pinned only once verified. ~~What realistic mode does when synthesis
   fails~~ — **decided 2026-09-28**: text, a notice, `speech_failed` (§5.15).
-- **`complete`'s wait bound** (§5.12 step 2), from the round loop's latency measurement (`03` §4).
+- ~~**`complete`'s wait bound**~~ — **set 2026-10-01** at 60 s, from the round loop's latency
+  measurement (§5.12 step 2, `03` §4).
 - ~~**Round feedback when a score ended `failed`**~~ — **decided 2026-09-28**: generated without that
   answer, which is marked unscored and retried alone (§5.12).
 - ~~**A database failure mid-write**~~ — **decided 2026-09-28**: `write_failed`, `500`, on every round
   route, and the round stays resumable (§3).
-- **Each round route's rate limit** (§1 rule 5), set in the slice that builds it.
+- ~~**Each round route's rate limit**~~ — **set by #42** for the routes it built (§1 rule 5); a later
+  slice's ⚡ route adds its own there.
 - ~~**User-facing copy for every code in §3.**~~ **Closed in #13:** `lib/copy/errors.ts` owns the
   bilingual catalogue. `11-testing-plan.md` checks it against §3, and its Japanese strings passed a
   native read on 2026-09-21 (`05-design-system.md` §6).

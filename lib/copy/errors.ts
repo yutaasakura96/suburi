@@ -103,6 +103,18 @@ const CATALOGUE = {
     ja: "まだ回答していない質問があります。",
     en: "This round still has unanswered questions.",
   },
+  round_abandoned: {
+    ja: "このラウンドは中断されています。新しいラウンドを始めてください。",
+    en: "This round was abandoned. Start a new round.",
+  },
+  feedback_generation_failed: {
+    ja: "講評をまとめられませんでした。ラウンドは終了し、採点は残っています。もう一度お試しください。",
+    en: "The round feedback could not be written. The round is complete and its scores are kept. Try again.",
+  },
+  write_failed: {
+    ja: "保存に失敗しました。何も書き込まれていません。同じ操作をもう一度お試しください。",
+    en: "The save failed, and nothing was written. Try the same step again.",
+  },
   cv_unchanged: {
     ja: "応募書類に変更がありません。新しいバージョンは作成しませんでした。",
     en: "Nothing in the CV has changed. No new version was created.",

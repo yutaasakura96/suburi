@@ -106,6 +106,8 @@ describe("the measurement record refuses", () => {
   it.each([
     ["cvVersionId", "cv_version_id"],
     ["rubricVersionId", "rubric_version_id"],
+    // Stamp 3 (06, 2026-09-27): a set piece's content version, never a null.
+    ["generatorPromptVersion", "generator_prompt_version"],
     ["modelId", "model_id"],
     ["scoringPromptVersion", "scoring_prompt_version"],
   ] as const)("a scoring attempt without its %s stamp", (field, column) =>
@@ -210,6 +212,66 @@ describe("the measurement record refuses", () => {
         db,
         () => db.delete(s.questions).where(eq(s.questions.id, world.questionId)),
         { kind: "restrict", constraint: "answers_question_id_questions_id_fk" },
+      );
+    }));
+  it("a bank question without the stamp 3 comes from", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await insertWorld(db);
+      await expectRefused(
+        db,
+        () =>
+          db.insert(s.questions).values({
+            userId: world.userId,
+            language: "en",
+            roundType: "hr",
+            origin: "set_piece",
+            body: "Could you introduce yourself?",
+          } as typeof s.questions.$inferInsert),
+        { kind: "not_null", column: "generator_prompt_version" },
+      );
+    }));
+
+  it("a second question at one position of a round, or one question twice in a round", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await insertWorld(db);
+      const round = await insertRound(db, world);
+      const [other] = await db
+        .insert(s.questions)
+        .values({
+          userId: world.userId,
+          language: "ja",
+          roundType: "behavioural",
+          origin: "generated",
+          body: "別の質問。",
+          generatorPromptVersion: "generate-fixture",
+        })
+        .returning({ id: s.questions.id });
+      await db.insert(s.roundQuestions).values({ roundId: round, userId: world.userId, position: 1, questionId: world.questionId });
+
+      await expectRefused(
+        db,
+        () => db.insert(s.roundQuestions).values({ roundId: round, userId: world.userId, position: 1, questionId: other.id }),
+        { kind: "unique", constraint: "round_questions_round_id_position_unique" },
+      );
+      await expectRefused(
+        db,
+        () => db.insert(s.roundQuestions).values({ roundId: round, userId: world.userId, position: 2, questionId: world.questionId }),
+        { kind: "unique", constraint: "round_questions_round_id_question_id_unique" },
+      );
+      await expectRefused(
+        db,
+        () => db.insert(s.roundQuestions).values({ roundId: round, userId: world.userId, position: 0, questionId: other.id }),
+        { kind: "check", constraint: "round_questions_position_check" },
+      );
+    }));
+
+  it("a second General practice row for one user", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await insertWorld(db);
+      await expectRefused(
+        db,
+        () => db.insert(s.roleContexts).values({ userId: world.userId, kind: "general" }),
+        { kind: "unique", constraint: "role_contexts_general_uniq" },
       );
     }));
 });

@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 // The only application module that reads process.env (docs/12-deployment.md §2). The application
-// variables are required except OPENAI_BASE_URL, which only Playwright sets, CRON_SECRET and the two
+// variables are required except OPENAI_BASE_URL and S3_ENDPOINT, which only Playwright sets, CRON_SECRET and the two
 // BACKUP_ keys, which only production requires, and the Sentry pair parsed below. Errors name the
 // variable, never its value.
 
@@ -51,6 +51,10 @@ const schema = z.object({
   S3_BUCKET: bucketName,
   // The only thing separating develop's audio from real audio (12 §2), so exactly one of the two.
   S3_PREFIX: z.enum(["prod/", "dev/"]),
+  // Playwright's mock S3 (e2e/mock-s3.ts), as OPENAI_BASE_URL is its mock OpenAI: local hosts only, so
+  // no value can send the AWS key to another server. Unset everywhere else — local development uses the
+  // real bucket under dev/, not MinIO (06, 2026-09-28).
+  S3_ENDPOINT: localBaseUrl.optional(),
   // The cron routes' caller check (07 §5.17). Production scope only (12 §2); elsewhere absent, and the
   // routes then refuse every call. Vercel recommends at least 16 characters.
   CRON_SECRET: z.string().min(16).optional(),
