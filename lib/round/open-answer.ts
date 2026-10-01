@@ -4,8 +4,8 @@ import { z } from "zod";
 import * as s from "../../db/schema";
 import { apiError } from "../api/errors";
 import { answerAudioKey, type AudioStore } from "../audio/store";
-import { authenticate, isUuid, log, notFound, parseBody, writeFailed, type RoundDeps } from "./http";
-import { answeredBefore, promptAt, roundAnswers, roundStep, type AnswerRow } from "./state";
+import { authenticate, isUuid, log, notFound, parseBody, roundAbandoned, writeFailed, type RoundDeps } from "./http";
+import { answeredBefore, isAbandoned, promptAt, roundAnswers, roundStep, type AnswerRow } from "./state";
 
 /**
  * `POST /api/rounds/{roundId}/answers` (07 §5.6): opens the answer slot and presigns the upload.
@@ -70,6 +70,7 @@ export function createOpenAnswer(deps: OpenAnswerDeps) {
         if (round.completedAt !== null) {
           return apiError("round_already_complete", "The round is already complete.", { round_id: roundId });
         }
+        if (await isAbandoned(tx, round)) return roundAbandoned(roundId);
 
         const step = roundStep(round, await roundAnswers(tx, roundId));
         if (step.kind !== "answer") {

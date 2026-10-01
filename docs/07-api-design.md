@@ -156,6 +156,7 @@ that asserts the two lists match.
 | `pressure_required` | 422 | `complete` | screen 7 |
 | `round_already_complete` | 409 | `complete`, `answers` | — |
 | `round_not_complete` | 409 | `complete` | screen 7 |
+| `round_abandoned` | 409 | `answers`, `submit`, `complete` | the round screen — the round takes no more writes; start a new one (§5.5) |
 | `feedback_generation_failed` | 502 | `complete`, `feedback` | screen 8 — the round is complete and its scores show; the round-level note is pending and retryable (§5.12) |
 | `role_context_too_large` | 422 | `POST /api/role-contexts` | Setup — before anything is saved. **Its cap is measured first** (§5.3) |
 | `speech_failed` | 502 | `speech` | screen 3 — a short notice; the question stays as text and the round goes on (§5.15) |
@@ -170,6 +171,10 @@ that asserts the two lists match.
 `lib/api/errors.ts` with their `ja` and `en` copy; `speech_failed` lands with the spoken question (#45)
 and `role_context_too_large` with its measured cap (#47), each with its copy in the same change, as
 `11` §3.10 requires.
+
+**`round_abandoned` landed with the tracer too** (#42 review): `answers`, `submit` and `complete` read
+the derived status (§5.5) inside their locked transaction, so a stale tab cannot write into a round a
+newer one, or a new Asia/Tokyo day, has abandoned.
 
 **`write_failed` is the one answer to a database failure mid-write, on every round route** (`06`,
 2026-09-28). The write is one transaction, so a failure leaves nothing half-written; the handler
@@ -608,7 +613,7 @@ it means this computation was wrong.
 
 Failures: `422 upload_too_large` (the take's size against `max_bytes`, **after recording and before any
 upload** — the take is still in the browser); `422 unsupported_content_type`;
-`409 round_already_complete`; `502 presign_failed` — the slot is kept, and the retry lands on it;
+`409 round_already_complete`; `409 round_abandoned` (§5.5); `502 presign_failed` — the slot is kept, and the retry lands on it;
 `422 answer_already_submitted` when every position is already submitted — there is no slot left to
 open; `422 transcript_already_final` when the open slot's take is already transcribed.
 
@@ -712,7 +717,7 @@ A retry's `next` is whatever the round was already on.
 
 Failures: `400 invalid_request` naming `transcript_raw` when the answer has no transcript yet — there
 is nothing to correct; `422 answer_already_submitted` (idempotent alternative: the same body returns `200` with the
-existing attempt — a different body is the `422`); `502 followup_generation_failed`, which is **not
+existing attempt — a different body is the `422`); `409 round_abandoned` (§5.5); `502 followup_generation_failed`, which is **not
 fatal** — the answer is saved and scored, the `missing` row is written, and `next` degrades to
 `question`, `pressure` or `feedback`. A missing follow-up costs one prompt; a lost answer costs a
 measurement.
@@ -868,6 +873,8 @@ shows every score that landed and a pending round-level note, and generation is 
   feedback exists. The envelope's `detail` is flat (§2), so it cannot carry the feedback itself;
   screen 8 reads it from the round (`06`, 2026-10-01).
 - Not all answers submitted → `409 round_not_complete`.
+- Abandoned (§5.5) → `409 round_abandoned`. **An abandoned round is never completed**, and nothing is
+  written.
 - Feedback could not be generated → `502 feedback_generation_failed`, as above.
 
 **`scoring` reports what is in.** The feedback screen states anything pending plainly rather than

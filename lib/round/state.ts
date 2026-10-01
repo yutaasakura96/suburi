@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import * as s from "../../db/schema";
 import type { Db } from "./http";
+import { roundStatus } from "./status";
 
 /**
  * A round's position and what it is asking are **database facts** (03 §7): the prompt at position n
@@ -79,6 +80,14 @@ export async function newerRoundExists(db: Reader, round: Pick<RoundRow, "id" | 
     )
     .limit(1);
   return row !== undefined;
+}
+
+/**
+ * Whether an open round is abandoned (07 §5.5), read inside the write's transaction: an abandoned
+ * round takes no more writes, so a stale tab can neither answer into it nor complete it (§5.12).
+ */
+export async function isAbandoned(db: Reader, round: RoundRow) {
+  return roundStatus(round, { newerRoundExists: await newerRoundExists(db, round), now: new Date() }) === "abandoned";
 }
 
 export type AttemptRow = typeof s.scoringAttempts.$inferSelect;

@@ -103,6 +103,10 @@ const CATALOGUE = {
     ja: "まだ回答していない質問があります。",
     en: "This round still has unanswered questions.",
   },
+  round_abandoned: {
+    ja: "このラウンドは中断されています。新しいラウンドを始めてください。",
+    en: "This round was abandoned. Start a new round.",
+  },
   feedback_generation_failed: {
     ja: "講評をまとめられませんでした。ラウンドは終了し、採点は残っています。もう一度お試しください。",
     en: "The round feedback could not be written. The round is complete and its scores are kept. Try again.",

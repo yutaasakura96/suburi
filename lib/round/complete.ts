@@ -5,8 +5,8 @@ import { apiError } from "../api/errors";
 import type { RoundFeedbackGenerator } from "../ai/round-feedback";
 import { ModelCallFailed } from "../ai/upstream";
 import type { Rubric } from "../rubric/types";
-import { authenticate, isUuid, log, notFound, parseBody, writeFailed, type Db, type RoundDeps } from "./http";
-import { latestAttempts, roundAnswers, roundStep, scoringCounts, type RoundRow } from "./state";
+import { authenticate, isUuid, log, notFound, parseBody, roundAbandoned, writeFailed, type Db, type RoundDeps } from "./http";
+import { isAbandoned, latestAttempts, roundAnswers, roundStep, scoringCounts, type RoundRow } from "./state";
 
 /**
  * `POST /api/rounds/{roundId}/complete` ⚡ (07 §5.12) and its retry, `POST …/feedback` (§5.16).
@@ -203,6 +203,7 @@ export function createComplete(deps: CompleteDeps) {
             has_feedback: existing !== null,
           });
         }
+        if (await isAbandoned(tx, round)) return roundAbandoned(roundId);
         if (round.mode === "realistic" && pressure === null) {
           return apiError("pressure_required", "A realistic round needs its felt-pressure rating.", { round_id: roundId });
         }

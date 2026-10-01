@@ -3,10 +3,10 @@ import { z } from "zod";
 import * as s from "../../db/schema";
 import { apiError } from "../api/errors";
 import type { AnswerScorer } from "../ai/score";
-import { authenticate, isUuid, log, notFound, parseBody, writeFailed, type RoundDeps } from "./http";
+import { authenticate, isUuid, log, notFound, parseBody, roundAbandoned, writeFailed, type RoundDeps } from "./http";
 import { rewriteMagnitude } from "./measures";
 import { runScoringAttempt, type ScoringRunDeps } from "./run-scoring";
-import { promptAt, type RoundRow } from "./state";
+import { isAbandoned, promptAt, type RoundRow } from "./state";
 
 /**
  * `POST /api/answers/{answerId}/submit` ⚡ (07 §5.9): the commit point. Writes the corrected
@@ -103,9 +103,11 @@ export function createSubmit(deps: SubmitDeps) {
     if (!promptVersion) throw new Error(`No scoring prompt for ${round.language}`);
     const magnitude = rewriteMagnitude(answer.transcriptRaw, corrected);
 
-    let attemptId: string | null;
+    let attemptId: string | null | Response;
     try {
-      attemptId = await deps.transaction(async (tx) => {
+      attemptId = await deps.transaction(async (tx): Promise<string | null | Response> => {
+        await tx.select({ id: s.rounds.id }).from(s.rounds).where(eq(s.rounds.id, round.id)).for("update");
+        if (await isAbandoned(tx, round)) return roundAbandoned(round.id);
         const [updated] = await tx
           .update(s.answers)
           .set({ transcriptCorrected: corrected, rewriteMagnitude: magnitude })
@@ -131,6 +133,7 @@ export function createSubmit(deps: SubmitDeps) {
     } catch (error) {
       return writeFailed("answer_submit_failed", error, { answer_id: answerId });
     }
+    if (attemptId instanceof Response) return attemptId;
     if (attemptId === null) {
       // A concurrent submit won the row: answer as a retry of it would.
       const [stored] = await deps.db.select().from(s.answers).where(eq(s.answers.id, answerId));

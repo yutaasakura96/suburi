@@ -38,6 +38,7 @@ export const ERROR_STATUS = {
   pressure_required: 422,
   round_already_complete: 409,
   round_not_complete: 409,
+  round_abandoned: 409,
   feedback_generation_failed: 502,
   write_failed: 500,
   cv_unchanged: 422,

@@ -81,7 +81,7 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
   const roundStamp = [`Rubric ${frame.rubricLabel}`, ...new Set(frame.generatorVersions), frame.cvLabel].join(" · ");
 
   function fail(code: FailureCode, retry: (() => void) | null) {
-    setError({ text: failureText(code, frame.round.language), retry });
+    setError({ text: failureText(code, frame.round.language), retry: code === "round_abandoned" ? null : retry });
     setBusy(false);
   }
 
@@ -108,8 +108,16 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
       setBusy(false);
       return;
     }
-    const transcribed = await postJson<Transcribed>(`/api/answers/${opened.json.answer_id}/transcribe`);
-    if (!transcribed.ok) return fail(transcribed.code, retry);
+    await transcribe(question, take, opened.json.answer_id);
+  }
+
+  /** Transcribe the uploaded take (07 §5.7). Idempotent, so it is retried on its own. */
+  async function transcribe(question: Question, take: Take, answerId: string) {
+    setScreen({ kind: "uploading", question, take });
+    setError(null);
+    setBusy(true);
+    const transcribed = await postJson<Transcribed>(`/api/answers/${answerId}/transcribe`);
+    if (!transcribed.ok) return fail(transcribed.code, () => void transcribe(question, take, answerId));
     setBusy(false);
     setScreen({
       kind: "transcript",

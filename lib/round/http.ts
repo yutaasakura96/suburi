@@ -44,6 +44,11 @@ export function writeFailed(event: string, error: unknown, ids: Record<string, s
   return apiError("write_failed", "A database write failed; nothing was written.", { ...ids, error_class: errorClass });
 }
 
+/** `409 round_abandoned` (07 §3): a newer round started, or this one is from an earlier day. */
+export function roundAbandoned(roundId: string): Response {
+  return apiError("round_abandoned", "The round is abandoned; it takes no more writes.", { round_id: roundId });
+}
+
 /** The session, or the 401 — and on a ⚡ route, the request counted before the body is read. */
 export async function authenticate(
   deps: RoundDeps,

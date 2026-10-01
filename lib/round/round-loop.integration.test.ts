@@ -405,6 +405,85 @@ describe("abandoned, derived (04 `rounds`)", () => {
     }));
 });
 
+describe("an abandoned round takes no more writes (07 §5.5, §5.12)", () => {
+  /** A stale tab's view: a newer round starts, dated as a later request would date it. */
+  async function abandonBy(world: World, db: TestDb) {
+    const newer = await world.startRound();
+    await db
+      .update(s.rounds)
+      .set({ startedAt: sql`${s.rounds.startedAt} + interval '1 second'` })
+      .where(eq(s.rounds.id, newer.json.round.id));
+  }
+
+  it("refuses to open a slot: 409 round_abandoned, and no answer row", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const roundId = (await world.startRound()).json.round.id as string;
+      await abandonBy(world, db);
+      const before = await count(db, s.answers);
+
+      const { status, json } = await world.call(world.handlers.open, roundId, {
+        content_type: "audio/webm",
+        expected_bytes: AUDIO.byteLength,
+      });
+      expect(status).toBe(409);
+      expect(json.error.code).toBe("round_abandoned");
+      expect(await count(db, s.answers)).toBe(before);
+      expect(world.store.presigned).toHaveLength(0);
+    }));
+
+  it("refuses to submit: 409 round_abandoned, no corrected text and no scoring attempt", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const roundId = (await world.startRound()).json.round.id as string;
+      const opened = await world.call(world.handlers.open, roundId, { content_type: "audio/webm", expected_bytes: AUDIO.byteLength });
+      world.store.put(world.store.presigned.at(-1)!.key, AUDIO);
+      await world.call(world.handlers.transcribe, opened.json.answer_id, {});
+      await abandonBy(world, db);
+
+      const { status, json } = await world.call(world.handlers.submit, opened.json.answer_id, { transcript_corrected: "I led it." });
+      expect(status).toBe(409);
+      expect(json.error.code).toBe("round_abandoned");
+      const [answer] = await db.select().from(s.answers).where(eq(s.answers.id, opened.json.answer_id));
+      expect(answer.transcriptCorrected).toBeNull();
+      expect(await db.select().from(s.scoringAttempts).where(eq(s.scoringAttempts.answerId, answer.id))).toHaveLength(0);
+    }));
+
+  it("refuses to complete: 409 round_abandoned, no rating, no completed_at and no feedback", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const { roundId } = await playThrough(world);
+      await world.drainAfter();
+      await abandonBy(world, db);
+
+      const { status, json } = await world.call(world.handlers.complete, roundId, { felt_pressure: 3 });
+      expect(status).toBe(409);
+      expect(json.error.code).toBe("round_abandoned");
+      const [round] = await db.select().from(s.rounds).where(eq(s.rounds.id, roundId));
+      expect(round.completedAt).toBeNull();
+      expect(round.feltPressure).toBeNull();
+      expect(await count(db, s.roundFeedback)).toBe(0);
+      expect(world.generator.calls).toBe(0);
+    }));
+
+  it("refuses a round started on an earlier Asia/Tokyo day the same way", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const roundId = (await world.startRound()).json.round.id as string;
+      await db
+        .update(s.rounds)
+        .set({ startedAt: sql`${s.rounds.startedAt} - interval '1 day'` })
+        .where(eq(s.rounds.id, roundId));
+
+      const { status, json } = await world.call(world.handlers.open, roundId, {
+        content_type: "audio/webm",
+        expected_bytes: AUDIO.byteLength,
+      });
+      expect(status).toBe(409);
+      expect(json.error.code).toBe("round_abandoned");
+    }));
+});
+
 describe("first attempts, computed at slot-open (11 §3.4)", () => {
   async function firstAttemptOf(db: TestDb, answerId: string) {
     const [row] = await db.select({ flag: s.answers.isFirstAttempt }).from(s.answers).where(eq(s.answers.id, answerId));

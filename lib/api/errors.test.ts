@@ -34,6 +34,7 @@ describe("the error code table", () => {
       "pressure_required",
       "round_already_complete",
       "round_not_complete",
+      "round_abandoned",
       "feedback_generation_failed",
       "write_failed",
       "cv_unchanged",

@@ -1,21 +1,20 @@
-import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { COMPLETE_WAIT_BOUND_MS, FEEDBACK_TIMEOUT_MS } from "./complete";
 import { ROUTE_MAX_DURATION_SECONDS, invocationDeadline } from "./deps";
 
 // Next reads `maxDuration` only as a literal, so each model-calling round route spells the number, and
-// this holds every spelling to the one the scoring deadline is computed from (07 §5.10).
-const MODEL_ROUTES = [
-  "app/api/rounds/route.ts",
-  "app/api/rounds/[roundId]/complete/route.ts",
-  "app/api/rounds/[roundId]/feedback/route.ts",
-  "app/api/answers/[answerId]/submit/route.ts",
-  "app/api/answers/[answerId]/transcribe/route.ts",
-];
+// this holds every route's exported value to the one the scoring deadline is computed from (07 §5.10).
+const MODEL_ROUTES = {
+  "POST /api/rounds": () => import("../../app/api/rounds/route"),
+  "POST /api/rounds/{id}/complete": () => import("../../app/api/rounds/[roundId]/complete/route"),
+  "POST /api/rounds/{id}/feedback": () => import("../../app/api/rounds/[roundId]/feedback/route"),
+  "POST /api/answers/{id}/submit": () => import("../../app/api/answers/[answerId]/submit/route"),
+  "POST /api/answers/{id}/transcribe": () => import("../../app/api/answers/[answerId]/transcribe/route"),
+};
 
 describe("the round routes' duration", () => {
-  it.each(MODEL_ROUTES)("%s declares the deadline's maxDuration", (path) => {
-    expect(readFileSync(path, "utf8")).toContain(`export const maxDuration = ${ROUTE_MAX_DURATION_SECONDS};`);
+  it.each(Object.entries(MODEL_ROUTES))("%s exports the deadline's maxDuration", async (_, load) => {
+    expect((await load()).maxDuration).toBe(ROUTE_MAX_DURATION_SECONDS);
   });
 
   it("ends the invocation's work 15 s before the ceiling", () => {
