@@ -294,7 +294,7 @@ test("an answer whose scoring failed never reaches the feedback generator", asyn
   expect(sent).toContain("=== answer 1 ===");
   expect(sent).not.toContain("=== answer 2 ===");
   expect(sent).toContain("=== answer 3 ===");
-  await page.screenshot({ path: `${process.env.EVIDENCE_DIR ?? "test-results"}/screen8-one-failed.png`, fullPage: true });
+  await page.screenshot({ path: test.info().outputPath("screen8-one-failed.png"), fullPage: true });
 });
 
 test("no answer scored: screen 8 says so, offers no retry, and the API refuses as no_scores", async ({ page }) => {
@@ -316,12 +316,11 @@ test("no answer scored: screen 8 says so, offers no retry, and the API refuses a
   await expect(page.getByRole("button", { name: "Write the findings" })).toHaveCount(0);
   await expect(page.getByTestId("findings-not-ready")).toHaveCount(0);
   await expect(page.getByTestId("pressure-stamp")).toHaveText("Pressure 3 recorded before the feedback");
-  await page.screenshot({ path: `${process.env.EVIDENCE_DIR ?? "test-results"}/screen8-no-scores.png`, fullPage: true });
+  await page.screenshot({ path: test.info().outputPath("screen8-no-scores.png"), fullPage: true });
 
   const retried = await page.request.post(`/api/rounds/${roundId}/feedback`, { data: {} });
   expect(retried.status()).toBe(502);
   const error = (await retried.json()).error;
-  console.log(`retry response: ${retried.status()} ${JSON.stringify(error)}`);
   expect(error).toMatchObject({ code: "feedback_generation_failed", detail: { error_class: "no_scores" } });
   expect(openAi.requests.slice(before).filter((request) => formatOf(request.body) === "round_feedback")).toHaveLength(0);
   await page.reload();
