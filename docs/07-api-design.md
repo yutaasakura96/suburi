@@ -147,14 +147,14 @@ that asserts the two lists match.
 | `unsupported_content_type` | 422 | `POST …/answers` | screen 3 |
 | `audio_missing` | 404 | `transcribe`, `audio` | screen 4 / History playback |
 | `transcription_failed` | 502 | `transcribe` | screen 5 — keep take, retry or type |
-| `transcript_already_final` | 422 | `transcribe`, `transcript` | screen 5 |
-| `answer_already_submitted` | 422 | `submit` | screen 6 |
+| `transcript_already_final` | 422 | `transcribe`, `transcript`, `POST …/answers` | screen 5 |
+| `answer_already_submitted` | 422 | `submit`, `POST …/answers` | screen 6 |
 | `followup_generation_failed` | 502 | `submit` | screen 6 — answer is saved |
 | `scoring_failed` | 502 | `scoring-attempts/{id}/run` | screen 8 — stated as pending |
 | `scoring_not_retryable` | 422 | `POST /api/scoring-attempts` | History |
 | `pressure_not_applicable` | 422 | `complete` | — (a client bug in practice mode) |
 | `pressure_required` | 422 | `complete` | screen 7 |
-| `round_already_complete` | 409 | `complete`, `answers` | — |
+| `round_already_complete` | 409 | `complete`, `answers`, `submit` | — |
 | `round_not_complete` | 409 | `complete` | screen 7 |
 | `round_abandoned` | 409 | `answers`, `submit`, `complete` | the round screen — the round takes no more writes; start a new one (§5.5) |
 | `feedback_generation_failed` | 502 | `complete`, `feedback` | screen 8 — the round is complete and its scores show; the round-level note is pending and retryable (§5.12) |
@@ -717,7 +717,7 @@ A retry's `next` is whatever the round was already on.
 
 Failures: `400 invalid_request` naming `transcript_raw` when the answer has no transcript yet — there
 is nothing to correct; `422 answer_already_submitted` (idempotent alternative: the same body returns `200` with the
-existing attempt — a different body is the `422`); `409 round_abandoned` (§5.5); `502 followup_generation_failed`, which is **not
+existing attempt — a different body is the `422`); `409 round_already_complete`; `409 round_abandoned` (§5.5); `502 followup_generation_failed`, which is **not
 fatal** — the answer is saved and scored, the `missing` row is written, and `next` degrades to
 `question`, `pressure` or `feedback`. A missing follow-up costs one prompt; a lost answer costs a
 measurement.
