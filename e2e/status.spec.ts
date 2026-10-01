@@ -117,7 +117,10 @@ test("an authenticated call to each route writes a run the status page shows", a
 
 test("a red check puts one line on Home, and no record text reaches either page", async ({ page, request }) => {
   const userId = await seededUserId();
-  // $4.00 of tokens this week, against $1.20 with no round started: the spend check fires.
+  // $4.00 of tokens this week per round round.spec.ts started, plus one: above the $1.20 per round
+  // the threshold allows, so the spend check fires however many rounds that spec started.
+  const rounds = await withDb((db) => db.$count(s.rounds));
+  const spend = 4 * (rounds + 1);
   await withDb((db) =>
     db.insert(s.questions).values({
       userId,
@@ -127,7 +130,7 @@ test("a red check puts one line on Home, and no record text reaches either page"
       body: `Tell me about ${SENTINEL}.`,
       generatorModelId: "gpt-5.6-sol",
       generatorPromptVersion: "generate-e2e",
-      tokensIn: 1_000_000,
+      tokensIn: 1_000_000 * (rounds + 1),
       tokensOut: 0,
     }),
   );
@@ -141,7 +144,7 @@ test("a red check puts one line on Home, and no record text reaches either page"
   expect(await page.content()).not.toContain(SENTINEL);
 
   await page.goto("/status");
-  await expect(page.getByTestId("check-spend_week_to_date_usd")).toContainText("$4.00");
+  await expect(page.getByTestId("check-spend_week_to_date_usd")).toContainText(`$${spend.toFixed(2)}`);
   await expect(page.getByTestId("check-spend_week_to_date_usd")).toContainText("Red");
   expect(await page.content()).not.toContain(SENTINEL);
 });
