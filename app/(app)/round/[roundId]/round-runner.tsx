@@ -29,7 +29,7 @@ type Screen =
   | { readonly kind: "transcript"; readonly question: Question; readonly transcript: Transcript }
   | { readonly kind: "correct"; readonly question: Question; readonly transcript: Transcript }
   | { readonly kind: "pressure" }
-  | { readonly kind: "abandoned" };
+  | { readonly kind: "abandoned"; readonly answered: number };
 
 function initialScreen(start: RoundFrame["start"]): Screen {
   if (start.kind !== "question") return start;
@@ -65,8 +65,13 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
   const [busy, setBusy] = useState(false);
   const { round } = frame;
 
-  const position = "question" in screen ? screen.question.position : round.length;
-  const done = screen.kind === "pressure" ? round.length : position - 1;
+  const position =
+    "question" in screen
+      ? screen.question.position
+      : screen.kind === "abandoned"
+        ? Math.min(screen.answered + 1, round.length)
+        : round.length;
+  const done = screen.kind === "pressure" ? round.length : screen.kind === "abandoned" ? screen.answered : position - 1;
   const header = (
     <RoundHeader
       title={ROUND_TYPE_NAMES[round.roundType]}

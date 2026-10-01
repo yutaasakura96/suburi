@@ -6,7 +6,7 @@ export default defineConfig({
     passWithNoTests: true,
     projects: [
       {
-        // The route modules import through tsconfig's `@/` path.
+        // The route modules and page loaders import through tsconfig's `@/` path.
         resolve: { alias: { "@": fileURLToPath(new URL(".", import.meta.url)) } },
         test: {
           name: "unit",
@@ -16,6 +16,7 @@ export default defineConfig({
         },
       },
       {
+        resolve: { alias: { "@": fileURLToPath(new URL(".", import.meta.url)) } },
         test: {
           name: "integration",
           environment: "node",

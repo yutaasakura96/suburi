@@ -5,6 +5,7 @@ import { seedUser } from "../../db/seed";
 import { seedSyntheticCv } from "../../db/seed-cv";
 import { seedRubrics, seedSetPieces, seedSyntheticQuestions } from "../../db/seed-questions";
 import { closePool, inRolledBackTransaction, type TestDb } from "../../db/test/database";
+import { roundFrame } from "../../app/(app)/round/load";
 import {
   FIXTURE_FEEDBACK,
   fakeFeedbackGenerator,
@@ -464,6 +465,19 @@ describe("an abandoned round takes no more writes (07 §5.5, §5.12)", () => {
       expect(round.feltPressure).toBeNull();
       expect(await count(db, s.roundFeedback)).toBe(0);
       expect(world.generator.calls).toBe(0);
+    }));
+
+  it("reloads onto the abandoned screen counting only the answers submitted before it", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const roundId = (await world.startRound()).json.round.id as string;
+      await world.answerCurrent(roundId);
+      await abandonBy(world, db);
+
+      const [row] = await db.select().from(s.rounds).where(eq(s.rounds.id, roundId));
+      const frame = await roundFrame(db, world.userId, row);
+      expect(frame).not.toBe("complete");
+      expect(frame !== "complete" && frame.start).toEqual({ kind: "abandoned", answered: 1 });
     }));
 
   it("refuses a round started on an earlier Asia/Tokyo day the same way", () =>

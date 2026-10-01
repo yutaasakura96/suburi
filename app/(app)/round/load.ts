@@ -71,7 +71,8 @@ export interface RoundFrame {
         } | null;
       }
     | { readonly kind: "pressure" }
-    | { readonly kind: "abandoned" };
+    /** `answered` is how many questions were submitted before the round was abandoned, for the header. */
+    | { readonly kind: "abandoned"; readonly answered: number };
 }
 
 /** `null` for another user's round, or no round: the page is a 404. `"complete"` sends it to feedback. */
@@ -102,7 +103,9 @@ export async function roundFrame(db: Db, userId: string, round: RoundRow): Promi
   };
   // Abandoned is derived (04 `rounds`): a newer round started, or this one was not started today.
   const status = roundStatus(round, { newerRoundExists: await newerRoundExists(db, round), now: new Date() });
-  if (status === "abandoned") return { ...frame, start: { kind: "abandoned" } };
+  if (status === "abandoned") {
+    return { ...frame, start: { kind: "abandoned", answered: step.kind === "answer" ? step.position - 1 : round.length } };
+  }
   if (step.kind !== "answer") return { ...frame, start: { kind: "pressure" } };
 
   const prompt = await promptAt(db, round.id, step.position);
