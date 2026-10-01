@@ -352,7 +352,7 @@ median and 38.1 s slowest, so `complete` waits 60 s (`07` §5.12). **The user's 
 `lib/rubric/en-1.0.ts` — only then does production's `db:seed` gain the rubric and set pieces (`12` §3
 step 9); (2) the proof round on `develop`: `npm run db:migrate` and `npm run db:seed:develop` against
 Neon `develop`, then a real English round from a real browser, audio under `dev/`, feedback on screen
-before leaving the machine. The two new Japanese error strings are in
+before leaving the machine. The three new Japanese error strings are in
 `docs/checklists/native-read-round-loop.md`.
 
 **#54, #55 and #56 are next, then #21. #20, #29 and #38 are done.** #21 is blocked by all three
