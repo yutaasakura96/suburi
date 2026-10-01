@@ -112,6 +112,11 @@ export function scoringCounts(attempts: Iterable<AttemptRow>) {
   return counts;
 }
 
+/** No score landed and none can land in the round: its feedback is refused as `no_scores` (07 §5.12). */
+export function noScores(counts: ReturnType<typeof scoringCounts>) {
+  return counts.ok === 0 && counts.pending === 0;
+}
+
 /**
  * Whether this question already has an answer in this language, in either mode, in any round — the
  * question is then seen for good, and no later answer to it can be a first attempt (06, 2026-09-27).

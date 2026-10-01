@@ -3,7 +3,7 @@ import * as s from "@/db/schema";
 import type { FeedbackItem } from "@/lib/ai/round-feedback";
 import type { Db } from "@/lib/round/http";
 import { rewritePercent } from "@/lib/round/measures";
-import { latestAttempts, newerRoundExists, promptAt, roundAnswers, roundStep, type RoundRow } from "@/lib/round/state";
+import { latestAttempts, newerRoundExists, noScores, promptAt, roundAnswers, roundStep, scoringCounts, type RoundRow } from "@/lib/round/state";
 import { roundStatus } from "@/lib/round/status";
 import type { Rubric } from "@/lib/rubric/types";
 import { tokyoDate } from "../cv/load";
@@ -141,6 +141,8 @@ export interface FeedbackScreen {
   readonly stamps: string;
   readonly answers: readonly FeedbackAnswerView[];
   readonly findings: { readonly toFix: readonly FeedbackItem[]; readonly whatWorked: string } | null;
+  /** No answer scored and none is pending: `feedback` refuses as `no_scores`, so no retry is offered (07 §5.12). */
+  readonly findingsUnavailable: boolean;
 }
 
 /** Screen 8, from stored rows only: nothing here calls a model or waits (10 §8). */
@@ -186,5 +188,6 @@ export async function feedbackScreen(db: Db, round: RoundRow): Promise<FeedbackS
       };
     }),
     findings: findings ? { toFix: findings.toFix as FeedbackItem[], whatWorked: findings.whatWorked } : null,
+    findingsUnavailable: !findings && noScores(scoringCounts(attempts.values())),
   };
 }

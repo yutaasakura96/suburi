@@ -5,7 +5,7 @@ import { seedUser } from "../../db/seed";
 import { seedSyntheticCv } from "../../db/seed-cv";
 import { seedRubrics, seedSetPieces, seedSyntheticQuestions } from "../../db/seed-questions";
 import { closePool, inRolledBackTransaction, type TestDb } from "../../db/test/database";
-import { roundFrame } from "../../app/(app)/round/load";
+import { feedbackScreen, roundFrame } from "../../app/(app)/round/load";
 import {
   FIXTURE_FEEDBACK,
   fakeFeedbackGenerator,
@@ -906,7 +906,7 @@ describe("POST /api/rounds/{id}/complete (11 §3.14)", () => {
       });
       const response = await world.call(complete, roundId, { felt_pressure: 3 });
       expect(response.status).toBe(201);
-      expect(world.generator.inputs[0].answers.every((answer) => answer.scores !== null)).toBe(true);
+      expect(world.generator.inputs[0].answers.map((answer) => answer.position)).toEqual([1, 2, 3]);
     }));
 
   it("writes no feedback when a score is still pending past the bound, and the round stays complete", () =>
@@ -963,31 +963,65 @@ describe("POST /api/rounds/{id}/complete (11 §3.14)", () => {
       expect(round).toMatchObject({ feltPressure: 2 });
       expect(round.completedAt).not.toBeNull();
       expect(await count(db, s.roundFeedback)).toBe(0);
+      // Scores landed, so screen 8 offers the retry.
+      expect(await feedbackScreen(db, round)).toMatchObject({ findings: null, findingsUnavailable: false });
     }));
 
-  it("generates without an answer whose score failed, and never waits for it", () =>
+  // A retry that spent its retries: the answer's latest attempt is `failed`.
+  async function failScoring(db: TestDb, world: World, roundId: string, answerId: string) {
+    const [round] = await db.select().from(s.rounds).where(eq(s.rounds.id, roundId));
+    await db.insert(s.scoringAttempts).values({
+      answerId,
+      userId: world.userId,
+      status: "failed",
+      cvVersionId: round.cvVersionId,
+      rubricVersionId: round.rubricVersionId,
+      generatorPromptVersion: "synthetic-generated-en-1.0",
+      modelId: "fake-scorer-2026-01-01",
+      scoringPromptVersion: "score-en-fake",
+      errorClass: "upstream_500",
+      isSuperseding: true,
+      createdAt: new Date(Date.now() + 1_000),
+    });
+  }
+
+  it("generates without an answer whose score failed: its transcript never reaches the generator", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const started = await world.startRound();
+      const roundId = started.json.round.id as string;
+      await world.answerCurrent(roundId, "I owned the rollout.");
+      const second = await world.answerCurrent(roundId, `I failed to be scored ${SENTINEL}.`);
+      await world.answerCurrent(roundId, "I measured the outcome.");
+      await world.drainAfter();
+      await failScoring(db, world, roundId, second.answerId);
+      const response = await world.call(world.handlers.complete, roundId, { felt_pressure: 3 });
+      expect(response.status).toBe(201);
+      expect(response.json.scoring).toEqual({ ok: 2, pending: 0, failed: 1 });
+      const sent = world.generator.inputs[0].answers;
+      expect(sent.map((answer) => answer.position)).toEqual([1, 3]);
+      expect(sent.map((answer) => answer.answer)).toEqual(["I owned the rollout.", "I measured the outcome."]);
+      expect(JSON.stringify(world.generator.inputs)).not.toContain(SENTINEL);
+    }));
+
+  it("refuses as no_scores when every score failed, makes no model call, and screen 8 offers no retry", () =>
     inRolledBackTransaction(async (db) => {
       const world = await setUp(db);
       const { roundId, answers } = await playThrough(world);
       await world.drainAfter();
-      // The second answer's latest attempt failed: a retry that spent its retries.
-      await db.insert(s.scoringAttempts).values({
-        answerId: answers[1].answerId,
-        userId: world.userId,
-        status: "failed",
-        cvVersionId: (await db.select().from(s.rounds).where(eq(s.rounds.id, roundId)))[0].cvVersionId,
-        rubricVersionId: (await db.select().from(s.rounds).where(eq(s.rounds.id, roundId)))[0].rubricVersionId,
-        generatorPromptVersion: "synthetic-generated-en-1.0",
-        modelId: "fake-scorer-2026-01-01",
-        scoringPromptVersion: "score-en-fake",
-        errorClass: "upstream_500",
-        isSuperseding: true,
-        createdAt: new Date(Date.now() + 1_000),
-      });
-      const response = await world.call(world.handlers.complete, roundId, { felt_pressure: 3 });
-      expect(response.status).toBe(201);
-      expect(response.json.scoring).toEqual({ ok: 2, pending: 0, failed: 1 });
-      expect(world.generator.inputs[0].answers.map((answer) => answer.scores === null)).toEqual([false, true, false]);
+      for (const { answerId } of answers) await failScoring(db, world, roundId, answerId);
+      const completed = await world.call(world.handlers.complete, roundId, { felt_pressure: 3 });
+      expect(completed.status).toBe(502);
+      expect(completed.json.error).toMatchObject({ code: "feedback_generation_failed", detail: { error_class: "no_scores" } });
+      const retried = await world.call(world.handlers.feedback, roundId, {});
+      expect(retried.status).toBe(502);
+      expect(retried.json.error.detail.error_class).toBe("no_scores");
+      expect(world.generator.calls).toBe(0);
+      expect(await count(db, s.roundFeedback)).toBe(0);
+      const [round] = await db.select().from(s.rounds).where(eq(s.rounds.id, roundId));
+      expect(round.completedAt).not.toBeNull();
+      const screen = await feedbackScreen(db, round);
+      expect(screen).toMatchObject({ findings: null, findingsUnavailable: true });
     }));
 
   it("is 500 write_failed when the rating cannot be written, and the round stays open", () =>

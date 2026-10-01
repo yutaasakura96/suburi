@@ -6,7 +6,7 @@ import type { RoundFeedbackGenerator } from "../ai/round-feedback";
 import { ModelCallFailed } from "../ai/upstream";
 import type { Rubric } from "../rubric/types";
 import { authenticate, isUuid, log, notFound, parseBody, roundAbandoned, writeFailed, type Db, type RoundDeps } from "./http";
-import { isAbandoned, latestAttempts, roundAnswers, roundStep, scoringCounts, type RoundRow } from "./state";
+import { isAbandoned, latestAttempts, noScores, roundAnswers, roundStep, scoringCounts, type RoundRow } from "./state";
 
 /**
  * `POST /api/rounds/{roundId}/complete` ⚡ (07 §5.12) and its retry, `POST …/feedback` (§5.16).
@@ -14,8 +14,9 @@ import { isAbandoned, latestAttempts, roundAnswers, roundStep, scoringCounts, ty
  * **In this order, and never inside one transaction with the model** (06, 2026-09-27):
  * 1. One transaction writes `felt_pressure` and `completed_at`, and commits — the rating is on record
  *    before any feedback exists, whatever happens next.
- * 2. Wait, bounded, for the round's pending scores. **A score that ended `failed` is not waited for**:
- *    the feedback is written without it (06, 2026-09-28).
+ * 2. Wait, bounded, for the round's pending scores. **A score that ended `failed` is not waited for**,
+ *    and its answer never reaches the generator: the feedback is written without it (06, 2026-09-28).
+ *    A round with no score at all is refused as `no_scores`.
  * 3. Generate the feedback outside any transaction.
  * 4. Write `round_feedback`, whole, once.
  *
@@ -91,10 +92,16 @@ async function writeRoundFeedback(deps: CompleteDeps, round: RoundRow): Promise<
     };
   };
   if (counts.pending > 0) return failure("scores_pending");
-  if (counts.ok === 0) return failure("no_scores");
+  if (noScores(counts)) return failure("no_scores");
 
-  const okIds = [...attempts.values()].filter((attempt) => attempt.status === "ok").map((attempt) => attempt.id);
-  const scoreRows = okIds.length === 0 ? [] : await deps.db.select().from(s.scores).where(inArray(s.scores.scoringAttemptId, okIds));
+  const scored = answers.flatMap((answer) => {
+    const attempt = attempts.get(answer.id);
+    return attempt?.status === "ok" ? [{ answer, attemptId: attempt.id }] : [];
+  });
+  const scoreRows = await deps.db
+    .select()
+    .from(s.scores)
+    .where(inArray(s.scores.scoringAttemptId, scored.map(({ attemptId }) => attemptId)));
   const [rubricRow] = await deps.db.select().from(s.rubricVersions).where(eq(s.rubricVersions.id, round.rubricVersionId));
   const rubric: Rubric = {
     versionLabel: rubricRow.versionLabel,
@@ -109,24 +116,17 @@ async function writeRoundFeedback(deps: CompleteDeps, round: RoundRow): Promise<
     result = await deps.generator.generate(
       {
         rubric,
-        answers: answers.map((answer) => {
-          const attempt = attempts.get(answer.id);
-          const scores =
-            attempt?.status === "ok"
-              ? scoreRows
-                  .filter((score) => score.scoringAttemptId === attempt.id)
-                  .sort((a, b) => order.indexOf(a.dimension) - order.indexOf(b.dimension))
-                  .map((score) => ({ dimension: score.dimension, value: score.value }))
-              : null;
-          return {
-            position: answer.position,
-            prompt: answer.promptText,
-            answer: answer.transcriptCorrected ?? "",
-            durationMs: answer.audioDurationMs,
-            pace: answer.wordsPerMinute,
-            scores,
-          };
-        }),
+        answers: scored.map(({ answer, attemptId }) => ({
+          position: answer.position,
+          prompt: answer.promptText,
+          answer: answer.transcriptCorrected ?? "",
+          durationMs: answer.audioDurationMs,
+          pace: answer.wordsPerMinute,
+          scores: scoreRows
+            .filter((score) => score.scoringAttemptId === attemptId)
+            .sort((a, b) => order.indexOf(a.dimension) - order.indexOf(b.dimension))
+            .map((score) => ({ dimension: score.dimension, value: score.value })),
+        })),
       },
       { timeoutMs: FEEDBACK_TIMEOUT_MS },
     );

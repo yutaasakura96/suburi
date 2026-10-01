@@ -148,6 +148,8 @@ export const ROUND_COPY = {
     whatWorked: "What worked 1",
     findingsNotReady:
       "The findings for this round are not ready. The round is complete, its rating is recorded, and every score above is kept.",
+    findingsUnavailable:
+      "No answer in this round could be scored, so there are no findings for this round. The round is complete and its rating is recorded.",
     retryFindings: "Write the findings",
     retryingFindings: "Writing the findings.",
     pressureRecorded: (value: number) => `Pressure ${value} recorded before the feedback`,

@@ -8,9 +8,9 @@ import { ModelCallFailed, openAiClient, upstreamErrorClass } from "./upstream.ts
 
 /**
  * The round-feedback port (07 §5.12 step 3): what to fix and what worked, generated **outside any
- * transaction** from every answer's scores. An answer whose scoring ended `failed` is sent as
- * unscored, and the feedback is written without it (06, 2026-09-28). One real implementation and a
- * fake; no test calls OpenAI (11 §2).
+ * transaction** from every scored answer. An answer whose scoring ended `failed` is never sent: the
+ * feedback is written without it (06, 2026-09-28). One real implementation and a fake; no test calls
+ * OpenAI (11 §2).
  */
 
 export interface FeedbackAnswer {
@@ -19,8 +19,8 @@ export interface FeedbackAnswer {
   readonly answer: string;
   readonly durationMs: number | null;
   readonly pace: number | null;
-  /** In the rubric's order; null when the answer's scoring ended `failed`. */
-  readonly scores: readonly { readonly dimension: string; readonly value: number }[] | null;
+  /** In the rubric's order. */
+  readonly scores: readonly { readonly dimension: string; readonly value: number }[];
 }
 
 export interface FeedbackInput {
@@ -61,10 +61,7 @@ export function renderFeedbackInput({ rubric, answers }: FeedbackInput) {
   const blocks = answers.map((answer) => {
     const seconds = answer.durationMs === null ? "unknown" : `${Math.round(answer.durationMs / 1000)} s`;
     const pace = answer.pace === null ? "unknown" : `${Math.round(answer.pace)} ${paceUnit}`;
-    const scores =
-      answer.scores === null
-        ? "unscored"
-        : answer.scores.map((score) => `${labels.get(score.dimension) ?? score.dimension} ${score.value}`).join(", ");
+    const scores = answer.scores.map((score) => `${labels.get(score.dimension) ?? score.dimension} ${score.value}`).join(", ");
     return [
       `=== answer ${answer.position} ===`,
       `question: ${answer.prompt}`,

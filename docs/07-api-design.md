@@ -876,12 +876,19 @@ shows every score that landed and a pending round-level note, and generation is 
 - Abandoned (§5.5) → `409 round_abandoned`. **An abandoned round is never completed**, and nothing is
   written.
 - Feedback could not be generated → `502 feedback_generation_failed`, as above.
+- **No answer scored and none is pending** — every answer's latest attempt ended `failed` → `502
+  feedback_generation_failed` with `detail.error_class = "no_scores"`, and no model call. Feedback is
+  never generated from transcripts alone, and this slice has no re-score (History's, §5.11), so the
+  §5.16 retry refuses the same way. **Screen 8 derives the state from the latest attempts** and states
+  that no answer in the round could be scored, so its findings are unavailable — it offers no retry
+  that cannot succeed.
 
 **`scoring` reports what is in.** The feedback screen states anything pending plainly rather than
 spinning (`03` §5, §8). **A score that ended `failed`** (its three retries spent, `03` §8) is not
 pending, so step 2 does not wait for it: **the feedback is generated without that answer**, the answer
 is marked unscored on the feedback screen, and History offers a retry **for that answer alone**
-(§5.11) — which never regenerates the round feedback (`06`, 2026-09-28). Holding the feedback until
+(§5.11) — which never regenerates the round feedback (`06`, 2026-09-28). **That answer never reaches
+the generator**: only answers whose latest attempt is `ok` are sent. Holding the feedback until
 the retry was rejected: the user would leave the machine without it.
 
 **An abandoned round is never completed and never cleaned up.** There is no endpoint to abandon one:

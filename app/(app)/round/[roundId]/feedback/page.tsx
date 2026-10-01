@@ -67,6 +67,10 @@ export default async function FeedbackPage({ params }: PageProps<"/round/[roundI
                   <p className="text-[13px] leading-[1.75] text-ink-3">{screen.findings.whatWorked}</p>
                 </div>
               </>
+            ) : screen.findingsUnavailable ? (
+              <p className="text-[13px] leading-[1.75] text-ink-3" data-testid="findings-unavailable">
+                {copy.findingsUnavailable}
+              </p>
             ) : (
               <FindingsRetry roundId={screen.round.id} language={language} />
             )}
