@@ -61,6 +61,9 @@ const FINDINGS = {
 let s3: MockS3;
 let openAi: MockOpenAi;
 let feedbackFails = false;
+// Scoring fails, past its retries, for an answer whose text carries UNSCORABLE — or for every answer.
+const UNSCORABLE = "zebra-unscorable-sentinel";
+let scoringFails = false;
 
 function formatOf(body: Record<string, unknown>) {
   return ((body.text as { format?: { name?: string } } | undefined)?.format?.name ?? "") as string;
@@ -80,6 +83,7 @@ test.beforeAll(async () => {
   openAi = await startMockOpenAi(
     (body) => {
       if (formatOf(body) === "answer_scores") {
+        if (scoringFails || JSON.stringify(body).includes(UNSCORABLE)) return { fail: 500 };
         return { scores: DIMENSIONS.map((dimension) => ({ dimension, value: SCORES[dimension as keyof typeof SCORES], justification: "e2e" })) };
       }
       if (formatOf(body) === "round_feedback") return feedbackFails ? { fail: 500 } : FINDINGS;
@@ -96,6 +100,7 @@ test.afterAll(async () => {
 
 test.beforeEach(() => {
   feedbackFails = false;
+  scoringFails = false;
 });
 
 /** Starts a round through the API, as Setup does. */
@@ -110,7 +115,7 @@ async function startRound(page: Page) {
 }
 
 /** One answer through the API — slot, PUT, transcribe, submit — for specs about what comes after. */
-async function answerByApi(page: Page, roundId: string) {
+async function answerByApi(page: Page, roundId: string, corrected = CORRECTED) {
   const opened = await page.request.post(`/api/rounds/${roundId}/answers`, {
     data: { content_type: "audio/webm", expected_bytes: 4 },
   });
@@ -118,7 +123,7 @@ async function answerByApi(page: Page, roundId: string) {
   const put = await page.request.put(slot.upload.url, { headers: slot.upload.headers, data: Buffer.from([1, 2, 3, 4]) });
   expect(put.ok()).toBe(true);
   expect((await page.request.post(`/api/answers/${slot.answer_id}/transcribe`, { data: {} })).ok()).toBe(true);
-  const submitted = await page.request.post(`/api/answers/${slot.answer_id}/submit`, { data: { transcript_corrected: CORRECTED } });
+  const submitted = await page.request.post(`/api/answers/${slot.answer_id}/submit`, { data: { transcript_corrected: corrected } });
   expect(submitted.ok()).toBe(true);
 }
 
@@ -246,4 +251,79 @@ test("feedback not ready: the scores render, one sentence says so, and the retry
   await page.getByRole("button", { name: "Write the findings" }).click();
   await expect(page.getByTestId("to-fix")).toContainText("Lead with the result");
   await expect(page.getByTestId("findings-not-ready")).toHaveCount(0);
+});
+
+/** Waits until every answer of the round has a finished latest scoring attempt. */
+async function scoringSettled(roundId: string) {
+  await expect
+    .poll(
+      () =>
+        withDb(async (db) => {
+          const rows = await db
+            .select({ status: s.scoringAttempts.status })
+            .from(s.scoringAttempts)
+            .innerJoin(s.answers, eq(s.answers.id, s.scoringAttempts.answerId))
+            .where(eq(s.answers.roundId, roundId));
+          return rows.length >= 3 && rows.every((row) => row.status !== "pending");
+        }),
+      { timeout: 60_000, intervals: [1_000] },
+    )
+    .toBe(true);
+}
+
+test("an answer whose scoring failed never reaches the feedback generator", async ({ page }) => {
+  test.setTimeout(120_000);
+  await signIn(page);
+  const roundId = await startRound(page);
+  await answerByApi(page, roundId);
+  await answerByApi(page, roundId, `I could not be scored ${UNSCORABLE}.`);
+  await answerByApi(page, roundId);
+  await scoringSettled(roundId);
+
+  const before = openAi.requests.length;
+  await page.goto(`/round/${roundId}`);
+  await page.getByRole("radio", { name: /Fairly tense/ }).click();
+  await page.getByRole("button", { name: "Go to the feedback" }).click();
+  await expect(page).toHaveURL(`/round/${roundId}/feedback`);
+  await expect(page.getByTestId("to-fix")).toContainText("Lead with the result");
+
+  const feedbackCalls = openAi.requests.slice(before).filter((request) => formatOf(request.body) === "round_feedback");
+  expect(feedbackCalls).toHaveLength(1);
+  const sent = JSON.stringify(feedbackCalls[0].body);
+  expect(sent).not.toContain(UNSCORABLE);
+  expect(sent).toContain("=== answer 1 ===");
+  expect(sent).not.toContain("=== answer 2 ===");
+  expect(sent).toContain("=== answer 3 ===");
+  await page.screenshot({ path: `${process.env.EVIDENCE_DIR ?? "test-results"}/screen8-one-failed.png`, fullPage: true });
+});
+
+test("no answer scored: screen 8 says so, offers no retry, and the API refuses as no_scores", async ({ page }) => {
+  test.setTimeout(120_000);
+  await signIn(page);
+  const roundId = await startRound(page);
+  scoringFails = true;
+  for (let position = 1; position <= 3; position += 1) await answerByApi(page, roundId);
+  await scoringSettled(roundId);
+
+  const before = openAi.requests.length;
+  await page.goto(`/round/${roundId}`);
+  await page.getByRole("radio", { name: /Fairly tense/ }).click();
+  await page.getByRole("button", { name: "Go to the feedback" }).click();
+  await expect(page).toHaveURL(`/round/${roundId}/feedback`);
+  await expect(page.getByTestId("findings-unavailable")).toHaveText(
+    "No answer in this round could be scored, so there are no findings for this round. The round is complete and its rating is recorded.",
+  );
+  await expect(page.getByRole("button", { name: "Write the findings" })).toHaveCount(0);
+  await expect(page.getByTestId("findings-not-ready")).toHaveCount(0);
+  await expect(page.getByTestId("pressure-stamp")).toHaveText("Pressure 3 recorded before the feedback");
+  await page.screenshot({ path: `${process.env.EVIDENCE_DIR ?? "test-results"}/screen8-no-scores.png`, fullPage: true });
+
+  const retried = await page.request.post(`/api/rounds/${roundId}/feedback`, { data: {} });
+  expect(retried.status()).toBe(502);
+  const error = (await retried.json()).error;
+  console.log(`retry response: ${retried.status()} ${JSON.stringify(error)}`);
+  expect(error).toMatchObject({ code: "feedback_generation_failed", detail: { error_class: "no_scores" } });
+  expect(openAi.requests.slice(before).filter((request) => formatOf(request.body) === "round_feedback")).toHaveLength(0);
+  await page.reload();
+  await expect(page.getByTestId("findings-unavailable")).toBeVisible();
 });

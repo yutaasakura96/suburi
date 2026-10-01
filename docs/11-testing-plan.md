@@ -271,6 +271,9 @@ With a stubbed generator and embedder.
 - The retry (`07` §5.16) writes the row once; a second retry returns it and calls nothing.
 - **A score that ended `failed`** → the feedback is generated without that answer; retrying the answer's
   score later writes a new attempt and **never touches `round_feedback`**.
+- **That answer never reaches the generator** — its transcript is absent from the feedback call.
+- **Every answer's score ended `failed`** → `502 feedback_generation_failed` with `no_scores`, no model
+  call, and screen 8 states the findings are unavailable without offering a retry.
 
 ### 3.15 The derived round status
 

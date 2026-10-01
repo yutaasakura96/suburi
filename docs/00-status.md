@@ -346,7 +346,7 @@ in `lib/`; 17 synthetic English bank questions seeded on `develop` only; `POST /
 (General practice), `POST /api/rounds`, the answer slot, `transcribe`, `submit` scoring in `after()`,
 `complete` and its `feedback` retry; the English round screens — Setup, record in three states,
 correction with the live meter, felt pressure, feedback with six rows, the fix list, what worked and
-"findings not ready"; integration tests for every route and a Playwright round with a fake microphone
+"findings not ready" or, when no answer scored, "findings unavailable"; integration tests for every route and a Playwright round with a fake microphone
 and mock S3 and OpenAI. **Measured** (`scripts/measure-round-latency.mts`, `03` §4): scoring 7.1 s
 median and 38.1 s slowest, so `complete` waits 60 s (`07` §5.12). **The user's steps:** (1) review
 `lib/rubric/en-1.0.ts` — only then does production's `db:seed` gain the rubric and set pieces (`12` §3

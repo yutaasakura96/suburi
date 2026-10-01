@@ -388,6 +388,12 @@ is replaced by one plain sentence saying the findings are not ready, with a cont
 (`07` §5.16). **No spinner.** The round is already complete and its rating recorded; nothing on this
 screen waits.
 
+**When no answer in the round could be scored** — every answer's latest attempt ended `failed`, none
+pending — the findings are refused as `no_scores` and no retry can produce them (`07` §5.12). The
+screen derives this from the latest attempts and replaces the round-level region with one plain
+sentence saying no answer could be scored, so there are no findings for this round. **No retry
+control**: it could never succeed.
+
 ### Refuses
 - **No composite.** No round total, no average, no per-answer aggregate, no letter, no percentage.
 - **No prose beside a dimension** (design system §7).

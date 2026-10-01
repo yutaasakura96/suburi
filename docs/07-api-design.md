@@ -157,7 +157,7 @@ that asserts the two lists match.
 | `round_already_complete` | 409 | `complete`, `answers`, `submit` | — |
 | `round_not_complete` | 409 | `complete` | screen 7 |
 | `round_abandoned` | 409 | `answers`, `submit`, `complete` | the round screen — the round takes no more writes; start a new one (§5.5) |
-| `feedback_generation_failed` | 502 | `complete`, `feedback` | screen 8 — the round is complete and its scores show; the round-level note is pending and retryable (§5.12) |
+| `feedback_generation_failed` | 502 | `complete`, `feedback` | screen 8 — the round is complete and its scores show; the round-level note is pending and retryable, unless `detail.error_class` is `no_scores`, which no retry can fix (§5.12) |
 | `role_context_too_large` | 422 | `POST /api/role-contexts` | Setup — before anything is saved. **Its cap is measured first** (§5.3) |
 | `speech_failed` | 502 | `speech` | screen 3 — a short notice; the question stays as text and the round goes on (§5.15) |
 | `write_failed` | 500 | every round route | the screen that made the call — nothing half-written; the round stays resumable |
