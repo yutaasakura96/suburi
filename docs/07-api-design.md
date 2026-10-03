@@ -963,7 +963,9 @@ Synthesis has 10 s to reach its first byte.
 **When synthesis fails, the round goes on** (`06`, 2026-09-28). The route returns `502
 speech_failed`; screen 3 shows that code's copy as a short notice, and the question, already on screen
 as text, is answered as usual. The failure is logged with the round id, position and error class. A
-realistic round is never stopped for want of a voice.
+realistic round is never stopped for want of a voice. The route reads the first audio byte before it
+answers, so a stream that fails or stalls before that byte is still the `502`; one that breaks after
+it can no longer be, and is only logged, the same way.
 
 ### 5.16 `POST /api/rounds/{roundId}/feedback` ⚡
 
