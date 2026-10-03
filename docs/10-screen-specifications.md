@@ -204,6 +204,10 @@ absent only from the transcript state, which substitutes:
   the catalogue's `speech_failed` copy — and the round goes on with the text (`06`, 2026-09-28).
 - **The question is the one fixed when the round started** (`round_questions`) — a reload shows the
   same one.
+- **A follow-up is asked on this same frame**, from its `follow_ups` row — a reload shows the same
+  one, and nothing generates it again. It shares its question's position, so the header's step keeps
+  the number and names it: `Question 2 / 3 · follow-up` (`06`, 2026-10-03). The footer's stamp carries
+  the follow-up prompt's version in place of the question's.
 - The question at **19px/1.9** in `--ink-2`, `max-width: 880px`. This is the largest reading text in
   the app and the only thing the screen is asking the user to do.
 - A `--rule-row` divider.
@@ -287,7 +291,18 @@ Solid primary `この回答を送る`, caption
 `送ると、いま直した文から深掘りが1問つくられます。`, then `3:12・約250字/分` /
 `出題 v1.0・応募書類 v3`.
 
-**The follow-up is generated from the corrected text, not the raw text.** Both are stored.
+**The follow-up is generated from the corrected text, not the raw text.** Both are stored. Under a
+follow-up's own answer the caption does not promise one: it makes none.
+
+### After the commit, when there is no follow-up to ask
+The answer is saved and locked — no editor, no recorder — the question stays at the top, and one
+solid primary goes on (`06`, 2026-10-03). Two cases, one frame:
+
+- **The follow-up could not be generated.** The catalogue's `followup_generation_failed` sentence in
+  a callout rail, attention tone. Going on asks the next question, or screen 7. The hole is said
+  here, never skipped silently (US-7).
+- **The follow-up had not been stored when the page loaded.** A plain sentence in the information
+  tone. Going on writes it and asks it.
 
 ---
 
@@ -351,7 +366,10 @@ read a Japanese round's feedback in English.
   長さ・配分 2 · 敬語 3`. 長さ・配分 is the attention row.
 - **Follow-up row**, sharing the row rhythm but carrying no scale: `└ 深掘り` at 12px `--ink-6`, the
   question at 12px `--ink-7`, and right-aligned at 11px `--ink-label`:
-  `7項目を採点。進捗には入れません。`
+  `7項目を採点。進捗には入れません。` The first sentence follows the follow-up's own scoring — scored,
+  not scored yet, or not scored — and the second never changes. **A missing follow-up keeps the row**:
+  the label, and one sentence in `--attention-ink` saying it was not generated and is recorded as a
+  gap, in place of the question (`06`, 2026-10-03). The follow-up's own scores are History's (§10).
 - **Answer pager:** `第2問 第3問 第4問 第5問` at 12px `--ink-label`, a flex `--rule-section` line,
   then `以下に4問`.
 

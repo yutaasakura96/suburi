@@ -29,10 +29,11 @@ re-measure.
 **The round loop is planned:** grilled 2026-09-27, its decisions written into the docs, and its
 eleven slice issues confirmed on 2026-09-28 and labeled `ready-for-agent`, #41–#51, the user's own
 steps marked in each (Next).
-**#42, the round-loop tracer, is built (2026-10-01), on `fm/suburi-42`:** an English realistic round
-end to end, its latencies measured (`03` §4). Two steps are the user's before it closes: reviewing
-rubric `en` v1.0, and the proof round on `develop` (Next).
-**Updated:** 2026-10-01 (#42 built; #55 and #56 on 2026-09-30)
+**#42, the round-loop tracer, is closed (2026-10-03):** an English realistic round end to end,
+its latencies measured (`03` §4), and the owner's real English round proved on `develop`.
+**#44, follow-ups, is built (2026-10-03), on `fm/suburi-44-v2`:** one follow-up per bank-question
+answer in both modes, written by `submit` or recorded as missing (Next).
+**Updated:** 2026-10-03 (#44 built; #42 closed; #55 and #56 on 2026-09-30)
 
 ## Done
 - Phase 1 — `docs/01-project-brief.md`, `docs/02-product-requirements.md`, `docs/06-decision-log.md`.
@@ -339,7 +340,7 @@ without a score that ended `failed`, which is retried alone; "today" is Asia/Tok
 confirmed the slices, and #41–#51 moved from `needs-triage` to `ready-for-agent`. Slice 0 (#41) is the user's own
 console work and takes `12` §3 steps 3–5 out of #21, whose body now points at it.
 
-**#42 is built (2026-10-01), on `fm/suburi-42`, and waits on two steps of the user's.** Built: migration
+**#42 is closed (2026-10-03).** Built: migration
 `0007` (`round_questions`, stamp 3 `not null` on `questions` and `scoring_attempts`, the
 General-practice index, the round routes' limiter names); rubric `en` v1.0 and the English set pieces
 in `lib/`; 17 synthetic English bank questions seeded on `develop` only; `POST /api/role-contexts`
@@ -348,12 +349,21 @@ in `lib/`; 17 synthetic English bank questions seeded on `develop` only; `POST /
 correction with the live meter, felt pressure, feedback with six rows, the fix list, what worked and
 "findings not ready" or, when no answer scored, "findings unavailable"; integration tests for every route and a Playwright round with a fake microphone
 and mock S3 and OpenAI. **Measured** (`scripts/measure-round-latency.mts`, `03` §4): scoring 7.1 s
-median and 38.1 s slowest, so `complete` waits 60 s (`07` §5.12). **The user's steps:** (1) review
-`lib/rubric/en-1.0.ts` — only then does production's `db:seed` gain the rubric and set pieces (`12` §3
-step 9); (2) the proof round on `develop`: `npm run db:migrate` and `npm run db:seed:develop` against
-Neon `develop`, then a real English round from a real browser, audio under `dev/`, feedback on screen
-before leaving the machine. The three new Japanese error strings are in
+median and 38.1 s slowest, so `complete` waits 60 s (`07` §5.12). The owner's real English round on
+`develop` proved the tracer on 2026-10-03. The three new Japanese error strings are in
 `docs/checklists/native-read-round-loop.md`.
+
+**#44 is built (2026-10-03), on `fm/suburi-44-v2`.** Built: migration `0008` (`follow_ups`, expand-only);
+`follow-up-en-1.0` and `follow-up-ja-1.0` behind a port with a fake; `submit` generating the follow-up
+from the corrected text after the answer's commit and storing it as `generated` or `missing` before
+it returns; the follow-up's slot at its parent's position, never a first attempt, stamp 3 from its
+`follow_ups` row; `complete` and the slot refusing while a follow-up is owed; `feedback-en-1.1`,
+which reads follow-up answers; follow-up tokens in the week's spend; the round screens asking the
+follow-up, saying a missing one, and screen 8's follow-up row. **Measured** (`03` §4): 3.2 s median,
+4.7 s slowest of 15, so the call is bounded at 15 s with one retry (`07` §5.9). **Not done here:**
+`follow-up-ja-1.0` has not run — no Japanese round exists until #43, where its output gets its
+native read (`docs/checklists/native-read-round-loop.md` §2). Migration `0008` is **not yet applied
+to either Neon branch** (`12` §4). Decisions in `06`, "Phase 6 — #44".
 
 **#54, #55 and #56 are next, then #21. #20, #29 and #38 are done.** #21 is blocked by all three
 (native `blocked_by` edges, 2026-09-29), and #56 by #55. They were triaged 2026-09-29 (`06`): #54 and

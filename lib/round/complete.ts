@@ -6,7 +6,7 @@ import type { RoundFeedbackGenerator } from "../ai/round-feedback";
 import { ModelCallFailed } from "../ai/upstream";
 import type { Rubric } from "../rubric/types";
 import { authenticate, isUuid, log, notFound, parseBody, roundAbandoned, writeFailed, type Db, type RoundDeps } from "./http";
-import { isAbandoned, latestAttempts, noScores, roundAnswers, roundStep, scoringCounts, type RoundRow } from "./state";
+import { isAbandoned, latestAttempts, noScores, readRoundStep, roundAnswers, scoringCounts, type RoundRow } from "./state";
 
 /**
  * `POST /api/rounds/{roundId}/complete` ⚡ (07 §5.12) and its retry, `POST …/feedback` (§5.16).
@@ -118,6 +118,7 @@ async function writeRoundFeedback(deps: CompleteDeps, round: RoundRow): Promise<
         rubric,
         answers: scored.map(({ answer, attemptId }) => ({
           position: answer.position,
+          followUp: answer.questionId === null,
           prompt: answer.promptText,
           answer: answer.transcriptCorrected ?? "",
           durationMs: answer.audioDurationMs,
@@ -210,8 +211,9 @@ export function createComplete(deps: CompleteDeps) {
         if (round.mode === "practice" && pressure !== null) {
           return apiError("pressure_not_applicable", "A practice round records no felt pressure.", { round_id: roundId });
         }
-        const step = roundStep(round, await roundAnswers(tx, roundId));
-        if (step.kind === "answer") {
+        const step = await readRoundStep(tx, round);
+        // A follow-up still to be asked or answered leaves the round as open as an unanswered question.
+        if (step.kind === "answer" || step.kind === "follow_up_due") {
           return apiError("round_not_complete", "Not every question in the round is answered.", {
             round_id: roundId,
             position: step.position,

@@ -20,6 +20,7 @@ const ENUMERATED = [
   ["rounds", "mode"],
   ["answers", "language"],
   ["scoring_attempts", "status"],
+  ["follow_ups", "status"],
   ["round_feedback", "language"],
   ["claim_citations", "relation"],
   ["cv_documents", "kind"],
@@ -34,6 +35,14 @@ async function insertOneOfEach(db: TestDb) {
   const round = await insertRound(db, world);
   const answer = await insertAnswer(db, world, round);
   await insertAttempt(db, world, answer);
+  // Missing, so that an unlisted status trips the value check alone and not the text check beside it.
+  await db.insert(s.followUps).values({
+    parentAnswerId: answer,
+    userId: world.userId,
+    status: "missing",
+    modelId: "fixture-model-2026-01-01",
+    promptVersion: "follow-up-fixture",
+  });
   await db.insert(s.roundFeedback).values({
     roundId: round,
     toFix: [],

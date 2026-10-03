@@ -8,7 +8,9 @@ import { closePool, inRolledBackTransaction, type TestDb } from "../../db/test/d
 import { feedbackScreen, roundFrame } from "../../app/(app)/round/load";
 import {
   FIXTURE_FEEDBACK,
+  FIXTURE_FOLLOW_UP,
   fakeFeedbackGenerator,
+  fakeFollowUpGenerator,
   fakeModelHealth,
   fakeScorer,
   fakeTranscriber,
@@ -24,10 +26,10 @@ import { createOpenAnswer } from "./open-answer";
 import { createPostRound } from "./post-round";
 import { createPostRoleContext } from "./role-context";
 import { createSubmit } from "./submit";
-import { answeredBefore, newerRoundExists, promptAt } from "./state";
+import { answeredBefore, newerRoundExists, promptAt, readRoundStep } from "./state";
 import { createTranscribe } from "./transcribe";
 
-// The round-loop tracer (#42) through its handlers, against the migrated test database, with a real
+// The round loop (#42, and its follow-ups, #44) through its handlers, against the migrated test database, with a real
 // Better Auth session. Only the model ports and the bucket are faked (11 §2).
 
 vi.stubEnv("DATABASE_URL", "postgresql://suburi:suburi@localhost:5433/suburi_test");
@@ -41,6 +43,9 @@ vi.stubEnv("OPENAI_API_KEY", "integration-not-a-real-key");
 
 // Recognisable text that must never reach an envelope or a log line (11 §3.10).
 const SENTINEL = "ZEBRA-SENTINEL-4471";
+// And a follow-up's: returned to its owner as the next prompt, by design, and logged nowhere.
+const FOLLOW_UP_SENTINEL = "OKAPI-SENTINEL-2093";
+const FOLLOW_UP_TEXT = `How did you measure the ${FOLLOW_UP_SENTINEL} six months?`;
 
 let logged: string[];
 
@@ -101,6 +106,7 @@ async function setUp(db: TestDb, { healthy = true } = {}) {
   const scorer = fakeScorer(uniformScores(3));
   const transcriber = fakeTranscriber(() => ({ text: `I led the migration at ${SENTINEL}, um, in six months.`, durationMs: 90_000 }));
   const generator = fakeFeedbackGenerator(() => FIXTURE_FEEDBACK);
+  const followUps = fakeFollowUpGenerator(() => ({ ...FIXTURE_FOLLOW_UP, text: FOLLOW_UP_TEXT }));
   const health = fakeModelHealth(healthy);
   const base = { auth, db, transaction: savepointTransaction(db, fail, depth) };
   const timing = { waitBoundMs: 50, sleep: async () => {} };
@@ -113,6 +119,7 @@ async function setUp(db: TestDb, { healthy = true } = {}) {
     submit: createSubmit({
       ...base,
       scorer,
+      followUpGenerator: followUps,
       sleep: async (ms) => void slept.push(ms),
       after: (work) => void scheduled.push(work),
       deadline: () => Date.now() + 280_000,
@@ -163,7 +170,7 @@ async function setUp(db: TestDb, { healthy = true } = {}) {
     });
   }
 
-  /** Record → open → upload → transcribe → submit, for the round's current position. */
+  /** Record → open → upload → transcribe → submit, for the round's current prompt: a question or its follow-up. */
   async function answerCurrent(roundId: string, corrected = "I led the migration, um, in six months.") {
     const opened = await call(handlers.open, roundId, { content_type: "audio/webm", expected_bytes: AUDIO.byteLength });
     const key = store.presigned.at(-1)!.key;
@@ -171,6 +178,14 @@ async function setUp(db: TestDb, { healthy = true } = {}) {
     await call(handlers.transcribe, opened.json.answer_id, {});
     const submitted = await call(handlers.submit, opened.json.answer_id, { transcript_corrected: corrected });
     return { answerId: opened.json.answer_id as string, opened, submitted };
+  }
+
+  /** A whole position: the bank question, then the follow-up `submit` returned, when it returned one. */
+  async function answerPosition(roundId: string, corrected?: string) {
+    const question = await answerCurrent(roundId, corrected);
+    const followUp =
+      question.submitted.json.next?.kind === "follow_up" ? await answerCurrent(roundId, "It was my call, um, in the end.") : null;
+    return { ...question, followUp };
   }
 
   return {
@@ -183,6 +198,7 @@ async function setUp(db: TestDb, { healthy = true } = {}) {
     scorer,
     transcriber,
     generator,
+    followUps,
     health,
     handlers,
     call,
@@ -192,6 +208,7 @@ async function setUp(db: TestDb, { healthy = true } = {}) {
     general,
     startRound,
     answerCurrent,
+    answerPosition,
   };
 }
 
@@ -201,11 +218,14 @@ async function playThrough(world: World) {
   const started = await world.startRound();
   const roundId = started.json.round.id as string;
   const answers = [];
-  for (let position = 1; position <= 3; position += 1) answers.push(await world.answerCurrent(roundId));
+  for (let position = 1; position <= 3; position += 1) answers.push(await world.answerPosition(roundId));
   return { roundId, answers, started };
 }
 
-async function count(db: TestDb, table: typeof s.rounds | typeof s.roundQuestions | typeof s.roundFeedback | typeof s.answers) {
+async function count(
+  db: TestDb,
+  table: typeof s.rounds | typeof s.roundQuestions | typeof s.roundFeedback | typeof s.answers | typeof s.followUps,
+) {
   return (await db.select({ id: table.id }).from(table)).length;
 }
 
@@ -300,7 +320,7 @@ describe("POST /api/rounds — a round's questions, chosen once (11 §3.13)", ()
         // A reload reads the same prompt; so does the slot that is opened for it.
         expect((await promptAt(db, json.round.id, position))?.questionId).toBe(questionId);
         expect((await promptAt(db, json.round.id, position))?.questionId).toBe(questionId);
-        const { opened } = await world.answerCurrent(json.round.id);
+        const { opened } = await world.answerPosition(json.round.id);
         expect(opened.json.question_id).toBe(questionId);
       }
     }));
@@ -406,15 +426,16 @@ describe("abandoned, derived (04 `rounds`)", () => {
     }));
 });
 
+/** A stale tab's view: a newer round starts, dated as a later request would date it. */
+async function abandonBy(world: World, db: TestDb) {
+  const newer = await world.startRound();
+  await db
+    .update(s.rounds)
+    .set({ startedAt: sql`${s.rounds.startedAt} + interval '1 second'` })
+    .where(eq(s.rounds.id, newer.json.round.id));
+}
+
 describe("an abandoned round takes no more writes (07 §5.5, §5.12)", () => {
-  /** A stale tab's view: a newer round starts, dated as a later request would date it. */
-  async function abandonBy(world: World, db: TestDb) {
-    const newer = await world.startRound();
-    await db
-      .update(s.rounds)
-      .set({ startedAt: sql`${s.rounds.startedAt} + interval '1 second'` })
-      .where(eq(s.rounds.id, newer.json.round.id));
-  }
 
   it("refuses to open a slot: 409 round_abandoned, and no answer row", () =>
     inRolledBackTransaction(async (db) => {
@@ -547,7 +568,7 @@ describe("first attempts, computed at slot-open (11 §3.4)", () => {
       expect((await roundQuestionIds(db, realistic.json.round.id)).slice(1)).toEqual([other, practisedQuestion]);
       const flags = [];
       for (let position = 1; position <= 3; position += 1) {
-        flags.push(await firstAttemptOf(db, (await world.answerCurrent(realistic.json.round.id)).answerId));
+        flags.push(await firstAttemptOf(db, (await world.answerPosition(realistic.json.round.id)).answerId));
       }
       expect(flags).toEqual([true, true, false]);
     }));
@@ -557,7 +578,7 @@ describe("first attempts, computed at slot-open (11 §3.4)", () => {
       const world = await setUp(db);
       const abandoned = await world.startRound();
       const [, answeredQuestion, fixedOnly] = await roundQuestionIds(db, abandoned.json.round.id);
-      await world.answerCurrent(abandoned.json.round.id);
+      await world.answerPosition(abandoned.json.round.id);
       const { answerId } = await world.answerCurrent(abandoned.json.round.id);
       expect(await firstAttemptOf(db, answerId)).toBe(true);
 
@@ -567,7 +588,7 @@ describe("first attempts, computed at slot-open (11 §3.4)", () => {
       expect((await roundQuestionIds(db, next.json.round.id)).slice(1)).toEqual([fixedOnly, answeredQuestion]);
       const flags = [];
       for (let position = 1; position <= 3; position += 1) {
-        flags.push(await firstAttemptOf(db, (await world.answerCurrent(next.json.round.id)).answerId));
+        flags.push(await firstAttemptOf(db, (await world.answerPosition(next.json.round.id)).answerId));
       }
       expect(flags).toEqual([true, true, false]);
     }));
@@ -588,7 +609,7 @@ describe("first attempts, computed at slot-open (11 §3.4)", () => {
       const { json } = await world.startRound({ mode: "practice" });
       const flags = [];
       for (let position = 1; position <= 3; position += 1) {
-        flags.push(await firstAttemptOf(db, (await world.answerCurrent(json.round.id)).answerId));
+        flags.push(await firstAttemptOf(db, (await world.answerPosition(json.round.id)).answerId));
       }
       expect(flags).toEqual([false, false, false]);
     }));
@@ -740,9 +761,11 @@ describe("POST /api/answers/{id}/submit", () => {
     inRolledBackTransaction(async (db) => {
       const world = await setUp(db);
       const { roundId, answers } = await playThrough(world);
-      expect(answers.map((answer) => answer.submitted.json.next.kind)).toEqual(["question", "question", "pressure"]);
-      expect(answers[0].submitted.json.next).toMatchObject({ position: 2, speak: true });
-      expect(answers[2].submitted.json.progress).toEqual({ position: 3, of: 3 });
+      // Each question's answer is followed up at the same position; each follow-up's by the next question.
+      expect(answers.map((answer) => answer.submitted.json.next.kind)).toEqual(["follow_up", "follow_up", "follow_up"]);
+      expect(answers.map((answer) => answer.followUp!.submitted.json.next.kind)).toEqual(["question", "question", "pressure"]);
+      expect(answers[0].followUp!.submitted.json.next).toMatchObject({ position: 2, speak: true });
+      expect(answers[2].followUp!.submitted.json.progress).toEqual({ position: 3, of: 3 });
 
       const [answer] = await db.select().from(s.answers).where(eq(s.answers.id, answers[0].answerId));
       expect(answer.transcriptRaw).toContain(SENTINEL);
@@ -750,12 +773,12 @@ describe("POST /api/answers/{id}/submit", () => {
       expect(answer.rewriteMagnitude).toBeGreaterThan(0);
 
       const attempts = await db.select().from(s.scoringAttempts);
-      expect(attempts).toHaveLength(3);
+      expect(attempts).toHaveLength(6);
       for (const attempt of attempts) {
         expect(attempt.status).toBe("pending");
         expect(attempt.cvVersionId).not.toBeNull();
         expect(attempt.rubricVersionId).not.toBeNull();
-        expect(attempt.generatorPromptVersion).toMatch(/^(set-piece-en-1\.0|synthetic-generated-en-1\.0)$/);
+        expect(attempt.generatorPromptVersion).toMatch(/^(set-piece-en-1\.0|synthetic-generated-en-1\.0|follow-up-en-fake)$/);
         expect(attempt.modelId).toBe("fake-scorer-2026-01-01");
         expect(attempt.scoringPromptVersion).toBe("score-en-fake");
       }
@@ -763,8 +786,8 @@ describe("POST /api/answers/{id}/submit", () => {
       await world.drainAfter();
       const scored = await db.select().from(s.scoringAttempts);
       expect(scored.every((attempt) => attempt.status === "ok")).toBe(true);
-      expect(await db.select().from(s.scores)).toHaveLength(18);
-      expect(world.scorer.calls).toBe(3);
+      expect(await db.select().from(s.scores)).toHaveLength(36);
+      expect(world.scorer.calls).toBe(6);
       void roundId;
     }));
 
@@ -857,7 +880,7 @@ describe("POST /api/rounds/{id}/complete (11 §3.14)", () => {
     inRolledBackTransaction(async (db) => {
       const world = await setUp(db);
       const { json } = await world.startRound({ mode: "practice" });
-      for (let position = 1; position <= 3; position += 1) await world.answerCurrent(json.round.id);
+      for (let position = 1; position <= 3; position += 1) await world.answerPosition(json.round.id);
       const response = await world.call(world.handlers.complete, json.round.id, { felt_pressure: 3 });
       expect(response.status).toBe(422);
       expect(response.json.error.code).toBe("pressure_not_applicable");
@@ -879,7 +902,7 @@ describe("POST /api/rounds/{id}/complete (11 §3.14)", () => {
       const response = await world.call(world.handlers.complete, roundId, { felt_pressure: 4 });
       expect(response.status).toBe(201);
       expect(ratedWhenCalled).toBe(4);
-      expect(response.json.scoring).toEqual({ ok: 3, pending: 0, failed: 0 });
+      expect(response.json.scoring).toEqual({ ok: 6, pending: 0, failed: 0 });
       expect(response.json.feedback).toMatchObject({ what_worked: FIXTURE_FEEDBACK.whatWorked, language: "en", prompt_version: "feedback-en-fake" });
       expect(response.json.feedback.to_fix).toHaveLength(2);
       expect(await count(db, s.roundFeedback)).toBe(1);
@@ -906,7 +929,15 @@ describe("POST /api/rounds/{id}/complete (11 §3.14)", () => {
       });
       const response = await world.call(complete, roundId, { felt_pressure: 3 });
       expect(response.status).toBe(201);
-      expect(world.generator.inputs[0].answers.map((answer) => answer.position)).toEqual([1, 2, 3]);
+      // A follow-up's answer is sent under its parent's position, marked as one.
+      expect(world.generator.inputs[0].answers.map((answer) => [answer.position, answer.followUp])).toEqual([
+        [1, false],
+        [1, true],
+        [2, false],
+        [2, true],
+        [3, false],
+        [3, true],
+      ]);
     }));
 
   it("writes no feedback when a score is still pending past the bound, and the round stays complete", () =>
@@ -915,7 +946,7 @@ describe("POST /api/rounds/{id}/complete (11 §3.14)", () => {
       const { roundId } = await playThrough(world);
       const response = await world.call(world.handlers.complete, roundId, { felt_pressure: 5 });
       expect(response.status).toBe(502);
-      expect(response.json.error).toMatchObject({ code: "feedback_generation_failed", detail: { error_class: "scores_pending", pending: 3 } });
+      expect(response.json.error).toMatchObject({ code: "feedback_generation_failed", detail: { error_class: "scores_pending", pending: 6 } });
       expect(world.generator.calls).toBe(0);
       expect(await count(db, s.roundFeedback)).toBe(0);
       const [round] = await db.select().from(s.rounds).where(eq(s.rounds.id, roundId));
@@ -990,17 +1021,24 @@ describe("POST /api/rounds/{id}/complete (11 §3.14)", () => {
       const world = await setUp(db);
       const started = await world.startRound();
       const roundId = started.json.round.id as string;
-      await world.answerCurrent(roundId, "I owned the rollout.");
-      const second = await world.answerCurrent(roundId, `I failed to be scored ${SENTINEL}.`);
-      await world.answerCurrent(roundId, "I measured the outcome.");
+      await world.answerPosition(roundId, "I owned the rollout.");
+      const second = await world.answerPosition(roundId, `I failed to be scored ${SENTINEL}.`);
+      await world.answerPosition(roundId, "I measured the outcome.");
       await world.drainAfter();
       await failScoring(db, world, roundId, second.answerId);
       const response = await world.call(world.handlers.complete, roundId, { felt_pressure: 3 });
       expect(response.status).toBe(201);
-      expect(response.json.scoring).toEqual({ ok: 2, pending: 0, failed: 1 });
+      expect(response.json.scoring).toEqual({ ok: 5, pending: 0, failed: 1 });
+      // The failed answer is left out; its follow-up's answer, scored on its own, is not.
       const sent = world.generator.inputs[0].answers;
-      expect(sent.map((answer) => answer.position)).toEqual([1, 3]);
-      expect(sent.map((answer) => answer.answer)).toEqual(["I owned the rollout.", "I measured the outcome."]);
+      expect(sent.map((answer) => [answer.position, answer.followUp])).toEqual([
+        [1, false],
+        [1, true],
+        [2, true],
+        [3, false],
+        [3, true],
+      ]);
+      expect(sent.filter((answer) => !answer.followUp).map((answer) => answer.answer)).toEqual(["I owned the rollout.", "I measured the outcome."]);
       expect(JSON.stringify(world.generator.inputs)).not.toContain(SENTINEL);
     }));
 
@@ -1009,7 +1047,10 @@ describe("POST /api/rounds/{id}/complete (11 §3.14)", () => {
       const world = await setUp(db);
       const { roundId, answers } = await playThrough(world);
       await world.drainAfter();
-      for (const { answerId } of answers) await failScoring(db, world, roundId, answerId);
+      for (const { answerId, followUp } of answers) {
+        await failScoring(db, world, roundId, answerId);
+        await failScoring(db, world, roundId, followUp!.answerId);
+      }
       const completed = await world.call(world.handlers.complete, roundId, { felt_pressure: 3 });
       expect(completed.status).toBe(502);
       expect(completed.json.error).toMatchObject({ code: "feedback_generation_failed", detail: { error_class: "no_scores" } });
@@ -1035,6 +1076,460 @@ describe("POST /api/rounds/{id}/complete (11 §3.14)", () => {
       const [round] = await db.select().from(s.rounds).where(eq(s.rounds.id, roundId));
       expect(round.completedAt).toBeNull();
       expect(world.generator.calls).toBe(0);
+    }));
+});
+
+describe("follow-ups: one per answer, written by submit (07 §5.9, 11 §3.1)", () => {
+  const SLOT = { content_type: "audio/webm", expected_bytes: AUDIO.byteLength };
+
+  /** The follow-up generator failing every call with `errorClass`. */
+  function failFollowUps(world: World, errorClass: string) {
+    world.followUps.generate = async () => {
+      world.followUps.calls += 1;
+      throw new ModelCallFailed("Follow-up generation", errorClass);
+    };
+  }
+
+  async function followUpRows(db: TestDb) {
+    return db.select().from(s.followUps);
+  }
+
+  it.each([
+    ["realistic", true],
+    ["practice", false],
+  ] as const)("writes the row before submit returns, in a %s round: its text, its stamps and its tokens", (mode, speak) =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const { json } = await world.startRound({ mode });
+      const { answerId, submitted } = await world.answerCurrent(json.round.id);
+
+      const [row] = await followUpRows(db);
+      expect(row).toMatchObject({
+        parentAnswerId: answerId,
+        userId: world.userId,
+        status: "generated",
+        promptText: FOLLOW_UP_TEXT,
+        modelId: world.followUps.modelId,
+        promptVersion: "follow-up-en-fake",
+        tokensIn: 400,
+        tokensOut: 20,
+        errorClass: null,
+      });
+      expect(submitted.status).toBe(200);
+      // The follow-up shares its parent's position (06, 2026-09-27, confirm 3).
+      expect(submitted.json.next).toEqual({
+        kind: "follow_up",
+        position: 1,
+        parent_answer_id: answerId,
+        follow_up_id: row.id,
+        text: FOLLOW_UP_TEXT,
+        prompt_version: "follow-up-en-fake",
+        speak,
+      });
+      expect(submitted.json.progress).toEqual({ position: 1, of: 3 });
+    }));
+
+  it("generates from the question as asked and the corrected text, never the raw one, outside any transaction", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const { json } = await world.startRound();
+      const generate = world.followUps.generate;
+      world.followUps.generate = async (input, options) => {
+        expect(world.inTransaction()).toBe(false);
+        return generate(input, options);
+      };
+      await world.answerCurrent(json.round.id, "Corrected text only.");
+      expect(world.followUps.inputs).toEqual([
+        { language: "en", roundType: "hr", prompt: json.prompt.text, answer: "Corrected text only." },
+      ]);
+    }));
+
+  it("opens the follow-up's slot at its parent's position, with the stored text, and never as a first attempt", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const { json } = await world.startRound();
+      const parent = await world.answerCurrent(json.round.id);
+      expect(parent.opened.json).toMatchObject({ kind: "question", position: 1, is_first_attempt: true });
+
+      const opened = await world.call(world.handlers.open, json.round.id, SLOT);
+      expect(opened.status).toBe(201);
+      // A realistic round, and still not a first attempt: Progress never plots a follow-up (04 §3).
+      expect(opened.json).toMatchObject({
+        kind: "follow_up",
+        position: 1,
+        question_id: null,
+        parent_answer_id: parent.answerId,
+        is_first_attempt: false,
+      });
+      const [slot] = await db.select().from(s.answers).where(eq(s.answers.id, opened.json.answer_id));
+      expect(slot).toMatchObject({
+        questionId: null,
+        parentAnswerId: parent.answerId,
+        retryOfAnswerId: null,
+        promptText: FOLLOW_UP_TEXT,
+        position: 1,
+        isFirstAttempt: false,
+      });
+      // The repeat lands on the same slot, as it does for a question.
+      const again = await world.call(world.handlers.open, json.round.id, SLOT);
+      expect(again.json.answer_id).toBe(opened.json.answer_id);
+    }));
+
+  it("stamps the follow-up's answer with the follow-up prompt version as its stamp 3", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const { json } = await world.startRound();
+      const { answerId, followUp } = await world.answerPosition(json.round.id);
+      const [own] = await db.select().from(s.scoringAttempts).where(eq(s.scoringAttempts.answerId, followUp!.answerId));
+      const [parent] = await db.select().from(s.scoringAttempts).where(eq(s.scoringAttempts.answerId, answerId));
+      expect(own.generatorPromptVersion).toBe("follow-up-en-fake");
+      expect(parent.generatorPromptVersion).toBe("set-piece-en-1.0");
+      // The other three are the round's, the same on both.
+      expect(own).toMatchObject({
+        cvVersionId: parent.cvVersionId,
+        rubricVersionId: parent.rubricVersionId,
+        modelId: parent.modelId,
+        scoringPromptVersion: parent.scoringPromptVersion,
+      });
+    }));
+
+  it("asks no follow-up of a follow-up's own answer: one row and one call per question", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const { answers } = await playThrough(world);
+      expect(world.followUps.calls).toBe(3);
+      expect(await count(db, s.followUps)).toBe(3);
+      expect(await count(db, s.answers)).toBe(6);
+      const parents = (await followUpRows(db)).map((row) => row.parentAnswerId).sort();
+      expect(parents).toEqual(answers.map((answer) => answer.answerId).sort());
+    }));
+
+  it("asks no follow-up of a practice answer-again", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const { json } = await world.startRound({ mode: "practice" });
+      const { answerId } = await world.answerPosition(json.round.id);
+      const [original] = await db.select().from(s.answers).where(eq(s.answers.id, answerId));
+      // "Answer again" is a new row beside the first (04 `answers`), transcribed and not yet submitted.
+      const [retry] = await db
+        .insert(s.answers)
+        .values({ ...original, id: undefined, retryOfAnswerId: original.id, audioS3Key: null, transcriptCorrected: null, rewriteMagnitude: null })
+        .returning({ id: s.answers.id });
+
+      const submitted = await world.call(world.handlers.submit, retry.id, { transcript_corrected: "I led it, better." });
+      expect(submitted.status).toBe(200);
+      expect(submitted.json.next).toMatchObject({ kind: "question", position: 2 });
+      expect(world.followUps.calls).toBe(1);
+      expect(await count(db, s.followUps)).toBe(1);
+    }));
+
+  it("stores a failed generation as missing, answers 502 once, and the same body then gets the degraded next", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const { json } = await world.startRound();
+      failFollowUps(world, "upstream_500");
+      const { answerId, submitted } = await world.answerCurrent(json.round.id);
+
+      // One retry, then the hole is a row: the round does not wait on a third call.
+      expect(world.followUps.calls).toBe(2);
+      expect(world.slept).toEqual([1_000]);
+      const [attempt] = await db.select().from(s.scoringAttempts).where(eq(s.scoringAttempts.answerId, answerId));
+      expect(submitted.status).toBe(502);
+      expect(submitted.json.error).toMatchObject({
+        code: "followup_generation_failed",
+        detail: { answer_id: answerId, attempt_id: attempt.id, error_class: "upstream_500" },
+      });
+      const [row] = await followUpRows(db);
+      expect(row).toMatchObject({
+        parentAnswerId: answerId,
+        status: "missing",
+        promptText: null,
+        modelId: world.followUps.modelId,
+        promptVersion: "follow-up-en-fake",
+        tokensIn: null,
+        tokensOut: null,
+        errorClass: "upstream_500",
+      });
+      // Not fatal: the answer is saved and is scored like any other.
+      const [answer] = await db.select().from(s.answers).where(eq(s.answers.id, answerId));
+      expect(answer.transcriptCorrected).toBe("I led the migration, um, in six months.");
+      await world.drainAfter();
+      expect(await db.select().from(s.scores)).toHaveLength(6);
+
+      // The same body again: 200, the next question, and nothing generated a second time.
+      const again = await world.call(world.handlers.submit, answerId, { transcript_corrected: answer.transcriptCorrected });
+      expect(again.status).toBe(200);
+      expect(again.json.scoring.attempt_id).toBe(attempt.id);
+      expect(again.json.next).toMatchObject({ kind: "question", position: 2 });
+      expect(again.json.progress).toEqual({ position: 2, of: 3 });
+      expect(world.followUps.calls).toBe(2);
+      expect(await count(db, s.followUps)).toBe(1);
+    }));
+
+  it.each([
+    ["upstream_400", 1, []],
+    ["malformed_output", 2, [1_000]],
+    ["upstream_timeout", 2, [1_000]],
+  ] as const)("on %s makes %i call(s) before recording the follow-up as missing", (errorClass, calls, slept) =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const { json } = await world.startRound();
+      failFollowUps(world, errorClass);
+      const { submitted } = await world.answerCurrent(json.round.id);
+      expect(submitted.json.error.detail.error_class).toBe(errorClass);
+      expect(world.followUps.calls).toBe(calls);
+      expect(world.slept).toEqual(slept);
+      expect((await followUpRows(db))[0]).toMatchObject({ status: "missing", errorClass });
+    }));
+
+  it("stores the follow-up a second call produced: generated, and no 502", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const { json } = await world.startRound();
+      const generate = world.followUps.generate;
+      world.followUps.generate = async (input, options) => {
+        if (world.followUps.calls === 0) {
+          world.followUps.calls += 1;
+          throw new ModelCallFailed("Follow-up generation", "upstream_503");
+        }
+        return generate(input, options);
+      };
+      const { submitted } = await world.answerCurrent(json.round.id);
+      expect(submitted.status).toBe(200);
+      expect(submitted.json.next.kind).toBe("follow_up");
+      expect(world.followUps.calls).toBe(2);
+      expect((await followUpRows(db))[0]).toMatchObject({ status: "generated", errorClass: null });
+    }));
+
+  it.each([
+    ["realistic", "pressure"],
+    ["practice", "feedback"],
+  ] as const)("degrades next past the last question's missing follow-up in a %s round: %s", (mode, kind) =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const { json } = await world.startRound({ mode });
+      await world.answerPosition(json.round.id);
+      await world.answerPosition(json.round.id);
+      failFollowUps(world, "upstream_500");
+      const { answerId, submitted } = await world.answerCurrent(json.round.id, "The last one.");
+      expect(submitted.status).toBe(502);
+
+      const again = await world.call(world.handlers.submit, answerId, { transcript_corrected: "The last one." });
+      expect(again.json.next).toEqual({ kind });
+      expect(again.json.progress).toEqual({ position: 3, of: 3 });
+      // The round closes with the hole in it.
+      await world.drainAfter();
+      const completed = await world.call(world.handlers.complete, json.round.id, mode === "realistic" ? { felt_pressure: 3 } : {});
+      expect(completed.status).toBe(201);
+      expect(completed.json.scoring).toEqual({ ok: 5, pending: 0, failed: 0 });
+    }));
+
+  it("resumes on the stored follow-up: the same text on every read, and no model call", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const { json } = await world.startRound();
+      const { answerId, submitted } = await world.answerCurrent(json.round.id);
+      const [round] = await db.select().from(s.rounds).where(eq(s.rounds.id, json.round.id));
+
+      for (let read = 0; read < 2; read += 1) {
+        const frame = await roundFrame(db, world.userId, round);
+        expect(frame !== "complete" && frame.start).toEqual({
+          kind: "question",
+          position: 1,
+          text: FOLLOW_UP_TEXT,
+          followUpVersion: "follow-up-en-fake",
+          transcript: null,
+        });
+        expect(frame !== "complete" && frame.followUpVersions).toEqual(["follow-up-en-fake"]);
+      }
+      // A retried submit reads the same row too.
+      const again = await world.call(world.handlers.submit, answerId, { transcript_corrected: "I led the migration, um, in six months." });
+      expect(again.json.next).toEqual(submitted.json.next);
+      expect(world.followUps.calls).toBe(1);
+      expect(await count(db, s.followUps)).toBe(1);
+
+      // And with the follow-up's take transcribed, the reload lands on its transcript.
+      const slot = await world.call(world.handlers.open, json.round.id, SLOT);
+      world.store.put(world.store.presigned.at(-1)!.key, AUDIO);
+      await world.call(world.handlers.transcribe, slot.json.answer_id, {});
+      const frame = await roundFrame(db, world.userId, round);
+      expect(frame !== "complete" && frame.start).toMatchObject({
+        kind: "question",
+        position: 1,
+        text: FOLLOW_UP_TEXT,
+        transcript: { answerId: slot.json.answer_id },
+      });
+      expect(world.followUps.calls).toBe(1);
+    }));
+
+  describe("a submit that died between the answer's commit and its follow-up's row", () => {
+    /** The answer is committed and scored; the follow-up's own write fails, so no row exists. */
+    async function strand(world: World, roundId: string) {
+      const generate = world.followUps.generate;
+      world.followUps.generate = async (input, options) => {
+        world.fail.next = true;
+        return generate(input, options);
+      };
+      const stranded = await world.answerCurrent(roundId, "I owned the rollout.");
+      world.followUps.generate = generate;
+      return stranded;
+    }
+
+    it("is 500 write_failed with the answer saved, and the same body then writes the follow-up once", () =>
+      inRolledBackTransaction(async (db) => {
+        const world = await setUp(db);
+        const { json } = await world.startRound();
+        const { answerId, submitted } = await strand(world, json.round.id);
+        expect(submitted.status).toBe(500);
+        expect(submitted.json.error).toMatchObject({ code: "write_failed", detail: { answer_id: answerId, error_class: "pg_57014" } });
+        expect(await count(db, s.followUps)).toBe(0);
+        const [answer] = await db.select().from(s.answers).where(eq(s.answers.id, answerId));
+        expect(answer.transcriptCorrected).toBe("I owned the rollout.");
+        expect(await db.select().from(s.scoringAttempts)).toHaveLength(1);
+
+        const again = await world.call(world.handlers.submit, answerId, { transcript_corrected: "I owned the rollout." });
+        expect(again.status).toBe(200);
+        expect(again.json.next).toMatchObject({ kind: "follow_up", position: 1, parent_answer_id: answerId, text: FOLLOW_UP_TEXT });
+        expect(await count(db, s.followUps)).toBe(1);
+        // Still one attempt: the repeat made the follow-up, not a second scoring run.
+        expect(await db.select().from(s.scoringAttempts)).toHaveLength(1);
+      }));
+
+    it("reloads onto the saved answer, and neither a slot nor complete gets past it", () =>
+      inRolledBackTransaction(async (db) => {
+        const world = await setUp(db);
+        const { json } = await world.startRound();
+        const { answerId } = await strand(world, json.round.id);
+        const [round] = await db.select().from(s.rounds).where(eq(s.rounds.id, json.round.id));
+        expect((await readRoundStep(db, round)).kind).toBe("follow_up_due");
+
+        const frame = await roundFrame(db, world.userId, round);
+        expect(frame !== "complete" && frame.start).toEqual({
+          kind: "follow_up_due",
+          position: 1,
+          text: json.prompt.text,
+          answerId,
+          corrected: "I owned the rollout.",
+        });
+        // No second answer to the question, and no skipping its follow-up: only `submit` moves on.
+        const answersBefore = await count(db, s.answers);
+        const slot = await world.call(world.handlers.open, json.round.id, SLOT);
+        expect(slot.status).toBe(422);
+        expect(slot.json.error).toMatchObject({ code: "answer_already_submitted", detail: { round_id: json.round.id, answer_id: answerId } });
+        expect(await count(db, s.answers)).toBe(answersBefore);
+        const completed = await world.call(world.handlers.complete, json.round.id, { felt_pressure: 3 });
+        expect(completed.status).toBe(409);
+        expect(completed.json.error.code).toBe("round_not_complete");
+        expect(world.followUps.calls).toBe(1);
+      }));
+
+    it("generates nothing for an abandoned round: 409, no model call and no row", () =>
+      inRolledBackTransaction(async (db) => {
+        const world = await setUp(db);
+        const { json } = await world.startRound();
+        const { answerId } = await strand(world, json.round.id);
+        await abandonBy(world, db);
+
+        const again = await world.call(world.handlers.submit, answerId, { transcript_corrected: "I owned the rollout." });
+        expect(again.status).toBe(409);
+        expect(again.json.error.code).toBe("round_abandoned");
+        expect(world.followUps.calls).toBe(1);
+        expect(await count(db, s.followUps)).toBe(0);
+      }));
+  });
+
+  it("writes no row when the round is abandoned while the follow-up is being generated", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const { json } = await world.startRound();
+      const generate = world.followUps.generate;
+      world.followUps.generate = async (input, options) => {
+        await abandonBy(world, db);
+        return generate(input, options);
+      };
+      const { submitted } = await world.answerCurrent(json.round.id);
+      expect(submitted.status).toBe(409);
+      expect(submitted.json.error.code).toBe("round_abandoned");
+      expect(await count(db, s.followUps)).toBe(0);
+    }));
+
+  it("keeps the row a concurrent submit stored first: one follow-up, and this call returns it", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const { json } = await world.startRound();
+      // The other call's row lands while this one's generation is failing.
+      world.followUps.generate = async (input) => {
+        world.followUps.calls += 1;
+        const [parent] = await db.select({ id: s.answers.id }).from(s.answers).where(eq(s.answers.promptText, input.prompt));
+        await db.insert(s.followUps).values({
+          parentAnswerId: parent.id,
+          userId: world.userId,
+          status: "generated",
+          promptText: "What did the other call ask?",
+          modelId: world.followUps.modelId,
+          promptVersion: "follow-up-en-fake",
+        });
+        throw new ModelCallFailed("Follow-up generation", "upstream_400");
+      };
+      const { submitted } = await world.answerCurrent(json.round.id);
+      // Not a 502: this call's failure wrote nothing, so there is no hole to report.
+      expect(submitted.status).toBe(200);
+      expect(submitted.json.next).toMatchObject({ kind: "follow_up", text: "What did the other call ask?" });
+      expect(await count(db, s.followUps)).toBe(1);
+    }));
+
+  it("is 409 round_not_complete while a follow-up is unanswered", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const { json } = await world.startRound();
+      await world.answerPosition(json.round.id);
+      await world.answerPosition(json.round.id);
+      await world.answerCurrent(json.round.id);
+      const response = await world.call(world.handlers.complete, json.round.id, { felt_pressure: 3 });
+      expect(response.status).toBe(409);
+      expect(response.json.error.code).toBe("round_not_complete");
+    }));
+
+  it("shows each answer's follow-up on screen 8: asked with its scoring, or missing", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const { json } = await world.startRound();
+      await world.answerPosition(json.round.id);
+      const generate = world.followUps.generate;
+      failFollowUps(world, "upstream_400");
+      const second = await world.answerCurrent(json.round.id, "The second one.");
+      world.followUps.generate = generate;
+      await world.call(world.handlers.submit, second.answerId, { transcript_corrected: "The second one." });
+      await world.answerPosition(json.round.id);
+      await world.drainAfter();
+      await world.call(world.handlers.complete, json.round.id, { felt_pressure: 3 });
+
+      const [round] = await db.select().from(s.rounds).where(eq(s.rounds.id, json.round.id));
+      const screen = await feedbackScreen(db, round);
+      // One page per bank question; the follow-up hangs off it and is not a page of its own.
+      expect(screen.answers.map((answer) => answer.position)).toEqual([1, 2, 3]);
+      expect(screen.answers.map((answer) => answer.followUp)).toEqual([
+        { kind: "asked", text: FOLLOW_UP_TEXT, status: "ok" },
+        { kind: "missing" },
+        { kind: "asked", text: FOLLOW_UP_TEXT, status: "ok" },
+      ]);
+      expect(screen.stamps).toContain("follow-up-en-fake");
+    }));
+
+  it("carries no follow-up text into a log line or an error envelope", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const { roundId, answers } = await playThrough(world);
+      // Every refusal a follow-up's answer can meet, after the text exists.
+      await world.call(world.handlers.submit, answers[0].followUp!.answerId, { transcript_corrected: "Something else." });
+      world.fail.next = true;
+      await world.call(world.handlers.complete, roundId, { felt_pressure: 3 });
+      await world.drainAfter();
+      await world.call(world.handlers.complete, roundId, { felt_pressure: 3 });
+      expect(world.responses.some((text) => text.includes(FOLLOW_UP_SENTINEL))).toBe(true);
+      for (const text of logged) expect(text).not.toContain(FOLLOW_UP_SENTINEL);
+      // `next.text` returns the follow-up to its owner, by design; no error envelope carries it.
+      for (const text of world.responses) if (text.includes('"error"')) expect(text).not.toContain(FOLLOW_UP_SENTINEL);
     }));
 });
 

@@ -94,7 +94,7 @@ amending first.
 | Restrict, not cascade | Deleting a `questions` row that an answer references raises a foreign-key violation | Rewriting history by deleting a bank row |
 | Enumerated values | A value outside its list (`04` §0) in any enumerated `text` column raises a check violation | A misspelt `language` splitting one first-attempt series into two |
 | A round's questions are fixed | A second `round_questions` row at the same `(round_id, position)`, or the same question twice in one round, raises a unique violation | A refresh swapping a question already heard; a repeat inside a round |
-| One follow-up per answer | A second `follow_ups` row for one `parent_answer_id` raises a unique violation; `generated` with a null `prompt_text`, or `missing` with one, raises a check violation | A second follow-up; a hole that is not recorded as one |
+| One follow-up per answer | A second `follow_ups` row for one `parent_answer_id` raises a unique violation; `generated` with a null `prompt_text`, or `missing` with one, or `generated` with an `error_class`, raises a check violation; a row without `model_id` or `prompt_version` raises not-null; deleting its parent answer raises a restrict violation | A second follow-up; a hole that is not recorded as one |
 | Flag span sanity | `answer_flags.span_end <= span_start` raises a check violation | — |
 | One General practice | A second `role_contexts` row with `kind = 'general'` for one user raises a unique violation | General practice split across rows, and its rounds grouped as two |
 
@@ -339,6 +339,33 @@ restores it.
 
 ---
 
+### 3.19 Follow-ups (#44)
+
+`07` §5.9, with a fake follow-up generator. The pure derivation (`roundStep`) and the port's output
+check have unit tests of their own.
+
+- **`submit` writes the `follow_ups` row before it returns**, in both modes: `generated` with its text,
+  model, prompt version and tokens, and `next` is that row at **its parent's position**.
+- The generator is sent the question as asked and the **corrected** text, never the raw one, and is
+  **never called inside a transaction**.
+- **A follow-up's answer is never a first attempt**, realistic mode included, and its attempt's stamp 3
+  is the follow-up prompt's version; the other three stamps are the round's.
+- **No follow-up for a follow-up's own answer, or for an answer-again**: one row and one call per
+  bank question.
+- **A failed generation is a `missing` row** with its `error_class` and no text, after one retry — and
+  after none for a refusal a second call would get again. The call returns
+  `502 followup_generation_failed`; the same body again returns `200` with `next` degraded to
+  `question`, `pressure` or `feedback`, generates nothing, and the round completes with the hole.
+- **Resume reads the stored follow-up**: the same text on every read, no model call.
+- A `submit` whose follow-up write failed leaves the answer committed and no row: the round reloads
+  onto the saved answer, the slot is `422` and `complete` is `409`, and the same body again writes
+  the follow-up exactly once. A row a concurrent `submit` stored first is kept, and returned.
+- **An abandoned round gets no follow-up**: no call when it is abandoned before generation, no row
+  when it is abandoned during it.
+- Screen 8 reads each answer's follow-up as asked, with its own scoring status, or as missing.
+- **No follow-up text reaches a log line or an error envelope** (§3.10); `next.text` returns it to its
+  owner, by design.
+
 ## 4. End-to-end, in Playwright
 
 Chromium, fake media device, S3 PUT and OpenAI intercepted. What this pass exists to catch is the
@@ -357,6 +384,9 @@ wiring between screens that no unit test sees.
 | Screen 7 is not skippable | Realistic mode offers no way past the felt-pressure rating to feedback. **This screen is load-bearing for latency** (`03` §3) as well as for the brief's falsification test — a future "skip" link is a regression in two places at once. |
 | Pending score renders | The feedback screen states a pending score plainly and **does not spin** (`03` §5, §8). |
 | Resume | Reload mid-round returns to **the same** question, with earlier answers intact. Starting another round, then opening the first, shows it read-only as abandoned. |
+| Follow-up | Each question is followed by its one follow-up at the same position, named in the header; a reload on it shows the same text and makes no generator call; screen 8 shows it as a row under its answer's scores. |
+| Missing follow-up | With the fake generator failing, screen 6 says the follow-up was not generated, the answer is locked, and one control goes on to the next question; screen 8 shows the gap on that answer. |
+| Follow-up not stored | A reload onto an answer committed without its follow-up shows the saved answer and one control, which writes the follow-up and asks it. |
 | Spoken question | Realistic mode requests the speech route for the prompt on screen, by position; practice mode never requests it. |
 | Feedback not ready | With the fake feedback generator failing, screen 8 renders every score, a plain pending sentence and a retry — **no spinner** — and the retry fills the round-level region. |
 | Practice frame | After a practice submit, the per-answer frame states the score as pending, then shows it once scored; "answer again" writes a second answer at the same position with no follow-up. |
@@ -378,7 +408,7 @@ either irreducibly human or need a real human ear.
 - [ ] Real mic, real Chrome, real 4-minute take: audio uploads, transcribes, and plays back from History.
 - [ ] Japanese transcription is good enough to correct rather than retype — on **spoken keigo**, which is the hardest case and the one the rubric scores.
 - [ ] Realistic mode's TTS pronounces the question correctly, including company names and 役職 — in both languages, with the model pinned in `lib/ai/models.ts`.
-- [ ] **The round loop's latencies are measured and recorded in `03` §4** — scoring, follow-up generation, round feedback, question generation, transcription and TTS — before the loop is built beyond its tracer (`06`, 2026-09-27). Re-measured whenever a model or prompt for one of them changes.
+- [ ] **The round loop's latencies are measured and recorded in `03` §4** — scoring, follow-up generation, round feedback, question generation, transcription and TTS — before release. Re-measure changed models or prompts; the Japanese follow-up awaits #43, and `feedback-en-1.1` has not been re-measured (`06`, #44).
 - [ ] **The rubric v1.0 read**: the user has reviewed every dimension's per-level anchors in both languages, and the Japanese has had its native read, before it is seeded anywhere real.
 - [ ] The felt-pressure screen still feels unhurried. It is instrumentation and it is where the last score lands; if it starts feeling like a loading screen, both purposes are damaged.
 - [ ] Feedback renders **while you are still sitting there.** PRD §9 calls a spinner that outlives the sitting a defect — this is the acceptance test for that sentence, and no automated test can make it.

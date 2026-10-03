@@ -201,15 +201,17 @@ Five text jobs on one pinned model, and three more on models of their own:
 against OpenAI, five runs of each, from the development machine, the way #20 measured extraction. Synthetic
 answers of the lengths a realistic round produces (one to three and a half minutes spoken). Scoring
 and round feedback ran through the real ports and prompts (`score-en-1.0`, `feedback-en-1.0`);
-**follow-up and question generation ran draft prompts**, since their ports do not exist yet (#44,
-#47), so theirs are the right order of magnitude, not the final figures. Transcription read takes
-synthesised by TTS and re-encoded to webm/opus by ffmpeg, the browser's format.
+**question generation ran a draft prompt**, since its port does not exist yet (#47), so its figures
+are the right order of magnitude, not the final ones. **Follow-up generation was re-measured on
+2026-10-03 (#44)** through its real port and `follow-up-en-1.0`, the same way; the Japanese prompt is
+not measured until a Japanese round exists (#43). Transcription read takes synthesised by TTS and
+re-encoded to webm/opus by ffmpeg, the browser's format.
 
 | Job | Model | n | median | p90 | slowest | tokens in / out |
 | --- | --- | --- | --- | --- | --- | --- |
 | Answer scoring | `gpt-5.6-sol` | 15 | 7.1 s | 9.1 s | **38.1 s** | 1,812 / 440 |
 | Round feedback, 3 answers | `gpt-5.6-sol` | 5 | 10.0 s | 10.7 s | 11.0 s | 1,370 / 477 |
-| Follow-up generation (draft) | `gpt-5.6-sol` | 15 | 3.1 s | 3.7 s | 4.8 s | 411 / 88 |
+| Follow-up generation | `gpt-5.6-sol` | 15 | 3.2 s | 4.2 s | 4.7 s | 685 / 124 |
 | Question generation, 3 (draft) | `gpt-5.6-sol` | 5 | 2.8 s | 2.8 s | 2.8 s | 150 / 83 |
 | Question generation, 7 (draft) | `gpt-5.6-sol` | 5 | 4.0 s | 5.5 s | 6.1 s | 150 / 166 |
 | Embeddings, 7 questions | `text-embedding-3-small` | 5 | 0.2 s | 0.2 s | 0.2 s | — |
@@ -228,6 +230,8 @@ What they settle:
   take about 4 s, beside a preflight the round already waits for.
 - **The user's waits inside a round are short**: a near-cap take transcribes in about 6 s, a follow-up
   about 3 s. TTS starts playing in about a second; #45 pins the speech model and may re-measure.
+- **A follow-up call is bounded at 15 s with one retry** (`07` §5.9): about three times the slowest
+  call seen. Past that the follow-up is recorded as missing and the round goes on.
 - **Scoring's slowest call is the one to watch.** One in fifteen took five times the median, with no
   error. It is why the bound has a margin, and why scoring runs in `after()` rather than in front of
   the user.
@@ -494,11 +498,12 @@ other client cache, router or global store.
   state.
 - **The transcript editor** — the edit buffer and the live rewrite-magnitude meter (screen 6).
 
-**A round survives a refresh.** Every answer is written server-side at submit, and every question the
-round asks was fixed when it started (`round_questions`, `follow_ups`), so the round's position and
-its prompt are database facts, not client facts. Reloading mid-round resumes at the current question,
-**the same question**. An in-flight recording is the one thing that does not survive, and the UI says
-so before recording.
+**A round survives a refresh.** Every answer is written server-side at submit. Bank questions are
+fixed when the round starts (`round_questions`); a follow-up is fixed when its parent answer is
+submitted (`follow_ups`). The round's position and any stored prompt are database facts, not client
+facts. Reloading mid-round resumes at the same prompt, or at the saved answer if its follow-up has
+not been stored yet (`07` §5.5). An in-flight recording is the one thing that does not survive, and
+the UI says so before recording.
 
 **Only the newest open round resumes, and only on the day it started** (`06`, 2026-09-27). Starting a
 new round abandons any open one, and an open round from an earlier day is abandoned too — the day

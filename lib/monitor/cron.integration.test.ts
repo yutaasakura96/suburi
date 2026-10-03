@@ -298,7 +298,19 @@ describe("self-check", () => {
         await tokenQuestion(db, world, WEEK_START, 100_000, 0); // $0.40
         // A round started last week whose attempt and feedback land this week count this week.
         const old = await round(db, world, { startedAt: at(-7 * 24 * HOUR), completedAt: at(-HOUR) });
-        await attempt(db, world, await answer(db, world, old), { status: "ok", tokensIn: 100_000, createdAt: at(-HOUR) });
+        const answered = await answer(db, world, old);
+        await attempt(db, world, answered, { status: "ok", tokensIn: 50_000, createdAt: at(-HOUR) }); // $0.20
+        // Its follow-up's generation is a token row of its own (04 `follow_ups`), a missing one included.
+        await db.insert(s.followUps).values({
+          parentAnswerId: answered,
+          userId: world.userId,
+          status: "missing",
+          modelId: CV_EXTRACTION_MODEL,
+          promptVersion: "follow-up-fixture",
+          tokensIn: 50_000,
+          errorClass: "malformed_output",
+          createdAt: at(-HOUR),
+        }); // $0.20
         await feedback(db, old, { tokensOut: 20_000, createdAt: at(-HOUR) }); // $0.40
 
         const { spend_week_to_date_usd: reading } = await selfCheck(db, world.userId);

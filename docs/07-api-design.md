@@ -543,6 +543,12 @@ database facts.
 when a follow-up is next — never selected or generated again. A follow-up shares its parent's
 `position` (`06`, 2026-09-27, confirm 3).
 
+**A submitted answer whose follow-up is not stored yet resumes at `submit`** (`06`, 2026-10-03): a
+`submit` that died between its commit and the follow-up's row leaves a bank-question answer with no
+`follow_ups` row. The read returns `prompt: null` and `resume: { "at": "submit", "answer_id": … }`,
+and the same body sent again writes the row (§5.9). Resume never generates one itself, and never
+moves past it.
+
 `state` is derived, not stored: `open` (row exists, no audio) → `uploaded` (`audio_s3_key` set) →
 `transcribed` (`transcript_raw` set) → `submitted` (`transcript_corrected` set). `resume.at` tells the
 client which of the four calls to make next.
@@ -615,7 +621,12 @@ Failures: `422 upload_too_large` (the take's size against `max_bytes`, **after r
 upload** — the take is still in the browser); `422 unsupported_content_type`;
 `409 round_already_complete`; `409 round_abandoned` (§5.5); `502 presign_failed` — the slot is kept, and the retry lands on it;
 `422 answer_already_submitted` when every position is already submitted — there is no slot left to
-open; `422 transcript_already_final` when the open slot's take is already transcribed.
+open — **or when the current position's answer is submitted and its follow-up is not stored yet**
+(§5.5): `detail` carries that `answer_id`, and no second answer to the question is opened;
+`422 transcript_already_final` when the open slot's take is already transcribed.
+
+**A follow-up's slot** returns `"kind": "follow_up", "question_id": null, "parent_answer_id": "c003…"`,
+its parent's `position`, and `is_first_attempt: false` in both modes.
 
 `audio_s3_key` is written when the slot opens, before the upload: the key is server-derived and fixed
 for the row, so a retried open presigns the same one.
@@ -677,7 +688,7 @@ POST /api/answers/c003e8a2-…/submit
   "rewrite_magnitude": 0.12,
   "scoring": { "attempt_id": "s903…", "status": "pending" },
   "next": { "kind": "follow_up", "position": 2, "parent_answer_id": "c003e8a2-…",
-            "follow_up_id": "f210…",
+            "follow_up_id": "f210…", "prompt_version": "follow-up-ja-1.0",
             "text": "その40%という数字は、どう測ったものですか。", "speak": true },
   "progress": { "position": 2, "of": 5 } }
 ```
@@ -689,7 +700,8 @@ computed server-side and returned so screen 6's meter and the stored value canno
 at round end would put a reasoning model on the critical path of a screen PRD §9 requires to render
 while the user is still at the machine. So `submit` creates the `scoring_attempts` row — `status:
 'pending'`, all four stamps written, **stamp 3 from the question row or, for a follow-up, from its
-`follow_ups` row** — and returns immediately. By round end, all but the last score are already rows and
+`follow_ups` row** — and dispatches scoring immediately, while `submit` waits for follow-up generation
+after the answer's commit. By round end, all but the last score are already rows and
 the feedback screen is a read. *(Seven questions and seven follow-ups make at most 14 answers a round —
 not the "sixteen" this used to say, confirm 7. Practice retries add rows without adding follow-ups.)*
 
@@ -712,15 +724,41 @@ requires one (`04` §6).
 **No follow-up is generated for** a follow-up's own answer, or for practice's "answer again" (§5.6).
 A retry's `next` is whatever the round was already on.
 
-**Its latency, measured with a draft prompt** (`03` §4, 2026-10-01): 3.1 s median, 4.8 s slowest of
-15. The user waits for it inside a timed round; #44 re-measures it with the real prompt.
+**What the generator reads** (`06`, 2026-10-03): the round type, the question exactly as it was
+asked, and the **corrected** transcript — never the raw one, and nothing else. No CV, no rubric, no
+earlier answer. What comes back is checked before it is stored: one question, not blank, at most 400
+code points. English ends in `?`; Japanese ends in a question mark or `か。`. A second sentence or
+question is refused: a full stop followed by a space ends a sentence, whatever the case of the next
+word. A full stop inside a figure, or closing a known abbreviation or a single-letter initial, is
+not one. The abbreviation list is finite, so an unlisted one loses its follow-up as `missing`, and a
+single-letter initial before a second sentence still passes. Anything else is
+`malformed_output`, and counts as a failed call. **One sentence that asks two things is not
+detected** — a rule on "and" would refuse valid single questions — and is left to the prompt.
+
+**The order of the writes.** The answer's commit — corrected text and scoring attempt — is one
+transaction, and scoring is scheduled from it. The follow-up is then generated **outside any
+transaction** and stored in a second one, which locks the round and refuses an abandoned one.
+`follow_ups.parent_answer_id` is unique, so a concurrent `submit` that stored first keeps its row and
+this call returns that one. `next` is computed from the stored rows, never from the request.
+
+**Its latency, measured with `follow-up-en-1.0`** (`03` §4, 2026-10-03): 3.2 s median, 4.7 s slowest
+of 15. The user waits for it inside a timed round, so the call is bounded on its own: **15 s, and one
+retry after 1 s** when the failure is one a second call could get past (not a `4xx` other than `408`,
+`409` or `429`). After that the follow-up is `missing`.
 
 Failures: `400 invalid_request` naming `transcript_raw` when the answer has no transcript yet — there
 is nothing to correct; `422 answer_already_submitted` (idempotent alternative: the same body returns `200` with the
 existing attempt — a different body is the `422`); `409 round_already_complete`; `409 round_abandoned` (§5.5); `502 followup_generation_failed`, which is **not
-fatal** — the answer is saved and scored, the `missing` row is written, and `next` degrades to
-`question`, `pressure` or `feedback`. A missing follow-up costs one prompt; a lost answer costs a
-measurement.
+fatal** — the answer is saved with scoring scheduled, and the `missing` row is written. A missing follow-up costs
+one prompt; a lost answer costs a measurement.
+
+**The `502` is returned once, by the call that wrote the `missing` row** (`06`, 2026-10-03), with
+`detail: { answer_id, attempt_id, error_class }` — an envelope carries no `next` (§2). **The same body
+sent again is the `200`**, with `next` degraded: that is the idempotent repeat above, reading the
+stored row, and it generates nothing. The same repeat is what completes a `submit` that died before
+its follow-up was stored (§5.5): the row is written then, by `submit`, and by nothing else. A
+`500 write_failed` on the follow-up's own write leaves the answer committed and no `follow_ups` row,
+which is that same state.
 
 ### 5.10 `POST /api/scoring-attempts/{attemptId}/run` ⚡
 
@@ -872,7 +910,9 @@ shows every score that landed and a pending round-level note, and generation is 
 - Already complete → `409 round_already_complete`, with `detail.has_feedback` saying whether the
   feedback exists. The envelope's `detail` is flat (§2), so it cannot carry the feedback itself;
   screen 8 reads it from the round (`06`, 2026-10-01).
-- Not all answers submitted → `409 round_not_complete`.
+- Not all answers submitted → `409 round_not_complete`. A position counts once its question is
+  submitted and its follow-up is either answered or `missing`; a follow-up unanswered, or not stored
+  yet, keeps the round open.
 - Abandoned (§5.5) → `409 round_abandoned`. **An abandoned round is never completed**, and nothing is
   written.
 - Feedback could not be generated → `502 feedback_generation_failed`, as above.

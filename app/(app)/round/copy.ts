@@ -46,9 +46,10 @@ export const SETUP_COPY = {
   start: "Start this round",
   starting: "Fixing the questions for this round.",
   commits: "Starting fixes the questions and scores every answer against this CV version and rubric.",
-  // 10 §2: derived, never written — length × (1 + follow-ups) × the per-answer cap. No follow-up yet (#44).
+  // 10 §2: derived, never written — length × (1 + follow-ups) × the per-answer cap, one follow-up
+  // per question.
   estimate: (length: number, capMinutes: number) =>
-    `${length} questions · up to about ${length * capMinutes} min`,
+    `${length} questions + ${length} follow-ups · up to about ${length * 2 * capMinutes} min`,
   rubricStamp: (label: string) => `Rubric ${label}`,
   noCv: "An English round is scored against an English CV, and there is none yet.",
   noCvLink: "Save one on the CV screen",
@@ -66,6 +67,8 @@ export const ROUND_COPY = {
     realistic: "Realistic",
     meta: (length: number) => `English · Realistic · ${length} questions`,
     step: (position: number, of: number) => `Question ${position} / ${of}`,
+    // A follow-up shares its question's position (06, 2026-09-27): the same step, named as a follow-up.
+    followUpStep: (position: number, of: number) => `Question ${position} / ${of} · follow-up`,
 
     // 10 §3–§5, the footer every record frame carries but the transcript one.
     withheld: "The feedback comes together when the round ends. Nothing is shown along the way.",
@@ -103,8 +106,14 @@ export const ROUND_COPY = {
       "Not used in scoring or in progress. Kept to review recognition accuracy later.",
     ],
     send: "Send this answer",
+    // 10 §6: a question's answer makes one follow-up; a follow-up's own answer makes none.
+    sendCaptionFollowUp: "Sending writes one follow-up question from the text you just corrected.",
     sendCaption: "Sending scores this answer while you go on. Nothing about it is shown until the round ends.",
+    sendingForFollowUp: "Sending. The follow-up question is being written.",
     sending: "Sending.",
+    followUpNotStored: "Your answer is saved. Its follow-up question had not been written when this page loaded.",
+    goOn: "Go on",
+    goOnCaption: "The answer above is saved and scored as it is. It cannot be changed.",
     emptyAnswer: "The answer is empty. Keep what you said, corrected.",
 
     beforeFeedback: "Before the feedback",
@@ -144,6 +153,11 @@ export const ROUND_COPY = {
         .join(" · "),
     notScored: "Not scored",
     notScoredYet: "Not scored yet",
+    followUp: "└ Follow-up",
+    followUpScored: (dimensions: number) => `Scored on ${dimensions} dimensions. Not counted in progress.`,
+    followUpNotScoredYet: "Not scored yet. Not counted in progress.",
+    followUpNotScored: "Not scored. Not counted in progress.",
+    followUpMissing: "The follow-up was not generated. It is recorded as a gap.",
     toFix: (n: number) => `To fix ${n}`,
     whatWorked: "What worked 1",
     findingsNotReady:
