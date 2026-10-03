@@ -192,24 +192,12 @@ test("practice asks one follow-up, then moves to the next question", async ({ pa
   expect(followUpCalls()).toHaveLength(1);
 });
 
-test("two generated questions are recorded as a missing follow-up", async ({ page }) => {
-  await signIn(page);
-  const roundId = await startRound(page);
-  followUpMalformed = true;
-  await page.goto(`/round/${roundId}`);
-  await answerInBrowser(page);
-  await expect(page.getByTestId("follow-up-notice")).toContainText("could not be generated");
-  await page.screenshot({ path: test.info().outputPath("screen6-malformed-follow-up.png"), fullPage: true });
-  const rows = await withDb((db) => db.select({ status: s.followUps.status, errorClass: s.followUps.errorClass }).from(s.followUps));
-  expect(rows).toEqual([{ status: "missing", errorClass: "malformed_output" }]);
-  await page.getByRole("button", { name: "Go on" }).click();
-  await expect(page.getByTestId("round-step")).toHaveText("Question 2 / 3");
-});
-
 test("a realistic English round: Setup → each question and its follow-up → pressure → feedback, all six rows", async ({ page }) => {
   test.setTimeout(180_000);
   await signIn(page);
   const userId = await seededUserId();
+  // The mock is shared across this file: count only the calls this round makes.
+  const followUpsBefore = followUpCalls().length;
 
   await page.goto("/");
   await page.getByRole("link", { name: "Start a round" }).click();
@@ -282,7 +270,7 @@ test("a realistic English round: Setup → each question and its follow-up → p
   const scoring = openAi.requests.filter((request) => formatOf(request.body) === "answer_scores");
   expect(scoring.length).toBeGreaterThanOrEqual(6);
   // So did the follow-up generator: one call per question's answer, none for a follow-up's own.
-  const generated = followUpCalls().filter((request) => JSON.stringify(request.body).includes("payments migration"));
+  const generated = followUpCalls().slice(followUpsBefore).filter((request) => JSON.stringify(request.body).includes("payments migration"));
   expect(generated).toHaveLength(3);
   for (const request of [...scoring, ...generated]) {
     expect(JSON.stringify(request.body)).toContain("payments migration");
@@ -292,6 +280,26 @@ test("a realistic English round: Setup → each question and its follow-up → p
   // A completed round's page is its feedback.
   await page.goto(`/round/${roundId}`);
   await expect(page).toHaveURL(`/round/${roundId}/feedback`);
+});
+
+test("two generated questions are recorded as a missing follow-up", async ({ page }) => {
+  await signIn(page);
+  const roundId = await startRound(page);
+  followUpMalformed = true;
+  await page.goto(`/round/${roundId}`);
+  await answerInBrowser(page);
+  await expect(page.getByTestId("follow-up-notice")).toContainText("could not be generated");
+  await page.screenshot({ path: test.info().outputPath("screen6-malformed-follow-up.png"), fullPage: true });
+  const rows = await withDb((db) =>
+    db
+      .select({ status: s.followUps.status, errorClass: s.followUps.errorClass })
+      .from(s.followUps)
+      .innerJoin(s.answers, eq(s.answers.id, s.followUps.parentAnswerId))
+      .where(eq(s.answers.roundId, roundId)),
+  );
+  expect(rows).toEqual([{ status: "missing", errorClass: "malformed_output" }]);
+  await page.getByRole("button", { name: "Go on" }).click();
+  await expect(page.getByTestId("round-step")).toHaveText("Question 2 / 3");
 });
 
 test("screen 7 cannot be skipped: the feedback URL sends an unrated round back to it", async ({ page }) => {
