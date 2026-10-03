@@ -26,6 +26,7 @@ export const MODES = ["practice", "realistic"] as const;
 export const QUESTION_ORIGINS = ["set_piece", "generated"] as const;
 export const ROLE_CONTEXT_KINDS = ["posting", "researched", "general"] as const;
 export const SCORING_STATUSES = ["pending", "ok", "failed"] as const;
+export const FOLLOW_UP_STATUSES = ["generated", "missing"] as const;
 export const CITATION_RELATIONS = ["supported_by", "contradicted_by"] as const;
 export const CV_DOCUMENT_KINDS = ["rirekisho", "shokumu_keirekisho", "cv", "additional"] as const;
 // Every ⚡ route (07 §1 rule 5). A new one extends this list in its own migration.
@@ -415,6 +416,42 @@ export const answers = pgTable(
     // "Has this question been answered in this language, in either mode?" — first attempts and
     // unseen-first selection (04 §3).
     index("answers_question_id_language_idx").on(t.questionId, t.language),
+  ],
+);
+
+// Append-only: the one follow-up generated from one answer, or the record that it is missing (04).
+// A generation failure is a row, never an absence, and nothing backfills it.
+export const followUps = pgTable(
+  "follow_ups",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    parentAnswerId: uuid("parent_answer_id")
+      .notNull()
+      .references(() => answers.id, { onDelete: "restrict" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    status: text("status", { enum: FOLLOW_UP_STATUSES }).notNull(),
+    // The follow-up as asked. Null exactly when missing.
+    promptText: text("prompt_text"),
+    // Exact pinned string, never an alias.
+    modelId: text("model_id").notNull(),
+    // Stamp 3 for the follow-up's own answer.
+    promptVersion: text("prompt_version").notNull(),
+    tokensIn: integer("tokens_in"),
+    tokensOut: integer("tokens_out"),
+    // Class only, never the model's output.
+    errorClass: text("error_class"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    unique("follow_ups_parent_answer_id_unique").on(t.parentAnswerId),
+    oneOf("follow_ups", "status", t.status, FOLLOW_UP_STATUSES),
+    check(
+      "follow_ups_generated_has_text_check",
+      sql`(${t.status} = 'generated') = (${t.promptText} is not null)`,
+    ),
+    check("follow_ups_error_class_missing_check", sql`${t.status} = 'missing' or ${t.errorClass} is null`),
   ],
 );
 

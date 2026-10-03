@@ -291,8 +291,8 @@ response (`06`, 2026-09-29). The current-version selection rule is in `04` `cron
 
 **The round-cost baseline is a constant, not a measurement yet** (`06`, 2026-09-29). It is set from
 `03` §6's estimate, **about $0.40 a round**, because no real round exists to measure. Spend is counted
-from every stored `tokens_in`/`tokens_out` row — `questions`, `scoring_attempts`, `round_feedback`,
-and `follow_ups` once built (`04`) — each counted in the week of its own `created_at`, with no round
+from every stored `tokens_in`/`tokens_out` row — `questions`, `scoring_attempts`, `round_feedback`
+and `follow_ups` (`04`) — each counted in the week of its own `created_at`, with no round
 attribution. The threshold is 3× the baseline × max(1, rounds started that week). Rows are priced
 by per-model constants beside the pinned strings in `lib/ai/models.ts`. Transcription, speech, embeddings and CV extraction
 store no tokens and are not in it, so the threshold is loose until it is re-measured: **after eight

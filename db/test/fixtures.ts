@@ -129,3 +129,19 @@ export async function insertAttempt(db: TestDb, world: World, answerId: string) 
     .returning({ id: s.scoringAttempts.id });
   return row.id;
 }
+
+export function followUpValues(
+  world: World,
+  parentAnswerId: string,
+  overrides: Partial<typeof s.followUps.$inferInsert> = {},
+) {
+  return {
+    parentAnswerId,
+    userId: world.userId,
+    status: "generated",
+    promptText: "その判断は誰が下したのですか。",
+    modelId: "fixture-model-2026-01-01",
+    promptVersion: "follow-up-fixture",
+    ...overrides,
+  } satisfies typeof s.followUps.$inferInsert;
+}

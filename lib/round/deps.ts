@@ -1,4 +1,5 @@
 import { after } from "next/server";
+import { openAiFollowUpGenerator } from "../ai/follow-up";
 import { openAiModelHealth } from "../ai/health";
 import { openAiRoundFeedbackGenerator } from "../ai/round-feedback";
 import { openAiAnswerScorer } from "../ai/score";
@@ -31,6 +32,7 @@ export function roundDeps() {
     scorer: openAiAnswerScorer(openAi),
     transcriber: openAiTranscriber(openAi),
     generator: openAiRoundFeedbackGenerator(openAi),
+    followUpGenerator: openAiFollowUpGenerator(openAi),
     store: s3AudioStore({
       region: config.AWS_REGION,
       bucket: config.S3_BUCKET,

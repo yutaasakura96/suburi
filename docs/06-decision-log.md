@@ -3,6 +3,92 @@
 Newest first. Every entry records what was chosen, why, and what was rejected.
 
 ---
+## Phase 6 — #44, follow-ups
+
+One follow-up per answer, in both modes: generated at `submit` from the corrected text, stored in
+`follow_ups` or stored as missing, answered and scored like any answer, and never in Progress. The
+shape was settled on 2026-09-12 and 2026-09-27 (below); these are the choices the build needed.
+
+### [2026-10-03] A missing follow-up is a `502` once; the same body again is the `200`
+
+`07` §5.9 said both that a failed generation is `502 followup_generation_failed` and that `next`
+degrades — and an error envelope has a flat `detail` and no `next` (#13). So **the call that writes
+the `missing` row returns the `502`**, with `detail: { answer_id, attempt_id, error_class }`, and **the
+same body sent again returns the `200`** with `next` degraded to `question`, `pressure` or `feedback`,
+read from the stored row. Screen 6 says the follow-up was not generated and offers one control, which
+is that repeat — the hole is said, not skipped past (US-7). **Rejected:** a `200` with a `missing`
+flag on the first call (the catalogue's `502` would then be unreachable, and the failure a field a
+client can ignore), and a `next` inside the envelope (a second response shape for one code).
+
+### [2026-10-03] `submit` alone writes a follow-up, and its repeat completes one left unwritten
+
+The answer's commit and the follow-up are two transactions with a model call between them, so a
+`submit` can die after the first. **The round then stands at "follow-up due"**: the question is
+submitted and has no `follow_ups` row. Nothing else may produce it — resume reads it, the slot
+copies it — so **the same `submit` sent again generates and stores it**, and until then the slot
+refuses (`422 answer_already_submitted`, with the `answer_id`) and `complete` refuses
+(`409 round_not_complete`). The round page reloads onto the saved answer with one control, which
+sends that repeat. `follow_ups.parent_answer_id` is unique and the insert yields to a row already
+there, so two repeats at once store one follow-up and both return it. **Rejected:** generating in
+the answer's own transaction (a model call inside a transaction, `07` §1), and generating on resume
+or in the slot (three writers of one row, and a reload that costs a model call).
+
+### [2026-10-03] Where a round is, is one derivation: a position is its question, then its follow-up
+
+`roundStep` reads the round's answers and `follow_ups` rows and returns the one thing to do next.
+Per position: the bank question's answer; then its `follow_ups` row — absent is "due", `missing`
+ends the position, `generated` is asked; then the next position. **Only an original answer to a bank
+question is ever looked up for a follow-up**, so "no follow-up for a follow-up's own answer or for
+practice's answer-again" is how the derivation is built, not a rule a caller remembers. Handlers and
+the round page read the same function. A position's answers are ordered question first, then
+follow-up, then by `created_at`: they share the position, and a round's rows written in one
+transaction share a timestamp.
+
+### [2026-10-03] A follow-up call is bounded at 15 s, with one retry
+
+Measured through the real port and `follow-up-en-1.0`, 15 calls on synthetic answers (`03` §4):
+3.2 s median, 4.7 s slowest, 685 tokens in and 124 out. The user waits for this call inside a round,
+so it has its own bound, about three times the slowest seen, and **one retry after 1 s** when the
+failure is one a second call could get past — not a `4xx` other than `408`, `409` or `429`. Then the
+follow-up is missing. **Rejected:** scoring's three retries with 2, 4 and 8 s backoff (fourteen
+seconds of waiting before a call that may also fail, for one prompt), and no retry (a single `503`
+would cost the follow-up). **`follow-up-ja-1.0` is written and not measured**: no Japanese round
+exists until #43, which is also where its output gets its native read.
+
+### [2026-10-03] The follow-up prompt reads the question and the corrected answer, and nothing else
+
+The round type, the question as asked, the corrected transcript. No CV, no role context, no rubric,
+no earlier answer: a follow-up digs into what was just said, and grounding arrives with #46 as a new
+prompt version if it arrives. The output is checked before it is stored — one question, not blank,
+at most 400 code points, several times the 30 words or 60 characters the prompts ask for — so a
+runaway output is a failed call, not a prompt put to the user. The model is `FOLLOW_UP_MODEL`, the
+same pinned string as scoring, in `lib/ai/models.ts`.
+
+### [2026-10-03] Round feedback reads follow-up answers too: `feedback-en-1.1`
+
+A follow-up's answer is scored like any other, so it is sent to the feedback generator, under its
+parent's number: `=== answer 2, follow-up ===`. `feedback-en-1.1` says what that block is and how to
+point at it; `1.0` is untouched, and `round_feedback.prompt_version` says which wrote a row. A
+7-question round now sends up to 14 answers. **Not re-measured:** the feedback call's latency was
+measured on three answers (2026-10-01) and its 120 s timeout is unchanged.
+
+### [2026-10-03] Follow-up tokens count toward the week's spend
+
+`follow_ups.tokens_in`/`tokens_out` join the digest's token union (`12` §6), priced by `model_id`
+like the rest. A `missing` row stores no tokens: a failed call returns no usage.
+
+### [2026-10-03] Follow-up details the screens needed in English
+
+The round header's step reads `Question 2 / 3 · follow-up`: the follow-up shares its question's
+position, so it shares its number. Screen 6's caption names the follow-up only when one will be
+written — not under a follow-up's own answer. A committed answer whose follow-up is missing or not
+yet stored is a locked frame with one control, `Go on`. Screen 8's follow-up row reads `Scored on 6
+dimensions. Not counted in progress.`, `Not scored yet.` or `Not scored.` with the same second
+sentence; a missing one reads `The follow-up was not generated. It is recorded as a gap.` in the
+attention ink (`10` §8). Setup's estimate is `3 questions + 3 follow-ups · up to about 24 min`
+(`10` §2). An abandoned round is sent no follow-up call and gets no row.
+
+---
 ## Phase 6 — #42, the round-loop tracer
 
 The thinnest round, end to end: realistic, English, `hr`, length 3, General practice, rubric `en` v1.0.
