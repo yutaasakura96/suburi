@@ -29,10 +29,11 @@ re-measure.
 **The round loop is planned:** grilled 2026-09-27, its decisions written into the docs, and its
 eleven slice issues confirmed on 2026-09-28 and labeled `ready-for-agent`, #41–#51, the user's own
 steps marked in each (Next).
-**#42, the round-loop tracer, is built (2026-10-01), on `fm/suburi-42`:** an English realistic round
-end to end, its latencies measured (`03` §4). Two steps are the user's before it closes: reviewing
-rubric `en` v1.0, and the proof round on `develop` (Next).
-**Updated:** 2026-10-01 (#42 built; #55 and #56 on 2026-09-30)
+**#42, the round-loop tracer, is closed:** built on `fm/suburi-42`, merged into `develop`, and proved
+by the owner's real English round there on 2026-10-03; its latencies were measured (`03` §4).
+**#46, CV grounding, is built (2026-10-03), on `fm/suburi-46`:** citations, unsupported spans, untouched
+material, the wrong-language reading and coverage marks on `/cv` (Next).
+**Updated:** 2026-10-03 (#46 built; #42 closed; #55 and #56 on 2026-09-30)
 
 ## Done
 - Phase 1 — `docs/01-project-brief.md`, `docs/02-product-requirements.md`, `docs/06-decision-log.md`.
@@ -339,7 +340,7 @@ without a score that ended `failed`, which is retried alone; "today" is Asia/Tok
 confirmed the slices, and #41–#51 moved from `needs-triage` to `ready-for-agent`. Slice 0 (#41) is the user's own
 console work and takes `12` §3 steps 3–5 out of #21, whose body now points at it.
 
-**#42 is built (2026-10-01), on `fm/suburi-42`, and waits on two steps of the user's.** Built: migration
+**#42 is closed:** built on `fm/suburi-42` and merged into `develop`. Built: migration
 `0007` (`round_questions`, stamp 3 `not null` on `questions` and `scoring_attempts`, the
 General-practice index, the round routes' limiter names); rubric `en` v1.0 and the English set pieces
 in `lib/`; 17 synthetic English bank questions seeded on `develop` only; `POST /api/role-contexts`
@@ -348,12 +349,31 @@ in `lib/`; 17 synthetic English bank questions seeded on `develop` only; `POST /
 correction with the live meter, felt pressure, feedback with six rows, the fix list, what worked and
 "findings not ready" or, when no answer scored, "findings unavailable"; integration tests for every route and a Playwright round with a fake microphone
 and mock S3 and OpenAI. **Measured** (`scripts/measure-round-latency.mts`, `03` §4): scoring 7.1 s
-median and 38.1 s slowest, so `complete` waits 60 s (`07` §5.12). **The user's steps:** (1) review
-`lib/rubric/en-1.0.ts` — only then does production's `db:seed` gain the rubric and set pieces (`12` §3
-step 9); (2) the proof round on `develop`: `npm run db:migrate` and `npm run db:seed:develop` against
-Neon `develop`, then a real English round from a real browser, audio under `dev/`, feedback on screen
-before leaving the machine. The three new Japanese error strings are in
+median and 38.1 s slowest, so `complete` waits 60 s (`07` §5.12). The owner proved a real English
+round on `develop` on 2026-10-03. The three new Japanese error strings are in
 `docs/checklists/native-read-round-loop.md`.
+
+**#46 is built (2026-10-03), on `fm/suburi-46`.** The scorer (`score-en-1.1`) reads the CV version's
+claims, numbered and sliced from the stored body, and returns citations by number, unsupported spans as
+verbatim quotes of the answer, and `answered_language`; the server resolves, locates and validates all
+of it before one transaction writes the scores, `claim_citations` and `answer_flags`, and what fails is
+dropped and counted in the log line (`lib/round/grounding.ts`, `07` §5.10). Round feedback
+(`feedback-en-1.1`) is sent each answer's flags and the round's never-cited claims and picks up to three
+as untouched material, validated against that set (`07` §5.12). Screen 8 gains `Checked against your
+CV` — one rail per unsupported span, one for the unused claims, both stated when empty — and the
+wrong-language line on the answer it belongs to (`10` §8). `/cv` draws a used claim with a heavier
+underline and counts the never-used ones (`10` §13, which no longer refuses coverage marks). Migration
+`0008_cv-grounding` — `answer_flags`, `scoring_attempts.answered_language`,
+`round_feedback.untouched_claim_ids` — is expand-only and **not yet applied to either Neon branch**
+(`12` §4 steps 3 and 5); **`0008` is this branch's number, and a sibling slice that merges first takes
+it, in which case this migration is regenerated on the rebase, never renumbered by hand.**
+**Measured** against OpenAI on synthetic answers and an 80-claim synthetic CV (`03` §4): scoring 9.7 s
+median and 19.5 s slowest, feedback 15.4 s, nothing dropped by the validators, so `complete`'s 60 s
+bound stands. **Not built here:** the Japanese round's copy for the region, specified in `10` §8 for
+#43; Progress excluding a wrong-language answer (#51 — `answered_language` is stored for it on every
+`ok` attempt from `1.1` on). **The user's steps:** a real round on `develop` after the merge, to see
+the region and the `/cv` marks on real material; and the read of the new Japanese strings,
+`docs/checklists/native-read-round-loop.md` §2. Decisions in `06`, "Phase 6 — #46".
 
 **#54, #55 and #56 are next, then #21. #20, #29 and #38 are done.** #21 is blocked by all three
 (native `blocked_by` edges, 2026-09-29), and #56 by #55. They were triaged 2026-09-29 (`06`): #54 and

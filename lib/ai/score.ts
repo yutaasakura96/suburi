@@ -1,6 +1,6 @@
 import { zodTextFormat } from "openai/helpers/zod";
 import { z } from "zod";
-import * as en from "../prompts/score-en-1.0.ts";
+import * as en from "../prompts/score-en-1.1.ts";
 import type { DimensionKey, Rubric, RubricLanguage } from "../rubric/types.ts";
 import { SCORING_MODEL } from "./models.ts";
 import { ModelCallFailed, openAiClient, upstreamErrorClass } from "./upstream.ts";
@@ -12,12 +12,31 @@ import { ModelCallFailed, openAiClient, upstreamErrorClass } from "./upstream.ts
  *
  * **What the scorer reads** (03 §4): the rubric version's dimensions with their anchors, the prompt as
  * asked, the **corrected** transcript — never the raw one, whose recogniser errors would cost accuracy
- * points for the machine's mistakes — and the answer's duration and pace.
+ * points for the machine's mistakes — the answer's duration and pace, and the CV version's claims.
  *
  * **What comes back is checked, not trusted:** exactly one integer 1–5 per rubric dimension, in the
  * rubric's order. Anything else is `malformed_output` and scores nothing. No total is asked for and
  * none is accepted (04 §6).
+ *
+ * **The CV check comes back as the model gave it** (07 §5.10): citations by the number each claim was
+ * shown under, unsupported spans as verbatim quotes with a start hint, and the answered language. None
+ * of it is stored as returned — `lib/round/grounding.ts` resolves the numbers and finds the quotes,
+ * and drops what it cannot (03 §11).
  */
+
+export type CitationRelation = "supported_by" | "contradicted_by";
+
+/** A claim by the number it was shown under: its place in `ScoringInput.claims`, from 1. */
+export interface ModelCitation {
+  readonly claim: number;
+  readonly relation: CitationRelation;
+}
+
+/** A span of the answer no CV claim supports, as the model quoted it. `startHint` is in characters. */
+export interface ModelUnsupported {
+  readonly quote: string;
+  readonly startHint: number;
+}
 
 export interface ScoringInput {
   readonly rubric: Rubric;
@@ -26,6 +45,8 @@ export interface ScoringInput {
   readonly durationMs: number | null;
   /** In the language's own unit (`lib/round/measures.ts`). */
   readonly pace: number | null;
+  /** The CV version's claims, each sliced from the stored body, in the order they are numbered. */
+  readonly claims: readonly string[];
 }
 
 export interface DimensionScore {
@@ -36,6 +57,9 @@ export interface DimensionScore {
 
 export interface ScoringResult {
   readonly scores: readonly DimensionScore[];
+  readonly citations: readonly ModelCitation[];
+  readonly unsupported: readonly ModelUnsupported[];
+  readonly answeredLanguage: RubricLanguage;
   readonly tokensIn: number | null;
   readonly tokensOut: number | null;
 }
@@ -72,8 +96,14 @@ function minutes(durationMs: number | null) {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
-/** The input block the prompts describe: the rubric with its anchors, the question, the delivery, the answer. */
-export function renderScoringInput({ rubric, prompt, answer, durationMs, pace }: ScoringInput) {
+/** Claims as a model is shown them: one a line under its number, from 1. A claim's own line breaks are spaces. */
+export function renderClaims(claims: readonly string[]) {
+  if (claims.length === 0) return "(none)";
+  return claims.map((claim, index) => `[${index + 1}] ${claim.replace(/\s+/gu, " ")}`).join("\n");
+}
+
+/** The input block the prompts describe: the rubric with its anchors, the question, the delivery, the CV's claims, the answer. */
+export function renderScoringInput({ rubric, prompt, answer, durationMs, pace, claims }: ScoringInput) {
   const dimensions = rubric.dimensions
     .map((dimension) => {
       const anchors = dimension.definition.anchors.map((anchor, index) => `  ${index + 1}: ${anchor}`).join("\n");
@@ -89,6 +119,8 @@ export function renderScoringInput({ rubric, prompt, answer, durationMs, pace }:
     "=== delivery ===",
     `duration: ${minutes(durationMs)}`,
     `pace: ${pace === null ? "unknown" : `${Math.round(pace)} ${paceUnit}`}`,
+    "=== CV claims ===",
+    renderClaims(claims),
     "=== answer ===",
     answer,
   ].join("\n");
@@ -106,6 +138,9 @@ export function openAiAnswerScorer({ apiKey, baseURL }: { apiKey: string; baseUR
       const keys = input.rubric.dimensions.map((dimension) => dimension.key) as [DimensionKey, ...DimensionKey[]];
       const output = z.object({
         scores: z.array(z.object({ dimension: z.enum(keys), value: z.int(), justification: z.string() })),
+        citations: z.array(z.object({ claim: z.int(), relation: z.enum(["supported_by", "contradicted_by"]) })),
+        unsupported: z.array(z.object({ quote: z.string(), start_hint: z.int() })),
+        answered_language: z.enum(["ja", "en"]),
       });
       try {
         const response = await openAiClient({ apiKey, baseURL }).responses.parse(
@@ -119,8 +154,12 @@ export function openAiAnswerScorer({ apiKey, baseURL }: { apiKey: string; baseUR
         );
         if (response.status !== "completed") throw new ModelCallFailed("Scoring", `response_${response.status}`);
         if (!response.output_parsed) throw new ModelCallFailed("Scoring", "no_parsed_output");
+        const parsed = response.output_parsed;
         return {
-          scores: checkScores(input.rubric, response.output_parsed.scores),
+          scores: checkScores(input.rubric, parsed.scores),
+          citations: parsed.citations,
+          unsupported: parsed.unsupported.map((span) => ({ quote: span.quote, startHint: span.start_hint })),
+          answeredLanguage: parsed.answered_language,
           tokensIn: response.usage?.input_tokens ?? null,
           tokensOut: response.usage?.output_tokens ?? null,
         };

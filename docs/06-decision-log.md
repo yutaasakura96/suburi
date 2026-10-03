@@ -3,6 +3,142 @@
 Newest first. Every entry records what was chosen, why, and what was rejected.
 
 ---
+## Phase 6 — #46, CV grounding
+
+Round loop slice 5: citations, unsupported claims, untouched material, the wrong-language reading and
+coverage on `/cv`. The plan was settled on 2026-09-27 (below); these are the choices the build needed.
+English only, like the tracer it extends — the Japanese round is #43's, and takes these with it.
+
+### [2026-10-03] The models are shown numbered claims and return numbers, never ids
+
+The scorer and the feedback call are sent the CV's claims as a numbered list, `[1]` to `[n]`, each the
+claim's text **sliced from `cv_versions.body` by its span**, and they answer with numbers. The server
+maps a number back to the claim it was shown as. An id is never sent and never read back, so there is
+no id for a model to invent, and a number outside the list names nothing and is dropped and counted.
+**Rejected:** sending `cv_claims.id` and validating the uuid that comes back — it works, but it spends
+tokens on 36 characters a claim and asks the model to copy opaque strings exactly; and asking for a
+quote of the claim and locating it in the body, as extraction does — a second fuzzy step where a
+number is exact.
+
+### [2026-10-03] A claim is citable only if its stored span still reads as the claim
+
+"`claim_citations` written only after span validation" (`07` §5.10) is done before the call, not
+after: each claim's stored span goes through the validator that admitted it at save time, and its
+slice must still normalise to `text_normalised`. A claim that fails is not shown to the scorer, so
+nothing can cite it, and it is counted (`claims_rejected`). On a healthy database the count is zero
+forever — `body` is immutable and spans are validated at save — so a non-zero count is a corrupted row
+found at the moment it would otherwise have been quoted on screen. **Rejected:** trusting stored spans
+because they were validated once; the rule is that a quote is checked where it is used.
+
+### [2026-10-03] "Dropped and counted" is a log line, not a column
+
+`scoring_ok` carries `claims`, `claims_rejected`, `citations`, `citations_dropped`, `flags`,
+`flags_dropped`; `round_feedback_written` carries `never_cited`, `untouched`, `untouched_dropped`.
+Counts only, beside ids and durations (`03` §8). **Rejected:** counter columns on `scoring_attempts`,
+the way `cv_versions` carries extraction's counters — those are read by the user on `/cv` after every
+save, where these are a question about the prompt asked once in a while, and a column per counter on
+the measurement table is schema for a number nobody is shown. If the digest ever needs a drop rate it
+reads the logs' successor, and that is a decision for then.
+
+### [2026-10-03] Untouched material is the round's never-cited claims, and a contradicted claim was used
+
+The set the feedback call picks from is the CV version's citable claims minus those cited by an answer
+**in this round**, with either relation. Round-scoped because the finding is about this sitting — what
+was left on the table today — so a claim used in last week's round can be untouched in this one;
+all-history "never used" is coverage, and lives on `/cv`. A `contradicted_by` citation removes the
+claim from the set: the answer did reach for it, and telling the user it went unused would be false.
+**Rejected:** all-history never-cited (after a few months it would be the dregs of the CV, not what
+this round missed).
+
+### [2026-10-03] Untouched picks that fail validation are dropped; the feedback is still written
+
+`untouched_claim_ids` holds whatever survives — none to three, in the order picked — a repeat ignored,
+a fourth dropped. Feedback whose picks were all invented is stored with an empty list and the screen
+says nothing was picked. **Rejected:** failing the call and retrying for better picks: `round_feedback`
+is one row written once, the fix list and what-worked are the larger part of it, and a retry that
+changes them to repair a secondary list trades a certain cost for a small gain. Padding to two from
+the set by some rule of our own was rejected too — a claim the model did not pick is not "relevant".
+
+### [2026-10-03] An `ok` attempt with no `answered_language` is not a mismatch
+
+`scoring_attempts.answered_language` is nullable, `check (answered_language is null or status = 'ok')`,
+and written on every `ok` attempt from `score-en-1.1` on. Attempts scored by `1.0` stay null, and null
+means "not read", so those answers carry no wrong-language line and Progress (slice 10) does not
+exclude them on that ground. **Rejected:** `not null` with a back-fill of the round's language — a
+value the scorer never returned, on the measurement table; and treating null as a mismatch, which
+would empty Progress of every answer scored before today.
+
+### [2026-10-03] The grounding region is drawn only for a round that was checked, and says "none"
+
+Screen 8 draws `応募書類との照合` when some answer's latest `ok` attempt carries `answered_language` —
+the mark that the attempt went through the CV check. Inside it, **no unsupported span is stated**
+("nothing flagged against CV v3") rather than left blank, and so is no pick. A round scored before the
+check has no region at all. The two are different facts — checked and clean, never checked — and
+drawing the first for the second would be a claim nobody verified. Each unsupported rail names its
+question, since the region is round-level and the span is one answer's. **Rejected:** the flags inside
+each answer's page of the pager (`10` §8 puts the region in the round-level column, where the fix list
+that refers to it is); one rail joining every quote (it loses which answer said it).
+
+### [2026-10-03] The fix list may quote the CV; the grounding region is the checked part
+
+`feedback-en-1.1` may name an unused claim in a `to_fix` item, "exactly as the input gives it". That
+prose is model text and is not span-checked, the same as the fix list's quotes of the user since 1.0.
+What is checked is everything under `応募書類との照合`: those strings are slices of stored text by
+validated span and never the model's words. **Rejected:** verifying quotes inside prose (a fuzzy
+matcher over free text, which is the thing the span rule exists to avoid) and forbidding the prose
+from mentioning the CV (the fix list is where "use this claim there" is said in a sentence).
+
+### [2026-10-03] "Unsupported" is a claim a CV would carry, not the steps of a story
+
+A first draft of `score-en-1.1` asked for "facts about the speaker's record that no claim supports",
+and against the real model on synthetic answers it flagged the narration of every story — what was
+measured, what was written, what went first — up to its limit of three an answer, as whole sentences;
+the feedback call then told the speaker to remove or "verify" them. That is the accusation US-11 rules
+out. The prompt now asks for **what a CV would carry and this one does not** — a result, a role, the
+size of a responsibility, a qualification, a length of experience — says that a story's steps are
+narration even when they carry a number, that most answers have none or one, and that the quote is a
+clause. `feedback-en-1.1` says an unsupported part is a gap and may well be true, never tells the
+speaker to drop it, offers an unused claim only where it is evidence for the same point, and counts a
+claim as untouched material only when it backs a point an answer was making or answers a question
+asked — not for sharing a topic. Re-run on the same answers: one or no flag an answer, each a clause,
+and the three picks were the three claims written to fit the questions. Both files were tightened
+before either was stamped on a row, so `1.1` is still one prompt. **Rejected:** capping flags at one
+per answer in code (a cap hides an over-eager prompt instead of fixing it) and dropping flags from the
+feedback call's input (the fix list is where "the CV has something for this" gets said).
+
+### [2026-10-03] The CV check is measured; `complete` still waits 60 s
+
+The scoring and round-feedback measurements of `scripts/measure-round-latency.mts`, five runs against
+OpenAI, synthetic answers and a synthetic CV of 80 claims (`03` §4 has the table). Scoring with `score-en-1.1`: 9.7 s median,
+19.5 s slowest of 15, against 7.1 s and 38.1 s for `1.0`. Round feedback with `feedback-en-1.1`: 15.4 s
+median, 19.5 s slowest, against 10.0 s and 11.0 s. The rule that set the bound — slowest scoring call,
+a 2 s backoff, a median retry — asks for 31 s here, so **60 s stands**, sized by #42's slower tail on
+the same model. Nothing the validators check was dropped in 15 scored answers and 5 rounds, and the
+untouched picks were the claims written to be found. **Rejected:** lowering the bound to this run's
+tail (fifteen calls do not retire a 38 s call seen two days earlier) and raising it for the larger
+prompt (the measurement does not ask for it).
+
+### [2026-10-03] Coverage on `/cv` is the underline's weight, inherited down the chain only
+
+A used claim is underlined `2px --accent`; an unused one keeps `1px --accent-mid`; the stamp row adds
+the never-used count and one legend line (`10` §13). **Used** is "this claim or a claim it was carried
+forward from has a citation", either relation, read from `claim_citations` at render by one recursive
+query (`lib/cv/coverage.ts`). Down the chain only: a v1 claim does not become used because its v3
+descendant was cited, so an old version's page keeps showing what was true of it. **Rejected:** a
+second colour or a marginal tick (a new mark on a screen whose point is reading one's own text
+undisturbed); dimming unused claims (it reads as "wrong", and they are only unsaid); a coverage
+percentage (one step from a composite about the user — `10` §13 now refuses it); a stored
+`is_covered` column (it goes stale the moment an answer is scored).
+
+### [2026-10-03] The grounding slice's Japanese strings are specified, not built, and unread
+
+The Japanese round is #43's, so `ROUND_COPY` gains no `ja` here. The region's Japanese copy and the
+wrong-language line are written into `10` §8 for #43 to render; the two `/cv` strings (the count line
+and the legend) are built, since that panel is already Japanese. All are in
+`docs/checklists/native-read-round-loop.md` §2, unread.
+
+---
+
 ## Phase 6 — the audit's one accepted advisory
 
 ### [2026-10-03] CI's audit accepts GHSA-vfj7-8cjw-p6xm until a patched `braces` ships

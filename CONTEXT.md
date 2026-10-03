@@ -45,13 +45,13 @@ docs and the build.
 | **Current CV version** | The newest CV version in a language. The only one a new round in that language can use; older versions stay readable, never selectable. |
 | **Claim** | One atomic, citable assertion extracted from a CV version, with a character **span** into that version's immutable text. Never drawn from a 履歴書's personal particulars. |
 | **Span** | `[start, end)` into `cv_versions.body`. Quotes are **sliced from stored text by span**, never taken from model output. A span **may not cross a document boundary** — one that does is dropped and counted, never clamped. |
-| **Coverage** | Which CV claims have been cited, and which never have. Makes *"CV material never used"* expressible. |
+| **Coverage** | Which CV claims have been cited, and which never have — across all answers, ever. Makes *"CV material never used"* expressible. A claim is **used** when it, or a claim it was carried forward from, was cited with either relation. Read from `claim_citations`, never stored; shown on `/cv` as the underline's weight. |
 | **Carry-forward** | A claim in a new CV version whose normalised text exactly matches a claim in the **immediately previous** version **of the same language** — from any document in it. It inherits that claim's coverage. Two versions back never matches; the other language never matches. |
 | **Stamps** | The four version markers on every scored answer: **CV version, rubric version, generator prompt version, scoring model** (the scoring model with its scoring prompt version). All four are `not null`. Stamp 3 is the generator prompt version for a generated question, the set pieces' **content version** (`set-piece-ja-1.0`) for a set piece, and the follow-up prompt version for a follow-up. |
 | **Boundary** | The line Progress draws wherever a stamp changed. Makes drift visible instead of silent. |
 | **Drift** | The same answer scoring differently over time because the *scorer* changed. The central technical risk. |
 | **Unsupported claim** | A span of the answer's **corrected** text that no CV claim supports. An `answer_flags` row whose quote is **sliced from `transcript_corrected` by span**, never taken from model output. |
-| **Untouched material** | Two or three **relevant** CV claims never cited, picked for round feedback from the never-cited set and stored on `round_feedback`. Not every uncited claim. |
+| **Untouched material** | Two or three **relevant** CV claims never cited, picked for round feedback from the never-cited set and stored on `round_feedback`. Not every uncited claim. **The never-cited set is the round's**: claims no answer *in that round* cited — what this sitting left unsaid, where coverage is what has never been said at all. |
 | **Felt pressure** | A 1–5 self-report taken once per realistic round, **before any feedback**. Instrumentation for the brief's falsification test — never feedback, never averaged, never shown as something to improve. |
 | **敬語 / register** | A scored rubric dimension in Japanese only. Not a politeness filter, not a translation concern. |
 
