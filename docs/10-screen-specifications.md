@@ -55,8 +55,8 @@ measures, order, states and refusals stand. What changes:
 
   §5–§7 below still quote the artboards' Latin labels, as what was drawn. A Japanese round shows the
   right-hand column, and its tab title is Japanese too (`ラウンド — Suburi`, `講評 — Suburi`).
-- **An English round needs its round-screen copy written**; every Japanese string on the round screens
-  still needs its native read before it ships.
+- **English round-screen copy is built (#42).** The Japanese strings for #43 still await the owner's
+  native read (`docs/checklists/native-read-round.md`).
 
 ---
 
@@ -358,9 +358,9 @@ read a Japanese round's feedback in English.
 names (`Structure … Keigo (register)`) and the round-level findings with their two headings
 (`To fix 3`, `What worked 1`), read from the stored translation (`04` `round_feedback.body_translated`).
 The round's own chrome stays Japanese: the header, `第1問 / 5問`, the figures, the question, the pager
-and the stamps. The pill names the language it switches to, in that language — `English`, then
-`日本語` — and the choice is the page's, not stored. **An English round has no pill**: its feedback is
-English already (PRD §4).
+and the stamps. The pill appears only when the stored translation exists. It names the language it
+switches to, in that language — `English`, then `日本語` — and the choice is the page's, not stored.
+**An English round has no pill**: its feedback is English already (PRD §4).
 
 3-column grid: per-answer scores at `span 2`, round-level findings in the last column.
 
@@ -490,7 +490,8 @@ Header: `行動面接` 17px/600, `日本語・実戦・5問`, date, and
 `求人票 Mercari_SRE_2026.pdf・緊張度 4 を講評前に記録` at 12px `--ink-6`. Right: the `English`
 language pill and `編集できません` at 11px `--ink-8`.
 
-**A past round is read-only.** The pill still toggles the feedback language; nothing else can change.
+**A past round is read-only.** For a Japanese round with a stored translation, the pill still toggles
+the feedback language; nothing else can change.
 
 Columns: `196px repeat(7, 1fr) 58px 34px` — question, the seven dimensions, TIME, play.
 

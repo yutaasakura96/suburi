@@ -504,6 +504,14 @@ test("a realistic Japanese round: Japanese throughout, seven rows, and the feedb
   const answers = await withDb((db) => db.select().from(s.answers).where(eq(s.answers.roundId, roundId)));
   expect(answers).toHaveLength(3);
   for (const answer of answers) expect(answer.wordsPerMinute).toBe(250);
+
+  // A stored Japanese finding without an English translation must never offer the toggle.
+  await withDb((db) => db.update(s.roundFeedback).set({ bodyTranslated: null }).where(eq(s.roundFeedback.roundId, roundId)));
+  await page.reload();
+  await expect(page.getByTestId("feedback-language")).toHaveCount(0);
+  await expect(page.getByTestId("to-fix")).toContainText("結論を最初の一文に置く");
+  await expect(page.getByTestId("what-worked")).toContainText("第3問で、具体的な場面を挙げて説明できている。");
+  await page.screenshot({ path: test.info().outputPath("ja-8-no-translation.png"), fullPage: true });
 });
 
 test("a Japanese round whose findings are not ready says so in Japanese, and the retry writes them", async ({ page }) => {

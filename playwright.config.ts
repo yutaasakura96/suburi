@@ -14,6 +14,7 @@ const e2eStorage = {
   S3_BUCKET: "e2e-not-a-real-bucket",
   S3_PREFIX: "dev/",
 };
+const e2eAppPort = Number(process.env.E2E_APP_PORT ?? 3100);
 
 const serverEnv = Object.fromEntries(
   Object.entries({
@@ -47,7 +48,7 @@ export default defineConfig({
   // fixed ports the server read at boot, so two specs at once would share all three.
   workers: 1,
   globalSetup: "./e2e/global-setup.ts",
-  use: { baseURL: "http://localhost:3100" },
+  use: { baseURL: `http://localhost:${e2eAppPort}` },
   projects: [
     {
       name: "chromium",
@@ -61,8 +62,8 @@ export default defineConfig({
   ],
   // Off 3000 so a running `next dev` never collides with the production build under test.
   webServer: {
-    command: "npm run start -- -p 3100",
-    url: "http://localhost:3100",
+    command: `npm run start -- -p ${e2eAppPort}`,
+    url: `http://localhost:${e2eAppPort}`,
     reuseExistingServer: false,
     env: serverEnv,
   },

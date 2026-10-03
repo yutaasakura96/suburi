@@ -12,7 +12,7 @@ export interface MockS3 {
   close(): Promise<void>;
 }
 
-const ORIGIN = "http://localhost:3100";
+const ORIGIN = `http://localhost:${process.env.E2E_APP_PORT ?? "3100"}`;
 
 export async function startMockS3(): Promise<MockS3> {
   const objects: MockS3["objects"] = new Map();

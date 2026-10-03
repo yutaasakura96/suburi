@@ -7,7 +7,7 @@ import { sql } from "drizzle-orm";
 // configuration, so it does not go through lib/config.ts.
 export const TEST_DATABASE = "suburi_test";
 // Host port 5433, matching docker-compose.yml and the CI service container.
-const server = "postgresql://suburi:suburi@localhost:5433";
+const server = `postgresql://suburi:suburi@localhost:${process.env.TEST_PG_PORT ?? "5433"}`;
 export const ADMIN_URL = `${server}/postgres`;
 export const TEST_URL = `${server}/${TEST_DATABASE}`;
 
