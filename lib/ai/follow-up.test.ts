@@ -9,27 +9,47 @@ import { ModelCallFailed } from "./upstream";
 // call itself is faked everywhere else (11 §2).
 describe("checkFollowUp", () => {
   it("returns the question trimmed", () => {
-    expect(checkFollowUp("  How did you measure it?\n")).toBe("How did you measure it?");
+    expect(checkFollowUp("  How did you measure it?\n", "en")).toBe("How did you measure it?");
   });
 
   it.each(["", "   ", "\n\t"])("refuses a blank output %j as malformed_output", (text) => {
-    expect(() => checkFollowUp(text)).toThrowError(ModelCallFailed);
+    expect(() => checkFollowUp(text, "en")).toThrowError(ModelCallFailed);
     try {
-      checkFollowUp(text);
+      checkFollowUp(text, "en");
     } catch (error) {
       expect((error as ModelCallFailed).errorClass).toBe("malformed_output");
     }
   });
 
+  it.each([
+    ["en", "What did you measure? Who approved it?"],
+    ["en", "That is interesting. What did you measure?"],
+    ["en", "You measured the result."],
+    ["ja", "何を測りましたか。誰が承認しましたか。"],
+    ["ja", "興味深いです。何を測りましたか。"],
+    ["ja", "その結果を測定しました。"],
+    ["ja", "何を測りましたか?"],
+  ] as const)("refuses malformed %s output as malformed_output", (language, text) => {
+    expect(() => checkFollowUp(text, language)).toThrowError(ModelCallFailed);
+    try {
+      checkFollowUp(text, language);
+    } catch (error) {
+      expect((error as ModelCallFailed).errorClass).toBe("malformed_output");
+    }
+  });
+
+  it.each(["その数字はどう測りましたか。", "その数字はどう測りましたか？"])("accepts a Japanese question", (text) => {
+    expect(checkFollowUp(text, "ja")).toBe(text);
+  });
+
   it("refuses a runaway output, and accepts one at the limit", () => {
-    expect(checkFollowUp("a".repeat(MAX_FOLLOW_UP_CODE_POINTS))).toHaveLength(MAX_FOLLOW_UP_CODE_POINTS);
-    expect(() => checkFollowUp("a".repeat(MAX_FOLLOW_UP_CODE_POINTS + 1))).toThrowError(ModelCallFailed);
+    expect(checkFollowUp(`${"a".repeat(MAX_FOLLOW_UP_CODE_POINTS - 1)}?`, "en")).toHaveLength(MAX_FOLLOW_UP_CODE_POINTS);
+    expect(() => checkFollowUp(`${"a".repeat(MAX_FOLLOW_UP_CODE_POINTS)}?`, "en")).toThrowError(ModelCallFailed);
   });
 
   it("counts code points, so a question in astral characters is not cut at half the length", () => {
-    // Two UTF-16 units each: 400 of them are 800 units and still one question's worth.
-    expect(() => checkFollowUp("𠮷".repeat(MAX_FOLLOW_UP_CODE_POINTS))).not.toThrow();
-    expect(() => checkFollowUp("𠮷".repeat(MAX_FOLLOW_UP_CODE_POINTS + 1))).toThrowError(ModelCallFailed);
+    expect(() => checkFollowUp(`${"𠮷".repeat(MAX_FOLLOW_UP_CODE_POINTS - 1)}？`, "ja")).not.toThrow();
+    expect(() => checkFollowUp(`${"𠮷".repeat(MAX_FOLLOW_UP_CODE_POINTS)}？`, "ja")).toThrowError(ModelCallFailed);
   });
 });
 

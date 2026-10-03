@@ -50,9 +50,12 @@ export interface FollowUpGenerator {
 export const MAX_FOLLOW_UP_CODE_POINTS = 400;
 
 /** The question, trimmed — or the whole result is refused. */
-export function checkFollowUp(text: string): string {
+export function checkFollowUp(text: string, language: RubricLanguage): string {
   const question = text.trim();
-  if (question === "" || Array.from(question).length > MAX_FOLLOW_UP_CODE_POINTS) {
+  const oneQuestion = language === "en"
+    ? /^[^.!?。！？\r\n]+\?$/u.test(question)
+    : /^(?:[^.!?。！？\r\n]+？|[^.!?。！？\r\n]+か。)$/u.test(question);
+  if (!oneQuestion || Array.from(question).length > MAX_FOLLOW_UP_CODE_POINTS) {
     throw new ModelCallFailed("Follow-up generation", "malformed_output");
   }
   return question;
@@ -93,7 +96,7 @@ export function openAiFollowUpGenerator({ apiKey, baseURL }: { apiKey: string; b
         if (response.status !== "completed") throw new ModelCallFailed("Follow-up generation", `response_${response.status}`);
         if (!response.output_parsed) throw new ModelCallFailed("Follow-up generation", "no_parsed_output");
         return {
-          text: checkFollowUp(response.output_parsed.follow_up),
+          text: checkFollowUp(response.output_parsed.follow_up, input.language),
           tokensIn: response.usage?.input_tokens ?? null,
           tokensOut: response.usage?.output_tokens ?? null,
         };

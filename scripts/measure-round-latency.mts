@@ -24,9 +24,6 @@ import { EN_1_0 } from "../lib/rubric/en-1.0.ts";
 // take synthesised by TTS and re-encoded to webm/opus by ffmpeg, the browser's format. TTS is timed
 // to the first audio byte (when playback can start) and to the last.
 //
-// `JOBS=follow-up` (a comma-separated list of scoring, feedback, follow-up, questions, speech,
-// transcription) measures those alone; feedback needs scoring's scores, so it runs scoring too.
-//
 // Prints timings, token counts and counts only — never a prompt, an answer or a model's output.
 
 const RUNS = Number(process.env.RUNS ?? 5);
@@ -217,17 +214,13 @@ async function measureTranscription() {
   }
 }
 
-const JOBS = new Set((process.env.JOBS ?? "scoring,feedback,follow-up,questions,speech,transcription").split(","));
-
 console.log(`Measuring ${RUNS} run(s) of each: ${SCORING_MODEL}, ${TRANSCRIPTION_MODEL}, ${TTS_MODEL}, ${EMBEDDING_MODEL}.`);
-if (JOBS.has("scoring") || JOBS.has("feedback")) {
-  const scored = await measureScoring();
-  if (JOBS.has("feedback")) await measureFeedback(scored);
-}
-if (JOBS.has("follow-up")) await measureFollowUps();
-if (JOBS.has("questions")) await measureGeneration();
-if (JOBS.has("speech")) await measureSpeech();
-if (JOBS.has("transcription")) await measureTranscription();
+const scored = await measureScoring();
+await measureFeedback(scored);
+await measureFollowUps();
+await measureGeneration();
+await measureSpeech();
+await measureTranscription();
 
 console.log("\n| Job | n | min | median | p90 | max | tokens in / out (median) |");
 console.log("| --- | --- | --- | --- | --- | --- | --- |");

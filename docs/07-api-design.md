@@ -726,7 +726,8 @@ A retry's `next` is whatever the round was already on.
 **What the generator reads** (`06`, 2026-10-03): the round type, the question exactly as it was
 asked, and the **corrected** transcript — never the raw one, and nothing else. No CV, no rubric, no
 earlier answer. What comes back is checked before it is stored: one question, not blank, at most 400
-code points. Anything else is `malformed_output`, and counts as a failed call.
+code points. English ends in `?`; Japanese ends in `？` or `か。`. Extra sentences or questions are
+refused. Anything else is `malformed_output`, and counts as a failed call.
 
 **The order of the writes.** The answer's commit — corrected text and scoring attempt — is one
 transaction, and scoring is scheduled from it. The follow-up is then generated **outside any
