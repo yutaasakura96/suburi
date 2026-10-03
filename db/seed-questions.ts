@@ -89,9 +89,11 @@ export async function seedSetPieces(db: Db, userId: string, content: readonly Se
  * `main`**. Fixtures with no model call, so a round of 3 can be filled before generation exists
  * (#47). Their stamp 3 names them as fixtures, so no chart can mistake them for the generator's.
  */
-export const SYNTHETIC_QUESTIONS_VERSION = "synthetic-generated-en-1.0";
+export const SYNTHETIC_QUESTIONS_VERSION = { en: "synthetic-generated-en-1.0", ja: "synthetic-generated-ja-1.0" } as const;
 
-export const SYNTHETIC_QUESTIONS_EN: readonly { roundType: "behavioural" | "technical" | "hr" | "ceo"; body: string }[] = [
+type SyntheticQuestion = { roundType: "behavioural" | "technical" | "hr" | "ceo"; body: string };
+
+export const SYNTHETIC_QUESTIONS_EN: readonly SyntheticQuestion[] = [
   { roundType: "hr", body: "Tell me about a time you disagreed with your manager. What did you do?" },
   { roundType: "hr", body: "What kind of team do you do your best work in, and why?" },
   { roundType: "hr", body: "Describe a piece of feedback that changed how you work." },
@@ -111,6 +113,29 @@ export const SYNTHETIC_QUESTIONS_EN: readonly { roundType: "behavioural" | "tech
   { roundType: "ceo", body: "Why should we choose you over someone with more experience?" },
 ];
 
+/** The same seventeen, as a Japanese interviewer asks them — so a Japanese round fills on `develop` too. */
+export const SYNTHETIC_QUESTIONS_JA: readonly SyntheticQuestion[] = [
+  { roundType: "hr", body: "上司と意見が合わなかったときのことを教えてください。そのとき、どう対応しましたか。" },
+  { roundType: "hr", body: "どのようなチームで最も力を発揮できますか。その理由も教えてください。" },
+  { roundType: "hr", body: "仕事の進め方が変わるきっかけになったフィードバックについて教えてください。" },
+  { roundType: "hr", body: "すべての仕事が急ぎに見えるとき、何から取り組むかをどう決めていますか。" },
+  { roundType: "hr", body: "仕事での失敗と、そのあとに変えたことを教えてください。" },
+  { roundType: "hr", body: "前のチームのメンバーは、あなたが控えたほうがいいことは何だと言うと思いますか。" },
+  { roundType: "hr", body: "担当業務のほかに、スキルを保つためにしていることはありますか。" },
+  { roundType: "hr", body: "3年後にどのようなキャリアを築いていたいですか。この職務はそこにどうつながりますか。" },
+  { roundType: "behavioural", body: "この1年で解決した、最も難しかった問題について教えてください。" },
+  { roundType: "behavioural", body: "必要な時間が足りない中で成果を出さなければならなかった経験を教えてください。" },
+  { roundType: "behavioural", body: "自分の部下ではない人を説得した経験を教えてください。" },
+  { roundType: "technical", body: "本番環境で突然処理が遅くなったとき、原因をどのように突き止めますか。" },
+  { roundType: "technical", body: "稼働中のサービスを、停止させずに新しいデータベースへ移行するにはどうしますか。" },
+  { roundType: "technical", body: "過去の設計判断のうち、今なら違う判断をするものについて教えてください。" },
+  { roundType: "ceo", body: "入社して1年後に、何を成し遂げていたいですか。" },
+  { roundType: "ceo", body: "この業界がいま見誤っていることは何だと思いますか。" },
+  { roundType: "ceo", body: "あなたより経験の豊富な候補者ではなく、あなたを選ぶべき理由は何ですか。" },
+];
+
 export async function seedSyntheticQuestions(db: Db, userId: string) {
-  return seedBank(db, userId, "en", "generated", SYNTHETIC_QUESTIONS_VERSION, SYNTHETIC_QUESTIONS_EN);
+  const en = await seedBank(db, userId, "en", "generated", SYNTHETIC_QUESTIONS_VERSION.en, SYNTHETIC_QUESTIONS_EN);
+  const ja = await seedBank(db, userId, "ja", "generated", SYNTHETIC_QUESTIONS_VERSION.ja, SYNTHETIC_QUESTIONS_JA);
+  return en + ja;
 }

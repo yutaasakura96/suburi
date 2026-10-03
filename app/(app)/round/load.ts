@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import * as s from "@/db/schema";
-import type { FeedbackItem } from "@/lib/ai/round-feedback";
+import type { FeedbackItem, TranslatedFeedback } from "@/lib/ai/round-feedback";
 import { sliceQuote } from "@/lib/cv/spans";
 import type { Db } from "@/lib/round/http";
 import { rewritePercent } from "@/lib/round/measures";
@@ -12,7 +12,7 @@ import type { RoundLanguage, RoundType } from "./copy";
 
 // What the round screens read (10 §2–§8). Server-only; only what a screen shows leaves it.
 
-/** Screen 2's facts: what an English round would be scored against, if it can be. */
+/** Screen 2's facts: what a round in this language would be scored against, if it can be. */
 export async function setupFacts(db: Db, userId: string, language: RoundLanguage) {
   const [cv] = await db
     .select({ label: s.cvVersions.versionLabel, createdAt: s.cvVersions.createdAt })
@@ -133,7 +133,8 @@ export interface FeedbackAnswerView {
   readonly rewrite: number | null;
   /** `ok` has a value per dimension; `failed` reads as not scored; `pending` as not scored yet. */
   readonly status: "ok" | "pending" | "failed";
-  readonly scores: readonly { readonly label: string; readonly value: number | null }[];
+  /** A dimension is named in the language the feedback is read in (PRD §4), so both names travel. */
+  readonly scores: readonly { readonly key: string; readonly labels: Record<RoundLanguage, string>; readonly value: number | null }[];
   /** The language the scorer read the answer in, when it is not the round's (PRD §7); otherwise null. */
   readonly answeredIn: "ja" | "en" | null;
 }
@@ -150,12 +151,26 @@ export interface GroundingView {
   readonly untouched: readonly string[];
 }
 
+export interface FeedbackFindings {
+  readonly toFix: readonly FeedbackItem[];
+  readonly whatWorked: string;
+}
+
 export interface FeedbackScreen {
-  readonly round: { readonly id: string; readonly roundType: RoundType; readonly length: number; readonly date: string };
+  readonly round: {
+    readonly id: string;
+    readonly roundType: RoundType;
+    readonly language: RoundLanguage;
+    readonly length: number;
+    readonly date: string;
+  };
   readonly feltPressure: number | null;
-  readonly stamps: string;
+  /** 05 §5.9: every stamp the round's scores carry — the screen joins them in the round's language. */
+  readonly stamps: { readonly rubricLabel: string; readonly generatorVersions: readonly string[]; readonly cvLabel: string };
   readonly answers: readonly FeedbackAnswerView[];
-  readonly findings: { readonly toFix: readonly FeedbackItem[]; readonly whatWorked: string } | null;
+  readonly findings: FeedbackFindings | null;
+  /** A Japanese round's findings in English, stored with them (04 `body_translated`): 10 §8's toggle. */
+  readonly translated: FeedbackFindings | null;
   /** Null when no answer of the round went through the CV check: a round scored before it existed. */
   readonly grounding: GroundingView | null;
   /** No answer scored and none is pending: `feedback` refuses as `no_scores`, so no retry is offered (07 §5.12). */
@@ -200,11 +215,18 @@ export async function feedbackScreen(db: Db, round: RoundRow): Promise<FeedbackS
         .where(inArray(s.questions.id, submitted.map((answer) => answer.questionId!)))
     : [];
 
+  const translated = (findings?.bodyTranslated ?? null) as TranslatedFeedback | null;
+
   return {
-    round: { id: round.id, roundType: round.roundType as RoundType, length: round.length, date: tokyoDate(round.startedAt) },
+    round: {
+      id: round.id,
+      roundType: round.roundType as RoundType,
+      language: round.language as RoundLanguage,
+      length: round.length,
+      date: tokyoDate(round.startedAt),
+    },
     feltPressure: round.feltPressure,
-    // 05 §5.9: every stamp the round's scores carry, joined by a middle dot.
-    stamps: [`Rubric ${rubric.versionLabel}`, ...generatorVersions.map((row) => row.version).sort(), cvLabel].join(" · "),
+    stamps: { rubricLabel: rubric.versionLabel, generatorVersions: generatorVersions.map((row) => row.version).sort(), cvLabel },
     answers: submitted.map((answer) => {
       const attempt = attempts.get(answer.id);
       const status = attempt?.status ?? "pending";
@@ -216,7 +238,8 @@ export async function feedbackScreen(db: Db, round: RoundRow): Promise<FeedbackS
         rewrite: answer.rewriteMagnitude === null ? null : rewritePercent(answer.rewriteMagnitude),
         status,
         scores: rubric.dimensions.map((dimension) => ({
-          label: dimension.label_en,
+          key: dimension.key,
+          labels: { ja: dimension.label_ja, en: dimension.label_en },
           value:
             status === "ok"
               ? (scoreRows.find((row) => row.scoringAttemptId === attempt!.id && row.dimension === dimension.key)?.value ?? null)
@@ -229,6 +252,7 @@ export async function feedbackScreen(db: Db, round: RoundRow): Promise<FeedbackS
       };
     }),
     findings: findings ? { toFix: findings.toFix as FeedbackItem[], whatWorked: findings.whatWorked } : null,
+    translated: translated ? { toFix: translated.to_fix, whatWorked: translated.what_worked } : null,
     grounding: grounded
       ? {
           cvLabel,

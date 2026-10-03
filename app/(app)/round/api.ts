@@ -1,5 +1,6 @@
 import type { ErrorCode } from "@/lib/api/errors";
 import { ERROR_COPY } from "@/lib/copy/errors";
+import { ROUND_COPY, type RoundLanguage } from "./copy";
 
 // The round screens' one way to call a round route: JSON in, the envelope's code out on failure.
 // "unreachable" is the one failure with no envelope — the request or its response never arrived.
@@ -9,8 +10,6 @@ export type FailureCode = ErrorCode | "unreachable";
 export type Result<T> =
   | { readonly ok: true; readonly status: number; readonly json: T }
   | { readonly ok: false; readonly status: number; readonly code: FailureCode };
-
-const UNREACHABLE = "The request did not reach the server, or its answer did not come back. Try again.";
 
 export async function postJson<T>(path: string, body: object = {}): Promise<Result<T>> {
   let response: Response;
@@ -30,6 +29,6 @@ export async function postJson<T>(path: string, body: object = {}): Promise<Resu
 }
 
 /** The sentence for a failure, in the screen's language (10 §0). */
-export function failureText(code: FailureCode, language: "en") {
-  return code === "unreachable" ? UNREACHABLE : ERROR_COPY[code][language];
+export function failureText(code: FailureCode, language: RoundLanguage) {
+  return code === "unreachable" ? ROUND_COPY[language].unreachable : ERROR_COPY[code][language];
 }

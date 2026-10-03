@@ -1,6 +1,7 @@
 import { zodTextFormat } from "openai/helpers/zod";
 import { z } from "zod";
 import * as en from "../prompts/score-en-1.1.ts";
+import * as ja from "../prompts/score-ja-1.0.ts";
 import type { DimensionKey, Rubric, RubricLanguage } from "../rubric/types.ts";
 import { SCORING_MODEL } from "./models.ts";
 import { ModelCallFailed, openAiClient, upstreamErrorClass } from "./upstream.ts";
@@ -96,6 +97,11 @@ function minutes(durationMs: number | null) {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
+/** A dimension's name in its rubric's language, as the rubric's own definitions are (04 `rubric_versions`). */
+export function dimensionLabel(rubric: Rubric, dimension: Rubric["dimensions"][number]) {
+  return rubric.language === "ja" ? dimension.label_ja : dimension.label_en;
+}
+
 /** Claims as a model is shown them: one a line under its number, from 1. A claim's own line breaks are spaces. */
 export function renderClaims(claims: readonly string[]) {
   if (claims.length === 0) return "(none)";
@@ -107,7 +113,7 @@ export function renderScoringInput({ rubric, prompt, answer, durationMs, pace, c
   const dimensions = rubric.dimensions
     .map((dimension) => {
       const anchors = dimension.definition.anchors.map((anchor, index) => `  ${index + 1}: ${anchor}`).join("\n");
-      return `- ${dimension.key} (${dimension.label_en}): ${dimension.definition.summary}\n${anchors}`;
+      return `- ${dimension.key} (${dimensionLabel(rubric, dimension)}): ${dimension.definition.summary}\n${anchors}`;
     })
     .join("\n");
   const paceUnit = rubric.language === "ja" ? "characters per minute" : "words per minute";
@@ -126,12 +132,12 @@ export function renderScoringInput({ rubric, prompt, answer, durationMs, pace, c
   ].join("\n");
 }
 
-const PROMPTS: Partial<Record<RubricLanguage, { version: string; instructions: string }>> = { en };
+const PROMPTS: Partial<Record<RubricLanguage, { version: string; instructions: string }>> = { en, ja };
 
 export function openAiAnswerScorer({ apiKey, baseURL }: { apiKey: string; baseURL?: string }): AnswerScorer {
   return {
     modelId: SCORING_MODEL,
-    promptVersions: { en: en.version },
+    promptVersions: { en: en.version, ja: ja.version },
     async score(input, { signal, timeoutMs } = {}) {
       const prompt = PROMPTS[input.rubric.language];
       if (!prompt) throw new ModelCallFailed("Scoring", "no_prompt_for_language");

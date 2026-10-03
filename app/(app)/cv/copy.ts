@@ -27,7 +27,7 @@ type Kinds = Partial<Record<Kind, string>>;
  * **Every Japanese string here had an AI review on 2026-09-27, not a native read** — the user does
  * not read Japanese and delegated it (`docs/checklists/native-read-cv.md`, 06). All were accepted as
  * written, six of them as amended by the 2026-09-24 draft. **`coverage` and `coverageLegend` came
- * later, with #46, and are unread** (`docs/checklists/native-read-round-loop.md`).
+ * later, with #46, and are unread** (`docs/checklists/native-read-round.md` §7).
  */
 export const COPY = {
   ja: {

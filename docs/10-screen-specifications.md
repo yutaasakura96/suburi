@@ -41,9 +41,25 @@ measures, order, states and refusals stand. What changes:
   `YOUR ANSWER — EDIT FREELY`, `RAW — KEPT, NEVER REPLACED`, `Raw transcript`, `Rewrite`, `BEFORE THE
   FEEDBACK`, `WHAT THIS IS NOT`. Keeping them Latin as a design device was considered and rejected.
   `05` §3.3's uppercase and tracking are for Latin labels only; a Japanese label never relies on
-  `text-transform` (`05` §6).
-- **An English round needs its round-screen copy written**; every Japanese string on the round screens
-  still needs its native read before it ships.
+  `text-transform` (`05` §6). **The Japanese labels, since #43** (`06`, 2026-10-03), pending their
+  native read:
+
+  | Artboard label | In a Japanese round |
+  | --- | --- |
+  | `Raw transcript — 未修正` | `文字起こし — 未修正` |
+  | `YOUR ANSWER — EDIT FREELY` | `あなたの回答 — 自由に直せます` |
+  | `RAW — KEPT, NEVER REPLACED` | `未修正の文字起こし — 置き換えずに残します` |
+  | `Rewrite` | `書き直し` |
+  | `BEFORE THE FEEDBACK` | `講評の前に` |
+  | `WHAT THIS IS NOT` | `緊張度について` |
+
+  §5–§7 below still quote the artboards' Latin labels, as what was drawn. A Japanese round shows the
+  right-hand column, and its tab title is Japanese too (`ラウンド — Suburi`, `講評 — Suburi`).
+- **English round-screen copy is built (#42).** The Japanese strings for #43 were read on 2026-10-03
+  (`docs/checklists/native-read-round.md` — an AI read at the user's delegation, `06`). Two things
+  it changed in what the sections below quote: **a Japanese round is titled `人事面接` and
+  `最終面接`**, not the artboards' `HR` and `CEO・最終` (`行動面接` and `技術面接` stand), and
+  **`緊張度4を…` is set tight** (`05` §6).
 
 ---
 
@@ -324,12 +340,12 @@ Three lines at 12px/1.85 `--ink-4`:
 ### States
 - **Nothing picked:** button is `--surface-inert` / `--ink-8` / `1px --rule-section`; hint
   `1つ選ぶと講評に進めます。`
-- **Picked:** button becomes solid `--ink-1` / `#fff`; hint `緊張度 4 をこのラウンドに記録します。`
+- **Picked:** button becomes solid `--ink-1` / `#fff`; hint `緊張度4をこのラウンドに記録します。`
 - Stamp: `評価基準 v1.2・出題 v1.0・応募書類 v3`.
 
 **This screen cannot be skipped, and it cannot be answered after the feedback is seen** — the whole
 point is that the reading is taken before the result is known. The value is recorded on the round and
-surfaced on round feedback and History as `緊張度 4 を講評前に記録`.
+surfaced on round feedback and History as `緊張度4を講評前に記録`.
 
 ---
 
@@ -340,6 +356,14 @@ surfaced on round feedback and History as `緊張度 4 を講評前に記録`.
 Header: `行動面接` 17px/600, `日本語・実戦・5問` 13px `--ink-4`; right, the date in 11px mono and a
 language pill (`1px --tick`, `padding: 4px 10px`, 11px `--ink-4`) reading `English` — the toggle to
 read a Japanese round's feedback in English.
+
+**What the pill changes (`06`, 2026-10-03):** the feedback, and nothing else — the seven dimension
+names (`Structure … Keigo (register)`) and the round-level findings with their two headings
+(`To fix 3`, `What worked 1`), read from the stored translation (`04` `round_feedback.body_translated`).
+The round's own chrome stays Japanese: the header, `第1問 / 5問`, the figures, the question, the pager
+and the stamps. The pill appears only when the stored translation exists. It names the language it
+switches to, in that language — `English`, then `日本語` — and the choice is the page's, not stored.
+**An English round has no pill**: its feedback is English already (PRD §4).
 
 3-column grid: per-answer scores at `span 2`, round-level findings in the last column.
 
@@ -374,13 +398,13 @@ read a Japanese round's feedback in English.
   §5.8), below 良かったところ. Built with the grounding slice (#46, `06`):
   - **裏づけなし — one `--attention-mark` rail per unsupported span**, in question order and then in
     the order the spans stand in the answer, each naming its question:
-    `裏づけなし（第2問）—「チーム全体の生産性を上げた」に対応する記述が応募書類 v3 にない。` /
+    `裏づけなし（第2問）—「チーム全体の生産性を上げた」に対応する記述が応募書類 v3にない。` /
     `Unsupported (Question 2) — nothing in CV v3 backs “raised the whole team's productivity”.`
     **The quote is the answer's own words by span** — sliced from the corrected text, never reworded
     (`04` `answer_flags`) — and the label is the round's CV stamp. Only the flags of each answer's
     latest `ok` attempt are drawn; a re-score's flags replace the first attempt's here without
     deleting them.
-  - **None flagged is said**, on an `--ink-9` rail: `裏づけなし — 応募書類 v3 に照らして該当なし。` /
+  - **None flagged is said**, on an `--ink-9` rail: `裏づけなし — 応募書類 v3に照らして該当なし。` /
     `Unsupported — nothing flagged against CV v3.` A region that only appears when it has bad news is
     a region nobody learns to read (the same rule as `spans_rejected`, §13).
   - **未使用 — one `--ink-9` rail**: `未使用 —「2024 決済基盤の移行リード」「英語での顧客折衝」` /
@@ -394,7 +418,7 @@ read a Japanese round's feedback in English.
     all: "nothing flagged" there would be a statement nobody checked.
   - **Nothing in the region is the model's wording.** Every quoted string is a slice of stored text
     by a validated span; the sentence around it is chrome.
-- Footer stamp: `評価基準 v1.2・出題 v1.0・応募書類 v3` / `緊張度 4 を講評前に記録`.
+- Footer stamp: `評価基準 v1.2・出題 v1.0・応募書類 v3` / `緊張度4を講評前に記録`.
 
 ### An answer whose score failed
 
@@ -489,10 +513,11 @@ progress, and History offers to resume it rather than marking it.
 
 ### Detail — the matrix (§5.5)
 Header: `行動面接` 17px/600, `日本語・実戦・5問`, date, and
-`求人票 Mercari_SRE_2026.pdf・緊張度 4 を講評前に記録` at 12px `--ink-6`. Right: the `English`
+`求人票 Mercari_SRE_2026.pdf・緊張度4を講評前に記録` at 12px `--ink-6`. Right: the `English`
 language pill and `編集できません` at 11px `--ink-8`.
 
-**A past round is read-only.** The pill still toggles the feedback language; nothing else can change.
+**A past round is read-only.** For a Japanese round with a stored translation, the pill still toggles
+the feedback language; nothing else can change.
 
 Columns: `196px repeat(7, 1fr) 58px 34px` — question, the seven dimensions, TIME, play.
 
@@ -670,7 +695,7 @@ stale, and a citation written a minute ago is on the page at the next load.
 about material that version no longer puts in front of a scorer.
 
 > **The two Japanese strings above have not had a native read** — `記載事項 34件・未使用 12件` and the
-> legend. They are in `docs/checklists/native-read-round-loop.md` §2 with the grounding region's.
+> legend. They are in `docs/checklists/native-read-round.md` §7 with the grounding region's.
 
 ### New version
 

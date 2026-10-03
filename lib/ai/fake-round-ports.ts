@@ -65,8 +65,28 @@ export const FIXTURE_FEEDBACK: RoundFeedbackResult = {
   ],
   whatWorked: "In answer 3, the example was concrete.",
   untouched: [],
+  translated: null,
   tokensIn: 300,
   tokensOut: 60,
+};
+
+/** A Japanese round's feedback, with the English translation the toggle reads (04 `body_translated`). */
+export const FIXTURE_FEEDBACK_JA: RoundFeedbackResult = {
+  toFix: [
+    { title: "結論を最初の一文に置く", body: "第1問で、結論が最後に出てくる。" },
+    { title: "数値を一つ挙げる", body: "第2問で、成果が抽象的なままである。" },
+  ],
+  whatWorked: "第3問で、具体的な場面を挙げて説明できている。",
+  translated: {
+    toFix: [
+      { title: "Put the conclusion in the first sentence", body: "In answer 1, the conclusion arrives last." },
+      { title: "Name one number", body: "In answer 2, the outcome stays general." },
+    ],
+    whatWorked: "In answer 3, you explained with a concrete situation.",
+  },
+  untouched: [],
+  tokensIn: 300,
+  tokensOut: 120,
 };
 
 export function fakeTranscriber(

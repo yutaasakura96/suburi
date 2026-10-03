@@ -4,11 +4,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useDeferredValue, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { rewriteMagnitude, rewritePercent } from "@/lib/round/measures";
+import { paceUnits, rewriteMagnitude, rewritePercent } from "@/lib/round/measures";
 import { failureText, postJson, type FailureCode } from "../api";
-import { ROUND_COPY, ROUND_TYPE_NAMES, clock, wordCount, type RoundCopy } from "../copy";
+import { ROUND_COPY, clock, type RoundCopy, type RoundLanguage } from "../copy";
 import type { RoundFrame } from "../load";
-import { CalloutRail, RoundFooter, RoundHeader, caption, sectionLabel } from "../parts";
+import { CalloutRail, RoundFooter, RoundHeader, caption, roundSectionLabel } from "../parts";
 import { WAVEFORM_BARS, useRecorder, type Take } from "./recorder";
 
 interface Transcript {
@@ -58,7 +58,8 @@ interface Submitted {
  * reload resumes from, so nothing here is the record of where the round is.
  */
 export function RoundRunner({ frame }: { frame: RoundFrame }) {
-  const copy = ROUND_COPY[frame.round.language];
+  const { language } = frame.round;
+  const copy = ROUND_COPY[language];
   const router = useRouter();
   const [screen, setScreen] = useState<Screen>(() => initialScreen(frame.start));
   const [error, setError] = useState<{ text: string; retry: (() => void) | null } | null>(null);
@@ -74,7 +75,7 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
   const done = screen.kind === "pressure" ? round.length : screen.kind === "abandoned" ? screen.answered : position - 1;
   const header = (
     <RoundHeader
-      title={ROUND_TYPE_NAMES[round.roundType]}
+      title={copy.roundTypes[round.roundType]}
       meta={copy.meta(round.length)}
       done={done}
       length={round.length}
@@ -82,11 +83,11 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
     />
   );
   // 10 §3: the question's generator version and the CV version; the rubric joins them where scores are.
-  const stamp = (question: Question) => `${frame.generatorVersions[question.position - 1]} · ${frame.cvLabel}`;
-  const roundStamp = [`Rubric ${frame.rubricLabel}`, ...new Set(frame.generatorVersions), frame.cvLabel].join(" · ");
+  const stamp = (question: Question) => copy.stamps([frame.generatorVersions[question.position - 1], frame.cvLabel]);
+  const roundStamp = copy.stamps([copy.rubricStamp(frame.rubricLabel), ...new Set(frame.generatorVersions), frame.cvLabel]);
 
   function fail(code: FailureCode, retry: (() => void) | null) {
-    setError({ text: failureText(code, frame.round.language), retry: code === "round_abandoned" ? null : retry });
+    setError({ text: failureText(code, language), retry: code === "round_abandoned" ? null : retry });
     setBusy(false);
   }
 
@@ -193,6 +194,7 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
       body = (
         <TranscriptFrame
           copy={copy}
+          language={language}
           question={screen.question}
           transcript={screen.transcript}
           onCorrect={() => setScreen({ kind: "correct", question: screen.question, transcript: screen.transcript })}
@@ -203,6 +205,7 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
       body = (
         <CorrectionFrame
           copy={copy}
+          language={language}
           question={screen.question}
           transcript={screen.transcript}
           busy={busy}
@@ -213,12 +216,14 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
       );
       break;
     case "pressure":
-      body = <PressureFrame copy={copy} busy={busy} error={error} stamp={roundStamp} onPick={(value) => void complete(value)} />;
+      body = (
+        <PressureFrame copy={copy} language={language} busy={busy} error={error} stamp={roundStamp} onPick={(value) => void complete(value)} />
+      );
       break;
   }
 
   return (
-    <section className="flex min-h-[680px] flex-col border border-rule-frame bg-surface" aria-label={ROUND_TYPE_NAMES[round.roundType]}>
+    <section className="flex min-h-[680px] flex-col border border-rule-frame bg-surface" aria-label={copy.roundTypes[round.roundType]}>
       {header}
       {body}
     </section>
@@ -336,11 +341,13 @@ function RecordFrame({
 /** 10 §5: the question demoted to context, the raw transcript with its errors intact. */
 function TranscriptFrame({
   copy,
+  language,
   question,
   transcript,
   onCorrect,
 }: {
   copy: RoundCopy;
+  language: RoundLanguage;
   question: Question;
   transcript: Transcript;
   onCorrect: () => void;
@@ -349,10 +356,10 @@ function TranscriptFrame({
     <div className="flex flex-grow flex-col gap-[22px] px-[32px] pt-[36px] pb-[32px]">
       <p className="max-w-[880px] text-[14px] leading-[1.85] text-ink-5">{question.text}</p>
       <div className="flex items-baseline justify-between">
-        <span className={sectionLabel}>{copy.rawTranscript}</span>
+        <span className={roundSectionLabel(language)}>{copy.rawTranscript}</span>
         <span className="font-mono text-[12px] text-ink-label" data-testid="take-figures">
           {transcript.durationMs !== null && transcript.wpm !== null
-            ? copy.takeFigures(transcript.durationMs, transcript.wpm, wordCount(transcript.raw))
+            ? copy.takeFigures(transcript.durationMs, transcript.wpm, paceUnits(language, transcript.raw))
             : null}
         </span>
       </div>
@@ -377,6 +384,7 @@ function TranscriptFrame({
 /** 10 §6: the editor, the raw text always beside it, and the rewrite meter — a tick, not a bar. */
 function CorrectionFrame({
   copy,
+  language,
   question,
   transcript,
   busy,
@@ -385,6 +393,7 @@ function CorrectionFrame({
   onSubmit,
 }: {
   copy: RoundCopy;
+  language: RoundLanguage;
   question: Question;
   transcript: Transcript;
   busy: boolean;
@@ -397,6 +406,7 @@ function CorrectionFrame({
   const deferred = useDeferredValue(text);
   const percent = rewritePercent(rewriteMagnitude(transcript.raw, deferred));
   const empty = text.trim() === "";
+  const sectionLabel = roundSectionLabel(language);
 
   return (
     <div className="grid flex-grow grid-cols-3">
@@ -408,7 +418,7 @@ function CorrectionFrame({
             {copy.yourAnswer}
           </label>
           <span className="font-mono text-[12px] text-ink-label" data-testid="word-change">
-            {copy.wordsChange(wordCount(transcript.raw), wordCount(text))}
+            {copy.unitsChange(paceUnits(language, transcript.raw), paceUnits(language, text))}
           </span>
         </div>
         <textarea
@@ -456,9 +466,7 @@ function CorrectionFrame({
           </Button>
           <p className={caption}>{busy ? copy.sending : empty ? copy.emptyAnswer : copy.sendCaption}</p>
           <p className="font-mono text-[10px] leading-[1.9] text-ink-8">
-            {transcript.durationMs !== null && transcript.wpm !== null
-              ? `${clock(transcript.durationMs)} · ~${Math.round(transcript.wpm)} wpm`
-              : null}
+            {transcript.durationMs !== null && transcript.wpm !== null ? copy.takeSummary(transcript.durationMs, transcript.wpm) : null}
             <br />
             {stamp}
           </p>
@@ -474,18 +482,21 @@ function CorrectionFrame({
  */
 function PressureFrame({
   copy,
+  language,
   busy,
   error,
   stamp,
   onPick,
 }: {
   copy: RoundCopy;
+  language: RoundLanguage;
   busy: boolean;
   error: { text: string; retry: (() => void) | null } | null;
   stamp: string;
   onPick: (value: number) => void;
 }) {
   const [picked, setPicked] = useState<number | null>(null);
+  const sectionLabel = roundSectionLabel(language);
   return (
     <div className="grid flex-grow grid-cols-3">
       <div className="col-span-2 flex flex-col gap-[14px] border-r border-rule-frame px-[32px] pt-[30px] pb-[32px]">

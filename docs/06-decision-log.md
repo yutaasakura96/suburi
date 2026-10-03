@@ -3,6 +3,141 @@
 Newest first. Every entry records what was chosen, why, and what was rejected.
 
 ---
+## Phase 6 — #43, Japanese rounds
+
+The round #42 built, in the other language: rubric `ja` v1.0 with 敬語, the Japanese set pieces, pace
+in characters, the screens in Japanese, and the feedback's English toggle. No migration — every column
+was already there. These are the choices the build needed.
+
+### [2026-10-03] The translation is written by the feedback call, and stored beside it
+
+A Japanese round's feedback call returns the feedback **and its English translation** in one
+structured output; `round_feedback.body_translated` holds `{ language: "en", to_fix, what_worked }`.
+A result with no translation, or one that does not match the feedback item for item, is refused as
+`malformed_output`: no row is written, and `07` §5.16's retry writes it. **Why one call:** the row is written once and whole
+(`04`), so a translation that arrived later would be an update to it, and a translation that failed
+alone would leave a row the toggle cannot read. The dimension names need no translation — a rubric
+carries `label_ja` and `label_en`. **Rejected:** a second model call at round end (a second failure
+path and a second wait, for text the first call can write); translating on demand when the pill is
+pressed (a spinner on a screen that renders from stored rows, and a model call from a `GET`);
+translating the per-answer justifications too (they are not shown yet, and they are stored per score,
+where a translation has no column).
+
+### [2026-10-03] The pill changes the feedback and nothing else
+
+On a Japanese round's feedback, `English` switches the seven dimension names and the round-level
+findings with their two headings; the header, the question, the figures, the pager and the stamps stay
+Japanese (`10` §8). It is page state, not a stored preference, and an English round has no pill.
+**Why:** PRD §4 and US-10 ask to *read the feedback* in English — the user reads Japanese feedback
+slowly, not Japanese chrome. A pill that turned the whole screen English would make the round's
+language a display setting, which `10` §0 decided it is not. **Rejected:** translating the question
+(it is the thing that was asked, in the language it was asked in); remembering the choice across
+rounds (a setting with one user and no screen to change it on).
+
+### [2026-10-03] The six Japanese section labels
+
+`10` §0 has the artboards' Latin labels become Japanese in a Japanese round and names six. Chosen:
+`文字起こし — 未修正`, `あなたの回答 — 自由に直せます`, `未修正の文字起こし — 置き換えずに残します`,
+`書き直し`, `講評の前に`, `緊張度について`. Set in mono at `0.16em`, no `text-transform` (`05` §3.3).
+The last is not a translation of `WHAT THIS IS NOT`: a literal one reads as a riddle, so the label
+names its subject and the three lines under it do the denying. All six were accepted by the
+checklist's read (`docs/checklists/native-read-round.md`, and the entry above). The tab titles follow the round too — `ラウンド — Suburi`,
+`講評 — Suburi`.
+
+### [2026-10-03] The Japanese prompts are written in English, and the model input names dimensions in the rubric's language
+
+`score-ja-1.0` and `feedback-ja-1.0` give their instructions in English and ask for Japanese output,
+as `cv-extract-ja-*` does: the instructions are the part a reviewer must be able to check, and the
+anchors the model scores against are already Japanese. Both ask for plain form (常体) throughout —
+`05` §6's one-register rule, for a list of things to fix — with quotes in 「」 and counters in 件, 問,
+分, 秒 and 字. The rendered input names each dimension by the rubric's own label (`構成`, not
+`Structure`) and states pace as characters per minute. **The English prompts are not touched here**:
+`score-en-1.0` and `feedback-en-1.0` are still the versions that produced #42's rows, and their `1.1`
+is #46's. **Rejected:** prompts written in Japanese (unreviewable by the person who owns them, and
+no evidence they score better); one bilingual prompt with a language switch (two prompts in one file,
+and a version bump for one language would restamp the other).
+
+### [2026-10-03] Pace is counted in the transcript's own units, and the rubric says what is normal
+
+`ja` pace is code points of `transcript_raw` without whitespace, per minute; `en` stays words
+(`11` §3.9: `3:12・約250字/分・800字`). The count on the correction screen uses the same unit, so
+`800字 → 812字` and the pace agree. Rubric `ja` v1.0's length and pacing dimension names 1–2 minutes
+as a typical answer, about 3 as the upper end, and 250–350 字/分 as an unhurried pace — the figures
+the anchors are read against, and so part of what the user reviews. **Rejected:** morae or
+morphemes (neither is what `10` §5 draws, and both need a tokenizer to count what a person cannot
+check by eye).
+
+### [2026-10-03] Setup offers the language; the default stays English until #51
+
+Setup's language row is now a choice, named in English (`Japanese`, `English`) because Setup is an
+app-level screen (`10` §0), and the CV and rubric lines follow it — a stored `応募書類 v3` stays as
+stored. The default is still `en`: defaults come from spacing, and that is #51. `POST /api/rounds`
+takes either language; anything else is a `400`.
+
+### [2026-10-03] Synthetic Japanese questions, and one checklist
+
+`develop` gets 17 synthetic Japanese bank questions, parallel to the English ones and stamped
+`synthetic-generated-ja-1.0`, so a Japanese round can be filled before generation exists (#47).
+Production never gets them (`12` §1). `docs/checklists/native-read-round-loop.md` is renamed
+`native-read-round.md` — the path #43's criteria name — keeping #42's three unread error strings as
+its §1; every Japanese string #43 added is §2–§4, the rubric is pointed at from §5, and #46's strings
+are its §7.
+
+### [2026-10-03] A Japanese round goes through the CV check, as #46 left it to
+
+#46 landed on `develop` first, English only, and wrote the Japanese round's side into `10` §8 for #43
+to render. So `score-ja-1.0` carries `score-en-1.1`'s CV check and `feedback-ja-1.0` its untouched
+material, both added before either was stamped on a row — `1.0` is still one prompt each. `untouched`
+is returned once, outside `translated`: it is claim numbers, and has no language. `ROUND_COPY.ja`
+gains the region's strings and the wrong-language line as `10` §8 gives them, and the region stays in
+the round's language under the pill, like the rest of the chrome: every quote in it is stored
+Japanese text. **Rejected:** a Japanese round with no CV check until a `score-ja-1.1` (the output
+schema is one schema, so the model would return citations and spans its prompt never described).
+
+### [2026-10-03] The rubric review and the native read were delegated to an AI, and say so
+
+#43 marks two steps as the user's: reviewing rubric `ja` v1.0 with its native read before it is
+seeded, and the native read of `docs/checklists/native-read-round.md` before the slice ships. **The
+user does not read Japanese well and explicitly delegated both, on 2026-10-03, to firstmate — the
+supervising AI agent, not a native speaker.** The same thing happened to the CV checklist (#38,
+2026-09-27), and it is recorded the same way: as what it was, so a later human native read knows
+there is something to revisit.
+
+**The rubric.** All seven dimensions and thirty-five anchors reviewed: the Japanese reads naturally
+and the levels are consistent and well separated. Approved for seeding with one change, in 敬語's
+level 3: `二重敬語や「〜のほう」「〜になります」のような不適切な敬語` became
+`二重敬語や、いわゆるバイト敬語（「〜のほう」「〜になります」）` — the category has a name, and
+"inappropriate" judged what the anchor only needs to identify. Nothing had been seeded, so this is
+still v1.0. A change from a later read is v1.1 (`04` §5).
+
+**The checklist, §1–§4.** Every row accepted as written except these:
+
+- **Numeral spacing** — the rule now in `05` §6: tight inside a sentence or phrase
+  (`緊張度4をこのラウンドに記録します。`, `緊張度4を講評前に記録`), one space before a label's figure
+  (`最長 4分`, `直すところ 3件`). `10` §7–§8's quotes follow.
+- **A Japanese round's titles** are `人事面接` and `最終面接`, not the artboards' `HR` and
+  `CEO・最終`: a Latin title over a Japanese screen was the last piece of Latin chrome in the round.
+  The app-level screens are English and keep `HR` and `CEO / final` (`10` §0).
+- **One develop fixture question**: `前のチームの人たちは、あなたが控えたほうがよいことは…` became
+  `前のチームのメンバーは、あなたが控えたほうがいいことは…`.
+
+Accepted as chosen: the six section labels, and `採点中` beside `未採点`. **Rejected:** holding #43
+until a native speaker is found (there is one user, and the strings are replaceable copy — unlike a
+seeded rubric, which is why that review came first); recording either as a native read (the next
+reader would not know to look).
+
+### [2026-10-03] Rubric `ja` v1.0 is drafted, not seeded
+
+`lib/rubric/ja-1.0.ts` holds seven dimensions with five anchors each, written in Japanese. It is in
+`RUBRICS`, so `db:seed:develop` would seed it — and **no seed is run until it has been reviewed,
+with its read**: `rubric_versions` is immutable once a row exists (`04` §5), so a wording
+changed after the seed is v1.1 with a re-score and a boundary on every chart. The review is #43's
+first acceptance criterion and precedes its merge; the entry above records how it was done. **Rejected:** seeding a draft on `develop` and
+bumping to v1.1 after the read (the first Japanese rounds would sit on the wrong side of a boundary
+drawn for a typo).
+
+---
+
 ## Phase 6 — #46, CV grounding
 
 Round loop slice 5: citations, unsupported claims, untouched material, the wrong-language reading and
