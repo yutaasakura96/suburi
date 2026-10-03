@@ -19,7 +19,7 @@ on `develop` and on every branch off it. npm audit has no flag that ignores one 
 offered fix is `shadcn` 1.0.0, a downgrade.
 **Remove it when** a patched `braces` ships (update to it in the same change) or the advisory is
 withdrawn. The entry is held to the package, high severity, and range `<=3.0.3`, and the audit fails
-when npm reports a change in either. It does not fail when npm stops reporting the advisory; removing
+when npm reports a change in any of them. It does not fail when npm stops reporting the advisory; removing
 the entry then is by hand.
 **Alternatives considered:** lowering the level or dropping the step, which lets every other high
 advisory through too; `npm audit --omit=dev`, which still reports it (`shadcn` is a dependency) and
