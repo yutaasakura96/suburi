@@ -72,7 +72,7 @@ test("empty panel → paste → save shows CV v1, its underlined claims and the 
     await panel.getByRole("button", { name: "Save this version" }).click();
 
     await expect(panel.getByTestId("cv-version-label")).toHaveText("CV v1");
-    await expect(panel.getByTestId("cv-claim-count")).toHaveText("2 claims");
+    await expect(panel.getByTestId("cv-claim-count")).toHaveText("2 claims · 2 never used");
     await expect(
       panel.getByText("2 claims extracted — 0 carried forward, 2 new. 1 dropped."),
     ).toBeVisible();
@@ -161,7 +161,7 @@ test("a 応募書類 with a 履歴書, a 職務経歴書 and an additional docum
     await ja.getByRole("button", { name: "このバージョンを保存する" }).click();
 
     await expect(ja.getByTestId("cv-version-label")).toHaveText("応募書類 v1");
-    await expect(ja.getByTestId("cv-claim-count")).toHaveText("記載事項 3件");
+    await expect(ja.getByTestId("cv-claim-count")).toHaveText("記載事項 3件・未使用 3件");
     await expect(ja.getByText("3件を抽出しました。うち0件は前のバージョンから引き継ぎ、3件が新規です。除外は0件でした。")).toBeVisible();
     await expect(ja.getByRole("heading", { level: 3 })).toHaveText(["履歴書", "職務経歴書", "ポートフォリオ"]);
     await expect(ja.locator("[data-claim]")).toHaveText(JA_CLAIMS.map((claim) => claim.quote));

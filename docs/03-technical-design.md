@@ -236,6 +236,32 @@ What they settle:
   error. It is why the bound has a margin, and why scoring runs in `after()` rather than in front of
   the user.
 
+**Re-measured 2026-10-03 (#46), with the CV check.** `score-en-1.1` and `feedback-en-1.1` read the
+CV's claims and return citations, unsupported spans, `answered_language` and untouched material, so the
+two calls that changed were measured again, the same way: five runs, the same three synthetic answers,
+against a synthetic CV of 80 claims — the size of the real ones — and with what came back run through
+the validators (`lib/round/grounding.ts`).
+
+| Job | Prompt | n | median | p90 | slowest | tokens in / out |
+| --- | --- | --- | --- | --- | --- | --- |
+| Answer scoring | `score-en-1.1` | 15 | 9.7 s | 15.7 s | 19.5 s | 4,483 / 626 |
+| Round feedback, 3 answers | `feedback-en-1.1` | 5 | 15.4 s | 18.3 s | 19.5 s | 3,512 / 940 |
+
+- **The CV costs scoring about 2,700 input tokens and 2.6 s at the median**, and feedback about 2,100
+  and 5.4 s. Scoring still lands inside screen 7; what the user waits for after the rating is the
+  feedback call, about 15 s.
+- **`complete`'s 60 s bound stands.** By the rule that set it — the slowest scoring call, a 2 s backoff
+  and a median retry — this run asks for 31 s; the bound stays where #42's 38.1 s tail put it.
+- **Nothing was dropped**: 50 citations and 5 unsupported spans over 15 answers, every number a shown
+  claim and every quote found verbatim; 12 untouched picks over 5 rounds, every one from the set shown.
+  No `contradicted_by` — the answers contradict nothing, and none was invented. All 15 answers were read
+  as English.
+- **The picks were the right ones.** The synthetic CV holds three claims written to fit the questions
+  that no answer uses, among 65 of filler: all 12 picks were from those three.
+- **A first draft of the prompt was slower and wrong** — 19.7 s median, 1,591 output tokens, two or
+  three "unsupported" sentences an answer. It was flagging narration; the fix is in `06`, 2026-10-03.
+  The drop counters would not have shown it: every one of those quotes was verbatim.
+
 **The embedding model is `text-embedding-3-small`**, pinned in `lib/ai/models.ts` like every other
 model string: `questions.embedding` is `vector(1536)`, that model's default dimension (OpenAI docs, per
 the round-loop planning report's check, 2026-09-27). Changing it changes every distance the
@@ -247,7 +273,9 @@ duration and its pace, and the CV version's claims. **Not the raw transcript** �
 would cost accuracy points for the machine's mistakes. Fluency is defined on what the correction step
 keeps: fillers and restarts, which screen 5's caption asks the user to leave in, so the correction
 step cannot launder it. It returns the scores, citations, unsupported spans of the answer, and
-`answered_language` (`07` §5.10).
+`answered_language` (`07` §5.10). **The claims go in numbered and sliced from the stored body, and come
+back as numbers** (#46): the scorer never sees a claim id and never supplies a quote that is stored
+(§11, `06`, 2026-10-03). The round-feedback call is sent the round's never-cited claims the same way.
 
 **CV claim extraction is one synchronous extraction (N parallel windowed calls), all-or-nothing.** The
 user saves a CV version and waits; the calls run first and the version, its documents and its claims
@@ -651,6 +679,11 @@ approximate start; the server finds the quote in the stored text and validates t
 quote that is not in the text verbatim, or a span that fails validation, is dropped and counted
 (`06`, 2026-09-21). Spans count Unicode code points, as Postgres `substring` does.
 Extraction quality itself is eyeballed on real data per CV upload (`11` §5; §4 holds the readings).
+**The same rule holds where the claims are used** (#46): the scorer and the feedback call are shown
+numbered claims and answer with numbers, so no id and no CV quote of theirs is ever stored; the
+unsupported spans of an answer are found in the stored corrected text the way a CV quote is found in
+the body; and every string in screen 8's grounding region and every underline on `/cv` is a slice by a
+validated span.
 
 **3. Near-duplicate questions in a growing bank.**
 Generated questions are written into the bank permanently, and first-attempt progress data is keyed

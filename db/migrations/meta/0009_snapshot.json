@@ -1,6 +1,6 @@
 {
-  "id": "881dd6ee-f06b-44e2-9fd2-ec9ee60ea8f9",
-  "prevId": "af299275-f525-4b5b-adba-dfd4758649a7",
+  "id": "7cae5bcd-b780-4b0c-9e9a-99bc9c20e91e",
+  "prevId": "881dd6ee-f06b-44e2-9fd2-ec9ee60ea8f9",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1288,6 +1288,135 @@
         "cv_versions_language_check": {
           "name": "cv_versions_language_check",
           "value": "\"cv_versions\".\"language\" in ('ja', 'en')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.follow_ups": {
+      "name": "follow_ups",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "parent_answer_id": {
+          "name": "parent_answer_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "prompt_text": {
+          "name": "prompt_text",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "model_id": {
+          "name": "model_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "prompt_version": {
+          "name": "prompt_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tokens_in": {
+          "name": "tokens_in",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tokens_out": {
+          "name": "tokens_out",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "error_class": {
+          "name": "error_class",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "follow_ups_parent_answer_id_answers_id_fk": {
+          "name": "follow_ups_parent_answer_id_answers_id_fk",
+          "tableFrom": "follow_ups",
+          "tableTo": "answers",
+          "columnsFrom": [
+            "parent_answer_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "follow_ups_user_id_users_id_fk": {
+          "name": "follow_ups_user_id_users_id_fk",
+          "tableFrom": "follow_ups",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "follow_ups_parent_answer_id_unique": {
+          "name": "follow_ups_parent_answer_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "parent_answer_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "follow_ups_status_check": {
+          "name": "follow_ups_status_check",
+          "value": "\"follow_ups\".\"status\" in ('generated', 'missing')"
+        },
+        "follow_ups_generated_has_text_check": {
+          "name": "follow_ups_generated_has_text_check",
+          "value": "(\"follow_ups\".\"status\" = 'generated') = (\"follow_ups\".\"prompt_text\" is not null)"
+        },
+        "follow_ups_error_class_missing_check": {
+          "name": "follow_ups_error_class_missing_check",
+          "value": "\"follow_ups\".\"status\" = 'missing' or \"follow_ups\".\"error_class\" is null"
         }
       },
       "isRLSEnabled": false

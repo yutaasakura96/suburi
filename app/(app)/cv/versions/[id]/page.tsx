@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireSession } from "@/lib/auth/session";
+import { citedClaimIds } from "@/lib/cv/coverage";
 import { cvVersionById } from "@/lib/cv/current-version";
 import { getDb } from "@/lib/db";
 import { COPY } from "../../copy";
@@ -20,8 +21,10 @@ export const metadata: Metadata = {
 export default async function CvVersionPage(props: PageProps<"/cv/versions/[id]">) {
   const userId = await requireSession();
   const { id } = await props.params;
-  const read = await cvVersionById(getDb(), userId, id);
+  const db = getDb();
+  const read = await cvVersionById(db, userId, id);
   if (!read) notFound();
+  const cited = await citedClaimIds(db, read.version.id);
 
   const language = read.version.language;
   const copy = COPY[language];
@@ -37,7 +40,7 @@ export default async function CvVersionPage(props: PageProps<"/cv/versions/[id]"
             </h2>
           </div>
           <div className="px-[32px] pt-[26px] pb-[32px]">
-            <CvVersionView language={language} version={toVersionView(language, read)} />
+            <CvVersionView language={language} version={toVersionView(language, read, cited)} />
           </div>
         </section>
       </div>

@@ -6,6 +6,7 @@ import { isUuid } from "@/lib/round/http";
 import { getRound } from "@/lib/round/state";
 import { ROUND_COPY, ROUND_TYPE_NAMES, type RoundLanguage } from "../../copy";
 import { feedbackScreen } from "../../load";
+import { CalloutRail } from "../../parts";
 import { AnswerPager } from "./answer-pager";
 import { FindingsRetry } from "./findings-retry";
 
@@ -66,6 +67,31 @@ export default async function FeedbackPage({ params }: PageProps<"/round/[roundI
                   <h2 className="font-mono text-[12px] tracking-[0.1em] text-ink-label">{copy.whatWorked}</h2>
                   <p className="text-[13px] leading-[1.75] text-ink-3">{screen.findings.whatWorked}</p>
                 </div>
+                {screen.grounding ? (
+                  <div className="flex flex-col gap-[12px]" data-testid="grounding">
+                    <h2 className="font-mono text-[12px] tracking-[0.1em] text-ink-label">{copy.grounding}</h2>
+                    {screen.grounding.unsupported.length === 0 ? (
+                      <CalloutRail tone="quiet" live={false}>
+                        {copy.nothingUnsupported(screen.grounding.cvLabel)}
+                      </CalloutRail>
+                    ) : (
+                      screen.grounding.unsupported.map((flag, index) => (
+                        <div key={index} data-testid="unsupported">
+                          <CalloutRail tone="attention" live={false}>
+                            {copy.unsupported(flag.position, flag.quote, screen.grounding!.cvLabel)}
+                          </CalloutRail>
+                        </div>
+                      ))
+                    )}
+                    <div data-testid="untouched">
+                      <CalloutRail tone="quiet" live={false}>
+                        {screen.grounding.untouched.length === 0
+                          ? copy.nothingUnused
+                          : [copy.unused, ...screen.grounding.untouched.map(copy.quoted)].join(" ")}
+                      </CalloutRail>
+                    </div>
+                  </div>
+                ) : null}
               </>
             ) : screen.findingsUnavailable ? (
               <p className="text-[13px] leading-[1.75] text-ink-3" data-testid="findings-unavailable">

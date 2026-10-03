@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { requireSession } from "@/lib/auth/session";
+import { citedClaimIds } from "@/lib/cv/coverage";
 import { currentCvVersion, cvVersionHistory } from "@/lib/cv/current-version";
 import { getDb } from "@/lib/db";
 import type { CvLanguage } from "./copy";
@@ -18,7 +19,7 @@ async function load(userId: string, language: CvLanguage): Promise<PanelData | n
   ]);
   if (!current) return null;
   return {
-    view: toVersionView(language, current),
+    view: toVersionView(language, current, await citedClaimIds(db, current.version.id)),
     prefill: toPrefill(current),
     history: history.map((row) => ({
       id: row.id,

@@ -370,6 +370,14 @@ read a Japanese round's feedback in English.
   not scored yet, or not scored — and the second never changes. **A missing follow-up keeps the row**:
   the label, and one sentence in `--attention-ink` saying it was not generated and is recorded as a
   gap, in place of the question (`06`, 2026-10-03). The follow-up's own scores are History's (§10).
+- **An answer in the wrong language** (PRD §7) carries one `--accent-mid` callout rail (`05` §5.8)
+  under its score rows, above the pager: `英語での回答です。日本語の進捗には入れません。` /
+  `This answer was given in Japanese. It is kept out of your English progress.` It names the language
+  the scorer read (`scoring_attempts.answered_language`, `04`) and the round's. **The answer is still
+  scored and its rows still render** — the line says what happens to the scores, it does not replace
+  them. An answer in the round's language carries no line, and neither does one whose latest `ok`
+  attempt has no `answered_language` (scored before the CV check existed): absence of the reading is
+  not a mismatch.
 - **Answer pager:** `第2問 第3問 第4問 第5問` at 12px `--ink-label`, a flex `--rule-section` line,
   then `以下に4問`.
 
@@ -380,15 +388,30 @@ read a Japanese round's feedback in English.
   2. `数値の裏づけがない箇所が2つ。応募書類の「請求処理を40%短縮」を使う。`
   3. `「〜っていう」が4回。「〜という」に置き換える。`
 - `良かったところ 1件` — one line, same size. **One, not three.** The asymmetry is the design.
-- `応募書類との照合` — callout rails (§5.8): `--attention-mark` for
-  `裏づけなし —「チーム全体の生産性を上げた」に対応する記述が応募書類 v3 にない。`, `--ink-9` for
-  `未使用 —「2024 決済基盤の移行リード」「英語での顧客折衝」`.
-  **裏づけなし quotes the answer by span** — sliced from the corrected text, never reworded (`04`
-  `answer_flags`). **未使用 is two or three claims the feedback call picked as relevant** from the
-  round's never-cited set, not every uncited claim (`06`, 2026-09-27); each quote is sliced from the CV
-  by span.
-- **An answer in the wrong language** carries a line saying so, and that it is kept out of this
-  language's progress (PRD §7). Copy written with the grounding slice.
+- `応募書類との照合` / `Checked against your CV` — a §3.3 section label over callout rails (`05`
+  §5.8), below 良かったところ. Built with the grounding slice (#46, `06`):
+  - **裏づけなし — one `--attention-mark` rail per unsupported span**, in question order and then in
+    the order the spans stand in the answer, each naming its question:
+    `裏づけなし（第2問）—「チーム全体の生産性を上げた」に対応する記述が応募書類 v3 にない。` /
+    `Unsupported (Question 2) — nothing in CV v3 backs “raised the whole team's productivity”.`
+    **The quote is the answer's own words by span** — sliced from the corrected text, never reworded
+    (`04` `answer_flags`) — and the label is the round's CV stamp. Only the flags of each answer's
+    latest `ok` attempt are drawn; a re-score's flags replace the first attempt's here without
+    deleting them.
+  - **None flagged is said**, on an `--ink-9` rail: `裏づけなし — 応募書類 v3 に照らして該当なし。` /
+    `Unsupported — nothing flagged against CV v3.` A region that only appears when it has bad news is
+    a region nobody learns to read (the same rule as `spans_rejected`, §13).
+  - **未使用 — one `--ink-9` rail**: `未使用 —「2024 決済基盤の移行リード」「英語での顧客折衝」` /
+    `Unused — “Led the 2024 payments platform migration” “Customer negotiation in English”`.
+    **Two or three claims the feedback call picked as relevant** from the round's never-cited set,
+    not every uncited claim (`06`, 2026-09-27), in the order it picked them; each quote is sliced from
+    the CV by span (`round_feedback.untouched_claim_ids`, `04`). None picked:
+    `未使用 — この回で挙げる記載事項はなし。` / `Unused — nothing picked for this round.`
+  - **Drawn only for a round that went through the CV check** — one where some answer's latest `ok`
+    attempt carries `answered_language`. A round scored before the check existed has no region at
+    all: "nothing flagged" there would be a statement nobody checked.
+  - **Nothing in the region is the model's wording.** Every quoted string is a slice of stored text
+    by a validated span; the sentence around it is chrome.
 - Footer stamp: `評価基準 v1.2・出題 v1.0・応募書類 v3` / `緊張度 4 を講評前に記録`.
 
 ### An answer whose score failed
@@ -624,9 +647,9 @@ offers the one move that fixes it.
 | Element | Spec |
 | --- | --- |
 | Version stamp | `05` §5.9, but **top-left of the panel rather than bottom-right** — here it labels the thing being read, it is not the provenance footer of a score. `応募書類 v3` / `CV v3`, with `2026-08-30` beside it in mono. |
-| Claim count | 11px mono, `--ink-label`: `記載事項 34件` / `34 claims`. **`件`, never `点`** (`05` §6). |
+| Claim count | 11px mono, `--ink-label`, with the count of claims no answer has used (below): `記載事項 34件・未使用 12件` / `34 claims · 12 never used`. **`件`, never `点`** (`05` §6). |
 | Documents | In `position` order. Each is a §3.3 section label — `履歴書` · `職務経歴書` · the user's own title for an additional document — over its text at 13px/1.9. |
-| Claim spans | Each surviving claim's span **underlined** in its document's text: `border-bottom: 1px solid var(--accent-mid)`. Nothing else — no numbering, no margin notes, no hover card. |
+| Claim spans | Each surviving claim's span **underlined** in its document's text: `border-bottom: 1px solid var(--accent-mid)`, or the heavier coverage mark below. Nothing else — no numbering, no margin notes, no hover card. |
 
 **The underline is the whole point of this screen.** It is how extraction gets checked: the user reads
 their own CV and a wrong span is visible as a phrase underlined that is not an assertion, or an
@@ -636,6 +659,36 @@ assertion left bare. That check is the answer to `CONTEXT.md`'s open question ab
 **Every underlined range is sliced from `cv_versions.body` by span** (`04`), never from model output,
 and every span lies inside exactly one document's range. A span that crossed a document boundary was
 dropped at save time and is not here to render.
+
+### Coverage marks
+
+Specified and built with the CV-grounding slice (#46), which is when citations began to exist.
+
+**A claim an answer has used carries a heavier underline: `border-bottom: 2px solid var(--accent)`.**
+A claim no answer has used keeps the `1px --accent-mid` line. The mark is the underline's weight and
+nothing else — the same line, heavier and in the full accent — so the text still reads as the user's
+own CV and the extraction check above still works on every claim.
+
+| Element | Spec |
+| --- | --- |
+| Used | `2px --accent`. A claim is used when an answer cited it **or any claim it was carried forward from** (`cv_claims.supersedes_claim_id`, `04`), with either relation: an answer that contradicted a claim used it. |
+| Never used | `1px --accent-mid`, as before. |
+| Count | The never-used count beside the claim count, in the version stamp row (above). Zero is stated: `未使用 0件` / `0 never used`. |
+| Legend | One 12px `--ink-6` line under the stamp row, always shown: `太い下線は、これまでの回答で使った記載事項です。` / `A heavier underline marks a claim one of your answers has used.` |
+
+**Coverage is inherited down the carry-forward chain, never up it.** A claim of v3 carried from v1
+reads as used if an answer cited the v1 claim; a v1 claim does not become used because an answer
+cited its v3 descendant. So an old version's page (`/cv/versions/{id}`) shows what had been used *of
+that version and its ancestors*, by the same rule, and the count on it is that version's own.
+
+**It is read at render from `claim_citations`, never stored** (`04`): there is no coverage column to go
+stale, and a citation written a minute ago is on the page at the next load.
+
+**The history rows keep the plain claim count.** A never-used count on an old version is a figure
+about material that version no longer puts in front of a scorer.
+
+> **The two Japanese strings above have not had a native read** — `記載事項 34件・未使用 12件` and the
+> legend. They are in `docs/checklists/native-read-round-loop.md` §2 with the grounding region's.
 
 ### New version
 
@@ -701,9 +754,14 @@ what the CV stamp on an old answer means.
 
 ### Refuses
 
-- **No coverage marks yet.** Nothing cites a claim until scoring exists, so "used" and "never used"
-  would both be false on every claim on this screen. They arrive with citations, not before — **with
-  the CV-grounding slice of the round loop**, which lifts this refusal and specifies the marks here.
+- **No coverage figure beyond the two counts.** No percentage, no "coverage score", no bar: a share
+  of the CV used is one step from a composite about the user, and a CV is not better for having every
+  line said aloud. (The earlier refusal here — no coverage marks at all — was lifted by the
+  CV-grounding slice, #46, which is when citations began to exist.)
+- **No citation count per claim, and no list of the answers that used one.** The mark is binary.
+  Which answers leaned on a claim is History's question, not this screen's.
+- **No "contradicted" mark.** A contradiction is a finding about an answer and is shown where the
+  answer is (§8); on this screen a contradicted claim reads as used.
 - **No edit and no delete** — not a document, not a claim, not a version (`04` §6, `07` §6).
 - **No version label input.** The label is derived, per language (`04`).
 - **No upload of the file itself.** The browser extracts text; the file does not leave it.

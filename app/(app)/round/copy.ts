@@ -164,6 +164,16 @@ export const ROUND_COPY = {
       "The findings for this round are not ready. The round is complete, its rating is recorded, and every score above is kept.",
     findingsUnavailable:
       "No answer in this round could be scored, so there are no findings for this round. The round is complete and its rating is recorded.",
+    // 10 §8, `Checked against your CV`. Every quote is the stored text, sliced by span.
+    grounding: "Checked against your CV",
+    unsupported: (position: number, quote: string, cvLabel: string) =>
+      `Unsupported (Question ${position}) — nothing in ${cvLabel} backs “${quote}”.`,
+    nothingUnsupported: (cvLabel: string) => `Unsupported — nothing flagged against ${cvLabel}.`,
+    unused: "Unused —",
+    nothingUnused: "Unused — nothing picked for this round.",
+    quoted: (quote: string) => `“${quote}”`,
+    wrongLanguage: (answered: "ja" | "en") =>
+      `This answer was given in ${answered === "ja" ? "Japanese" : "English"}. It is kept out of your English progress.`,
     retryFindings: "Write the findings",
     retryingFindings: "Writing the findings.",
     pressureRecorded: (value: number) => `Pressure ${value} recorded before the feedback`,

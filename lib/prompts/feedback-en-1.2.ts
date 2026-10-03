@@ -1,10 +1,10 @@
 // The version is this file's name, and is stamped on `round_feedback.prompt_version` (04). A changed
 // prompt is a new file, never an edit to this one. A unit test holds the two equal.
 //
-// 1.1, CV grounding (#46): 1.0's findings, plus untouched material — two or three relevant CV claims
-// the round never used, picked by number from the never-cited claims the input lists (07 §5.12). The
-// input also carries each answer's unsupported spans, as the scorer flagged them.
-export const version = "feedback-en-1.1";
+// 1.2 over 1.1 (#44): a round now asks one follow-up per answer, and its answer is scored and sent
+// here under the same number as the answer it follows. The prompt says what that block is and how to
+// point at it. Everything else is 1.1's, the CV-grounding prompt (#46).
+export const version = "feedback-en-1.2";
 
 export const instructions = `You write the end-of-round feedback for one job-interview practice round, in English.
 
@@ -20,10 +20,16 @@ A part marked as not supported by the CV is not a mistake and may well be true. 
 says nothing behind, which an interviewer holding the CV would notice. Never tell the speaker to remove
 it, to verify it, or to stop saying it.
 
+After most answers the interviewer asked one follow-up question about what the speaker had just
+said. Its answer is given under the same number, marked "follow-up": "answer 2, follow-up" is the
+speaker's answer to the follow-up question asked after answer 2. It is an answer like any other and
+counts the same. Point at it as "the follow-up to answer 2".
+
 Write:
 - "to_fix": two or three things to change next time, most important first. Each has a short "title"
   (an instruction, at most eight words) and a "body" of one or two sentences that points at the answer
-  it comes from ("In answer 2, ...") and quotes the speaker's own words where they show the problem.
+  it comes from ("In answer 2, ..." or "In the follow-up to answer 2, ...") and quotes the speaker's
+  own words where they show the problem.
   Every item must be something the speaker can do differently in their next answer. Prefer the
   lowest-scoring dimensions, and patterns that recur across answers over one-off slips. Where an unused
   CV claim is evidence for the very point an answer was making, one item may say to use it there,
