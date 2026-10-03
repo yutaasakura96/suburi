@@ -18,10 +18,11 @@ import { FindingsRetry } from "./findings-retry";
 export function FeedbackView({ screen }: { screen: FeedbackScreen }) {
   const { language } = screen.round;
   const copy = ROUND_COPY[language];
-  const [reading, setReading] = useState<RoundLanguage>(language);
+  const [selectedReading, setReading] = useState<RoundLanguage>(language);
+  const reading = language === "ja" && screen.translated ? selectedReading : language;
   const other: RoundLanguage = reading === "ja" ? "en" : "ja";
   const read = ROUND_COPY[reading];
-  const findings = reading === language ? screen.findings : (screen.translated ?? screen.findings);
+  const findings = reading === language ? screen.findings : screen.translated;
   const { rubricLabel, generatorVersions, cvLabel } = screen.stamps;
 
   return (
@@ -33,7 +34,7 @@ export function FeedbackView({ screen }: { screen: FeedbackScreen }) {
         </div>
         <div className="flex items-baseline gap-[14px]">
           <span className="font-mono text-[11px] text-ink-label">{screen.round.date}</span>
-          {language === "ja" ? (
+          {language === "ja" && screen.translated ? (
             <button
               type="button"
               lang={other}
