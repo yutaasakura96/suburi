@@ -3,6 +3,31 @@
 Newest first. Every entry records what was chosen, why, and what was rejected.
 
 ---
+## Phase 6 — the audit's one accepted advisory
+
+### [2026-10-03] CI's audit accepts GHSA-vfj7-8cjw-p6xm until a patched `braces` ships
+
+**Decided:** CI's audit step runs `npm run audit:ci` (`scripts/audit.mts`). It reads `npm audit --json`
+and fails on every high or critical advisory except the ones `scripts/audit-gate.ts` accepts by name.
+One is accepted: GHSA-vfj7-8cjw-p6xm, `braces` `<=3.0.3`. The level stays at high.
+**Found:** the advisory (stack exhaustion on deeply nested patterns, high) was published 2026-09-18
+and has no patched release; `braces` 3.0.3 is the latest and is inside the range. `braces` arrives only
+through `micromatch` → `fast-glob`, under `@next/eslint-plugin-next`, `ts-morph` and `shadcn`. Those
+are the linter and the `shadcn` CLI; the app takes only `shadcn/tailwind.css` from them. They expand
+globs written in this repository, never request input. `npm audit --audit-level=high` failed on it,
+on `develop` and on every branch off it. npm audit has no flag that ignores one advisory, and its
+offered fix is `shadcn` 1.0.0, a downgrade.
+**Remove it when** a patched `braces` ships (update to it in the same change) or the advisory is
+withdrawn. The entry is held to the package and to the range `<=3.0.3`, and the audit fails when npm
+reports another range or stops reporting the advisory, so both cases turn CI red until the entry is gone.
+**Alternatives considered:** lowering the level or dropping the step, which lets every other high
+advisory through too; `npm audit --omit=dev`, which still reports it (`shadcn` is a dependency) and
+stops auditing the tooling; an npm `overrides` entry, which has no patched version to point at; an
+allowlist tool such as `audit-ci` or `better-npm-audit`, a new dependency tree for what is one small
+tested module here.
+**Reason:** the audit stays as strict as it was for everything but one advisory nothing can fix yet.
+
+---
 ## Phase 6 — #42, the round-loop tracer
 
 The thinnest round, end to end: realistic, English, `hr`, length 3, General practice, rubric `en` v1.0.
