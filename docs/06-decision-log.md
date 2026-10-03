@@ -108,8 +108,8 @@ feedback call's input (the fix list is where "the CV has something for this" get
 
 ### [2026-10-03] The CV check is measured; `complete` still waits 60 s
 
-`scripts/measure-round-latency.mts` with `ONLY=grounding`, five runs against OpenAI, synthetic answers
-and a synthetic CV of 80 claims (`03` §4 has the table). Scoring with `score-en-1.1`: 9.7 s median,
+The scoring and round-feedback measurements of `scripts/measure-round-latency.mts`, five runs against
+OpenAI, synthetic answers and a synthetic CV of 80 claims (`03` §4 has the table). Scoring with `score-en-1.1`: 9.7 s median,
 19.5 s slowest of 15, against 7.1 s and 38.1 s for `1.0`. Round feedback with `feedback-en-1.1`: 15.4 s
 median, 19.5 s slowest, against 10.0 s and 11.0 s. The rule that set the bound — slowest scoring call,
 a 2 s backoff, a median retry — asks for 31 s here, so **60 s stands**, sized by #42's slower tail on

@@ -296,15 +296,11 @@ async function measureTranscription() {
 }
 
 console.log(`Measuring ${RUNS} run(s) of each: ${SCORING_MODEL}, ${TRANSCRIPTION_MODEL}, ${TTS_MODEL}, ${EMBEDDING_MODEL}.`);
-// ONLY=grounding re-measures the two calls #46 changed and skips the rest.
-const only = process.env.ONLY;
 const scored = await measureScoring();
 await measureFeedback(scored);
-if (only !== "grounding") {
-  await measureGeneration();
-  await measureSpeech();
-  await measureTranscription();
-}
+await measureGeneration();
+await measureSpeech();
+await measureTranscription();
 
 console.log("\n| Job | n | min | median | p90 | max | tokens in / out (median) |");
 console.log("| --- | --- | --- | --- | --- | --- | --- |");
