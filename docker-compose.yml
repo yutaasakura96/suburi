@@ -9,7 +9,7 @@ services:
       POSTGRES_DB: suburi
     ports:
       # 5433 on the host so Suburi does not collide with another local Postgres on 5432.
-      - "${SUBURI_DB_PORT:-5433}:5432"
+      - "5433:5432"
     volumes:
       # Postgres 18 images keep data under a versioned subdirectory of this path.
       - pgdata:/var/lib/postgresql
