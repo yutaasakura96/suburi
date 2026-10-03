@@ -1,6 +1,7 @@
 // The server under test and the tests share this database. Same Postgres as the integration tests
 // (host port 5433, docker-compose.yml and the CI service container), a different database.
-export const E2E_DATABASE = "suburi_e2e";
+export const E2E_DATABASE = process.env.E2E_DATABASE ?? "suburi_e2e";
+if (!/^[a-z][a-z0-9_]*$/.test(E2E_DATABASE)) throw new Error("E2E_DATABASE must be a lowercase SQL identifier");
 export const E2E_URL = `postgresql://suburi:suburi@localhost:5433/${E2E_DATABASE}`;
 
 

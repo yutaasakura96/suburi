@@ -115,7 +115,7 @@ test.beforeAll(async () => {
           answered_language: japanese ? "ja" : "en",
         };
       }
-      if (formatOf(body) === "round_feedback") return feedbackFails ? { fail: 500 } : { ...FINDINGS, untouched: [1, INVENTED_CLAIM] };
+      if (formatOf(body) === "round_feedback") return feedbackFails ? { fail: 500 } : { ...FINDINGS, untouched: [1, 2, INVENTED_CLAIM] };
       return { fail: 400 };
     },
     { transcription: () => ({ text: RAW, seconds: 18 }) },
@@ -231,10 +231,29 @@ test("a realistic English round: Setup → record → correct → pressure → f
   await expect(grounding.getByTestId("unsupported")).toHaveText(
     [1, 2, 3].map((position) => new RegExp(`^Unsupported \\(Question ${position}\\) — nothing in CV v\\d+ backs “${UNSUPPORTED}”\\.$`)),
   );
-  await expect(grounding.getByTestId("untouched")).toHaveText(`Unused — “${unused.get(1)}”`);
+  await expect(grounding.getByTestId("untouched")).toHaveText(`Unused — “${unused.get(1)}” “${unused.get(2)}”`);
   await expect(grounding).not.toContainText(INVENTED_QUOTE);
   // Every answer was in English: no answer carries the wrong-language line.
   await expect(page.getByTestId("wrong-language")).toHaveCount(0);
+  const stored = await withDb(async (db) => ({
+    attempts: await db.select({ status: s.scoringAttempts.status, prompt: s.scoringAttempts.scoringPromptVersion, language: s.scoringAttempts.answeredLanguage })
+      .from(s.scoringAttempts).innerJoin(s.answers, eq(s.answers.id, s.scoringAttempts.answerId))
+      .where(eq(s.answers.roundId, roundId)),
+    citations: await db.select({ relation: s.claimCitations.relation }).from(s.claimCitations)
+      .innerJoin(s.answers, eq(s.answers.id, s.claimCitations.answerId))
+      .where(eq(s.answers.roundId, roundId)),
+    flags: await db.select({ start: s.answerFlags.spanStart, end: s.answerFlags.spanEnd, corrected: s.answers.transcriptCorrected })
+      .from(s.answerFlags).innerJoin(s.answers, eq(s.answers.id, s.answerFlags.answerId))
+      .where(eq(s.answers.roundId, roundId)),
+    feedback: await db.select({ ids: s.roundFeedback.untouchedClaimIds }).from(s.roundFeedback)
+      .where(eq(s.roundFeedback.roundId, roundId)),
+  }));
+  expect(stored.attempts).toHaveLength(3);
+  expect(stored.attempts.every((attempt) => attempt.status === "ok" && attempt.prompt === "score-en-1.1" && attempt.language === "en")).toBe(true);
+  expect(stored.citations.map((citation) => citation.relation)).toEqual(["supported_by", "supported_by", "supported_by"]);
+  expect(stored.flags).toHaveLength(3);
+  for (const flag of stored.flags) expect([...flag.corrected!].slice(flag.start, flag.end).join("")).toBe(UNSUPPORTED);
+  expect(stored.feedback[0].ids).toHaveLength(2);
   await page.screenshot({ path: test.info().outputPath("screen8-grounding.png"), fullPage: true });
 
   await page.getByRole("button", { name: "Question 2" }).click();
