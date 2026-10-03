@@ -263,3 +263,49 @@ test("posting names and imported filenames use code point limits", async ({ page
   expect(stored).toHaveLength(1);
   expect(stored[0]).toMatchObject({ companyName: name, roleTitle: name, sourceFilename: filename });
 });
+
+test("a posting stays fixed while its save is pending", async ({ page }) => {
+  await signIn(page);
+  await page.goto("/round/new");
+  await page.getByRole("button", { name: "Add a posting" }).click();
+
+  const form = page.getByTestId("posting-form");
+  const company = "Pending save e2e";
+  await form.getByLabel("Company").fill(company);
+  await form.getByLabel("Role title").fill("Engineer");
+  await form.getByLabel("Posting text").fill("Build a private interview simulator.");
+
+  let startRequest!: () => void;
+  const requestStarted = new Promise<void>((resolve) => { startRequest = resolve; });
+  let releaseRequest!: () => void;
+  const requestReleased = new Promise<void>((resolve) => { releaseRequest = resolve; });
+  await page.route("**/api/role-contexts", async (route) => {
+    if (route.request().method() !== "POST") {
+      await route.continue();
+      return;
+    }
+    startRequest();
+    await requestReleased;
+    await route.continue();
+  });
+
+  try {
+    await form.getByRole("button", { name: "Save this posting" }).click();
+    await requestStarted;
+    await expect(form.getByLabel("Company")).toBeDisabled();
+    await expect(form.getByLabel("Role title")).toBeDisabled();
+    await expect(form.getByLabel("Posting text")).toBeDisabled();
+    await expect(form.getByRole("button", { name: "Import from a file" })).toBeDisabled();
+    await expect(form.locator('input[type="file"]')).toBeDisabled();
+    await expect(form.getByRole("button", { name: "Save this posting" })).toBeDisabled();
+    await expect(form.getByRole("button", { name: "Cancel" })).toBeDisabled();
+    await expect(form.getByLabel("Company")).toHaveValue(company);
+  } finally {
+    releaseRequest();
+  }
+
+  await expect(form).toBeHidden();
+  const stored = await withDb((db) => db.select().from(s.roleContexts).where(eq(s.roleContexts.companyName, company)));
+  expect(stored).toHaveLength(1);
+  expect(stored[0]).toMatchObject({ companyName: company, roleTitle: "Engineer", body: "Build a private interview simulator." });
+});

@@ -42,7 +42,7 @@ export function TextButton({ label, onClick, disabled }: { label: string; onClic
  * replaces the box's text, which stays editable; the file itself is never sent (07 §5.2). What is
  * saved is whatever the user leaves in the box.
  */
-export function ImportControl({ label, onResult }: { label: string; onResult: (result: ImportResult, name: string) => void }) {
+export function ImportControl({ label, onResult, disabled = false }: { label: string; onResult: (result: ImportResult, name: string) => void; disabled?: boolean }) {
   const input = useRef<HTMLInputElement>(null);
   const [reading, setReading] = useState(false);
 
@@ -64,8 +64,8 @@ export function ImportControl({ label, onResult }: { label: string; onResult: (r
 
   return (
     <>
-      <TextButton label={label} disabled={reading} onClick={() => input.current?.click()} />
-      <input ref={input} type="file" accept={IMPORT_ACCEPT} onChange={picked} hidden tabIndex={-1} />
+      <TextButton label={label} disabled={reading || disabled} onClick={() => input.current?.click()} />
+      <input ref={input} type="file" accept={IMPORT_ACCEPT} onChange={picked} disabled={disabled} hidden tabIndex={-1} />
     </>
   );
 }

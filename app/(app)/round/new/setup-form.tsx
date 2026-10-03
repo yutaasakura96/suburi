@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ImportControl, TextButton } from "@/components/import-control";
 import { Button } from "@/components/ui/button";
 import type { ImportResult } from "@/lib/cv/import/extract";
@@ -97,6 +97,7 @@ function PostingForm({ onSaved, onCancel }: { onSaved: (posting: PostingOption) 
   const [sourceFilename, setSourceFilename] = useState<string | null>(null);
   const [imported, setImported] = useState<ImportState>(null);
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   const [error, setError] = useState<FailureCode | null>(null);
 
   const chars = characterLength(text.trim());
@@ -104,6 +105,7 @@ function PostingForm({ onSaved, onCancel }: { onSaved: (posting: PostingOption) 
   const complete = company.trim() !== "" && title.trim() !== "" && chars > 0;
 
   function importResult(result: ImportResult, name: string) {
+    if (savingRef.current) return;
     if (!result.ok) {
       // A failed import leaves the box as it was.
       setImported(result.reason);
@@ -121,14 +123,16 @@ function PostingForm({ onSaved, onCancel }: { onSaved: (posting: PostingOption) 
   }
 
   async function save() {
+    savingRef.current = true;
     setSaving(true);
     setError(null);
     const saved = await postJson<{ id: string; company_name: string; role_title: string; source_filename: string | null; created_at: string }>(
       "/api/role-contexts",
       { kind: "posting", company_name: company, role_title: title, body: text, ...(sourceFilename ? { source_filename: sourceFilename } : {}) },
     );
-    setSaving(false);
     if (!saved.ok) {
+      savingRef.current = false;
+      setSaving(false);
       setError(saved.code);
       return;
     }
@@ -146,11 +150,11 @@ function PostingForm({ onSaved, onCancel }: { onSaved: (posting: PostingOption) 
       <div className="grid grid-cols-2 gap-[24px]">
         <label className="flex flex-col gap-[8px]">
           <span className={sectionLabel}>{COPY.company}</span>
-          <input value={company} onChange={(event) => setCompany(capPostingName(event.target.value))} className={lineInput} />
+          <input value={company} onChange={(event) => setCompany(capPostingName(event.target.value))} disabled={saving} className={lineInput} />
         </label>
         <label className="flex flex-col gap-[8px]">
           <span className={sectionLabel}>{COPY.roleTitle}</span>
-          <input value={title} onChange={(event) => setTitle(capPostingName(event.target.value))} className={lineInput} />
+          <input value={title} onChange={(event) => setTitle(capPostingName(event.target.value))} disabled={saving} className={lineInput} />
         </label>
       </div>
 
@@ -159,9 +163,9 @@ function PostingForm({ onSaved, onCancel }: { onSaved: (posting: PostingOption) 
           <label htmlFor="posting-text" className={sectionLabel}>
             {COPY.postingText}
           </label>
-          <ImportControl label={COPY.importFile} onResult={importResult} />
+          <ImportControl label={COPY.importFile} onResult={importResult} disabled={saving} />
         </div>
-        <textarea id="posting-text" value={text} onChange={(event) => edited(event.target.value)} rows={8} className={`${field} resize-y`} />
+        <textarea id="posting-text" value={text} onChange={(event) => edited(event.target.value)} disabled={saving} rows={8} className={`${field} resize-y`} />
         <p
           className={`text-right font-mono text-[11px] ${over ? "font-medium text-attention-ink" : "text-ink-label"}`}
           data-testid="posting-count"
