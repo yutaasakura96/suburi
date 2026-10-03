@@ -466,7 +466,9 @@ GitHub Actions, on every push and every pull request:
 3. `vitest run` — units
 4. `vitest run --project=integration` — against a `pgvector/pgvector:pg18` service container, schema built by the real migrations
 5. `playwright test` — Chromium, against a production build
-6. `npm audit --audit-level=high`
+6. `npm audit --audit-level=high`, run as `npm run audit:ci`: it fails on every high or critical
+   advisory except GHSA-vfj7-8cjw-p6xm on `braces` `<=3.0.3` at high severity, until a patched
+   `braces` ships (`06`, 2026-10-03)
 
 Dependabot weekly (`03` §9). Better Auth, Drizzle and the OpenAI SDK are **not** auto-merged: they are
 pinned and upgraded deliberately, and the OpenAI SDK sits on the scoring path.
