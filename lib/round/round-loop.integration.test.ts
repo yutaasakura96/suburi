@@ -1038,6 +1038,273 @@ describe("POST /api/rounds/{id}/complete (11 §3.14)", () => {
     }));
 });
 
+// The synthetic English CV's claims, in span order: the numbers the models are shown (db/seed-cv.ts).
+const LATENCY = 2;
+const MIGRATION = 3;
+const REFUNDS = 4;
+const CLAIM_COUNT = 7;
+
+function events(name: string) {
+  return logged.flatMap((line) => {
+    try {
+      const fields = JSON.parse(line) as Record<string, unknown>;
+      return fields.event === name ? [fields] : [];
+    } catch {
+      return [];
+    }
+  });
+}
+
+/** The round's CV: its body and its claims in span order, as the models are shown them. */
+async function roundCv(db: TestDb, roundId: string) {
+  const [round] = await db.select().from(s.rounds).where(eq(s.rounds.id, roundId));
+  const [cv] = await db.select().from(s.cvVersions).where(eq(s.cvVersions.id, round.cvVersionId));
+  const claims = await db.select().from(s.cvClaims).where(eq(s.cvClaims.cvVersionId, cv.id)).orderBy(s.cvClaims.spanStart);
+  const text = (number: number) => [...cv.body].slice(claims[number - 1].spanStart, claims[number - 1].spanEnd).join("");
+  return { claims, text };
+}
+
+describe("CV grounding (US-11, 11 §3.12)", () => {
+  const ANSWER = `I led the migration, um, and I cut cloud costs by 30 percent ${SENTINEL}.`;
+  const UNSUPPORTED = "I cut cloud costs by 30 percent";
+
+  it("shows the scorer the CV's claims, sliced from the stored body in span order", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const { json } = await world.startRound();
+      const seen: (readonly string[])[] = [];
+      world.scorer.score = async (input) => {
+        seen.push(input.claims);
+        return uniformScores(3)(input);
+      };
+      await world.answerCurrent(json.round.id);
+      await world.drainAfter();
+      const { claims, text } = await roundCv(db, json.round.id);
+      expect(seen[0]).toHaveLength(CLAIM_COUNT);
+      expect(seen[0]).toEqual(claims.map((_, index) => text(index + 1)));
+    }));
+
+  it("stores what survives the check and counts what does not, with no text in the log", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const { json } = await world.startRound();
+      world.scorer.score = async (input) =>
+        uniformScores(3, {
+          citations: [
+            { claim: MIGRATION, relation: "supported_by" },
+            { claim: MIGRATION, relation: "supported_by" },
+            { claim: LATENCY, relation: "contradicted_by" },
+            { claim: CLAIM_COUNT + 1, relation: "supported_by" },
+            { claim: 0, relation: "contradicted_by" },
+          ],
+          unsupported: [
+            { quote: UNSUPPORTED, startHint: 20 },
+            { quote: UNSUPPORTED, startHint: 0 },
+            { quote: "I cut cloud costs by 40 percent", startHint: 20 },
+            { quote: "i cut cloud costs", startHint: 20 },
+          ],
+          answeredLanguage: "ja",
+        })(input);
+      const { answerId } = await world.answerCurrent(json.round.id, ANSWER);
+      await world.drainAfter();
+
+      const [attempt] = await db.select().from(s.scoringAttempts).where(eq(s.scoringAttempts.answerId, answerId));
+      expect(attempt).toMatchObject({ status: "ok", answeredLanguage: "ja" });
+
+      const { claims } = await roundCv(db, json.round.id);
+      const citations = await db.select().from(s.claimCitations).where(eq(s.claimCitations.answerId, answerId));
+      expect(citations.map((citation) => [citation.cvClaimId, citation.relation]).sort()).toEqual(
+        [
+          [claims[MIGRATION - 1].id, "supported_by"],
+          [claims[LATENCY - 1].id, "contradicted_by"],
+        ].sort(),
+      );
+
+      const flags = await db.select().from(s.answerFlags).where(eq(s.answerFlags.answerId, answerId));
+      expect(flags).toHaveLength(1);
+      expect(flags[0]).toMatchObject({ kind: "unsupported", scoringAttemptId: attempt.id, userId: world.userId });
+      // The quote is the stored text's own, by span: nothing the model wrote is kept.
+      expect([...ANSWER].slice(flags[0].spanStart, flags[0].spanEnd).join("")).toBe(UNSUPPORTED);
+
+      expect(events("scoring_ok")).toEqual([
+        expect.objectContaining({
+          claims: CLAIM_COUNT,
+          claims_rejected: 0,
+          citations: 2,
+          citations_dropped: 2,
+          flags: 1,
+          flags_dropped: 2,
+          answered_language: "ja",
+        }),
+      ]);
+      for (const line of logged) {
+        expect(line).not.toContain("cloud costs");
+        expect(line).not.toContain(SENTINEL);
+      }
+    }));
+
+  it("drops a quote that is only in the raw transcript: the span is into the corrected text", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const { json } = await world.startRound();
+      world.scorer.score = async (input) => uniformScores(3, { unsupported: [{ quote: SENTINEL, startHint: 0 }] })(input);
+      const { answerId } = await world.answerCurrent(json.round.id, "I led the migration in six months.");
+      await world.drainAfter();
+      const [answer] = await db.select().from(s.answers).where(eq(s.answers.id, answerId));
+      expect(answer.transcriptRaw).toContain(SENTINEL);
+      expect(await db.select().from(s.answerFlags)).toHaveLength(0);
+      expect(events("scoring_ok")[0]).toMatchObject({ flags: 0, flags_dropped: 1 });
+    }));
+
+  it("leaves a claim whose stored span no longer reads as the claim out of what can be cited", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const { json } = await world.startRound();
+      const { claims } = await roundCv(db, json.round.id);
+      await db.update(s.cvClaims).set({ spanEnd: claims[0].spanEnd - 1 }).where(eq(s.cvClaims.id, claims[0].id));
+      let shown = 0;
+      world.scorer.score = async (input) => {
+        shown = input.claims.length;
+        // Number 1 is now the second stored claim: the first was never shown.
+        return uniformScores(3, { citations: [{ claim: 1, relation: "supported_by" }] })(input);
+      };
+      await world.answerCurrent(json.round.id);
+      await world.drainAfter();
+      expect(shown).toBe(CLAIM_COUNT - 1);
+      const citations = await db.select().from(s.claimCitations);
+      expect(citations.map((citation) => citation.cvClaimId)).toEqual([claims[1].id]);
+      expect(events("scoring_ok")[0]).toMatchObject({ claims: CLAIM_COUNT - 1, claims_rejected: 1 });
+    }));
+
+  it("stores no citation, flag or language for an attempt that fails", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const { json } = await world.startRound();
+      world.scorer.score = async () => {
+        throw new ModelCallFailed("scoring", "upstream_500");
+      };
+      const { answerId } = await world.answerCurrent(json.round.id, ANSWER);
+      await world.drainAfter();
+      const [attempt] = await db.select().from(s.scoringAttempts).where(eq(s.scoringAttempts.answerId, answerId));
+      expect(attempt).toMatchObject({ status: "failed", answeredLanguage: null });
+      expect(await db.select().from(s.claimCitations)).toHaveLength(0);
+      expect(await db.select().from(s.answerFlags)).toHaveLength(0);
+    }));
+
+  async function groundedRound(db: TestDb) {
+    const world = await setUp(db);
+    const started = await world.startRound();
+    const roundId = started.json.round.id as string;
+    const byAnswer = [
+      uniformScores(3, { citations: [{ claim: MIGRATION, relation: "supported_by" }], unsupported: [{ quote: UNSUPPORTED, startHint: 20 }] }),
+      uniformScores(3, { citations: [{ claim: LATENCY, relation: "contradicted_by" }], answeredLanguage: "ja" }),
+      uniformScores(3),
+    ];
+    let scored = 0;
+    world.scorer.score = async (input) => byAnswer[scored++](input);
+    const answers = [];
+    for (const corrected of [ANSWER, "I made checkout slower on purpose.", "I measured the outcome."]) {
+      answers.push(await world.answerCurrent(roundId, corrected));
+    }
+    await world.drainAfter();
+    return { world, roundId, answers, ...(await roundCv(db, roundId)) };
+  }
+
+  it("sends the feedback call each answer's unsupported parts and only the claims the round never cited", () =>
+    inRolledBackTransaction(async (db) => {
+      const { world, roundId, text } = await groundedRound(db);
+      await world.call(world.handlers.complete, roundId, { felt_pressure: 3 });
+      const [input] = world.generator.inputs;
+      expect(input.answers.map((answer) => answer.unsupported)).toEqual([[UNSUPPORTED], [], []]);
+      // A contradicted claim was used: it is not untouched material.
+      expect(input.unusedClaims).toHaveLength(CLAIM_COUNT - 2);
+      expect(input.unusedClaims).not.toContain(text(MIGRATION));
+      expect(input.unusedClaims).not.toContain(text(LATENCY));
+      expect(input.unusedClaims).toContain(text(REFUNDS));
+    }));
+
+  it("stores only picks from the never-cited set it showed, at most three, and counts the rest", () =>
+    inRolledBackTransaction(async (db) => {
+      const { world, roundId, claims } = await groundedRound(db);
+      // Shown: claims 1, 4, 5, 6, 7 as numbers 1 to 5.
+      world.generator.generate = async () => ({ ...FIXTURE_FEEDBACK, untouched: [2, 9, 2, 0, 1, 5, 4] });
+      const response = await world.call(world.handlers.complete, roundId, { felt_pressure: 3 });
+      const picked = [claims[REFUNDS - 1].id, claims[0].id, claims[CLAIM_COUNT - 1].id];
+      expect(response.status).toBe(201);
+      expect(response.json.feedback.untouched_claim_ids).toEqual(picked);
+      const [feedback] = await db.select().from(s.roundFeedback).where(eq(s.roundFeedback.roundId, roundId));
+      expect(feedback.untouchedClaimIds).toEqual(picked);
+      expect(events("round_feedback_written")).toEqual([
+        expect.objectContaining({ never_cited: CLAIM_COUNT - 2, untouched: 3, untouched_dropped: 3 }),
+      ]);
+    }));
+
+  it("writes the feedback with no untouched material when every pick is invented", () =>
+    inRolledBackTransaction(async (db) => {
+      const { world, roundId } = await groundedRound(db);
+      world.generator.generate = async () => ({ ...FIXTURE_FEEDBACK, untouched: [MIGRATION + 40, -1] });
+      const response = await world.call(world.handlers.complete, roundId, { felt_pressure: 3 });
+      expect(response.status).toBe(201);
+      expect(response.json.feedback.untouched_claim_ids).toEqual([]);
+      expect(response.json.feedback.to_fix).toHaveLength(2);
+    }));
+
+  it("renders screen 8's grounding from stored spans, and says which answer was in the wrong language", () =>
+    inRolledBackTransaction(async (db) => {
+      const { world, roundId, text } = await groundedRound(db);
+      world.generator.generate = async () => ({ ...FIXTURE_FEEDBACK, untouched: [2, 1] });
+      await world.call(world.handlers.complete, roundId, { felt_pressure: 3 });
+      const [round] = await db.select().from(s.rounds).where(eq(s.rounds.id, roundId));
+      const screen = await feedbackScreen(db, round);
+      expect(screen.grounding).toEqual({
+        cvLabel: expect.stringMatching(/^CV v\d+$/),
+        unsupported: [{ position: 1, quote: UNSUPPORTED }],
+        untouched: [text(REFUNDS), text(1)],
+      });
+      // Only a mismatch is named: an answer in the round's language says nothing.
+      expect(screen.answers.map((answer) => answer.answeredIn)).toEqual([null, "ja", null]);
+    }));
+
+  it("shows no grounding for a round scored before the CV check existed", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const { roundId } = await playThrough(world);
+      await world.drainAfter();
+      await world.call(world.handlers.complete, roundId, { felt_pressure: 3 });
+      // What a score-en-1.0 attempt looks like: ok, with no answered language (04).
+      await db.update(s.scoringAttempts).set({ answeredLanguage: null });
+      const [round] = await db.select().from(s.rounds).where(eq(s.rounds.id, roundId));
+      const screen = await feedbackScreen(db, round);
+      expect(screen.grounding).toBeNull();
+      expect(screen.answers.map((answer) => answer.answeredIn)).toEqual([null, null, null]);
+    }));
+
+  it("does not carry an answer's flag onto a superseding attempt that raised none", () =>
+    inRolledBackTransaction(async (db) => {
+      const { world, roundId, answers } = await groundedRound(db);
+      const [first] = await db.select().from(s.scoringAttempts).where(eq(s.scoringAttempts.answerId, answers[0].answerId));
+      await db.insert(s.scoringAttempts).values({
+        answerId: first.answerId,
+        userId: first.userId,
+        status: "ok",
+        answeredLanguage: "en",
+        cvVersionId: first.cvVersionId,
+        rubricVersionId: first.rubricVersionId,
+        generatorPromptVersion: first.generatorPromptVersion,
+        modelId: first.modelId,
+        scoringPromptVersion: first.scoringPromptVersion,
+        isSuperseding: true,
+        createdAt: new Date(Date.now() + 1_000),
+      });
+      await world.call(world.handlers.complete, roundId, { felt_pressure: 3 });
+      expect(world.generator.inputs[0].answers[0].unsupported).toEqual([]);
+      const [round] = await db.select().from(s.rounds).where(eq(s.rounds.id, roundId));
+      expect((await feedbackScreen(db, round)).grounding?.unsupported).toEqual([]);
+      // The first attempt's flag is still there: nothing is deleted (invariant 7).
+      expect(await db.select().from(s.answerFlags)).toHaveLength(1);
+    }));
+});
+
 describe("what leaves the handlers (11 §3.10, §3.16)", () => {
   it("carries no transcript text into any envelope or log line, on success or failure", () =>
     inRolledBackTransaction(async (db) => {

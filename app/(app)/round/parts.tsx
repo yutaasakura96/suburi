@@ -55,14 +55,26 @@ export function RoundFooter({ sentence, stamp }: { sentence: string; stamp: stri
   );
 }
 
-/** 05 §5.8: a 3px full-height bar, gap 10px, 12px/1.7 --ink-3. */
-export function CalloutRail({ tone, children }: { tone: "attention" | "information"; children: React.ReactNode }) {
+const RAIL = { attention: "bg-attention-mark", information: "bg-mark-mid", quiet: "bg-ink-9" } as const;
+
+/**
+ * 05 §5.8: a 3px full-height bar, gap 10px, 12px/1.7 --ink-3. `--attention-mark` for an unsupported
+ * claim or a failure, `--accent-mid` for information, `--ink-9` (`quiet`) for merely unused material. `live`
+ * announces it, for a message that appears in answer to something the user did; a finding that is
+ * simply part of the page it loads with is not announced.
+ */
+export function CalloutRail({
+  tone,
+  live = true,
+  children,
+}: {
+  tone: keyof typeof RAIL;
+  live?: boolean;
+  children: React.ReactNode;
+}) {
   return (
-    <div className="flex gap-[10px]" role={tone === "attention" ? "alert" : "status"}>
-      <span
-        aria-hidden
-        className={`w-[3px] shrink-0 self-stretch ${tone === "attention" ? "bg-attention-mark" : "bg-mark-mid"}`}
-      />
+    <div className="flex gap-[10px]" role={live ? (tone === "attention" ? "alert" : "status") : undefined}>
+      <span aria-hidden className={`w-[3px] shrink-0 self-stretch ${RAIL[tone]}`} />
       <p className="text-[12px] leading-[1.7] text-ink-3">{children}</p>
     </div>
   );

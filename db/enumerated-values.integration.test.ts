@@ -20,8 +20,10 @@ const ENUMERATED = [
   ["rounds", "mode"],
   ["answers", "language"],
   ["scoring_attempts", "status"],
+  ["scoring_attempts", "answered_language"],
   ["round_feedback", "language"],
   ["claim_citations", "relation"],
+  ["answer_flags", "kind"],
   ["cv_documents", "kind"],
   ["rate_limit_windows", "route"],
   ["cron_runs", "job"],
@@ -33,7 +35,15 @@ async function insertOneOfEach(db: TestDb) {
   const world = await insertWorld(db);
   const round = await insertRound(db, world);
   const answer = await insertAnswer(db, world, round);
-  await insertAttempt(db, world, answer);
+  const attempt = await insertAttempt(db, world, answer);
+  await db.insert(s.answerFlags).values({
+    answerId: answer,
+    scoringAttemptId: attempt,
+    userId: world.userId,
+    kind: "unsupported",
+    spanStart: 0,
+    spanEnd: 4,
+  });
   await db.insert(s.roundFeedback).values({
     roundId: round,
     toFix: [],

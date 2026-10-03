@@ -26,7 +26,8 @@ type Kinds = Partial<Record<Kind, string>>;
  *
  * **Every Japanese string here had an AI review on 2026-09-27, not a native read** — the user does
  * not read Japanese and delegated it (`docs/checklists/native-read-cv.md`, 06). All were accepted as
- * written, six of them as amended by the 2026-09-24 draft.
+ * written, six of them as amended by the 2026-09-24 draft. **`coverage` and `coverageLegend` came
+ * later, with #46, and are unread** (`docs/checklists/native-read-round-loop.md`).
  */
 export const COPY = {
   ja: {
@@ -51,6 +52,9 @@ export const COPY = {
     commits: "保存すると、この内容でバージョンが確定します。あとから直すことはできません。",
     saving: "記載事項を抽出しています。しばらくかかることがあります。",
     claims: (n: number) => `記載事項 ${n}件`,
+    // Coverage (10 §13): the version's count, and how many of them no answer has ever cited.
+    coverage: (n: number, unused: number) => `記載事項 ${n}件・未使用 ${unused}件`,
+    coverageLegend: "太い下線は、これまでの回答で使った記載事項です。",
     result: (r: SaveResult) =>
       `${r.total}件を抽出しました。うち${r.carriedForward}件は前のバージョンから引き継ぎ、${r.fresh}件が新規です。除外は${r.rejected}件でした。`,
     dropped: (n: number) => `${n}件は本文と一致しなかったため除きました。`,
@@ -77,6 +81,8 @@ export const COPY = {
     commits: "Saving fixes this version as it is. It cannot be edited afterwards.",
     saving: "Extracting claims from your CV. This can take a while.",
     claims: (n: number) => `${n} ${n === 1 ? "claim" : "claims"}`,
+    coverage: (n: number, unused: number) => `${n} ${n === 1 ? "claim" : "claims"} · ${unused} never used`,
+    coverageLegend: "A heavier underline marks a claim one of your answers has used.",
     result: (r: SaveResult) =>
       `${r.total} ${r.total === 1 ? "claim" : "claims"} extracted — ${r.carriedForward} carried forward, ${r.fresh} new. ${r.rejected} dropped.`,
     dropped: (n: number) =>

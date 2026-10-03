@@ -176,6 +176,61 @@ describe("the measurement record refuses", () => {
     }),
   );
 
+  it.each([
+    [10, 10],
+    [10, 4],
+  ])("an answer flag span from %i to %i", (spanStart, spanEnd) =>
+    inRolledBackTransaction(async (db) => {
+      const world = await insertWorld(db);
+      const round = await insertRound(db, world);
+      const answer = await insertAnswer(db, world, round);
+      const attempt = await insertAttempt(db, world, answer);
+
+      await expectRefused(
+        db,
+        () =>
+          db.insert(s.answerFlags).values({
+            answerId: answer,
+            scoringAttemptId: attempt,
+            userId: world.userId,
+            kind: "unsupported",
+            spanStart,
+            spanEnd,
+          }),
+        { kind: "check", constraint: "answer_flags_span_order_check" },
+      );
+    }),
+  );
+
+  it("deleting a scoring attempt that raised a flag", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await insertWorld(db);
+      const round = await insertRound(db, world);
+      const answer = await insertAnswer(db, world, round);
+      const attempt = await insertAttempt(db, world, answer);
+      await db.insert(s.answerFlags).values({ answerId: answer, scoringAttemptId: attempt, userId: world.userId, kind: "unsupported", spanStart: 0, spanEnd: 4 });
+
+      await expectRefused(db, () => db.delete(s.scoringAttempts).where(eq(s.scoringAttempts.id, attempt)), {
+        kind: "restrict",
+        constraint: "answer_flags_scoring_attempt_id_scoring_attempts_id_fk",
+      });
+    }));
+
+  // 04 `scoring_attempts`: null until `ok`. A pending or failed attempt read no answer.
+  it.each(["pending", "failed"] as const)("an answered language on a %s scoring attempt", (status) =>
+    inRolledBackTransaction(async (db) => {
+      const world = await insertWorld(db);
+      const round = await insertRound(db, world);
+      const answer = await insertAnswer(db, world, round);
+
+      await expectRefused(
+        db,
+        () => db.insert(s.scoringAttempts).values({ ...attemptValues(world, answer), status, answeredLanguage: "ja" }),
+        { kind: "check", constraint: "scoring_attempts_answered_language_ok_check" },
+      );
+    }),
+  );
+
   it("an answer that is both a bank question and a follow-up", () =>
     inRolledBackTransaction(async (db) => {
       const world = await insertWorld(db);

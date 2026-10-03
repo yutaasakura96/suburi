@@ -1,9 +1,9 @@
 import { zodTextFormat } from "openai/helpers/zod";
 import { z } from "zod";
-import * as en from "../prompts/feedback-en-1.0.ts";
+import * as en from "../prompts/feedback-en-1.1.ts";
 import type { Rubric, RubricLanguage } from "../rubric/types.ts";
 import { FEEDBACK_MODEL } from "./models.ts";
-import type { CallOptions } from "./score.ts";
+import { renderClaims, type CallOptions } from "./score.ts";
 import { ModelCallFailed, openAiClient, upstreamErrorClass } from "./upstream.ts";
 
 /**
@@ -11,6 +11,10 @@ import { ModelCallFailed, openAiClient, upstreamErrorClass } from "./upstream.ts
  * transaction** from every scored answer. An answer whose scoring ended `failed` is never sent: the
  * feedback is written without it (06, 2026-09-28). One real implementation and a fake; no test calls
  * OpenAI (11 §2).
+ *
+ * **Untouched material** (US-11): the call is shown the claims no answer in the round cited, numbered,
+ * and picks two or three relevant ones **by number**. The numbers come back as the model gave them;
+ * `lib/round/grounding.ts` resolves them against the same list and drops what names nothing.
  */
 
 export interface FeedbackAnswer {
@@ -21,11 +25,15 @@ export interface FeedbackAnswer {
   readonly pace: number | null;
   /** In the rubric's order. */
   readonly scores: readonly { readonly dimension: string; readonly value: number }[];
+  /** The answer's unsupported spans, each sliced from the corrected text by its stored span. */
+  readonly unsupported: readonly string[];
 }
 
 export interface FeedbackInput {
   readonly rubric: Rubric;
   readonly answers: readonly FeedbackAnswer[];
+  /** The round's never-cited claims, each sliced from the stored body, in the order they are numbered. */
+  readonly unusedClaims: readonly string[];
 }
 
 export interface FeedbackItem {
@@ -36,6 +44,8 @@ export interface FeedbackItem {
 export interface RoundFeedbackResult {
   readonly toFix: readonly FeedbackItem[];
   readonly whatWorked: string;
+  /** Picks from `FeedbackInput.unusedClaims`, by number from 1, as the model gave them. */
+  readonly untouched: readonly number[];
   readonly tokensIn: number | null;
   readonly tokensOut: number | null;
 }
@@ -55,7 +65,7 @@ export function checkFeedback(toFix: readonly FeedbackItem[], whatWorked: string
   }
 }
 
-export function renderFeedbackInput({ rubric, answers }: FeedbackInput) {
+export function renderFeedbackInput({ rubric, answers, unusedClaims }: FeedbackInput) {
   const labels = new Map(rubric.dimensions.map((dimension) => [dimension.key as string, dimension.label_en]));
   const paceUnit = rubric.language === "ja" ? "characters per minute" : "words per minute";
   const blocks = answers.map((answer) => {
@@ -67,11 +77,13 @@ export function renderFeedbackInput({ rubric, answers }: FeedbackInput) {
       `question: ${answer.prompt}`,
       `duration: ${seconds}; pace: ${pace}`,
       `scores: ${scores}`,
+      `not supported by the CV: ${answer.unsupported.length === 0 ? "nothing flagged" : answer.unsupported.map((quote) => JSON.stringify(quote)).join("; ")}`,
       "transcript:",
       answer.answer,
     ].join("\n");
   });
-  return [`=== rubric ${rubric.language} ${rubric.versionLabel} ===`, ...blocks].join("\n\n");
+  const unused = `=== CV claims no answer in this round used ===\n${renderClaims(unusedClaims)}`;
+  return [`=== rubric ${rubric.language} ${rubric.versionLabel} ===`, ...blocks, unused].join("\n\n");
 }
 
 const PROMPTS: Partial<Record<RubricLanguage, { version: string; instructions: string }>> = { en };
@@ -79,6 +91,7 @@ const PROMPTS: Partial<Record<RubricLanguage, { version: string; instructions: s
 const output = z.object({
   to_fix: z.array(z.object({ title: z.string(), body: z.string() })),
   what_worked: z.string(),
+  untouched: z.array(z.int()),
 });
 
 export function openAiRoundFeedbackGenerator({ apiKey, baseURL }: { apiKey: string; baseURL?: string }): RoundFeedbackGenerator {
@@ -100,11 +113,12 @@ export function openAiRoundFeedbackGenerator({ apiKey, baseURL }: { apiKey: stri
         );
         if (response.status !== "completed") throw new ModelCallFailed("Round feedback", `response_${response.status}`);
         if (!response.output_parsed) throw new ModelCallFailed("Round feedback", "no_parsed_output");
-        const { to_fix: toFix, what_worked: whatWorked } = response.output_parsed;
+        const { to_fix: toFix, what_worked: whatWorked, untouched } = response.output_parsed;
         checkFeedback(toFix, whatWorked);
         return {
           toFix,
           whatWorked,
+          untouched,
           tokensIn: response.usage?.input_tokens ?? null,
           tokensOut: response.usage?.output_tokens ?? null,
         };

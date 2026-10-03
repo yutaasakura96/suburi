@@ -96,6 +96,8 @@ amending first.
 | A round's questions are fixed | A second `round_questions` row at the same `(round_id, position)`, or the same question twice in one round, raises a unique violation | A refresh swapping a question already heard; a repeat inside a round |
 | One follow-up per answer | A second `follow_ups` row for one `parent_answer_id` raises a unique violation; `generated` with a null `prompt_text`, or `missing` with one, raises a check violation | A second follow-up; a hole that is not recorded as one |
 | Flag span sanity | `answer_flags.span_end <= span_start` raises a check violation | — |
+| A flag keeps its attempt | Deleting a `scoring_attempts` row that an `answer_flags` row names raises a foreign-key violation | A flag with nothing saying which scorer raised it |
+| Language only on an `ok` attempt | `answered_language` set on a `pending` or `failed` attempt raises a check violation | A wrong-language exclusion resting on a call that never finished |
 | One General practice | A second `role_contexts` row with `kind = 'general'` for one user raises a unique violation | General practice split across rows, and its rounds grouped as two |
 
 ### 3.2 No composite score — asserted three ways
@@ -245,9 +247,36 @@ start hint; the server locates it in `transcript_corrected`.
 - A quote not in the corrected text, a span outside it, an inverted or zero-width one, or one that splits a grapheme → **dropped and counted**, never clamped.
 - A quote that occurs only in `transcript_raw` → dropped. The flag is about what the user submitted.
 
+- The start hint chooses between occurrences and **never clamps**: a hint past the end, or on the wrong occurrence, still finds the quote or drops it.
+- Two quotes that locate to one span are **one flag**.
+- A failed attempt stores **no citation, no flag and no `answered_language`**; an `ok` one stores all three with its scores, in one transaction.
+
+**Citations** (`claim_citations`, `07` §5.10). The scorer is shown numbered claims and returns numbers:
+
+- The scorer is sent the CV version's claims **sliced from the stored body in span order** — never `text_normalised`, never model text.
+- A stored claim whose span no longer validates, or whose slice no longer normalises to `text_normalised`, is **not shown**, so it cannot be cited; it is counted as `claims_rejected`.
+- A number that names no shown claim — zero, past the end, not an integer — is **dropped and counted**.
+- The same claim and relation twice is one row; `supported_by` and `contradicted_by` survive as the scorer gave them.
+
 **Untouched material** (`round_feedback.untouched_claim_ids`): an id that is not a claim of the round's
 CV version, or that some answer in the round cited, is **dropped and counted**; never more than three
 are stored.
+
+- The feedback call is sent **only** the round's never-cited claims; a claim cited with **either** relation is not among them.
+- It is sent each answer's unsupported quotes **by stored span**, and only the latest `ok` attempt's.
+- A pick that names nothing it was shown is dropped and counted; a repeat is ignored; a fourth is dropped. **Feedback whose picks are all invented is still written**, with none.
+
+**What is counted is in the log line and nothing else is**: `scoring_ok` and `round_feedback_written`
+carry the counts, and an integration test asserts the answer's text and the sentinel never reach a log
+line.
+
+**Screen 8's grounding view** (`10` §8), from stored rows: the quotes are slices by span, a
+wrong-language answer is named and one in the round's language is not, and a round whose attempts
+carry no `answered_language` has **no grounding region**.
+
+**Coverage on `/cv`** (`10` §13, `lib/cv/coverage.ts`), against Postgres: a citation of a v1 claim
+reads as used on its v3 descendant; **a citation of a later version does not reach back**; a forked
+lineage inherits on both branches; `contradicted_by` counts as used; a reworded claim starts unused.
 
 ### 3.13 A round's questions, chosen once
 
@@ -359,6 +388,9 @@ wiring between screens that no unit test sees.
 | Resume | Reload mid-round returns to **the same** question, with earlier answers intact. Starting another round, then opening the first, shows it read-only as abandoned. |
 | Spoken question | Realistic mode requests the speech route for the prompt on screen, by position; practice mode never requests it. |
 | Feedback not ready | With the fake feedback generator failing, screen 8 renders every score, a plain pending sentence and a retry — **no spinner** — and the retry fills the round-level region. |
+| CV grounding | The mock scorer and feedback call each return one thing the server can verify and one it cannot. Screen 8 shows one `Unsupported` rail per answer quoting the corrected text and one `Unused` rail quoting the CV; **the invented quote and the invented claim number appear nowhere.** |
+| Wrong language | A Japanese answer in an English round carries the wrong-language line on its own page of the pager and no other, is still scored, and its attempt stores `answered_language = 'ja'`. |
+| Coverage marks | After the round, `/cv` draws the cited claim with the heavier mark, the rest without, and the count line states how many were never used. |
 | Practice frame | After a practice submit, the per-answer frame states the score as pending, then shows it once scored; "answer again" writes a second answer at the same position with no follow-up. |
 | No deletion surface | No delete or share control on History, a round, an answer or a score (refusals #3, #6). |
 
