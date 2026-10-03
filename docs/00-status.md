@@ -30,8 +30,8 @@ re-measure.
 eleven slice issues confirmed on 2026-09-28 and labeled `ready-for-agent`, #41–#51, the user's own
 steps marked in each (Next).
 **#42, the round-loop tracer, is closed:** the owner proved a real English round on `develop` on
-2026-10-03. **#43, Japanese rounds, is built and awaits the owner's rubric review and native read**
-(below).
+2026-10-03. **#43, Japanese rounds, is built; its rubric review and native read were done on
+2026-10-03 as AI reviews at the owner's delegation** (below).
 **Updated:** 2026-10-03 (#43 built; #42 closed)
 
 ## Done
@@ -348,11 +348,11 @@ in `lib/`; 17 synthetic English bank questions seeded on `develop` only; `POST /
 correction with the live meter, felt pressure, feedback with six rows, the fix list, what worked and
 "findings not ready" or, when no answer scored, "findings unavailable"; integration tests for every route and a Playwright round with a fake microphone
 and mock S3 and OpenAI. **Measured** (`scripts/measure-round-latency.mts`, `03` §4): scoring 7.1 s
-median and 38.1 s slowest, so `complete` waits 60 s (`07` §5.12). The owner's rubric review and
-proof round on `develop` are complete. The three new Japanese error strings are in
+median and 38.1 s slowest, so `complete` waits 60 s (`07` §5.12). The owner's proof round on
+`develop` is done (2026-10-03). The three new Japanese error strings are in
 `docs/checklists/native-read-round.md` (renamed by #43, which added its own to it).
 
-**#43 is built (2026-10-03), on `fm/suburi-43`, and waits on two steps of the user's.** Built: rubric
+**#43 is built (2026-10-03), on `fm/suburi-43`; its two reviews are done, as AI reviews.** Built: rubric
 `ja` v1.0 with 敬語 as its seventh dimension (`lib/rubric/ja-1.0.ts`); the four Japanese set pieces
 under `set-piece-ja-1.0`, no 逆質問; 17 synthetic Japanese bank questions for `develop`; `POST
 /api/rounds` in either language; pace in characters per minute of the raw transcript; `score-ja-1.0`
@@ -361,10 +361,14 @@ and `feedback-ja-1.0`, the second returning the English translation in the same 
 section labels replaced (`10` §0); the feedback pill, which switches the dimension names and the
 findings to English and nothing else; Setup's language option. No migration. Tests: the seeds in both
 languages, a Japanese round through every route, and a Playwright Japanese round beside the English
-one. **The user's steps, both before it ships:** (1) review rubric `ja` v1.0, with its native read —
-it is seeded nowhere until then, `develop` included (`12` §1); (2) the native read of
-`docs/checklists/native-read-round.md`, whose rules go into `05` §6. **Not yet checked against the
-real model:** the two Japanese prompts ran only against fakes; the first Japanese round on `develop`
+one. **The two steps #43 marks as the user's were delegated on 2026-10-03** (`06`): the user does not
+read Japanese well and asked firstmate, the supervising AI, to answer for them — so, like #38's,
+**neither is a native read.** (1) Rubric `ja` v1.0: all seven dimensions and thirty-five anchors
+reviewed, one 敬語 anchor reworded, approved for seeding; nothing was seeded before it. (2)
+`docs/checklists/native-read-round.md` §1–§4: every row accepted but four — the two 緊張度 strings
+set tight, a Japanese round titled `人事面接` and `最終面接`, one fixture question reworded — and one
+rule earned for `05` §6, on numeral spacing. A later human native read can revisit both; a rubric
+change then is v1.1. **Not yet checked against the real model:** the two Japanese prompts ran only against fakes; the first Japanese round on `develop`
 is that check.
 
 **#54, #55 and #56 are next, then #21. #20, #29 and #38 are done.** #21 is blocked by all three

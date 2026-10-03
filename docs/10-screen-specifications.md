@@ -55,8 +55,11 @@ measures, order, states and refusals stand. What changes:
 
   §5–§7 below still quote the artboards' Latin labels, as what was drawn. A Japanese round shows the
   right-hand column, and its tab title is Japanese too (`ラウンド — Suburi`, `講評 — Suburi`).
-- **English round-screen copy is built (#42).** The Japanese strings for #43 still await the owner's
-  native read (`docs/checklists/native-read-round.md`).
+- **English round-screen copy is built (#42).** The Japanese strings for #43 were read on 2026-10-03
+  (`docs/checklists/native-read-round.md` — an AI read at the user's delegation, `06`). Two things
+  it changed in what the sections below quote: **a Japanese round is titled `人事面接` and
+  `最終面接`**, not the artboards' `HR` and `CEO・最終` (`行動面接` and `技術面接` stand), and
+  **`緊張度4を…` is set tight** (`05` §6).
 
 ---
 
@@ -337,12 +340,12 @@ Three lines at 12px/1.85 `--ink-4`:
 ### States
 - **Nothing picked:** button is `--surface-inert` / `--ink-8` / `1px --rule-section`; hint
   `1つ選ぶと講評に進めます。`
-- **Picked:** button becomes solid `--ink-1` / `#fff`; hint `緊張度 4 をこのラウンドに記録します。`
+- **Picked:** button becomes solid `--ink-1` / `#fff`; hint `緊張度4をこのラウンドに記録します。`
 - Stamp: `評価基準 v1.2・出題 v1.0・応募書類 v3`.
 
 **This screen cannot be skipped, and it cannot be answered after the feedback is seen** — the whole
 point is that the reading is taken before the result is known. The value is recorded on the round and
-surfaced on round feedback and History as `緊張度 4 を講評前に記録`.
+surfaced on round feedback and History as `緊張度4を講評前に記録`.
 
 ---
 
@@ -392,7 +395,7 @@ switches to, in that language — `English`, then `日本語` — and the choice
   by span.
 - **An answer in the wrong language** carries a line saying so, and that it is kept out of this
   language's progress (PRD §7). Copy written with the grounding slice.
-- Footer stamp: `評価基準 v1.2・出題 v1.0・応募書類 v3` / `緊張度 4 を講評前に記録`.
+- Footer stamp: `評価基準 v1.2・出題 v1.0・応募書類 v3` / `緊張度4を講評前に記録`.
 
 ### An answer whose score failed
 
@@ -487,7 +490,7 @@ progress, and History offers to resume it rather than marking it.
 
 ### Detail — the matrix (§5.5)
 Header: `行動面接` 17px/600, `日本語・実戦・5問`, date, and
-`求人票 Mercari_SRE_2026.pdf・緊張度 4 を講評前に記録` at 12px `--ink-6`. Right: the `English`
+`求人票 Mercari_SRE_2026.pdf・緊張度4を講評前に記録` at 12px `--ink-6`. Right: the `English`
 language pill and `編集できません` at 11px `--ink-8`.
 
 **A past round is read-only.** For a Japanese round with a stored translation, the pill still toggles

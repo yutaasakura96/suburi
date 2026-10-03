@@ -179,7 +179,7 @@ export type RoundCopy = typeof en;
 const ja: RoundCopy = {
   title: "ラウンド — Suburi",
   feedbackTitle: "講評 — Suburi",
-  roundTypes: { behavioural: "行動面接", technical: "技術面接", hr: "HR", ceo: "CEO・最終" },
+  roundTypes: { behavioural: "行動面接", technical: "技術面接", hr: "人事面接", ceo: "最終面接" },
   meta: (length) => `日本語・実戦・${length}問`,
   step: (position, of) => `第${position}問 / ${of}問`,
   rubricStamp: (label) => `評価基準 ${label}`,
@@ -240,7 +240,7 @@ const ja: RoundCopy = {
     "回答ごとではなく、ラウンドごとに1回だけ聞きます。",
   ],
   pickOne: "1つ選ぶと講評に進めます。",
-  willRecord: (value) => `緊張度 ${value} をこのラウンドに記録します。`,
+  willRecord: (value) => `緊張度${value}をこのラウンドに記録します。`,
   toFeedback: "講評に進む",
   completing: "緊張度を記録して、講評をまとめています。",
 
@@ -268,7 +268,7 @@ const ja: RoundCopy = {
     "このラウンドには採点できた回答がないため、講評はありません。ラウンドは終了し、緊張度は記録されています。",
   retryFindings: "講評をまとめる",
   retryingFindings: "講評をまとめています。",
-  pressureRecorded: (value) => `緊張度 ${value} を講評前に記録`,
+  pressureRecorded: (value) => `緊張度${value}を講評前に記録`,
 };
 
 export const ROUND_COPY: Record<RoundLanguage, RoundCopy> = { en, ja };

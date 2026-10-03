@@ -370,6 +370,13 @@ review — neither is a native read.** `app/(app)/cv/copy.test.ts` asserts both.
 - **No space between a Latin numeral and the Japanese that follows it.** `14:32から保存できます。`, not
   `14:32 から`. The same family as the nakaguro rule — the space is Latin typography, and Japanese
   sets the particle tight against the numeral.
+  **Refined 2026-10-03 by the round's read** (`docs/checklists/native-read-round.md`; an AI read at
+  the user's delegation, like the one above — `06`): **inside a sentence or phrase the numeral sits
+  tight on both sides** — `緊張度4をこのラウンドに記録します。`, `緊張度4を講評前に記録`. **A value
+  shown as a label's figure keeps one space before it** — `最長 4分`, `直すところ 3件`,
+  `良かったところ 1件`, `書き直し 8%`, `記載事項 12件・未使用 3件` — and none between the numeral and
+  its counter. `app/(app)/round/copy.test.ts` asserts the first half over every sentence of the
+  round's chrome.
 - **A document's body is `本文`, never a bare `文`.** `文` alone is one sentence. The import caption
   read `読み込んだ文を確認して…` while the box beside it was labelled `本文`. `文字` is unaffected.
 
@@ -440,9 +447,8 @@ Direction C's matrix had none of these and had to caption itself. This one does 
   Home, Setup, Progress and History are in English. §3.3's uppercase Latin labels stay Latin only in
   an English round — in a Japanese round they are Japanese labels, without `text-transform`.
   **Built 2026-10-03 (#43):** the six Japanese labels are in `10` §0, set in mono 11px at `0.16em`
-  with no transform. Their read, and the rules it earns for §6, is
-  `docs/checklists/native-read-round.md` — one of which is already a question: §6 sets Japanese tight
-  against a Latin numeral, and `10` §7's `緊張度 4 を…` does not.
+  with no transform. Their read is `docs/checklists/native-read-round.md` — all six accepted, and
+  the one rule it earned, on numeral spacing, is in §6.
 - **Hover surface and focus ring are undrawn.** §10.2 aliases shadcn's `--accent` (hover) to
   `--ground` and `--ring` (focus) to `--mark` as placeholders. §7 requires keyboard focus on score
   rows, so the focus ring is needed, not optional — it wants a design read, not a default.

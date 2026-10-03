@@ -120,7 +120,7 @@ export const SYNTHETIC_QUESTIONS_JA: readonly SyntheticQuestion[] = [
   { roundType: "hr", body: "仕事の進め方が変わるきっかけになったフィードバックについて教えてください。" },
   { roundType: "hr", body: "すべての仕事が急ぎに見えるとき、何から取り組むかをどう決めていますか。" },
   { roundType: "hr", body: "仕事での失敗と、そのあとに変えたことを教えてください。" },
-  { roundType: "hr", body: "前のチームの人たちは、あなたが控えたほうがよいことは何だと言うと思いますか。" },
+  { roundType: "hr", body: "前のチームのメンバーは、あなたが控えたほうがいいことは何だと言うと思いますか。" },
   { roundType: "hr", body: "担当業務のほかに、スキルを保つためにしていることはありますか。" },
   { roundType: "hr", body: "3年後にどのようなキャリアを築いていたいですか。この職務はそこにどうつながりますか。" },
   { roundType: "behavioural", body: "この1年で解決した、最も難しかった問題について教えてください。" },

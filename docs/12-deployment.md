@@ -82,10 +82,11 @@ reviewed rubric `en` v1.0 (§3 step 9), and never gets a synthetic question.
 `db:seed:develop` also seeds rubric `ja` v1.0 (seven dimensions, 敬語 the seventh), the four Japanese
 set pieces under `set-piece-ja-1.0`, and **17 synthetic generated-origin Japanese bank questions**
 stamped `synthetic-generated-ja-1.0`, parallel to the English ones. A re-run on a branch that already
-holds the English rows adds only the Japanese ones. **Rubric `ja` v1.0 is reviewed by the user, with
-its native read, before it is seeded anywhere** — `develop` included: a seeded version is immutable
-(`04` §5), so a wording changed after the seed is v1.1, a re-score and a boundary. #43 does not merge
-ahead of that review. `db:seed` is unchanged here too.
+holds the English rows adds only the Japanese ones. **Rubric `ja` v1.0 is reviewed, with
+its read, before it is seeded anywhere** — `develop` included: a seeded version is immutable
+(`04` §5), so a wording changed after the seed is v1.1, a re-score and a boundary. **That review was
+done on 2026-10-03, by an AI at the user's explicit delegation** (`06`): one anchor reworded, the
+rest accepted, and nothing was seeded before it. `db:seed` is unchanged here too.
 
 **Cron is off on `develop` on purpose.** The self-check alerts on pending scores and cost drift (§6);
 run against synthetic data it would fill the status page with noise, and an alert channel that cries

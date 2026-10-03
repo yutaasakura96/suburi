@@ -386,6 +386,7 @@ test("a realistic Japanese round: Japanese throughout, seven rows, and the feedb
   for (let position = 1; position <= 3; position += 1) {
     // Screen 3: the round header and the asked frame.
     await expect(page.getByTestId("round-step")).toHaveText(`第${position}問 / 3問`);
+    await expect(page.getByRole("heading", { name: "人事面接" })).toBeVisible();
     await expect(page.getByText("日本語・実戦・3問")).toBeVisible();
     if (position === 1) await expect(page.getByTestId("round-question")).toHaveText("まず、簡単に自己紹介をお願いします。");
     await expect(page.getByText("講評はラウンドが終わってからまとめて出ます。途中では何も出ません。")).toBeVisible();
@@ -433,7 +434,7 @@ test("a realistic Japanese round: Japanese throughout, seven rows, and the feedb
   await expect(toFeedback).toBeDisabled();
   await expect(page.getByText("1つ選ぶと講評に進めます。")).toBeVisible();
   await page.getByRole("radio", { name: /かなり緊張した/ }).click();
-  await expect(page.getByText("緊張度 4 をこのラウンドに記録します。")).toBeVisible();
+  await expect(page.getByText("緊張度4をこのラウンドに記録します。")).toBeVisible();
   await expect(page.getByTestId("round-stamp")).toContainText("評価基準 v1.0・");
   await expect(main).not.toContainText(ENGLISH_CHROME);
   await shot("7-pressure");
@@ -454,7 +455,7 @@ test("a realistic Japanese round: Japanese throughout, seven rows, and the feedb
   await expect(page.getByTestId("to-fix")).toContainText("結論を最初の一文に置く");
   await expect(page.getByTestId("what-worked")).toContainText("良かったところ 1件");
   await expect(page.getByTestId("what-worked")).toContainText("第3問で、具体的な場面を挙げて説明できている。");
-  await expect(page.getByTestId("pressure-stamp")).toHaveText("緊張度 4 を講評前に記録");
+  await expect(page.getByTestId("pressure-stamp")).toHaveText("緊張度4を講評前に記録");
   await expect(page.getByTestId("round-stamp")).toContainText(/^評価基準 v1\.0・.*・応募書類 v\d+/);
   await expect(main).not.toContainText(/total|average|overall|合計|平均|総合/i);
   // The pill is the one Latin word on the screen, and it names the language it switches to.
@@ -476,7 +477,7 @@ test("a realistic Japanese round: Japanese throughout, seven rows, and the feedb
   await expect(page.getByTestId("findings")).toHaveAttribute("lang", "en");
   await expect(page.getByText("日本語・実戦・3問")).toBeVisible();
   await expect(page.getByTestId("answer-region")).toContainText("第1問 / 3問");
-  await expect(page.getByTestId("pressure-stamp")).toHaveText("緊張度 4 を講評前に記録");
+  await expect(page.getByTestId("pressure-stamp")).toHaveText("緊張度4を講評前に記録");
   await shot("8-feedback-english");
   await pill.click();
   await expect(pill).toHaveText("English");
@@ -528,7 +529,7 @@ test("a Japanese round whose findings are not ready says so in Japanese, and the
   await expect(page).toHaveURL(`/round/${roundId}/feedback`);
   await expect(page.getByTestId("findings-not-ready")).toContainText("このラウンドの講評はまだできていません。");
   await expect(page.getByTestId("score-row")).toHaveCount(7);
-  await expect(page.getByTestId("pressure-stamp")).toHaveText("緊張度 3 を講評前に記録");
+  await expect(page.getByTestId("pressure-stamp")).toHaveText("緊張度3を講評前に記録");
   await expect(page.locator("main")).not.toContainText(ENGLISH_CHROME);
   await page.screenshot({ path: test.info().outputPath("ja-8-not-ready.png"), fullPage: true });
 

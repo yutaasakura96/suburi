@@ -28,9 +28,14 @@ function strings(copy: RoundCopy): [string, string][] {
 const jaStrings = strings({ ...ja, stamps: () => ja.stamps([ja.rubricStamp("v1.2"), "出題 v1.0", "応募書類 v3"]) });
 
 describe("a Japanese round's chrome (10 §0)", () => {
-  // `HR` is the round type's name on the artboards (10 §2); everything else is written in Japanese.
-  it.each(jaStrings.filter(([key]) => key !== "roundTypes.hr"))("%s is written in Japanese", (_, text) => {
+  it.each(jaStrings)("%s is written in Japanese", (_, text) => {
     expect(text).toMatch(/[぀-ヿ一-龯]/u);
+  });
+
+  // 05 §6: inside a sentence the numeral sits tight against the Japanese on both sides. A figure set
+  // off as a label (`最長 4分`, `直すところ 3件`) keeps one space before it, and is not a sentence.
+  it.each(jaStrings.filter(([, text]) => text.endsWith("。")))("%s sets its numerals tight", (_, text) => {
+    expect(text).not.toMatch(/\s[0-9]|[0-9]\s/u);
   });
 
   it("has every string an English round has, and no other", () => {
@@ -64,7 +69,7 @@ describe("a Japanese round's chrome (10 §0)", () => {
 
 describe("the strings 10 §3–§8 quote", () => {
   it("names the round and its step (05 §5.2)", () => {
-    expect(ja.roundTypes.behavioural).toBe("行動面接");
+    expect(ja.roundTypes).toEqual({ behavioural: "行動面接", technical: "技術面接", hr: "人事面接", ceo: "最終面接" });
     expect(ja.meta(5)).toBe("日本語・実戦・5問");
     expect(ja.step(1, 5)).toBe("第1問 / 5問");
   });
@@ -117,7 +122,7 @@ describe("the strings 10 §3–§8 quote", () => {
       "回答ごとではなく、ラウンドごとに1回だけ聞きます。",
     ]);
     expect(ja.pickOne).toBe("1つ選ぶと講評に進めます。");
-    expect(ja.willRecord(4)).toBe("緊張度 4 をこのラウンドに記録します。");
+    expect(ja.willRecord(4)).toBe("緊張度4をこのラウンドに記録します。");
   });
 
   it("writes the feedback screen (10 §8)", () => {
@@ -128,7 +133,7 @@ describe("the strings 10 §3–§8 quote", () => {
     expect(ja.toFix(3)).toBe("直すところ 3件");
     expect(ja.whatWorked).toBe("良かったところ 1件");
     expect(ja.notScored).toBe("未採点");
-    expect(ja.pressureRecorded(4)).toBe("緊張度 4 を講評前に記録");
+    expect(ja.pressureRecorded(4)).toBe("緊張度4を講評前に記録");
   });
 
   // 05 §5.9: the round's stamps joined by nakaguro, the rubric as 評価基準.

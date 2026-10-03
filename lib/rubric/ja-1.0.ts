@@ -1,8 +1,10 @@
 import type { Rubric } from "./types.ts";
 
 // Rubric `ja` v1.0 (06, 2026-09-27): drafted by Claude with an anchor for every level of every
-// dimension, and **reviewed by the user and given a native read before it is seeded anywhere real**
-// (04 `rubric_versions`, 11 §5). A changed rubric is a new file and a new version label, never an edit
+// dimension, and reviewed before it is seeded anywhere real (04 `rubric_versions`, 11 §5). **That
+// review and its read were done on 2026-10-03 by an AI, not a native speaker, at the user's explicit
+// delegation** (06, 2026-10-03): one anchor reworded, the rest accepted. A human native read can
+// still revisit it — as v1.1. A changed rubric is a new file and a new version label, never an edit
 // to this one: every scored answer carries the version as stamp 2, and Progress draws a boundary where
 // it changes.
 //
@@ -125,7 +127,7 @@ export const JA_1_0: Rubric = {
         anchors: [
           "面接の言葉づかいになっていない。全体が普通体（「〜だ」「〜と思う」）やくだけた話し言葉で話されている。",
           "です・ます体が安定せず、くだけた言い方（「〜っていう」「〜じゃないですか」「やっぱ」）が多い。あるいは、尊敬語と謙譲語を取り違えている（自分の行為に尊敬語を使う、相手の行為に謙譲語を使う）。",
-          "です・ます体はおおむね保たれているが、くだけた言い方がところどころに混じる。あるいは、二重敬語や「〜のほう」「〜になります」のような不適切な敬語がいくつかある。",
+          "です・ます体はおおむね保たれているが、くだけた言い方がところどころに混じる。あるいは、二重敬語や、いわゆるバイト敬語（「〜のほう」「〜になります」）がいくつかある。",
           "言葉づかいは面接にふさわしく、尊敬語と謙譲語も正しい。ただし小さなゆらぎが一、二か所ある（「御社」と「貴社」の取り違え、身内に敬語を使う、など）。",
           "です・ます体が終始一貫し、尊敬語と謙譲語を正しく、過不足なく使い分けている。「御社」「弊社」「前職」などの呼び方も適切で、丁寧でありながら回りくどくない。",
         ],

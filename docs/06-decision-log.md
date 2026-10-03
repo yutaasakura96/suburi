@@ -40,8 +40,8 @@ rounds (a setting with one user and no screen to change it on).
 `文字起こし — 未修正`, `あなたの回答 — 自由に直せます`, `未修正の文字起こし — 置き換えずに残します`,
 `書き直し`, `講評の前に`, `緊張度について`. Set in mono at `0.16em`, no `text-transform` (`05` §3.3).
 The last is not a translation of `WHAT THIS IS NOT`: a literal one reads as a riddle, so the label
-names its subject and the three lines under it do the denying. All six are unread
-(`docs/checklists/native-read-round.md`). The tab titles follow the round too — `ラウンド — Suburi`,
+names its subject and the three lines under it do the denying. All six were accepted by the
+checklist's read (`docs/checklists/native-read-round.md`, and the entry above). The tab titles follow the round too — `ラウンド — Suburi`,
 `講評 — Suburi`.
 
 ### [2026-10-03] The Japanese prompts are written in English, and the model input names dimensions in the rubric's language
@@ -82,13 +82,45 @@ Production never gets them (`12` §1). `docs/checklists/native-read-round-loop.m
 `native-read-round.md` — the path #43's criteria name — keeping #42's three unread error strings as
 its §1; every Japanese string #43 added is §2–§4, the rubric is pointed at from §5.
 
+### [2026-10-03] The rubric review and the native read were delegated to an AI, and say so
+
+#43 marks two steps as the user's: reviewing rubric `ja` v1.0 with its native read before it is
+seeded, and the native read of `docs/checklists/native-read-round.md` before the slice ships. **The
+user does not read Japanese well and explicitly delegated both, on 2026-10-03, to firstmate — the
+supervising AI agent, not a native speaker.** The same thing happened to the CV checklist (#38,
+2026-09-27), and it is recorded the same way: as what it was, so a later human native read knows
+there is something to revisit.
+
+**The rubric.** All seven dimensions and thirty-five anchors reviewed: the Japanese reads naturally
+and the levels are consistent and well separated. Approved for seeding with one change, in 敬語's
+level 3: `二重敬語や「〜のほう」「〜になります」のような不適切な敬語` became
+`二重敬語や、いわゆるバイト敬語（「〜のほう」「〜になります」）` — the category has a name, and
+"inappropriate" judged what the anchor only needs to identify. Nothing had been seeded, so this is
+still v1.0. A change from a later read is v1.1 (`04` §5).
+
+**The checklist, §1–§4.** Every row accepted as written except these:
+
+- **Numeral spacing** — the rule now in `05` §6: tight inside a sentence or phrase
+  (`緊張度4をこのラウンドに記録します。`, `緊張度4を講評前に記録`), one space before a label's figure
+  (`最長 4分`, `直すところ 3件`). `10` §7–§8's quotes follow.
+- **A Japanese round's titles** are `人事面接` and `最終面接`, not the artboards' `HR` and
+  `CEO・最終`: a Latin title over a Japanese screen was the last piece of Latin chrome in the round.
+  The app-level screens are English and keep `HR` and `CEO / final` (`10` §0).
+- **One develop fixture question**: `前のチームの人たちは、あなたが控えたほうがよいことは…` became
+  `前のチームのメンバーは、あなたが控えたほうがいいことは…`.
+
+Accepted as chosen: the six section labels, and `採点中` beside `未採点`. **Rejected:** holding #43
+until a native speaker is found (there is one user, and the strings are replaceable copy — unlike a
+seeded rubric, which is why that review came first); recording either as a native read (the next
+reader would not know to look).
+
 ### [2026-10-03] Rubric `ja` v1.0 is drafted, not seeded
 
 `lib/rubric/ja-1.0.ts` holds seven dimensions with five anchors each, written in Japanese. It is in
-`RUBRICS`, so `db:seed:develop` would seed it — and **no seed is run until the user has reviewed it,
-with its native read**: `rubric_versions` is immutable once a row exists (`04` §5), so a wording
+`RUBRICS`, so `db:seed:develop` would seed it — and **no seed is run until it has been reviewed,
+with its read**: `rubric_versions` is immutable once a row exists (`04` §5), so a wording
 changed after the seed is v1.1 with a re-score and a boundary on every chart. The review is #43's
-first acceptance criterion and precedes its merge. **Rejected:** seeding a draft on `develop` and
+first acceptance criterion and precedes its merge; the entry above records how it was done. **Rejected:** seeding a draft on `develop` and
 bumping to v1.1 after the read (the first Japanese rounds would sit on the wrong side of a boundary
 drawn for a typo).
 
