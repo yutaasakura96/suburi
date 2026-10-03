@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { acceptedAdvisory, auditRefusals } from "./audit-gate.ts";
 
-// `npm run audit:ci`, CI's last step (11 §7). Fails on every high or critical advisory except the
+// `npm run audit:ci`, CI's last step (11 §7). Fails on every high or critical advisory except
 // the one scripts/audit-gate.ts accepts by name.
 
 // npm exits 1 whenever it reports anything, so the report decides, not the status.
