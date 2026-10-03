@@ -1,11 +1,21 @@
 import { spawnSync } from "node:child_process";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { acceptedAdvisory, auditRefusals } from "./audit-gate.ts";
 
 // `npm run audit:ci`, CI's last step (11 §7). Fails on every high or critical advisory except
 // the one scripts/audit-gate.ts accepts by name.
 
 // npm exits 1 whenever it reports anything, so the report decides, not the status.
-const audit = spawnSync("npm", ["audit", "--json"], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+// An empty cache each run: npm caches an advisory and, while its range is unchanged, reports the
+// cached severity over the registry's, so a warm ~/.npm (CI restores one) hides a reclassification.
+const cache = mkdtempSync(join(tmpdir(), "audit-ci-"));
+const audit = spawnSync("npm", ["audit", "--json", "--cache", cache], {
+  encoding: "utf8",
+  maxBuffer: 64 * 1024 * 1024,
+});
+rmSync(cache, { recursive: true, force: true });
 
 let report: unknown;
 try {
