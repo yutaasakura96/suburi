@@ -700,7 +700,8 @@ computed server-side and returned so screen 6's meter and the stored value canno
 at round end would put a reasoning model on the critical path of a screen PRD §9 requires to render
 while the user is still at the machine. So `submit` creates the `scoring_attempts` row — `status:
 'pending'`, all four stamps written, **stamp 3 from the question row or, for a follow-up, from its
-`follow_ups` row** — and returns immediately. By round end, all but the last score are already rows and
+`follow_ups` row** — and dispatches scoring immediately, while `submit` waits for follow-up generation
+after the answer's commit. By round end, all but the last score are already rows and
 the feedback screen is a read. *(Seven questions and seven follow-ups make at most 14 answers a round —
 not the "sixteen" this used to say, confirm 7. Practice retries add rows without adding follow-ups.)*
 
@@ -743,9 +744,8 @@ retry after 1 s** when the failure is one a second call could get past (not a `4
 Failures: `400 invalid_request` naming `transcript_raw` when the answer has no transcript yet — there
 is nothing to correct; `422 answer_already_submitted` (idempotent alternative: the same body returns `200` with the
 existing attempt — a different body is the `422`); `409 round_already_complete`; `409 round_abandoned` (§5.5); `502 followup_generation_failed`, which is **not
-fatal** — the answer is saved and scored, the `missing` row is written, and `next` degrades to
-`question`, `pressure` or `feedback`. A missing follow-up costs one prompt; a lost answer costs a
-measurement.
+fatal** — the answer is saved with scoring scheduled, and the `missing` row is written. A missing follow-up costs
+one prompt; a lost answer costs a measurement.
 
 **The `502` is returned once, by the call that wrote the `missing` row** (`06`, 2026-10-03), with
 `detail: { answer_id, attempt_id, error_class }` — an envelope carries no `next` (§2). **The same body

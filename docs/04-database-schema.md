@@ -8,7 +8,8 @@ this document is the source of truth for *why*. **Amended 2026-09-27 for the rou
 Each change lands with the slice that first needs it. **Migrated by #42** (`0007_round-loop-tracer`):
 `round_questions`; `questions.generator_prompt_version` and `scoring_attempts.generator_prompt_version`
 `not null`; the General-practice unique index on `role_contexts`; the `answers (question_id, language)`
-index; and `rate_limit_windows.route` extended for the round routes. The rest is not migrated yet.
+index; and `rate_limit_windows.route` extended for the round routes. **Migrated by #44**
+(`0008_follow-ups`): `follow_ups`. The remaining round-loop changes are not migrated yet.
 
 ---
 

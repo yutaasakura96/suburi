@@ -68,6 +68,7 @@ let feedbackFails = false;
 const UNSCORABLE = "zebra-unscorable-sentinel";
 let scoringFails = false;
 let followUpFails = false;
+let followUpMalformed = false;
 
 function formatOf(body: Record<string, unknown>) {
   return ((body.text as { format?: { name?: string } } | undefined)?.format?.name ?? "") as string;
@@ -91,7 +92,7 @@ test.beforeAll(async () => {
         return { scores: DIMENSIONS.map((dimension) => ({ dimension, value: SCORES[dimension as keyof typeof SCORES], justification: "e2e" })) };
       }
       if (formatOf(body) === "round_feedback") return feedbackFails ? { fail: 500 } : FINDINGS;
-      if (formatOf(body) === "follow_up") return followUpFails ? { fail: 500 } : { follow_up: FOLLOW_UP };
+      if (formatOf(body) === "follow_up") return followUpFails ? { fail: 500 } : { follow_up: followUpMalformed ? "What changed? Who approved it?" : FOLLOW_UP };
       return { fail: 400 };
     },
     { transcription: () => ({ text: RAW, seconds: 18 }) },
@@ -107,6 +108,7 @@ test.beforeEach(() => {
   feedbackFails = false;
   scoringFails = false;
   followUpFails = false;
+  followUpMalformed = false;
 });
 
 /** Starts a round through the API, as Setup does. */
@@ -165,6 +167,44 @@ async function answerInBrowser(page: Page) {
 }
 
 const followUpCalls = () => openAi.requests.filter((request) => formatOf(request.body) === "follow_up");
+
+test("practice asks one follow-up, then moves to the next question", async ({ page }) => {
+  await signIn(page);
+  const context = await page.request.post("/api/role-contexts", { data: { kind: "general" } });
+  expect(context.ok()).toBe(true);
+  const created = await page.request.post("/api/rounds", {
+    data: { round_type: "hr", language: "en", mode: "practice", length: 3, role_context_id: (await context.json()).id },
+  });
+  expect(created.status()).toBe(201);
+  const roundId = (await created.json()).round.id as string;
+
+  const first = await answerByApi(page, roundId);
+  expect(first.next.kind).toBe("follow_up");
+  await page.goto(`/round/${roundId}`);
+  await expect(page.getByTestId("round-step")).toHaveText("Question 1 / 3 · follow-up");
+  await expect(page.getByTestId("round-question")).toHaveText(FOLLOW_UP);
+  await page.screenshot({ path: test.info().outputPath("screen4-practice-follow-up.png"), fullPage: true });
+
+  const second = await answerByApi(page, roundId);
+  expect(second.next.kind).toBe("question");
+  await page.reload();
+  await expect(page.getByTestId("round-step")).toHaveText("Question 2 / 3");
+  expect(followUpCalls()).toHaveLength(1);
+});
+
+test("two generated questions are recorded as a missing follow-up", async ({ page }) => {
+  await signIn(page);
+  const roundId = await startRound(page);
+  followUpMalformed = true;
+  await page.goto(`/round/${roundId}`);
+  await answerInBrowser(page);
+  await expect(page.getByTestId("follow-up-notice")).toContainText("could not be generated");
+  await page.screenshot({ path: test.info().outputPath("screen6-malformed-follow-up.png"), fullPage: true });
+  const rows = await withDb((db) => db.select({ status: s.followUps.status, errorClass: s.followUps.errorClass }).from(s.followUps));
+  expect(rows).toEqual([{ status: "missing", errorClass: "malformed_output" }]);
+  await page.getByRole("button", { name: "Go on" }).click();
+  await expect(page.getByTestId("round-step")).toHaveText("Question 2 / 3");
+});
 
 test("a realistic English round: Setup → each question and its follow-up → pressure → feedback, all six rows", async ({ page }) => {
   test.setTimeout(180_000);
