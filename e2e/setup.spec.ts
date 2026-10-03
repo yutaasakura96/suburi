@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { expect, test, type Page } from "@playwright/test";
@@ -232,4 +233,33 @@ test("the bank-exhausted warning shows before the round starts, and the round's 
     expect(checks[0].questionId).not.toBeNull();
     expect(checks[0].similarity).toBeLessThan(checks[0].threshold);
   });
+});
+
+test("posting names and imported filenames use code point limits", async ({ page }) => {
+  await signIn(page);
+  await page.goto("/round/new");
+  await page.getByRole("button", { name: "Add a posting" }).click();
+
+  const form = page.getByTestId("posting-form");
+  const name = "🦊".repeat(200);
+  await form.getByLabel("Company").fill(name);
+  await form.getByLabel("Role title").fill(`${name}🦊`);
+  await expect(form.getByLabel("Company")).toHaveValue(name);
+  await expect(form.getByLabel("Role title")).toHaveValue(name);
+
+  const filename = `${"🦊".repeat(250)}.docx`;
+  const chooser = page.waitForEvent("filechooser");
+  await form.getByRole("button", { name: "Import from a file" }).click();
+  await (await chooser).setFiles({
+    name: filename,
+    mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    buffer: await readFile("e2e/fixtures/shokumu.docx"),
+  });
+  await expect(form.getByLabel("Posting text")).not.toHaveValue("");
+  await form.getByRole("button", { name: "Save this posting" }).click();
+  await expect(form).toBeHidden();
+
+  const stored = await withDb((db) => db.select().from(s.roleContexts).where(eq(s.roleContexts.companyName, name)));
+  expect(stored).toHaveLength(1);
+  expect(stored[0]).toMatchObject({ companyName: name, roleTitle: name, sourceFilename: filename });
 });

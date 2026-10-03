@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { createServer, type Server } from "node:http";
+import { EMBEDDING_DIMENSIONS } from "../lib/ai/models";
 import { MOCK_OPENAI_PORT } from "./database";
 
 // The e2e server's OpenAI (playwright.config.ts points OPENAI_BASE_URL here). No test calls OpenAI
@@ -40,8 +41,6 @@ export interface MockOpenAiOptions {
   /** `POST /v1/audio/transcriptions`, answered as gpt-transcribe does, duration included. */
   readonly transcription?: () => { text: string; seconds: number } | MockFailure;
 }
-
-const EMBEDDING_DIMENSIONS = 1536;
 
 /**
  * As many questions as the generator was asked for — what a spec answers a `generated_questions`

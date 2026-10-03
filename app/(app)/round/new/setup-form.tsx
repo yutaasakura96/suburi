@@ -3,12 +3,12 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { ImportControl, TextButton, capFilename } from "@/components/import-control";
+import { ImportControl, TextButton } from "@/components/import-control";
 import { Button } from "@/components/ui/button";
 import type { ImportResult } from "@/lib/cv/import/extract";
 import { characterLength } from "@/lib/cv/spans";
 import { bankSupply, type BankCounts } from "@/lib/round/bank-supply";
-import { MAX_POSTING_CHARS, MAX_POSTING_NAME_CHARS } from "@/lib/round/limits";
+import { MAX_POSTING_CHARS, MAX_POSTING_NAME_CHARS, MAX_SOURCE_FILENAME_CHARS } from "@/lib/round/limits";
 import { failureText, postJson, type FailureCode } from "../api";
 import { ROUND_LENGTHS, ROUND_TYPE_NAMES, ROUND_TYPES, SETUP_COPY as COPY, type RoundType } from "../copy";
 import type { PostingOption } from "../load";
@@ -83,6 +83,8 @@ function ContextCard({ title, detail, selected, onSelect }: { title: string; det
 
 type ImportState = "imported" | "no_text" | "unreadable" | null;
 
+const capPostingName = (value: string) => Array.from(value).slice(0, MAX_POSTING_NAME_CHARS).join("");
+
 /**
  * The add form (10 §2). A posting is pasted, or imported into the box by the CV screen's importer:
  * the text is extracted in the browser, stays editable, and only it and the file's name are sent
@@ -108,7 +110,7 @@ function PostingForm({ onSaved, onCancel }: { onSaved: (posting: PostingOption) 
       return;
     }
     setText(result.text);
-    setSourceFilename(capFilename(name));
+    setSourceFilename(Array.from(name).slice(0, MAX_SOURCE_FILENAME_CHARS).join(""));
     setImported("imported");
   }
 
@@ -144,11 +146,11 @@ function PostingForm({ onSaved, onCancel }: { onSaved: (posting: PostingOption) 
       <div className="grid grid-cols-2 gap-[24px]">
         <label className="flex flex-col gap-[8px]">
           <span className={sectionLabel}>{COPY.company}</span>
-          <input value={company} onChange={(event) => setCompany(event.target.value)} maxLength={MAX_POSTING_NAME_CHARS} className={lineInput} />
+          <input value={company} onChange={(event) => setCompany(capPostingName(event.target.value))} className={lineInput} />
         </label>
         <label className="flex flex-col gap-[8px]">
           <span className={sectionLabel}>{COPY.roleTitle}</span>
-          <input value={title} onChange={(event) => setTitle(event.target.value)} maxLength={MAX_POSTING_NAME_CHARS} className={lineInput} />
+          <input value={title} onChange={(event) => setTitle(capPostingName(event.target.value))} className={lineInput} />
         </label>
       </div>
 

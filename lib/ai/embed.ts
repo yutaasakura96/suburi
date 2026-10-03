@@ -36,7 +36,11 @@ export function openAiEmbedder({ apiKey, baseURL }: { apiKey: string; baseURL?: 
           { signal, ...(timeoutMs === undefined ? {} : { timeout: timeoutMs }) },
         );
         // The API numbers each vector; sorting by that number is what makes the order the input's.
-        const ordered = [...response.data].sort((a, b) => a.index - b.index).map((item) => item.embedding);
+        const data = [...response.data].sort((a, b) => a.index - b.index);
+        if (data.length !== texts.length || data.some((item, index) => item.index !== index)) {
+          throw new ModelCallFailed("Embedding", "malformed_output");
+        }
+        const ordered = data.map((item) => item.embedding);
         return checkEmbeddings(texts.length, ordered);
       } catch (error) {
         throw new ModelCallFailed("Embedding", upstreamErrorClass(error));
