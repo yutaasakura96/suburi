@@ -205,7 +205,7 @@ Below the list, or in its place when no posting is saved yet, a text control in 
 
 | Field | Control |
 | --- | --- |
-| `Company` | one-line input, 14px, `1px --rule-frame` like §13's box, `padding: 9px 12px`; `maxlength` 200 |
+| `Company` | one-line input, 14px, `1px --rule-frame` like §13's box, `padding: 9px 12px`; cut at 200 code points as it is typed, the unit `07` §5.3 states — not the `maxlength` attribute, which counts UTF-16 units |
 | `Role title` | the same |
 | `Posting text` | a textarea, 13px/1.9, eight rows, vertically resizable — §13's box. Beside its label, `Import from a file` (`.docx`, `.pdf`), the §13 control: **the text is extracted in the browser and dropped into the box, which stays editable; the file is never uploaded** (`07` §5.3). An import replaces the box's text and sets the posting's `source_filename`; editing the box afterwards keeps it; clearing the box drops it |
 
@@ -219,7 +219,8 @@ Below the list, or in its place when no posting is saved yet, a text control in 
   client got it right.
 - An **outline** button `Save this posting` (§5.7, no glyph), inert until company, title and text are
   all non-blank, with the caption `Saving fixes this posting as it is. It cannot be edited afterwards
-  — a changed posting is saved as a new one.` While saving: `Saving the posting.`, the button disabled.
+  — a changed posting is saved as a new one.` While saving: `Saving the posting.`, and the button, `Cancel`, the
+  three fields and the import control are all disabled, so what is on screen is what is saved.
   Outline, not solid: the screen's one solid primary is `Start this round`.
 - `Cancel`, a text control in the §3.3 label style, beside the button when at least one posting is
   already saved. It closes the form and keeps nothing.
