@@ -3,7 +3,7 @@ import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { acceptedAdvisories, auditRefusals } from "./audit-gate";
+import { auditRefusals } from "./audit-gate";
 
 const braces = {
   source: 1240992,
@@ -65,6 +65,13 @@ describe("auditRefusals", () => {
     ]);
   });
 
+  it("refuses the accepted braces advisory if its severity becomes critical", () => {
+    const critical = { ...braces, severity: "critical" };
+    expect(auditRefusals(report(vulnerability("braces", "critical", [critical])))).toEqual([
+      "GHSA-vfj7-8cjw-p6xm is now critical, not the high that was accepted.",
+    ]);
+  });
+
   it("refuses a second advisory against braces itself", () => {
     const second = { ...braces, source: 1, url: "https://github.com/advisories/GHSA-grv7-fg5c-xmjg" };
     expect(auditRefusals(report(vulnerability("braces", "high", [braces, second])))).toEqual([
@@ -109,17 +116,10 @@ describe("auditRefusals", () => {
     ]);
   });
 
-  it("accepts nothing when nothing is listed", () => {
-    expect(auditRefusals(report(), [])).toEqual([]);
-    expect(auditRefusals(report(...today), [])).toEqual([
-      "braces <=3.0.3 is high: https://github.com/advisories/GHSA-vfj7-8cjw-p6xm",
-    ]);
-  });
-
   it("refuses a high package that no advisory in the report explains", () => {
-    expect(auditRefusals(report(vulnerability("fast-glob", "high", ["micromatch"])), [])).toEqual([
-      "fast-glob is high, but the report names no advisory for it.",
-    ]);
+    expect(auditRefusals(report(...today, vulnerability("lodash", "high", ["missing"])))).toContain(
+      "lodash is high, but the report names no advisory for it.",
+    );
   });
 
   it.each([
@@ -129,12 +129,6 @@ describe("auditRefusals", () => {
     ["an unknown severity", report(vulnerability("braces", "severe", [{ ...braces, severity: "severe" }]))],
   ])("refuses %s rather than read it as clean", (_, body) => {
     expect(auditRefusals(body)).toEqual(["npm audit did not return a report this gate can read."]);
-  });
-
-  it("accepts exactly one advisory", () => {
-    expect(acceptedAdvisories).toEqual([
-      { id: "GHSA-vfj7-8cjw-p6xm", package: "braces", range: "<=3.0.3" },
-    ]);
   });
 });
 

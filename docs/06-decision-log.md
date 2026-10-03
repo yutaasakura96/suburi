@@ -8,8 +8,8 @@ Newest first. Every entry records what was chosen, why, and what was rejected.
 ### [2026-10-03] CI's audit accepts GHSA-vfj7-8cjw-p6xm until a patched `braces` ships
 
 **Decided:** CI's audit step runs `npm run audit:ci` (`scripts/audit.mts`). It reads `npm audit --json`
-and fails on every high or critical advisory except the ones `scripts/audit-gate.ts` accepts by name.
-One is accepted: GHSA-vfj7-8cjw-p6xm, `braces` `<=3.0.3`. The level stays at high.
+and fails on every high or critical advisory except GHSA-vfj7-8cjw-p6xm on `braces` `<=3.0.3`
+at high severity. The level stays at high.
 **Found:** the advisory (stack exhaustion on deeply nested patterns, high) was published 2026-09-18
 and has no patched release; `braces` 3.0.3 is the latest and is inside the range. `braces` arrives only
 through `micromatch` → `fast-glob`, under `@next/eslint-plugin-next`, `ts-morph` and `shadcn`. Those
@@ -18,8 +18,8 @@ globs written in this repository, never request input. `npm audit --audit-level=
 on `develop` and on every branch off it. npm audit has no flag that ignores one advisory, and its
 offered fix is `shadcn` 1.0.0, a downgrade.
 **Remove it when** a patched `braces` ships (update to it in the same change) or the advisory is
-withdrawn. The entry is held to the package and to the range `<=3.0.3`, and the audit fails when npm
-reports another range or stops reporting the advisory, so both cases turn CI red until the entry is gone.
+withdrawn. The entry is held to the package, high severity, and range `<=3.0.3`, and the audit fails
+when npm reports a change or stops reporting the advisory, so CI turns red until the entry is gone.
 **Alternatives considered:** lowering the level or dropping the step, which lets every other high
 advisory through too; `npm audit --omit=dev`, which still reports it (`shadcn` is a dependency) and
 stops auditing the tooling; an npm `overrides` entry, which has no patched version to point at; an

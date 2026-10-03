@@ -1,8 +1,8 @@
 import { spawnSync } from "node:child_process";
-import { acceptedAdvisories, auditRefusals } from "./audit-gate.ts";
+import { acceptedAdvisory, auditRefusals } from "./audit-gate.ts";
 
 // `npm run audit:ci`, CI's last step (11 §7). Fails on every high or critical advisory except the
-// ones scripts/audit-gate.ts accepts by name.
+// the one scripts/audit-gate.ts accepts by name.
 
 // npm exits 1 whenever it reports anything, so the report decides, not the status.
 const audit = spawnSync("npm", ["audit", "--json"], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
@@ -23,7 +23,6 @@ if (refusals.length > 0) {
   process.exit(1);
 }
 
-console.log("No high or critical advisory outside the ones scripts/audit-gate.ts accepts.");
-for (const { id, package: name, range } of acceptedAdvisories) {
-  console.log(`  - accepted: ${id}, ${name} ${range}`);
-}
+console.log("No high or critical advisory outside the one scripts/audit-gate.ts accepts.");
+const { id, package: name, severity, range } = acceptedAdvisory;
+console.log(`  - accepted: ${id}, ${name} ${range} (${severity})`);
