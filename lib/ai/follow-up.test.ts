@@ -28,7 +28,9 @@ describe("checkFollowUp", () => {
     ["ja", "何を測りましたか。誰が承認しましたか。"],
     ["ja", "興味深いです。何を測りましたか。"],
     ["ja", "その結果を測定しました。"],
-    ["ja", "何を測りましたか?"],
+    ["en", "?"],
+    ["en", "Wow! What did you measure?"],
+    ["en", "What did you measure\nand who approved it?"],
   ] as const)("refuses malformed %s output as malformed_output", (language, text) => {
     expect(() => checkFollowUp(text, language)).toThrowError(ModelCallFailed);
     try {
@@ -38,8 +40,28 @@ describe("checkFollowUp", () => {
     }
   });
 
-  it.each(["その数字はどう測りましたか。", "その数字はどう測りましたか？"])("accepts a Japanese question", (text) => {
-    expect(checkFollowUp(text, "ja")).toBe(text);
+  it.each(["その数字はどう測りましたか。", "その数字はどう測りましたか？", "その数字はどう測りましたか?"])(
+    "accepts a Japanese question ending %s",
+    (text) => {
+      expect(checkFollowUp(text, "ja")).toBe(text);
+    },
+  );
+
+  // A full stop inside a figure or an abbreviation does not end a sentence: a follow-up that quotes
+  // the speaker's own number is the kind the prompt asks for.
+  it.each([
+    ["en", "How did you bring the p95 from 1.2 s down to 0.4 s?"],
+    ["en", "What changed between v1.2 and v2.0 of the rollout?"],
+    ["en", "Which costs, e.g. licences or hosting, did the 12.5% saving come from?"],
+    ["ja", "障害率を40.5%下げたとのことですが、どう測りましたか。"],
+  ] as const)("accepts one %s question that contains a full stop", (language, text) => {
+    expect(checkFollowUp(text, language)).toBe(text);
+  });
+
+  // Not refused, and known: no conjunction rule tells this from "How did you and your manager
+  // resolve it?" (06, 2026-10-03). The prompt is what asks for one thing.
+  it("accepts one sentence that asks two things", () => {
+    expect(() => checkFollowUp("What did you measure and who approved it?", "en")).not.toThrow();
   });
 
   it("refuses a runaway output, and accepts one at the limit", () => {

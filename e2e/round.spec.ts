@@ -177,6 +177,8 @@ test("practice asks one follow-up, then moves to the next question", async ({ pa
   });
   expect(created.status()).toBe(201);
   const roundId = (await created.json()).round.id as string;
+  // The mock is shared across this file: count only the calls this round makes.
+  const followUpsBefore = followUpCalls().length;
 
   const first = await answerByApi(page, roundId);
   expect(first.next.kind).toBe("follow_up");
@@ -189,7 +191,7 @@ test("practice asks one follow-up, then moves to the next question", async ({ pa
   expect(second.next.kind).toBe("question");
   await page.reload();
   await expect(page.getByTestId("round-step")).toHaveText("Question 2 / 3");
-  expect(followUpCalls()).toHaveLength(1);
+  expect(followUpCalls().slice(followUpsBefore)).toHaveLength(1);
 });
 
 test("a realistic English round: Setup → each question and its follow-up → pressure → feedback, all six rows", async ({ page }) => {

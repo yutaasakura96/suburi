@@ -61,9 +61,12 @@ The round type, the question as asked, the corrected transcript. No CV, no role 
 no earlier answer: a follow-up digs into what was just said, and grounding arrives with #46 as a new
 prompt version if it arrives. The output is checked before it is stored — one question, not blank,
 at most 400 code points, several times the 30 words or 60 characters the prompts ask for. English
-ends in `?`; Japanese ends in `？` or `か。`. Extra sentences or questions are refused, so malformed
-output is a failed call, not a prompt put to the user. The model is `FOLLOW_UP_MODEL`, the
-same pinned string as scoring, in `lib/ai/models.ts`.
+ends in `?`; Japanese ends in a question mark or `か。`. A second sentence or question is refused, so
+malformed output is a failed call, not a prompt put to the user; a full stop inside a figure or an
+abbreviation ("1.5 s", "e.g.") is not a second sentence. **Not detected, on purpose:** one sentence
+that asks two things. A rule on a conjunction cannot tell it from a single question containing
+"and", and would turn good follow-ups into missing ones, so that is the prompt's job. The model is
+`FOLLOW_UP_MODEL`, the same pinned string as scoring, in `lib/ai/models.ts`.
 
 ### [2026-10-03] Round feedback reads follow-up answers too: `feedback-en-1.1`
 

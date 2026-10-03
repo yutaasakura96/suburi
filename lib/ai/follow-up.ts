@@ -14,8 +14,8 @@ import { ModelCallFailed, openAiClient, upstreamErrorClass } from "./upstream.ts
  * **What it reads:** the kind of interview, the question exactly as it was asked, and the
  * **corrected** transcript — never the raw one, whose recogniser errors are the machine's (10 §6).
  *
- * **What comes back is checked, not trusted:** one question, not blank and not longer than
- * `MAX_FOLLOW_UP_CODE_POINTS`. Anything else is `malformed_output`, and the caller records the
+ * **What comes back is checked, not trusted:** one sentence, a question, not blank and not longer
+ * than `MAX_FOLLOW_UP_CODE_POINTS`. Anything else is `malformed_output`, and the caller records the
  * follow-up as missing rather than ask the user something the prompt did not allow.
  */
 
@@ -49,13 +49,25 @@ export interface FollowUpGenerator {
  */
 export const MAX_FOLLOW_UP_CODE_POINTS = 400;
 
-/** The question, trimmed — or the whole result is refused. */
+// How one question ends: `?` in English; in Japanese a question mark of either width, or か。
+const QUESTION_ENDINGS: Record<RubricLanguage, RegExp> = { en: /\?$/u, ja: /(?:[？?]|か。)$/u };
+
+// Where a sentence ends before that: a question or exclamation mark, a Japanese 。, a line break, or
+// a full stop followed by a space and a capital. A full stop inside a number or an abbreviation
+// ("1.5 s", "v1.2", "e.g.") is not one, so a question that quotes a figure is still one question.
+const SENTENCE_BREAK = /[!?。！？\r\n]|\.\s+\p{Lu}/u;
+
+/**
+ * The question, trimmed — or the whole result is refused: blank, too long, not a question, or more
+ * than one sentence. **One sentence can still ask two things** ("what did you measure and who
+ * approved it?"): no rule on a conjunction tells that from a single question containing "and", so
+ * that is left to the prompt (06, 2026-10-03).
+ */
 export function checkFollowUp(text: string, language: RubricLanguage): string {
   const question = text.trim();
-  const oneQuestion = language === "en"
-    ? /^[^.!?。！？\r\n]+\?$/u.test(question)
-    : /^(?:[^.!?。！？\r\n]+？|[^.!?。！？\r\n]+か。)$/u.test(question);
-  if (!oneQuestion || Array.from(question).length > MAX_FOLLOW_UP_CODE_POINTS) {
+  const ending = QUESTION_ENDINGS[language].exec(question);
+  const body = ending ? question.slice(0, ending.index).trim() : "";
+  if (body === "" || SENTENCE_BREAK.test(body) || Array.from(question).length > MAX_FOLLOW_UP_CODE_POINTS) {
     throw new ModelCallFailed("Follow-up generation", "malformed_output");
   }
   return question;
