@@ -55,9 +55,11 @@ const QUESTION_ENDINGS: Record<RubricLanguage, RegExp> = { en: /\?$/u, ja: /(?:[
 // Where a sentence ends before that: a question or exclamation mark, a Japanese 。, a line break, or
 // a full stop followed by a space, whatever the case of the next word. A full stop inside a number
 // ("1.5 s", "v1.2") has no space after it, and one that closes a known abbreviation ("vs.", "etc.",
-// "approx.", "no.") or a single-letter initial ("e.g.", "i.e.", "U.S.") is not one, so a question
-// that quotes a figure is still one question.
-const SENTENCE_BREAK = /[!?。！？\r\n]|(?<!(?<![\p{L}\p{N}])(?:vs|etc|approx|no|[a-z]))\.\s/iu;
+// "approx.", "Inc.", "Dr.") or a single-letter initial ("e.g.", "i.e.", "U.S.") is not one, so a
+// question that quotes a figure or names a company or a person is still one question. The list is
+// finite: an unlisted abbreviation is refused, and an initial before a second sentence passes.
+const SENTENCE_BREAK =
+  /[!?。！？\r\n]|(?<!(?<![\p{L}\p{N}])(?:vs|etc|approx|inc|ltd|co|corp|dr|mr|mrs|ms|st|[a-z]))\.\s/iu;
 
 /**
  * The question, trimmed — or the whole result is refused: blank, too long, not a question, or more

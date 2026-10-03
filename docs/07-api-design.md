@@ -730,7 +730,8 @@ earlier answer. What comes back is checked before it is stored: one question, no
 code points. English ends in `?`; Japanese ends in a question mark or `か。`. A second sentence or
 question is refused: a full stop followed by a space ends a sentence, whatever the case of the next
 word. A full stop inside a figure, or closing a known abbreviation or a single-letter initial, is
-not one. Anything else is
+not one. The abbreviation list is finite, so an unlisted one loses its follow-up as `missing`, and a
+single-letter initial before a second sentence still passes. Anything else is
 `malformed_output`, and counts as a failed call. **One sentence that asks two things is not
 detected** — a rule on "and" would refuse valid single questions — and is left to the prompt.
 

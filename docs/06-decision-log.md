@@ -65,7 +65,9 @@ ends in `?`; Japanese ends in a question mark or `か。`. A second sentence or 
 malformed output is a failed call, not a prompt put to the user; a full stop followed by a space
 ends a sentence whatever the case of the next word ("I see. how did you measure it?" is refused),
 while one inside a figure ("1.5 s", "v1.2"), or closing a known abbreviation ("vs.", "etc.",
-"approx.", "no.") or a single-letter initial ("e.g.", "U.S."), is not a second sentence. **Not detected, on purpose:** one sentence
+"approx.", "Inc.", "Ltd.", "Co.", "Corp.", "Dr.", "Mr.", "Mrs.", "Ms.", "St.") or a single-letter
+initial ("e.g.", "U.S."), is not a second sentence. The list is finite, so an unlisted abbreviation
+loses its follow-up as missing, and a single-letter initial before a second sentence still passes. **Not detected, on purpose:** one sentence
 that asks two things. A rule on a conjunction cannot tell it from a single question containing
 "and", and would turn good follow-ups into missing ones, so that is the prompt's job. The model is
 `FOLLOW_UP_MODEL`, the same pinned string as scoring, in `lib/ai/models.ts`.
