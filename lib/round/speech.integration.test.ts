@@ -234,6 +234,35 @@ describe("GET /api/rounds/{id}/speech", () => {
       }
     }));
 
+  it("names the deadline, not the abort it causes, when the upstream stream honours the signal", () =>
+    inRolledBackTransaction(async (db) => {
+      const { startRound, speakWith } = await setUp(db);
+      const roundId = await startRound();
+      let reading: () => void = () => {};
+      const enteredRead = new Promise<void>((resolve) => { reading = resolve; });
+      // As the real client's body does: the read in flight rejects the moment the signal aborts.
+      const speech: SpeechSynthesizer = {
+        modelId: "fake-tts",
+        synthesize: async (_input, { signal } = {}) => new ReadableStream<Uint8Array>({
+          start: (controller) => signal?.addEventListener("abort", () => controller.error(signal.reason)),
+          pull: () => { reading(); return new Promise<void>(() => {}); },
+        }),
+      };
+      vi.useFakeTimers();
+      try {
+        const pending = speakWith(speech, roundId, "position=1&kind=question");
+        await enteredRead;
+        await vi.advanceTimersByTimeAsync(10_000);
+        const response = await pending;
+        expect(response.status).toBe(502);
+        expect((await response.json()).error).toMatchObject({ code: "speech_failed", detail: { error_class: "upstream_timeout" } });
+        const failures = logged.map((line) => JSON.parse(line)).filter((line) => line.event === "speech_failed");
+        expect(failures).toEqual([{ event: "speech_failed", round_id: roundId, position: 1, error_class: "upstream_timeout" }]);
+      } finally {
+        vi.useRealTimers();
+      }
+    }));
+
   it("logs a stream that breaks after its first byte, when it can no longer be a 502", () =>
     inRolledBackTransaction(async (db) => {
       const { startRound, speakWith } = await setUp(db);

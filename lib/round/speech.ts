@@ -94,8 +94,9 @@ export function createSpeech(deps: SpeechDeps) {
     try {
       const deadline = new Promise<never>((_, reject) => {
         timeout = setTimeout(() => {
-          abort.abort();
+          // Rejected first: aborting fails the read in flight, and that must not be the class logged.
           reject(new ModelCallFailed("Speech", "upstream_timeout"));
+          abort.abort();
         }, SPEECH_TIMEOUT_MS);
       });
       const audio = await Promise.race([

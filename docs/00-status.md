@@ -32,9 +32,10 @@ steps marked in each (Next).
 **#42, the round-loop tracer, is closed (2026-10-03):** an English realistic round end to end, its
 latencies measured (`03` §4), and the owner's real English round proved on `develop`.
 **#45, the spoken question, the cap and one take, is built (2026-10-03), on `fm/suburi-45`:** the
-speech route, screen 3's speaker line, and practice's guard, stored and never drawn. One step is the
-user's: `11` §5's ear check (`npm run ear-check`). The pinned model and its replacement deadline are in
-`03` §4.
+speech route, screen 3's speaker line, and practice's guard, stored and never drawn. Its one step of
+the user's, `11` §5's ear check (`npm run ear-check`), was done on 2026-10-03: all ten samples, four
+English and six Japanese, sounded correct. The issue stays open for speaking generated follow-ups,
+which waits on #44's `follow_ups`. The pinned model and its replacement deadline are in `03` §4.
 **Updated:** 2026-10-03 (#45 built; #42 closed; #55 and #56 on 2026-09-30)
 
 ## Done
