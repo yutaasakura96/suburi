@@ -224,3 +224,29 @@ per round. `lib/prompts/score-ja-1.0.ts` and `lib/prompts/feedback-ja-1.0.ts` ar
 and ask for plain form (常体) throughout, counters in 件・問・分・秒・字 and quotes in 「」; whether the
 model's Japanese keeps to that is read on the first real Japanese round on `develop`, and a rule it
 breaks is a prompt version, not an edit.
+
+## 7. #46, CV grounding
+
+**Unread:** these arrived from #46 after the 2026-10-03 review of §1–§5, and nobody has read them. The
+two `裏づけなし` sentences are set tight after `v3`, by the rule that review earned (`05` §6); #46
+wrote them with a space.
+
+**On `/cv`'s Japanese panel** (`app/(app)/cv/copy.ts`, `10` §13):
+
+| | Japanese | Intent |
+| --- | --- | --- |
+| | 記載事項 34件・未使用 12件 | The count line beside the version stamp — 34 claims · 12 never used. `未使用` is the same word the feedback screen uses for unused CV material. |
+| | 太い下線は、これまでの回答で使った記載事項です。 | The legend under it — A heavier underline marks a claim one of your answers has used. |
+
+**On a Japanese round's feedback** (`app/(app)/round/copy.ts`, `10` §8), specified by #46 and built by
+#43. `「…」` stands for a quote sliced from stored text; `第2問` and `応募書類 v3` are filled in by the
+app.
+
+| | Japanese | Intent |
+| --- | --- | --- |
+| | 応募書類との照合 | The section label — Checked against your CV. Already in the artboards; read in the 2026-09-27 AI review. |
+| | 裏づけなし（第2問）—「…」に対応する記述が応募書類 v3にない。 | One rail per unsupported span — Unsupported (Question 2): nothing in CV v3 backs “…”. The question number is new; the rest is the artboards' sentence. Plain form, like its sibling list (`05` §6). |
+| | 裏づけなし — 応募書類 v3に照らして該当なし。 | No span was flagged in the round — Unsupported: nothing flagged against CV v3. |
+| | 未使用 —「…」「…」 | The picked unused claims — Unused: “…” “…”. Already in the artboards. |
+| | 未使用 — この回で挙げる記載事項はなし。 | Nothing was picked — Unused: nothing picked for this round. |
+| | 英語での回答です。日本語の進捗には入れません。 | Under an answer given in English to a Japanese round — This answer was given in English. It is kept out of your Japanese progress. |

@@ -167,6 +167,14 @@ const en = {
     "The findings for this round are not ready. The round is complete, its rating is recorded, and every score above is kept.",
   findingsUnavailable:
     "No answer in this round could be scored, so there are no findings for this round. The round is complete and its rating is recorded.",
+  // 10 §8, `Checked against your CV`. Every quote is the stored text, sliced by span.
+  grounding: "Checked against your CV",
+  unsupported: (position: number, quote: string, cvLabel: string) =>
+    `Unsupported (Question ${position}) — nothing in ${cvLabel} backs “${quote}”.`,
+  nothingUnsupported: (cvLabel: string) => `Unsupported — nothing flagged against ${cvLabel}.`,
+  unused: (quotes: readonly string[]) => `Unused — ${quotes.map((quote) => `“${quote}”`).join(" ")}`,
+  nothingUnused: "Unused — nothing picked for this round.",
+  wrongLanguage: (answered: RoundLanguage) => `This answer was given in ${LANGUAGE_NAMES[answered]}. It is kept out of your English progress.`,
   retryFindings: "Write the findings",
   retryingFindings: "Writing the findings.",
   pressureRecorded: (value: number) => `Pressure ${value} recorded before the feedback`,
@@ -266,6 +274,13 @@ const ja: RoundCopy = {
     "このラウンドの講評はまだできていません。ラウンドは終了し、緊張度は記録され、上の採点はすべて残っています。",
   findingsUnavailable:
     "このラウンドには採点できた回答がないため、講評はありません。ラウンドは終了し、緊張度は記録されています。",
+  grounding: "応募書類との照合",
+  unsupported: (position, quote, cvLabel) => `裏づけなし（第${position}問）—「${quote}」に対応する記述が${cvLabel}にない。`,
+  nothingUnsupported: (cvLabel) => `裏づけなし — ${cvLabel}に照らして該当なし。`,
+  unused: (quotes) => `未使用 —${quotes.map((quote) => `「${quote}」`).join("")}`,
+  nothingUnused: "未使用 — この回で挙げる記載事項はなし。",
+  // A Japanese round's other language is English (PRD §7).
+  wrongLanguage: () => "英語での回答です。日本語の進捗には入れません。",
   retryFindings: "講評をまとめる",
   retryingFindings: "講評をまとめています。",
   pressureRecorded: (value) => `緊張度${value}を講評前に記録`,

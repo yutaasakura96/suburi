@@ -1,10 +1,10 @@
 import { zodTextFormat } from "openai/helpers/zod";
 import { z } from "zod";
-import * as en from "../prompts/feedback-en-1.0.ts";
+import * as en from "../prompts/feedback-en-1.1.ts";
 import * as ja from "../prompts/feedback-ja-1.0.ts";
 import type { Rubric, RubricLanguage } from "../rubric/types.ts";
 import { FEEDBACK_MODEL } from "./models.ts";
-import { dimensionLabel, type CallOptions } from "./score.ts";
+import { dimensionLabel, renderClaims, type CallOptions } from "./score.ts";
 import { ModelCallFailed, openAiClient, upstreamErrorClass } from "./upstream.ts";
 
 /**
@@ -12,6 +12,10 @@ import { ModelCallFailed, openAiClient, upstreamErrorClass } from "./upstream.ts
  * transaction** from every scored answer. An answer whose scoring ended `failed` is never sent: the
  * feedback is written without it (06, 2026-09-28). One real implementation and a fake; no test calls
  * OpenAI (11 §2).
+ *
+ * **Untouched material** (US-11): the call is shown the claims no answer in the round cited, numbered,
+ * and picks two or three relevant ones **by number**. The numbers come back as the model gave them;
+ * `lib/round/grounding.ts` resolves them against the same list and drops what names nothing.
  *
  * **A Japanese round's feedback comes back with its English translation, in the same call** (PRD §4,
  * 04 `body_translated`): the row is written once and whole, so the translation cannot arrive later. An
@@ -26,11 +30,15 @@ export interface FeedbackAnswer {
   readonly pace: number | null;
   /** In the rubric's order. */
   readonly scores: readonly { readonly dimension: string; readonly value: number }[];
+  /** The answer's unsupported spans, each sliced from the corrected text by its stored span. */
+  readonly unsupported: readonly string[];
 }
 
 export interface FeedbackInput {
   readonly rubric: Rubric;
   readonly answers: readonly FeedbackAnswer[];
+  /** The round's never-cited claims, each sliced from the stored body, in the order they are numbered. */
+  readonly unusedClaims: readonly string[];
 }
 
 export interface FeedbackItem {
@@ -46,6 +54,8 @@ export interface FeedbackBody {
 export interface RoundFeedbackResult extends FeedbackBody {
   /** The same feedback in English, for a Japanese round; null for an English one. */
   readonly translated: FeedbackBody | null;
+  /** Picks from `FeedbackInput.unusedClaims`, by number from 1, as the model gave them. */
+  readonly untouched: readonly number[];
   readonly tokensIn: number | null;
   readonly tokensOut: number | null;
 }
@@ -88,7 +98,7 @@ export function checkFeedback(feedback: FeedbackBody & { readonly translated: Fe
   }
 }
 
-export function renderFeedbackInput({ rubric, answers }: FeedbackInput) {
+export function renderFeedbackInput({ rubric, answers, unusedClaims }: FeedbackInput) {
   const labels = new Map(rubric.dimensions.map((dimension) => [dimension.key as string, dimensionLabel(rubric, dimension)]));
   const paceUnit = rubric.language === "ja" ? "characters per minute" : "words per minute";
   const blocks = answers.map((answer) => {
@@ -100,11 +110,13 @@ export function renderFeedbackInput({ rubric, answers }: FeedbackInput) {
       `question: ${answer.prompt}`,
       `duration: ${seconds}; pace: ${pace}`,
       `scores: ${scores}`,
+      `not supported by the CV: ${answer.unsupported.length === 0 ? "nothing flagged" : answer.unsupported.map((quote) => JSON.stringify(quote)).join("; ")}`,
       "transcript:",
       answer.answer,
     ].join("\n");
   });
-  return [`=== rubric ${rubric.language} ${rubric.versionLabel} ===`, ...blocks].join("\n\n");
+  const unused = `=== CV claims no answer in this round used ===\n${renderClaims(unusedClaims)}`;
+  return [`=== rubric ${rubric.language} ${rubric.versionLabel} ===`, ...blocks, unused].join("\n\n");
 }
 
 const PROMPTS: Partial<Record<RubricLanguage, { version: string; instructions: string }>> = { en, ja };
@@ -113,9 +125,9 @@ const body = {
   to_fix: z.array(z.object({ title: z.string(), body: z.string() })),
   what_worked: z.string(),
 };
-const output = z.object(body);
+const output = z.object({ ...body, untouched: z.array(z.int()) });
 /** What a round with a toggle is asked for: the feedback, and the same feedback translated. */
-const outputWithTranslation = z.object({ ...body, translated: z.object(body) });
+const outputWithTranslation = output.extend({ translated: z.object(body) });
 
 export function openAiRoundFeedbackGenerator({ apiKey, baseURL }: { apiKey: string; baseURL?: string }): RoundFeedbackGenerator {
   return {
@@ -147,6 +159,7 @@ export function openAiRoundFeedbackGenerator({ apiKey, baseURL }: { apiKey: stri
         checkFeedback(result, language);
         return {
           ...result,
+          untouched: parsed.untouched,
           tokensIn: response.usage?.input_tokens ?? null,
           tokensOut: response.usage?.output_tokens ?? null,
         };

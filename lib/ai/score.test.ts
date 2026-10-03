@@ -8,7 +8,7 @@ const en = RUBRICS.find((rubric) => rubric.language === "en")!;
 
 // 03 §4: what the scorer is sent — the rubric with its anchors, the question, the delivery, the answer.
 describe("renderScoringInput", () => {
-  const input = { prompt: "自己PRをお願いします。", answer: "えー、私の強みは粘り強さです。", durationMs: 192_000, pace: 250 };
+  const input = { prompt: "自己PRをお願いします。", answer: "えー、私の強みは粘り強さです。", durationMs: 192_000, pace: 250, claims: [] };
 
   it("sends a Japanese rubric by its Japanese names, all seven dimensions, pace in characters", () => {
     const rendered = renderScoringInput({ rubric: ja, ...input });

@@ -73,10 +73,11 @@ describe("renderFeedbackInput", () => {
     durationMs: 192_000,
     pace: 250,
     scores: ja.dimensions.map((dimension) => ({ dimension: dimension.key, value: 3 })),
+    unsupported: [],
   };
 
   it("names a Japanese rubric's dimensions in Japanese and paces in characters", () => {
-    const input = renderFeedbackInput({ rubric: ja, answers: [answer] });
+    const input = renderFeedbackInput({ rubric: ja, answers: [answer], unusedClaims: [] });
     expect(input).toContain("=== rubric ja v1.0 ===");
     expect(input).toContain("=== answer 2 ===");
     expect(input).toContain("duration: 192 s; pace: 250 characters per minute");
@@ -85,7 +86,7 @@ describe("renderFeedbackInput", () => {
 
   it("names an English rubric's dimensions in English and paces in words", () => {
     const scores = en.dimensions.map((dimension) => ({ dimension: dimension.key, value: 4 }));
-    const input = renderFeedbackInput({ rubric: en, answers: [{ ...answer, pace: 150, scores }] });
+    const input = renderFeedbackInput({ rubric: en, answers: [{ ...answer, pace: 150, scores }], unusedClaims: [] });
     expect(input).toContain("pace: 150 words per minute");
     expect(input).toContain("scores: Structure 4, Evidence 4, Relevance 4, Fluency 4, Accuracy 4, Length and pacing 4");
   });

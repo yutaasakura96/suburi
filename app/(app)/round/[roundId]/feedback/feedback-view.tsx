@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { FEEDBACK_READING, ROUND_COPY, type RoundLanguage } from "../../copy";
 import type { FeedbackScreen } from "../../load";
+import { CalloutRail } from "../../parts";
 import { AnswerPager } from "./answer-pager";
 import { FindingsRetry } from "./findings-retry";
 
@@ -13,7 +14,8 @@ import { FindingsRetry } from "./findings-retry";
  * changes the feedback and nothing else: the dimension names, which follow the feedback language, and
  * the round-level findings with their two headings, which are read from the translation stored with
  * them (04 `body_translated`). The round's own chrome — the header, the question, its figures, the
- * pager and the stamps — stays in the round's language (10 §0). An English round has no pill.
+ * pager, the CV check and the stamps — stays in the round's language (10 §0). An English round has no
+ * pill.
  */
 export function FeedbackView({ screen }: { screen: FeedbackScreen }) {
   const { language } = screen.round;
@@ -24,6 +26,7 @@ export function FeedbackView({ screen }: { screen: FeedbackScreen }) {
   const read = ROUND_COPY[reading];
   const findings = reading === language ? screen.findings : screen.translated;
   const { rubricLabel, generatorVersions, cvLabel } = screen.stamps;
+  const { grounding } = screen;
 
   return (
     <section className="border border-rule-frame bg-surface" aria-label={copy.roundTypes[screen.round.roundType]}>
@@ -55,25 +58,50 @@ export function FeedbackView({ screen }: { screen: FeedbackScreen }) {
 
         <div className="flex flex-col gap-[26px] px-[32px] pt-[30px] pb-[32px]">
           {findings ? (
-            <div className="flex flex-col gap-[26px]" lang={reading} data-testid="findings">
-              <div className="flex flex-col gap-[12px]" data-testid="to-fix">
-                <h2 className="font-mono text-[12px] tracking-[0.1em] text-ink-label">{read.toFix(findings.toFix.length)}</h2>
-                <ol className="flex flex-col gap-[12px]">
-                  {findings.toFix.map((item, index) => (
-                    <li key={index} className="flex gap-[10px] text-[13px] leading-[1.75]">
-                      <span className="font-mono text-ink-label">{index + 1}</span>
-                      <span>
-                        <span className="font-medium">{item.title}</span> <span className="text-ink-3">{item.body}</span>
-                      </span>
-                    </li>
-                  ))}
-                </ol>
+            <>
+              <div className="flex flex-col gap-[26px]" lang={reading} data-testid="findings">
+                <div className="flex flex-col gap-[12px]" data-testid="to-fix">
+                  <h2 className="font-mono text-[12px] tracking-[0.1em] text-ink-label">{read.toFix(findings.toFix.length)}</h2>
+                  <ol className="flex flex-col gap-[12px]">
+                    {findings.toFix.map((item, index) => (
+                      <li key={index} className="flex gap-[10px] text-[13px] leading-[1.75]">
+                        <span className="font-mono text-ink-label">{index + 1}</span>
+                        <span>
+                          <span className="font-medium">{item.title}</span> <span className="text-ink-3">{item.body}</span>
+                        </span>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+                <div className="flex flex-col gap-[12px]" data-testid="what-worked">
+                  <h2 className="font-mono text-[12px] tracking-[0.1em] text-ink-label">{read.whatWorked}</h2>
+                  <p className="text-[13px] leading-[1.75] text-ink-3">{findings.whatWorked}</p>
+                </div>
               </div>
-              <div className="flex flex-col gap-[12px]" data-testid="what-worked">
-                <h2 className="font-mono text-[12px] tracking-[0.1em] text-ink-label">{read.whatWorked}</h2>
-                <p className="text-[13px] leading-[1.75] text-ink-3">{findings.whatWorked}</p>
-              </div>
-            </div>
+              {grounding ? (
+                <div className="flex flex-col gap-[12px]" data-testid="grounding">
+                  <h2 className="font-mono text-[12px] tracking-[0.1em] text-ink-label">{copy.grounding}</h2>
+                  {grounding.unsupported.length === 0 ? (
+                    <CalloutRail tone="quiet" live={false}>
+                      {copy.nothingUnsupported(grounding.cvLabel)}
+                    </CalloutRail>
+                  ) : (
+                    grounding.unsupported.map((flag, index) => (
+                      <div key={index} data-testid="unsupported">
+                        <CalloutRail tone="attention" live={false}>
+                          {copy.unsupported(flag.position, flag.quote, grounding.cvLabel)}
+                        </CalloutRail>
+                      </div>
+                    ))
+                  )}
+                  <div data-testid="untouched">
+                    <CalloutRail tone="quiet" live={false}>
+                      {grounding.untouched.length === 0 ? copy.nothingUnused : copy.unused(grounding.untouched)}
+                    </CalloutRail>
+                  </div>
+                </div>
+              ) : null}
+            </>
           ) : screen.findingsUnavailable ? (
             <p className="text-[13px] leading-[1.75] text-ink-3" data-testid="findings-unavailable">
               {copy.findingsUnavailable}

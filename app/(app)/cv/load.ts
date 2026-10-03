@@ -11,13 +11,17 @@ export function tokyoDate(date: Date) {
   return date.toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" });
 }
 
-/** A stored version as the read-only view renders it. Only spans leave the server, never claim text. */
-export function toVersionView(language: CvLanguage, { version, documents, claims }: Loaded): VersionView {
-  const spans = claims.map(({ start, end }) => ({ start, end }));
+/**
+ * A stored version as the read-only view renders it, with its coverage: `cited` holds the ids of its
+ * claims that have ever been cited (`lib/cv/coverage.ts`). Only spans leave the server, never claim text.
+ */
+export function toVersionView(language: CvLanguage, { version, documents, claims }: Loaded, cited: ReadonlySet<string>): VersionView {
+  const spans = claims.map(({ id, start, end }) => ({ start, end, used: cited.has(id) }));
   return {
     label: version.versionLabel,
     date: tokyoDate(version.createdAt),
     claimCount: claims.length,
+    unusedCount: spans.filter((span) => !span.used).length,
     documents: documents.map((document) => ({
       id: document.id,
       heading: documentHeading(language, document.kind, document.title),

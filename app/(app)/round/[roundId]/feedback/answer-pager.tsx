@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { ROUND_COPY, type RoundLanguage } from "../../copy";
 import type { FeedbackAnswerView } from "../../load";
-import { ScoreRow } from "../../parts";
+import { CalloutRail, ScoreRow } from "../../parts";
 
 /**
  * 10 §8's per-answer region: one answer at a time, its scores as 05 §5.3 rows, and a pager to the
@@ -41,6 +41,13 @@ export function AnswerPager({
           <ScoreRow key={score.key} label={score.labels[reading]} value={score.value} unscored={unscored} />
         ))}
       </div>
+      {answer.answeredIn ? (
+        <div data-testid="wrong-language">
+          <CalloutRail tone="information" live={false}>
+            {copy.wrongLanguage(answer.answeredIn)}
+          </CalloutRail>
+        </div>
+      ) : null}
       {answers.length > 1 ? (
         <nav className="flex items-center gap-[14px] pt-[6px] text-[12px] text-ink-label" aria-label={copy.answers}>
           {answers.map((other, otherIndex) => (

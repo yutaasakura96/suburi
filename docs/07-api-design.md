@@ -733,7 +733,9 @@ completion by hand.
 **What the scorer reads** (`03` §4, `06`, 2026-09-27): the round's rubric version, the prompt as
 asked, the **corrected** transcript — never the raw one — the answer's duration and its pace, and the
 CV version's claims. **What it returns**, beside the scores: the citations, the unsupported spans of
-the answer (US-11), and `answered_language`.
+the answer (US-11), and `answered_language`. **The scoring prompt version bumped for this** (#46):
+`score-en-1.1` is `1.0`'s scoring unchanged plus the CV check, a new file and so a new stamp (`03` §4),
+and Progress draws the boundary where an answer's `scoring_prompt_version` changes.
 
 ```json
 200
@@ -766,13 +768,31 @@ Retries three times with exponential backoff inside the handler before the row i
 Citations are written to `claim_citations` **only after span validation**: the quote is
 `substring(cv_versions.body, span_start, span_end - span_start)`, never text returned by the model.
 A span outside the body, or a quote that does not match its span, drops the citation (`03` §11,
-`04`).
+`04`). **How, as built (#46):** before the call, every claim of the attempt's CV version is
+re-validated — its span against the body, its slice against `text_normalised` — and only those that
+pass are sent, as a **numbered list** of their sliced text. The scorer returns
+`{ claim: <number>, relation }` and never an id. A number is resolved to the claim it was shown as; a
+number that names none is dropped and counted. **`contradicted_by` is for a real contradiction with a
+cited claim** — the prompt says so, and structurally it cannot be anything else, since a relation with
+no shown claim behind it has no number to carry. An answer asserting what the CV does not mention is
+an unsupported span.
 
 **Unsupported spans get the same rule on the answer side** (`04` `answer_flags`). The scorer returns a
 verbatim quote from the corrected text and a start hint; the server locates it in
-`transcript_corrected` and writes the span, or drops and counts it. **`answered_language` is stored on
-the attempt**; a value that is not the round's language flags the answer in feedback and keeps it out
-of that language's Progress (PRD §7).
+`transcript_corrected` and writes the span, or drops and counts it. The hint only chooses between
+occurrences of a quote that is there; it never moves a span onto text the quote does not match, and a
+located span still passes the span validator — in range, non-empty, on grapheme boundaries — before it
+is written. **`answered_language` is stored on the attempt**, on every attempt that ends `ok`; a value
+that is not the round's language flags the answer in feedback and keeps it out of that language's
+Progress (PRD §7).
+
+**"Counted" means the `scoring_ok` log line**, which carries `claims`, `claims_rejected`, `citations`,
+`citations_dropped`, `flags`, `flags_dropped` and `answered_language` beside the ids and durations —
+counts only, never a quote or a claim (`03` §8). There is no counter column: a rising drop rate is a
+question about the prompt or the model, read from the logs, and not a fact about the answer.
+
+**All of it is one transaction with the scores**: the attempt turns `ok`, and its scores, citations and
+flags are written together or not at all. A failed attempt stores no citation, no flag and no language.
 
 **The trigger is `after()` in `submit`, not a client `fetch`** — resolved 2026-09-12, on the condition
 this TBD set for itself. Next.js documents that `after` runs for the route's configured max duration,
@@ -871,6 +891,17 @@ has to remember.
    missing or does not match the feedback item for item is refused as malformed, like one with four
    things to fix (`06`, 2026-10-03).
 4. **Write `round_feedback`**, whole, once — the translation in `body_translated`, in the same row.
+
+**Step 3's CV material, as built (#46).** Each answer is sent with its unsupported spans — the quotes
+sliced from `transcript_corrected` by the stored spans of its latest `ok` attempt, not the scorer's
+wording. **The never-cited set is the round's** (`04` `round_feedback`): the CV version's citable
+claims minus any claim an answer in this round cited, with either relation. It is sent as a numbered
+list, and the model returns numbers in `untouched`; a number that names no claim it was shown is
+dropped, a repeat is ignored, and anything past the third is dropped. **What survives is stored — none,
+one, two or three ids** — and the feedback is written either way: a bad pick is not a reason to refuse
+findings that are otherwise whole. The `round_feedback_written` log line carries `never_cited`,
+`untouched` and `untouched_dropped`. The feedback prompt version bumped with this, to
+`feedback-en-1.1`.
 
 **If step 2's bound runs out or step 3 fails**, no `round_feedback` is written: it is one row, never
 rewritten, and feedback from an incomplete set of scores would be permanent (`04`). The response is

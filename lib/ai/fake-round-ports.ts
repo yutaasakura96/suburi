@@ -21,14 +21,21 @@ export function fakeScorer(
   return fake;
 }
 
-/** Every dimension of the input's rubric at `value`. */
-export function uniformScores(value: number) {
+/** Every dimension of the input's rubric at `value`, with `grounding` as the CV check — by default an empty one. */
+export function uniformScores(
+  value: number,
+  grounding: Partial<Pick<ScoringResult, "citations" | "unsupported" | "answeredLanguage">> = {},
+) {
   return (input: ScoringInput): ScoringResult => ({
     scores: input.rubric.dimensions.map((dimension) => ({
       dimension: dimension.key,
       value,
       justification: "fixture",
     })),
+    citations: [],
+    unsupported: [],
+    answeredLanguage: input.rubric.language,
+    ...grounding,
     tokensIn: 100,
     tokensOut: 20,
   });
@@ -57,6 +64,7 @@ export const FIXTURE_FEEDBACK: RoundFeedbackResult = {
     { title: "Name a number", body: "In answer 2, the outcome stays general." },
   ],
   whatWorked: "In answer 3, the example was concrete.",
+  untouched: [],
   translated: null,
   tokensIn: 300,
   tokensOut: 60,
@@ -76,6 +84,7 @@ export const FIXTURE_FEEDBACK_JA: RoundFeedbackResult = {
     ],
     whatWorked: "In answer 3, you explained with a concrete situation.",
   },
+  untouched: [],
   tokensIn: 300,
   tokensOut: 120,
 };

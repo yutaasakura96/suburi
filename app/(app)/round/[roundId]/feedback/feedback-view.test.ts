@@ -11,6 +11,7 @@ const screen: FeedbackScreen = {
   answers: [],
   findings: { toFix: [{ title: "結論", body: "先に述べる" }], whatWorked: "具体例" },
   translated: null,
+  grounding: null,
   findingsUnavailable: false,
 };
 

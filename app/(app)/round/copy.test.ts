@@ -24,8 +24,16 @@ function strings(copy: RoundCopy): [string, string][] {
   });
 }
 
-// `stamps` joins what it is given, so its sample is the 10 §7 stamp.
-const jaStrings = strings({ ...ja, stamps: () => ja.stamps([ja.rubricStamp("v1.2"), "出題 v1.0", "応募書類 v3"]) });
+// `stamps` and `unused` join what they are given, and the CV check names the stored CV label, so their
+// samples are 10 §7's stamp and 10 §8's rails.
+const UNUSED = ["2024 決済基盤の移行リード", "英語での顧客折衝"];
+const jaStrings = strings({
+  ...ja,
+  stamps: () => ja.stamps([ja.rubricStamp("v1.2"), "出題 v1.0", "応募書類 v3"]),
+  unused: () => ja.unused(UNUSED),
+  unsupported: () => ja.unsupported(2, "チーム全体の生産性を上げた", "応募書類 v3"),
+  nothingUnsupported: () => ja.nothingUnsupported("応募書類 v3"),
+});
 
 describe("a Japanese round's chrome (10 §0)", () => {
   it.each(jaStrings)("%s is written in Japanese", (_, text) => {
@@ -136,6 +144,17 @@ describe("the strings 10 §3–§8 quote", () => {
     expect(ja.pressureRecorded(4)).toBe("緊張度4を講評前に記録");
   });
 
+  it("writes the CV check and the wrong-language line (10 §8)", () => {
+    expect(ja.grounding).toBe("応募書類との照合");
+    expect(ja.unsupported(2, "チーム全体の生産性を上げた", "応募書類 v3")).toBe(
+      "裏づけなし（第2問）—「チーム全体の生産性を上げた」に対応する記述が応募書類 v3にない。",
+    );
+    expect(ja.nothingUnsupported("応募書類 v3")).toBe("裏づけなし — 応募書類 v3に照らして該当なし。");
+    expect(ja.unused(UNUSED)).toBe("未使用 —「2024 決済基盤の移行リード」「英語での顧客折衝」");
+    expect(ja.nothingUnused).toBe("未使用 — この回で挙げる記載事項はなし。");
+    expect(ja.wrongLanguage("en")).toBe("英語での回答です。日本語の進捗には入れません。");
+  });
+
   // 05 §5.9: the round's stamps joined by nakaguro, the rubric as 評価基準.
   it("joins the stamps by nakaguro", () => {
     expect(ja.stamps([ja.rubricStamp("v1.0"), "set-piece-ja-1.0", "応募書類 v3"])).toBe("評価基準 v1.0・set-piece-ja-1.0・応募書類 v3");
@@ -150,12 +169,19 @@ describe("an English round's chrome", () => {
     expect(en.unitsChange(17, 15)).toBe("17 words → 15 words");
   });
 
+  it("writes the CV check and the wrong-language line (10 §8)", () => {
+    expect(en.unused(["Led the 2024 payments platform migration", "Customer negotiation in English"])).toBe(
+      "Unused — “Led the 2024 payments platform migration” “Customer negotiation in English”",
+    );
+    expect(en.wrongLanguage("ja")).toBe("This answer was given in Japanese. It is kept out of your English progress.");
+  });
+
   it("joins the stamps by a spaced middle dot", () => {
     expect(en.stamps([en.rubricStamp("v1.0"), "set-piece-en-1.0", "CV v1"])).toBe("Rubric v1.0 · set-piece-en-1.0 · CV v1");
   });
 
   it("carries no Japanese", () => {
-    for (const [, text] of strings({ ...en, stamps: () => "" })) expect(text).not.toMatch(/[぀-ヿ一-龯]/u);
+    for (const [, text] of strings({ ...en, stamps: () => "", unused: () => en.unused([]) })) expect(text).not.toMatch(/[぀-ヿ一-龯]/u);
   });
 });
 

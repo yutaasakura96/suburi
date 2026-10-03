@@ -82,6 +82,21 @@ const FINDINGS_JA = {
   },
 };
 
+// The CV check (#46), as the mock's scorer and feedback call answer it. Each returns one thing the
+// server can verify and one it cannot: the invented ones must never reach the screen.
+const UNSUPPORTED = "cut the failure rate by half";
+const INVENTED_QUOTE = "doubled the company's revenue";
+const INVENTED_CLAIM = 999;
+// An answer given in Japanese to an English round (PRD §7). Synthetic.
+const JAPANESE = "決済基盤の移行を担当し、障害率を半分にしました。";
+const UNUSED_HEADING = "=== CV claims no answer in this round used ===";
+
+/** The claims a call was shown under `heading`, by the number it was shown them with. */
+function claimsShown(body: Record<string, unknown>, heading: string) {
+  const block = String(body.input).split(heading)[1]?.split("\n\n")[0] ?? "";
+  return new Map([...block.matchAll(/^\[(\d+)\] (.+)$/gm)].map((match) => [Number(match[1]), match[2]]));
+}
+
 let s3: MockS3;
 let openAi: MockOpenAi;
 let feedbackFails = false;
@@ -117,9 +132,25 @@ test.beforeAll(async () => {
       if (formatOf(body) === "answer_scores") {
         if (scoringFails || JSON.stringify(body).includes(UNSCORABLE)) return { fail: 500 };
         const dimensions = japanese(body) ? [...DIMENSIONS, "keigo"] : DIMENSIONS;
-        return { scores: dimensions.map((dimension) => ({ dimension, value: SCORES[dimension as keyof typeof SCORES], justification: "e2e" })) };
+        const answeredJapanese = japanese(body) || String(body.input).includes(JAPANESE);
+        return {
+          scores: dimensions.map((dimension) => ({ dimension, value: SCORES[dimension as keyof typeof SCORES], justification: "e2e" })),
+          citations: [
+            { claim: 1, relation: "supported_by" },
+            { claim: INVENTED_CLAIM, relation: "contradicted_by" },
+          ],
+          unsupported: answeredJapanese
+            ? []
+            : [
+                { quote: UNSUPPORTED, start_hint: 50 },
+                { quote: INVENTED_QUOTE, start_hint: 0 },
+              ],
+          answered_language: answeredJapanese ? "ja" : "en",
+        };
       }
-      if (formatOf(body) === "round_feedback") return feedbackFails ? { fail: 500 } : japanese(body) ? FINDINGS_JA : FINDINGS;
+      if (formatOf(body) === "round_feedback") {
+        return feedbackFails ? { fail: 500 } : { ...(japanese(body) ? FINDINGS_JA : FINDINGS), untouched: [1, 2, INVENTED_CLAIM] };
+      }
       return { fail: 400 };
     },
     { transcription: () => heard },
@@ -225,8 +256,45 @@ test("a realistic English round: Setup → record → correct → pressure → f
   await expect(page.getByTestId("answer-figures")).toContainText("0 min 18 s · ~57 wpm · rewrite");
   // No composite, anywhere on the screen (AGENTS.md invariant 1).
   await expect(page.locator("main")).not.toContainText(/total|average|overall/i);
+
+  // The CV check (10 §8): one flag per answer, quoted from the corrected text by span; one unused
+  // claim, quoted from the CV by span. What the mock invented was dropped.
+  const feedbackCall = openAi.requests.findLast((request) => formatOf(request.body) === "round_feedback")!;
+  const unused = claimsShown(feedbackCall.body, UNUSED_HEADING);
+  expect(unused.size).toBeGreaterThan(0);
+  const grounding = page.getByTestId("grounding");
+  await expect(grounding).toContainText("Checked against your CV");
+  await expect(grounding.getByTestId("unsupported")).toHaveText(
+    [1, 2, 3].map((position) => new RegExp(`^Unsupported \\(Question ${position}\\) — nothing in CV v\\d+ backs “${UNSUPPORTED}”\\.$`)),
+  );
+  await expect(grounding.getByTestId("untouched")).toHaveText(`Unused — “${unused.get(1)}” “${unused.get(2)}”`);
+  await expect(grounding).not.toContainText(INVENTED_QUOTE);
+  // Every answer was in English: no answer carries the wrong-language line.
+  await expect(page.getByTestId("wrong-language")).toHaveCount(0);
+  const stored = await withDb(async (db) => ({
+    attempts: await db.select({ status: s.scoringAttempts.status, prompt: s.scoringAttempts.scoringPromptVersion, language: s.scoringAttempts.answeredLanguage })
+      .from(s.scoringAttempts).innerJoin(s.answers, eq(s.answers.id, s.scoringAttempts.answerId))
+      .where(eq(s.answers.roundId, roundId)),
+    citations: await db.select({ relation: s.claimCitations.relation }).from(s.claimCitations)
+      .innerJoin(s.answers, eq(s.answers.id, s.claimCitations.answerId))
+      .where(eq(s.answers.roundId, roundId)),
+    flags: await db.select({ start: s.answerFlags.spanStart, end: s.answerFlags.spanEnd, corrected: s.answers.transcriptCorrected })
+      .from(s.answerFlags).innerJoin(s.answers, eq(s.answers.id, s.answerFlags.answerId))
+      .where(eq(s.answers.roundId, roundId)),
+    feedback: await db.select({ ids: s.roundFeedback.untouchedClaimIds }).from(s.roundFeedback)
+      .where(eq(s.roundFeedback.roundId, roundId)),
+  }));
+  expect(stored.attempts).toHaveLength(3);
+  expect(stored.attempts.every((attempt) => attempt.status === "ok" && attempt.prompt === "score-en-1.1" && attempt.language === "en")).toBe(true);
+  expect(stored.citations.map((citation) => citation.relation)).toEqual(["supported_by", "supported_by", "supported_by"]);
+  expect(stored.flags).toHaveLength(3);
+  for (const flag of stored.flags) expect([...flag.corrected!].slice(flag.start, flag.end).join("")).toBe(UNSUPPORTED);
+  expect(stored.feedback[0].ids).toHaveLength(2);
+  await page.screenshot({ path: test.info().outputPath("screen8-grounding.png"), fullPage: true });
+
   await page.getByRole("button", { name: "Question 2" }).click();
   await expect(page.getByTestId("answer-region")).toHaveAttribute("data-position", "2");
+  await expect(page.getByTestId("wrong-language")).toHaveCount(0);
 
   // Three takes under dev/{user}/{round}/, each as the browser recorded it.
   const keys = [...s3.objects.keys()].filter((key) => key.startsWith(`dev/${userId}/${roundId}/`));
@@ -246,6 +314,53 @@ test("a realistic English round: Setup → record → correct → pressure → f
   // A completed round's page is its feedback.
   await page.goto(`/round/${roundId}`);
   await expect(page).toHaveURL(`/round/${roundId}/feedback`);
+
+  // Coverage on /cv (10 §13): the claim the answers cited carries the heavier mark, and the count
+  // line says how many are still unused. The scorer was shown the claims in the order /cv draws them.
+  const shown = claimsShown(openAi.requests.findLast((request) => formatOf(request.body) === "answer_scores")!.body, "=== CV claims ===");
+  await page.goto("/cv");
+  const cv = page.getByRole("region", { name: "CV", exact: true });
+  await expect(cv.locator('[data-claim="used"]')).toHaveText([shown.get(1)!]);
+  await expect(cv.locator('[data-claim="unused"]')).toHaveCount(shown.size - 1);
+  await expect(cv.getByTestId("cv-claim-count")).toHaveText(`${shown.size} claims · ${shown.size - 1} never used`);
+  await expect(cv.getByTestId("cv-coverage-legend")).toHaveText("A heavier underline marks a claim one of your answers has used.");
+  await page.screenshot({ path: test.info().outputPath("cv-coverage.png"), fullPage: true });
+});
+
+test("an answer given in Japanese to an English round says so on its own page of the feedback", async ({ page }) => {
+  test.setTimeout(120_000);
+  await signIn(page);
+  const roundId = await startRound(page);
+  await answerByApi(page, roundId);
+  await answerByApi(page, roundId, JAPANESE);
+  await answerByApi(page, roundId);
+  await scoringSettled(roundId);
+
+  await page.goto(`/round/${roundId}`);
+  await page.getByRole("radio", { name: /Fairly tense/ }).click();
+  await page.getByRole("button", { name: "Go to the feedback" }).click();
+  await expect(page).toHaveURL(`/round/${roundId}/feedback`);
+
+  await expect(page.getByTestId("wrong-language")).toHaveCount(0);
+  await page.getByRole("button", { name: "Question 2" }).click();
+  await expect(page.getByTestId("wrong-language")).toHaveText("This answer was given in Japanese. It is kept out of your English progress.");
+  // It was still scored (PRD §7): the rows are there, and nothing was flagged in it.
+  await expect(page.getByTestId("score-value")).toHaveText(["4", "3", "4", "3", "4", "2"]);
+  await expect(page.getByTestId("grounding").getByTestId("unsupported")).toHaveCount(2);
+  await page.screenshot({ path: test.info().outputPath("screen8-wrong-language.png"), fullPage: true });
+  await page.getByRole("button", { name: "Question 3" }).click();
+  await expect(page.getByTestId("wrong-language")).toHaveCount(0);
+
+  // Stored on the attempt, for Progress to leave it out (04 `scoring_attempts`).
+  const languages = await withDb((db) =>
+    db
+      .select({ position: s.answers.position, answered: s.scoringAttempts.answeredLanguage })
+      .from(s.scoringAttempts)
+      .innerJoin(s.answers, eq(s.answers.id, s.scoringAttempts.answerId))
+      .where(eq(s.answers.roundId, roundId))
+      .orderBy(s.answers.position),
+  );
+  expect(languages.map((row) => row.answered)).toEqual(["en", "ja", "en"]);
 });
 
 test("screen 7 cannot be skipped: the feedback URL sends an unrated round back to it", async ({ page }) => {

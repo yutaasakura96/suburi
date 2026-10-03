@@ -78,8 +78,8 @@ The accent means **this one**: the selected tab, the current round, the score ma
 
 | Token | Value | Meaning |
 | --- | --- | --- |
-| `--accent` | `oklch(0.55 0.09 230)` | The score dot; the selected-tab underline; the selection rail; the active step in the round stepper. 112 uses — the workhorse. |
-| `--accent-mid` | `oklch(0.72 0.07 230)` | The live waveform; a due-soon rail; an informational callout rail |
+| `--accent` | `oklch(0.55 0.09 230)` | The score dot; the selected-tab underline; the selection rail; the active step in the round stepper; **the 2px underline of a CV claim an answer has used** (`10` §13 — "this one was said", not "this one is good"). 112 uses — the workhorse. |
+| `--accent-mid` | `oklch(0.72 0.07 230)` | The live waveform; a due-soon rail; an informational callout rail; the 1px underline of a CV claim (`10` §13) |
 | `--accent-faint` | `oklch(0.82 0.045 230)` | **The trend line only.** Deliberately lighter than the dots it runs through, so the data outranks the fit. |
 | `--accent-pale` | `oklch(0.84 0.04 230)` | The furthest-out due rail on Home |
 | `--link` / `--link-hover` | `oklch(0.52 0.09 230)` / `oklch(0.42 0.09 230)` | Anchors |

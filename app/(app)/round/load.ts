@@ -1,6 +1,7 @@
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import * as s from "@/db/schema";
 import type { FeedbackItem, TranslatedFeedback } from "@/lib/ai/round-feedback";
+import { sliceQuote } from "@/lib/cv/spans";
 import type { Db } from "@/lib/round/http";
 import { rewritePercent } from "@/lib/round/measures";
 import { latestAttempts, newerRoundExists, noScores, promptAt, roundAnswers, roundStep, scoringCounts, type RoundRow } from "@/lib/round/state";
@@ -134,6 +135,20 @@ export interface FeedbackAnswerView {
   readonly status: "ok" | "pending" | "failed";
   /** A dimension is named in the language the feedback is read in (PRD §4), so both names travel. */
   readonly scores: readonly { readonly key: string; readonly labels: Record<RoundLanguage, string>; readonly value: number | null }[];
+  /** The language the scorer read the answer in, when it is not the round's (PRD §7); otherwise null. */
+  readonly answeredIn: "ja" | "en" | null;
+}
+
+/**
+ * 10 §8's `Checked against your CV` region. Every quote is **sliced from stored text by span**: an
+ * unsupported one from the answer's corrected text (04 `answer_flags`), an unused one from the CV
+ * version's body (04 `cv_claims`). No model's wording reaches this screen as a quote.
+ */
+export interface GroundingView {
+  readonly cvLabel: string;
+  /** In answer order, then by where the span sits in the answer. */
+  readonly unsupported: readonly { readonly position: number; readonly quote: string }[];
+  readonly untouched: readonly string[];
 }
 
 export interface FeedbackFindings {
@@ -156,6 +171,8 @@ export interface FeedbackScreen {
   readonly findings: FeedbackFindings | null;
   /** A Japanese round's findings in English, stored with them (04 `body_translated`): 10 §8's toggle. */
   readonly translated: FeedbackFindings | null;
+  /** Null when no answer of the round went through the CV check: a round scored before it existed. */
+  readonly grounding: GroundingView | null;
   /** No answer scored and none is pending: `feedback` refuses as `no_scores`, so no retry is offered (07 §5.12). */
   readonly findingsUnavailable: boolean;
 }
@@ -171,6 +188,26 @@ export async function feedbackScreen(db: Db, round: RoundRow): Promise<FeedbackS
   const attempts = await latestAttempts(db, submitted.map((answer) => answer.id));
   const okIds = [...attempts.values()].filter((attempt) => attempt.status === "ok").map((attempt) => attempt.id);
   const scoreRows = okIds.length === 0 ? [] : await db.select().from(s.scores).where(inArray(s.scores.scoringAttemptId, okIds));
+  const okAttempts = [...attempts.values()].filter((attempt) => attempt.status === "ok");
+  // An attempt that went through the CV check says which language it read (04 `scoring_attempts`).
+  const grounded = okAttempts.some((attempt) => attempt.answeredLanguage !== null);
+  const untouchedIds = findings?.untouchedClaimIds ?? [];
+  const [flagRows, untouchedClaims] = await Promise.all([
+    grounded
+      ? db
+          .select()
+          .from(s.answerFlags)
+          .where(inArray(s.answerFlags.scoringAttemptId, okIds))
+          .orderBy(asc(s.answerFlags.spanStart))
+      : [],
+    untouchedIds.length === 0
+      ? []
+      : db
+          .select({ id: s.cvClaims.id, start: s.cvClaims.spanStart, end: s.cvClaims.spanEnd, body: s.cvVersions.body })
+          .from(s.cvClaims)
+          .innerJoin(s.cvVersions, eq(s.cvVersions.id, s.cvClaims.cvVersionId))
+          .where(and(inArray(s.cvClaims.id, untouchedIds), eq(s.cvClaims.cvVersionId, round.cvVersionId))),
+  ]);
   const generatorVersions = submitted.length
     ? await db
         .selectDistinct({ version: s.questions.generatorPromptVersion })
@@ -208,10 +245,32 @@ export async function feedbackScreen(db: Db, round: RoundRow): Promise<FeedbackS
               ? (scoreRows.find((row) => row.scoringAttemptId === attempt!.id && row.dimension === dimension.key)?.value ?? null)
               : null,
         })),
+        answeredIn:
+          status === "ok" && attempt!.answeredLanguage !== null && attempt!.answeredLanguage !== round.language
+            ? attempt!.answeredLanguage
+            : null,
       };
     }),
     findings: findings ? { toFix: findings.toFix as FeedbackItem[], whatWorked: findings.whatWorked } : null,
     translated: translated ? { toFix: translated.to_fix, whatWorked: translated.what_worked } : null,
+    grounding: grounded
+      ? {
+          cvLabel,
+          unsupported: submitted.flatMap((answer) =>
+            flagRows
+              .filter((flag) => flag.scoringAttemptId === attempts.get(answer.id)?.id)
+              .map((flag) => ({
+                position: answer.position,
+                quote: sliceQuote(answer.transcriptCorrected ?? "", { start: flag.spanStart, end: flag.spanEnd }),
+              })),
+          ),
+          // In the order the feedback call picked them.
+          untouched: untouchedIds.flatMap((id) => {
+            const claim = untouchedClaims.find((row) => row.id === id);
+            return claim ? [sliceQuote(claim.body, claim)] : [];
+          }),
+        }
+      : null,
     findingsUnavailable: !findings && noScores(scoringCounts(attempts.values())),
   };
 }
