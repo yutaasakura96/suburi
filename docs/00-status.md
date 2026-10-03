@@ -31,7 +31,7 @@ eleven slice issues confirmed on 2026-09-28 and labeled `ready-for-agent`, #41�
 steps marked in each (Next).
 **#42, the round-loop tracer, is closed (2026-10-03):** an English realistic round end to end,
 its latencies measured (`03` §4), and the owner's real English round proved on `develop`.
-**#44, follow-ups, is built (2026-10-03), on `fm/suburi-44`:** one follow-up per bank-question
+**#44, follow-ups, is built (2026-10-03), on `fm/suburi-44-v2`:** one follow-up per bank-question
 answer in both modes, written by `submit` or recorded as missing (Next).
 **Updated:** 2026-10-03 (#44 built; #42 closed; #55 and #56 on 2026-09-30)
 
@@ -353,7 +353,7 @@ median and 38.1 s slowest, so `complete` waits 60 s (`07` §5.12). The owner's r
 `develop` proved the tracer on 2026-10-03. The three new Japanese error strings are in
 `docs/checklists/native-read-round-loop.md`.
 
-**#44 is built (2026-10-03), on `fm/suburi-44`.** Built: migration `0008` (`follow_ups`, expand-only);
+**#44 is built (2026-10-03), on `fm/suburi-44-v2`.** Built: migration `0008` (`follow_ups`, expand-only);
 `follow-up-en-1.0` and `follow-up-ja-1.0` behind a port with a fake; `submit` generating the follow-up
 from the corrected text after the answer's commit and storing it as `generated` or `missing` before
 it returns; the follow-up's slot at its parent's position, never a first attempt, stamp 3 from its

@@ -498,11 +498,12 @@ other client cache, router or global store.
   state.
 - **The transcript editor** — the edit buffer and the live rewrite-magnitude meter (screen 6).
 
-**A round survives a refresh.** Every answer is written server-side at submit, and every question the
-round asks was fixed when it started (`round_questions`, `follow_ups`), so the round's position and
-its prompt are database facts, not client facts. Reloading mid-round resumes at the current question,
-**the same question**. An in-flight recording is the one thing that does not survive, and the UI says
-so before recording.
+**A round survives a refresh.** Every answer is written server-side at submit. Bank questions are
+fixed when the round starts (`round_questions`); a follow-up is fixed when its parent answer is
+submitted (`follow_ups`). The round's position and any stored prompt are database facts, not client
+facts. Reloading mid-round resumes at the same prompt, or at the saved answer if its follow-up has
+not been stored yet (`07` §5.5). An in-flight recording is the one thing that does not survive, and
+the UI says so before recording.
 
 **Only the newest open round resumes, and only on the day it started** (`06`, 2026-09-27). Starting a
 new round abandons any open one, and an open round from an earlier day is abandoned too — the day

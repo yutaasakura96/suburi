@@ -5,9 +5,9 @@ import { sql } from "drizzle-orm";
 
 // Integration tests own a throwaway database on the local (or CI service) Postgres. It is not
 // configuration, so it does not go through lib/config.ts.
-export const TEST_DATABASE = "suburi_test";
-// Host port 5433, matching docker-compose.yml and the CI service container.
-const server = "postgresql://suburi:suburi@localhost:5433";
+export const TEST_DATABASE = process.env.SUBURI_TEST_DATABASE ?? "suburi_test";
+if (!/^[a-z_][a-z0-9_]*$/.test(TEST_DATABASE)) throw new Error("Invalid SUBURI_TEST_DATABASE");
+const server = `postgresql://suburi:suburi@localhost:${process.env.SUBURI_DB_PORT ?? "5433"}`;
 export const ADMIN_URL = `${server}/postgres`;
 export const TEST_URL = `${server}/${TEST_DATABASE}`;
 

@@ -4,7 +4,7 @@ import * as s from "../../db/schema";
 import { seedUser } from "../../db/seed";
 import { seedSyntheticCv } from "../../db/seed-cv";
 import { seedRubrics, seedSetPieces, seedSyntheticQuestions } from "../../db/seed-questions";
-import { closePool, inRolledBackTransaction, type TestDb } from "../../db/test/database";
+import { closePool, inRolledBackTransaction, TEST_URL, type TestDb } from "../../db/test/database";
 import { feedbackScreen, roundFrame } from "../../app/(app)/round/load";
 import {
   FIXTURE_FEEDBACK,
@@ -32,8 +32,8 @@ import { createTranscribe } from "./transcribe";
 // The round loop (#42, and its follow-ups, #44) through its handlers, against the migrated test database, with a real
 // Better Auth session. Only the model ports and the bucket are faked (11 §2).
 
-vi.stubEnv("DATABASE_URL", "postgresql://suburi:suburi@localhost:5433/suburi_test");
-vi.stubEnv("DATABASE_URL_UNPOOLED", "postgresql://suburi:suburi@localhost:5433/suburi_test");
+vi.stubEnv("DATABASE_URL", TEST_URL);
+vi.stubEnv("DATABASE_URL_UNPOOLED", TEST_URL);
 vi.stubEnv("BETTER_AUTH_SECRET", "integration-only-secret-not-a-real-one");
 vi.stubEnv("BETTER_AUTH_URL", "http://localhost:3000");
 vi.stubEnv("GOOGLE_CLIENT_ID", "integration-client-id");
