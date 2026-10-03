@@ -24,6 +24,7 @@ describe("checkFollowUp", () => {
   it.each([
     ["en", "What did you measure? Who approved it?"],
     ["en", "That is interesting. What did you measure?"],
+    ["en", "I see. how did you measure it?"],
     ["en", "You measured the result."],
     ["ja", "何を測りましたか。誰が承認しましたか。"],
     ["ja", "興味深いです。何を測りましたか。"],
@@ -53,6 +54,7 @@ describe("checkFollowUp", () => {
     ["en", "How did you bring the p95 from 1.2 s down to 0.4 s?"],
     ["en", "What changed between v1.2 and v2.0 of the rollout?"],
     ["en", "Which costs, e.g. licences or hosting, did the 12.5% saving come from?"],
+    ["en", "How did the U.S. rollout compare vs. the approx. 40 stores in Japan?"],
     ["ja", "障害率を40.5%下げたとのことですが、どう測りましたか。"],
   ] as const)("accepts one %s question that contains a full stop", (language, text) => {
     expect(checkFollowUp(text, language)).toBe(text);

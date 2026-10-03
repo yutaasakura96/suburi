@@ -728,7 +728,9 @@ A retry's `next` is whatever the round was already on.
 asked, and the **corrected** transcript — never the raw one, and nothing else. No CV, no rubric, no
 earlier answer. What comes back is checked before it is stored: one question, not blank, at most 400
 code points. English ends in `?`; Japanese ends in a question mark or `か。`. A second sentence or
-question is refused; a full stop inside a figure or an abbreviation is not one. Anything else is
+question is refused: a full stop followed by a space ends a sentence, whatever the case of the next
+word. A full stop inside a figure, or closing a known abbreviation or a single-letter initial, is
+not one. Anything else is
 `malformed_output`, and counts as a failed call. **One sentence that asks two things is not
 detected** — a rule on "and" would refuse valid single questions — and is left to the prompt.
 

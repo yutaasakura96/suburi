@@ -62,8 +62,10 @@ no earlier answer: a follow-up digs into what was just said, and grounding arriv
 prompt version if it arrives. The output is checked before it is stored — one question, not blank,
 at most 400 code points, several times the 30 words or 60 characters the prompts ask for. English
 ends in `?`; Japanese ends in a question mark or `か。`. A second sentence or question is refused, so
-malformed output is a failed call, not a prompt put to the user; a full stop inside a figure or an
-abbreviation ("1.5 s", "e.g.") is not a second sentence. **Not detected, on purpose:** one sentence
+malformed output is a failed call, not a prompt put to the user; a full stop followed by a space
+ends a sentence whatever the case of the next word ("I see. how did you measure it?" is refused),
+while one inside a figure ("1.5 s", "v1.2"), or closing a known abbreviation ("vs.", "etc.",
+"approx.", "no.") or a single-letter initial ("e.g.", "U.S."), is not a second sentence. **Not detected, on purpose:** one sentence
 that asks two things. A rule on a conjunction cannot tell it from a single question containing
 "and", and would turn good follow-ups into missing ones, so that is the prompt's job. The model is
 `FOLLOW_UP_MODEL`, the same pinned string as scoring, in `lib/ai/models.ts`.
