@@ -2,15 +2,24 @@ import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import * as s from "../../db/schema";
 import { apiError } from "../api/errors";
+import type { Embedder } from "../ai/embed";
+import type { QuestionGenerator } from "../ai/generate-questions";
 import type { ModelHealth } from "../ai/health";
 import type { AnswerScorer } from "../ai/score";
-import { authenticate, log, notFound, parseBody, writeFailed, type RoundDeps } from "./http";
-import { chooseQuestions, loadCandidates } from "./select-questions";
+import { ModelCallFailed } from "../ai/upstream";
+import { admitCandidate, lockSlice } from "../questions/near-duplicate";
+import { generateCandidates, type GeneratedCandidates } from "./generate-candidates";
+import { authenticate, log, notFound, parseBody, writeFailed, type Db, type RoundDeps } from "./http";
+import { loadCandidates, planQuestions } from "./select-questions";
 
 /**
  * `POST /api/rounds` ⚡ (07 §5.4). Preflights the model, resolves the rubric and the CV version,
- * **chooses every bank question the round will ask**, and writes the round with its
- * `round_questions` in one transaction.
+ * **chooses every bank question the round will ask** — generating the ones the bank cannot give —
+ * and writes the round with its `round_questions` in one transaction.
+ *
+ * **Generation runs beside the preflight, before the transaction.** Its candidates then pass the
+ * near-duplicate guard inside the transaction, under a lock on the slice, so a new question, its
+ * stored comparison and the round that asks it land together or not at all.
  *
  * **The client sends the five choices from screen 2 and nothing else.** The rubric is the newest in
  * the round's language, the CV version the current one in it, and the per-answer cap follows the
@@ -35,7 +44,12 @@ const requestSchema = z.strictObject({
 export interface PostRoundDeps extends RoundDeps {
   readonly health: ModelHealth;
   readonly scorer: AnswerScorer;
+  readonly questionGenerator: QuestionGenerator;
+  readonly embedder: Embedder;
 }
+
+/** The candidates and the reserve together could not fill the round: nothing is written. */
+class BankTooSmall extends Error {}
 
 export function createPostRound(deps: PostRoundDeps) {
   return async function POST(request: Request): Promise<Response> {
@@ -69,11 +83,18 @@ export function createPostRound(deps: PostRoundDeps) {
       .limit(1);
     if (!rubric) return apiError("not_found", "No rubric version in this language.", { language });
 
-    // The preflight and the choice run together, before the transaction (07 §5.4). Generation joins
-    // the choice with #47.
-    const [health, candidates] = await Promise.all([
+    const slice = { userId, language, roundType };
+    const plan = planQuestions(await loadCandidates(deps.db, slice), mode, length);
+
+    // The preflight and generation run together, before the transaction (07 §5.4): the round waits
+    // for the slower of the two, not their sum.
+    const [health, generated] = await Promise.all([
       deps.health.check(),
-      loadCandidates(deps.db, { userId, language, roundType }),
+      plan.shortfall === 0
+        ? null
+        : generateCandidates(deps, { ...slice, cvVersionId: cv.id, roleContextId: context.id, shortfall: plan.shortfall }).catch(
+            (error: unknown) => (error instanceof ModelCallFailed ? error : new ModelCallFailed("Question generation", "unexpected")),
+          ),
     ]);
     if (!health.ok) {
       log("error", { event: "round_preflight_failed", error_class: health.errorClass, latency_ms: health.latencyMs });
@@ -82,18 +103,28 @@ export function createPostRound(deps: PostRoundDeps) {
         error_class: health.errorClass,
       });
     }
-    const chosen = chooseQuestions(candidates, mode, length);
-    if (!chosen) {
-      log("error", { event: "round_bank_too_small", round_type: roundType, language, candidates: candidates.length, length });
-      return apiError("question_generation_failed", "The bank cannot fill this round, and nothing was created.", {
-        error_class: "bank_too_small",
-        candidates: candidates.length,
+    if (generated instanceof ModelCallFailed) {
+      log("error", {
+        event: "round_question_generation_failed",
+        round_type: roundType,
+        language,
+        shortfall: plan.shortfall,
+        error_class: generated.errorClass,
+      });
+      return apiError("question_generation_failed", "The round's questions could not be generated; nothing was created.", {
+        error_class: generated.errorClass,
       });
     }
 
+    const chosen = [...plan.chosen];
+    const admitted = { inserted: 0, reused: 0 };
     let round: typeof s.rounds.$inferSelect;
     try {
       round = await deps.transaction(async (tx) => {
+        if (generated) {
+          await lockSlice(tx, slice);
+          await fillFromCandidates(tx, generated);
+        }
         const [row] = await tx
           .insert(s.rounds)
           .values({
@@ -114,7 +145,46 @@ export function createPostRound(deps: PostRoundDeps) {
         return row;
       });
     } catch (error) {
+      if (error instanceof BankTooSmall) {
+        log("error", { event: "round_bank_too_small", round_type: roundType, language, length, ...admitted });
+        return apiError("question_generation_failed", "The bank cannot fill this round, and nothing was created.", {
+          error_class: "bank_too_small",
+        });
+      }
       return writeFailed("round_write_failed", error, {});
+    }
+
+    /**
+     * Each candidate through the guard, in the model's order, until the round is full. A candidate
+     * the guard maps to an existing question is not asked twice: that question joins the reserve,
+     * ahead of the plan's, and the reserve — repeats — fills only what the candidates could not.
+     */
+    async function fillFromCandidates(tx: Db, batch: GeneratedCandidates) {
+      const matched: string[] = [];
+      for (const candidate of batch.candidates) {
+        if (chosen.length === length) break;
+        const first = admitted.inserted === 0;
+        const admission = await admitCandidate(tx, slice, candidate, {
+          generatorModelId: deps.questionGenerator.modelId,
+          generatorPromptVersion: batch.promptVersion,
+          embeddingModelId: deps.embedder.modelId,
+          // One call wrote these rows: its tokens go on the first, so a sum over rows is the spend (04).
+          tokensIn: first ? batch.tokensIn : null,
+          tokensOut: first ? batch.tokensOut : null,
+        });
+        if (admission.kind === "inserted") {
+          admitted.inserted += 1;
+          chosen.push(admission.questionId);
+        } else {
+          admitted.reused += 1;
+          matched.push(admission.questionId);
+        }
+      }
+      for (const questionId of [...matched, ...plan.reserve]) {
+        if (chosen.length === length) break;
+        if (!chosen.includes(questionId)) chosen.push(questionId);
+      }
+      if (chosen.length < length) throw new BankTooSmall();
     }
 
     const [first] = await deps.db
@@ -130,6 +200,12 @@ export function createPostRound(deps: PostRoundDeps) {
       mode,
       length,
       preflight_ms: health.latencyMs,
+      generated: generated !== null,
+      candidates: generated?.candidates.length ?? 0,
+      questions_inserted: admitted.inserted,
+      questions_reused: admitted.reused,
+      generation_ms: generated?.generationMs ?? null,
+      embedding_ms: generated?.embeddingMs ?? null,
     });
 
     return Response.json(

@@ -9,15 +9,15 @@ export const metadata: Metadata = {
 };
 
 /**
- * Round setup (10 §2), minimal for the tracer (#42): round type and length to choose; English,
- * realistic and General practice are the only options that exist yet, so they are stated, not offered.
+ * Round setup (10 §2): round type, length and role context to choose. English and realistic are the
+ * only options that exist yet, so they are stated, not offered (#43, #49).
  */
 export default async function NewRoundPage() {
   const userId = await requireSession();
   const facts = await setupFacts(getDb(), userId, "en");
   return (
     <main className="w-[1280px] px-[44px] py-[40px]">
-      <SetupForm cv={facts.cv} rubricLabel={facts.rubricLabel} />
+      <SetupForm cv={facts.cv} rubricLabel={facts.rubricLabel} postings={facts.postings} bank={facts.bank} />
     </main>
   );
 }

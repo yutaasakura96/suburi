@@ -129,6 +129,17 @@ async function seedEverything(db: TestDb) {
     tokensIn: 1_200,
     tokensOut: 300,
   }).returning({ id: s.questions.id });
+  // The guard's record, both ways it can end: a near-miss beside the question it was kept as, and a
+  // reuse with no question of its own.
+  const [matched] = await db
+    .insert(s.questions)
+    .values({ userId: world.userId, language: "en", roundType: "behavioural", origin: "set_piece", body: "tab", generatorPromptVersion: "fixture-set" })
+    .returning({ id: s.questions.id });
+  const check = { userId: world.userId, matchedQuestionId: matched.id, threshold: 0.9, embeddingModelId: "fixture-embedding" };
+  await db.insert(s.nearDuplicateChecks).values([
+    { ...check, questionId: question.id, similarity: 0.8125 },
+    { ...check, questionId: null, similarity: 0.9375 },
+  ]);
   const [round] = await db.insert(s.rounds).values(roundValues(world, { completedAt: TAKEN_AT })).returning({ id: s.rounds.id });
   await db.insert(s.roundQuestions).values({ roundId: round.id, userId: world.userId, position: 1, questionId: question.id });
   const [first] = await db

@@ -13,6 +13,20 @@ export const SCORING_MODEL = "gpt-5.6-sol";
 export const FEEDBACK_MODEL = "gpt-5.6-sol";
 
 /**
+ * Question generation at round start (07 §5.4), stamped on `questions.generator_model_id`. Stamp 3 is
+ * the generator *prompt* version, which lives in the prompt's filename (`lib/prompts/`).
+ */
+export const QUESTION_GENERATION_MODEL = "gpt-5.6-sol";
+
+/**
+ * The near-duplicate guard's embeddings (03 §4, §11). `questions.embedding` is `vector(1536)`, this
+ * model's default dimension. Changing it changes every distance the guard has ever recorded, so each
+ * `question_near_misses` row carries the string it was measured with (04).
+ */
+export const EMBEDDING_MODEL = "text-embedding-3-small";
+export const EMBEDDING_DIMENSIONS = 1536;
+
+/**
  * Speech-to-text (03 §4). Its only snapshot shares its name, so unlike the scoring model it cannot be
  * a dated string; `answers.transcriber_model_id` is what makes a repoint visible.
  */

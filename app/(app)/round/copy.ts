@@ -28,6 +28,8 @@ export function wordCount(text: string) {
   return trimmed === "" ? 0 : trimmed.split(/\s+/u).length;
 }
 
+const grouped = new Intl.NumberFormat("en-US");
+
 export const SETUP_COPY = {
   heading: "Start a round",
   roundType: "Round type",
@@ -40,8 +42,33 @@ export const SETUP_COPY = {
   realistic: "Realistic",
   realisticExplained: "Realistic — one take. Up to 4 minutes per answer. The feedback comes together after the round.",
   roleContext: "Role context",
+  roleContextRequired: "Required. The two are equal.",
+  posting: "Posting",
+  postingNone: "Pitch the round at a role you are applying for",
+  postingPasted: "Pasted text",
   general: "General practice",
   generalDetail: "Counted separately in progress",
+  savedPostings: "Saved postings",
+  addPosting: "Add a posting",
+  company: "Company",
+  roleTitle: "Role title",
+  postingText: "Posting text",
+  importFile: "Import from a file",
+  imported: "Check the imported text and fix anything wrong. What you save is what the questions are written from.",
+  importNoText: "No text could be read from this file. A scanned file has none — paste the text instead.",
+  importUnreadable: "This file could not be opened. It may be damaged or password-protected — paste the text instead.",
+  postingCount: (chars: number, max: number) => `${grouped.format(chars)} / ${grouped.format(max)} characters`,
+  savePosting: "Save this posting",
+  savePostingCommits: "Saving fixes this posting as it is. It cannot be edited afterwards — a changed posting is saved as a new one.",
+  savingPosting: "Saving the posting.",
+  cancel: "Cancel",
+  chooseRoleContext: "Choose a role context to start.",
+  // 10 §2, PRD §6: said before the round starts, from counts the page already holds.
+  bankExhausted: (typeName: string, unseen: number, length: number) =>
+    `${unseen === 0 ? "There are no unseen" : unseen === 1 ? "There is 1 unseen" : `There are ${unseen} unseen`} ${typeName} ${
+      unseen === 1 ? "question" : "questions"
+    } in English, and this round asks ${length}. The rest are written when it starts, which can take up to half a minute. If a new question turns out to match one you have already answered, it is asked as a repeat: scored, but not counted in progress.`,
+  startingGenerating: "Writing new questions for this round. This can take up to half a minute.",
   scoredAgainst: "Scored against",
   start: "Start this round",
   starting: "Fixing the questions for this round.",

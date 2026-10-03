@@ -159,13 +159,101 @@ precedence: `求人票とAI調査の両方があります。ファイルを優�
 equal, in a `repeat(2, 1fr)` grid. The research card and the precedence callout arrive with US-16.
 A posting is picked from the ones already saved, or added — pasted, or imported through the CV
 screen's importer into an editable box, as on §13. Saved postings are never edited; a changed one is
-a new one. **The picker and the add form are specified here from `05` components by the slice that
-builds them**, as §13 was. The drawn detail `Mercari_SRE_2026.pdf` is the picked posting's
-`source_filename`.
+a new one. The drawn detail `Mercari_SRE_2026.pdf` is the picked posting's `source_filename`.
 
-**The bank-exhausted warning** (PRD §6) appears here, before the round starts, when the unseen pool
-for the chosen type and language cannot fill the round: it says new questions will be generated and
-that repeats do not count toward progress. Its copy is written with the slice that builds selection.
+### Role context, as built (#47)
+
+Specified from `05` components, as §13 was, by the slice that built it. English chrome (§0); a
+posting's company, title and text are data and shown as written.
+
+**The two cards.** `Posting` and `General practice`, in that order, each a button with `role="radio"`
+in one `radiogroup`: a 14px title over a 12px/1.7 `--ink-6` detail, `2px --accent` underline when
+selected, `1px --rule-section` when not — the drawn card.
+
+| Card | Detail line |
+| --- | --- |
+| `Posting` | the picked posting's `source_filename` (the drawn `Mercari_SRE_2026.pdf`); `Pasted text` when it has none; `Pitch the round at a role you are applying for` when no posting is picked |
+| `General practice` | `Counted separately in progress` |
+
+**The cards are equal and the group is required.** The label reads `Role context` with, beside it in
+12px `--ink-6`, `Required. The two are equal.` **Nothing is selected when the page opens unless a
+posting has been saved before**, in which case `Posting` is, with the newest one picked — the last
+thing the user did was save it for a round. General practice is never the silent default: it is a
+choice that splits the progress record (`CONTEXT.md`), so it is made, not inherited. Until a card is
+selected — and, on `Posting`, a posting is picked — the start button is the §5.7 **inert** primary,
+and its caption reads `Choose a role context to start.`
+
+**The picker**, under the cards when `Posting` is selected. A `05` §5.6 selection rail: one row per
+saved posting, newest first, `padding: 11px 0` on `--rule-hairline` separators, each a `role="radio"`
+button —
+
+- the company at 14px `--ink-1`, then the role title at 13px `--ink-4`, on one baseline, gap `12px`,
+  each truncated with an ellipsis rather than wrapped;
+- right-aligned in 11px mono `--ink-label`: the `source_filename` if any, then the saved date
+  (`2026-10-03`, Asia/Tokyo);
+- the rail's 2px bar, `34px` tall, to the row's left: `--accent` when selected, `--rule-row` when not;
+  the selected row's company steps to weight 500.
+
+The list is every posting, not a recent few: nothing is deleted (`04` §5), so the row is how an old
+posting is used again. Past eight rows the list scrolls inside `max-height: 352px`. **No edit and no
+delete control** on a row — a changed posting is a new one.
+
+Below the list, or in its place when no posting is saved yet, a text control in the §3.3 label style
+— `Add a posting` — opens the add form in place. With no posting saved the form is already open.
+
+**The add form.** Three fields, each a §3.3 section label over its control:
+
+| Field | Control |
+| --- | --- |
+| `Company` | one-line input, 14px, `1px --rule-frame` like §13's box, `padding: 9px 12px`; `maxlength` 200 |
+| `Role title` | the same |
+| `Posting text` | a textarea, 13px/1.9, eight rows, vertically resizable — §13's box. Beside its label, `Import from a file` (`.docx`, `.pdf`), the §13 control: **the text is extracted in the browser and dropped into the box, which stays editable; the file is never uploaded** (`07` §5.3). An import replaces the box's text and sets the posting's `source_filename`; editing the box afterwards keeps it; clearing the box drops it |
+
+- After an import, §13's line: `Check the imported text and fix anything wrong. What you save is what
+  the questions are written from.`
+- A failed import: §13's two `--attention-mark` callout rails, word for word, under the box, which is
+  left as it was.
+- Under the box, right-aligned in 11px mono `--ink-label`, the count against the cap:
+  `1,204 / 20,000 characters`. Over the cap the count takes `--attention-ink` and the save control
+  goes inert — the client half of `role_context_too_large`; the server refuses whether or not the
+  client got it right.
+- An **outline** button `Save this posting` (§5.7, no glyph), inert until company, title and text are
+  all non-blank, with the caption `Saving fixes this posting as it is. It cannot be edited afterwards
+  — a changed posting is saved as a new one.` While saving: `Saving the posting.`, the button disabled.
+  Outline, not solid: the screen's one solid primary is `Start this round`.
+- `Cancel`, a text control in the §3.3 label style, beside the button when at least one posting is
+  already saved. It closes the form and keeps nothing.
+
+**After a save** the form closes, the new posting is at the top of the picker and is the picked one.
+The page does not navigate and the other four groups keep their values.
+
+**On failure** nothing was saved (`07` §5.3) and the form keeps its contents. An `--attention-mark`
+callout rail above the save button carries the catalogue's English copy for `role_context_too_large`,
+`invalid_request`, `write_failed` or the unreachable sentence.
+
+**Picking General practice** needs no form. Its row is created the first time a round starts with it
+(`07` §5.3), as the tracer did.
+
+### The bank-exhausted warning (#47)
+
+PRD §6. Shown in the rationale column, above the start button, as an `--accent-mid` callout rail
+(`05` §5.8) — information, not an error — **whenever the bank cannot fill the round being set up
+without generating**: for the chosen round type, language, mode and length, the questions the
+selection order (`07` §5.4) would take from the bank are fewer than the length. It is computed from
+counts the page already holds, so changing the type or the length updates it without a request, and
+it is on screen before the round starts.
+
+`There are 2 unseen Behavioural questions in English, and this round asks 5. The rest are written when
+it starts, which can take up to half a minute. If a new question turns out to match one you have
+already answered, it is asked as a repeat: scored, but not counted in progress.`
+
+The two numbers are the bank's supply and the round's length; with none unseen it opens `There are no
+unseen Behavioural questions in English, and this round asks 5.` It does not offer a choice: the
+round's length is the user's, and generation is how the round keeps it.
+
+**While the round is starting** the start button's caption reads `Fixing the questions for this
+round.`, or, when the warning is showing, `Writing new questions for this round. This can take up to
+half a minute.` — the measured wait (`03` §4), said before it is felt.
 
 ### Rationale column
 - `WHY THESE DEFAULTS` → `行動面接・日本語は18日空いています。既定値はそこから決めました。` then
@@ -758,8 +846,17 @@ caveat of `12` §6, stated where the number is read.
 
 From the newest `digest` run: the week it covers (`2026-09-21 – 2026-09-27`) at 12px mono `--ink-6`,
 then a two-column list of label (13px `--ink-3`) and figure (13px mono, right-aligned): `Rounds
-started`, `Rounds completed`, `Tokens in`, `Tokens out`, `Spend`. With no digest run: `No weekly digest
-has run yet.` at 12px `--ink-6`. **The near-miss row joins this list with #47** (`06`, 2026-09-29).
+started`, `Rounds completed`, `Tokens in`, `Tokens out`, `Spend`, and the near-duplicate guard's week
+(#47; `06`, 2026-09-29): `Near-miss questions` — a count — `Near-miss similarity`, and `Questions
+reused as duplicates`. **Near-miss similarity is one row holding three figures**, `0.412 – 0.655 –
+0.871`, lowest, median and highest to three decimals, with `lowest – median – highest` under the
+label in 11px `--ink-6`; `—` in `--ink-9` when the week had no near-miss. With no digest run: `No
+weekly digest has run yet.` at 12px `--ink-6`.
+
+Under the list, 12px/1.7 `--ink-6`: `A near-miss is a generated question that went into the bank
+beside a similar one, below the duplicate threshold of 0.90. At or above it, the existing question is
+reused. The threshold is a guess; these figures are what it gets tuned from.` The `0.90` is read from
+the constant, not written.
 
 ### Refuses
 

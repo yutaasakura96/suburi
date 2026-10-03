@@ -3,6 +3,108 @@
 Newest first. Every entry records what was chosen, why, and what was rejected.
 
 ---
+## Phase 6 — #47, generated questions and role context
+
+The bank stops being a fixed list: a round that the unseen pool cannot fill has its questions written
+at round start from the CV's claims and the role context, and a posting becomes a role context beside
+General practice. The plan is 2026-09-27's (below); these are the choices the build needed, and the
+two measurements the issue asked for.
+
+### [2026-10-03] Round-start generation is measured: 6–16 s at the median, 28 s at the slowest, and it stays at round start
+
+`scripts/measure-question-generation.mts`, five runs of each through the real port and prompts with
+synthetic input (`03` §4 has the table). #42's draft said seven questions take about 4 s; the real
+prompt reads the CV's claims, the role context and the bank, and takes **6 to 16 s at the median and
+28 s at the slowest** for the 3 to 9 questions one call writes. Embeddings add 0.2 s. The duration
+follows the questions written, not the input read. **It stays at round start, beside the preflight:**
+the wait is before the round, paid only when the bank cannot fill it, and Setup says so before the
+user starts and again while it waits. Invariant 2 is about round-end feedback and is untouched. The
+timeouts are 60 s and 20 s. **Rejected:** generating ahead of need in a background job (a second
+writer to the bank, stamped with a CV version and role context the next round may not have, for a
+wait the user is told about); generating per question inside the round (the wait moves into a timed
+round, and `round_questions` could no longer be fixed at the start — 2026-09-27); and
+`reasoning.effort: low`, which a side reading put at about half the wait with questions that read
+comparably — **kept as the lever**, not set, because the questions are banked permanently and one
+side reading is not a quality measurement. **This is slower than the plan assumed, and it is the
+owner's to overrule:** if half a minute before a long Japanese round is too long, the lever is one
+line and a generator prompt-version bump.
+
+### [2026-10-03] A posting is capped at 20,000 code points, one number for both languages
+
+Measured with the same script: the generation call with a posting of 10,000, 20,000 and 40,000 code
+points, seven questions each, in both languages (`lib/round/limits.ts` has the table). **The call's
+duration does not track the posting's size**, so the cap is not a latency bound and has no reason to
+differ by language, unlike the CV's. It bounds cost and sense: 20,000 is a little under four times
+the real-sized English posting and twelve times the Japanese one, and at the cap the call reads about
+18,500 tokens in Japanese, some $0.07 a round start. Enforced by the route as `422
+role_context_too_large`, and counted on the add form in the same unit. **Not measured:** whether the
+questions stay good at the cap — the sweep repeated one posting to reach each size. **Rejected:** a
+database check constraint (the cap is a tuned number, and tightening it would refuse rows already
+stored), and per-language caps (nothing measured differs by language).
+
+### [2026-10-03] A posting needs a company, a role title and its text; General practice is never the silent default
+
+`07` §5.3 left a posting's fields optional. A posting with no company or title is a row the picker
+cannot name and the generator cannot pitch at, so all three are required and blank is a `400`. On
+Setup **neither card is chosen for the user** until a posting has been saved, after which the newest
+is: a default of General practice would file rounds apart from the role they were practice for
+without the user having decided that (PRD §6). `source_filename` is the imported file's name and
+nothing more — the file is read in the browser by `lib/cv/import/` and never uploaded, as a CV's is
+(#17).
+
+### [2026-10-03] The guard's record is `near_duplicate_checks`: every comparison, no floor, reuses included
+
+One append-only row per candidate that had a neighbour to be compared with: the nearest existing
+question, the similarity, the threshold and embedding model in force, and the question the candidate
+became — or null when it was a duplicate and the existing question was reused (`04`). **No floor:**
+"near" is the thing being tuned, and a floor would be a second guessed threshold deciding which
+evidence about the first one is kept. A **near-miss** is a row with a question of its own; the digest
+reports their count and their lowest, median and highest similarity, and the reuses beside them,
+because a threshold set too low shows up as reuses, not as near-misses. Ids and numbers only, never
+question text (`12` §7). **Accepted cost:** a reused candidate's wording is not kept, so a wrong reuse
+can be counted but not read back; keeping it would be a second place question text lives. **Rejected:**
+logging near-misses to Vercel logs only (they expire, and the threshold is tuned over months) and a
+column on `questions` (a reuse has no row to carry it).
+
+### [2026-10-03] The guard reads the slice exactly, under a lock, and set pieces are outside it
+
+The guard's query sorts the slice by cosine distance and takes the nearest; it does not go through
+the `hnsw` index, which is approximate and can miss the one neighbour the guard exists to find. A
+slice is one user's questions in one language and round type — hundreds of rows at most. Candidates
+are admitted inside the round's transaction under `pg_advisory_xact_lock` on the slice, so two rounds
+starting together cannot each insert the other's duplicate, and a candidate is compared with the
+ones admitted before it in the same call. **Set pieces have no embedding and are never compared**
+(`03` §11): they reach the generator as text in "questions already in the bank", which is the only
+thing keeping a generated question off one. The threshold is `NEAR_DUPLICATE_THRESHOLD` in
+`lib/questions/near-duplicate-threshold.ts`, **0.90 and still unverified**; the tests read the
+constant. The one real reading so far, from a local round on synthetic data, was 0.36 between two
+questions of one call — nowhere near it, and not enough to say anything.
+
+### [2026-10-03] A round asks for two spare candidates, and falls back to seen questions before it fails
+
+One call writes the shortfall plus `SPARE_CANDIDATES` (2), so a candidate the guard maps to an
+existing question does not leave the round short; candidates past the round's length are dropped
+unbanked. If the round is still short, the questions the duplicates matched and then the seen
+generated ones fill it as **repeats** — which Setup's bank-exhausted warning has already said — and
+only if that fails too is the round refused: `502 question_generation_failed` with `error_class:
+bank_too_small`, nothing written. **The call's tokens go on the first question it inserted**, so a
+sum over `questions` is the generation spend; a call whose every candidate was reused, or whose
+preflight failed beside it, leaves no row and its tokens are not counted. **Rejected:** a retry loop
+that generates again until the round is full (an unbounded wait at round start), and a
+`question_generations` table for the tokens (one more table for a figure the digest can live without
+at this volume; revisit if spend reconciliation ever needs it).
+
+### [2026-10-03] Generator prompts are one per round type and language, and the posting is material, not instruction
+
+Eight prompts, `generate-{round_type}-{language}-1.0`, each stamped on the questions it writes (stamp
+3). A posting is text the user pasted from somewhere else, so every prompt says the posting and the
+CV are material to read and never instructions to follow. The model's output is checked before it is
+used: blanks and repeats dropped, cut to the count asked for, and nothing usable is
+`malformed_output`. **The Japanese prompts are written and unit-tested but not yet reachable:**
+`POST /api/rounds` takes `ja` with #43. Their output and the one new Japanese string want the native read
+(`docs/checklists/native-read-round-loop.md`).
+
+---
 ## Phase 6 — #42, the round-loop tracer
 
 The thinnest round, end to end: realistic, English, `hr`, length 3, General practice, rubric `en` v1.0.

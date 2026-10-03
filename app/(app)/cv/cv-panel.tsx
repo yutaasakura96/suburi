@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
+import { ImportControl, TextButton, capFilename } from "@/components/import-control";
 import { Button } from "@/components/ui/button";
 import type { ErrorCode } from "@/lib/api/errors";
 import { ERROR_COPY } from "@/lib/copy/errors";
@@ -33,17 +34,6 @@ interface Draft {
 }
 
 const MAX_ADDITIONAL = 5;
-/** `07` §5.2's cap on `source_filename`, in UTF-16 units as Zod counts it. */
-const MAX_FILENAME = 255;
-
-/** Cut to the cap without leaving half a surrogate pair at the end. */
-function capFilename(name: string) {
-  const cut = name.slice(0, MAX_FILENAME);
-  return /[\uD800-\uDBFF]$/u.test(cut) ? cut.slice(0, -1) : cut;
-}
-// Extensions and MIME types both: a picker filters on either, depending on the platform.
-const IMPORT_ACCEPT =
-  ".docx,.pdf,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
 type Edit = Partial<Pick<Draft, "title" | "text" | "sourceFilename">>;
 
@@ -96,55 +86,6 @@ function VersionHistory({ copy, history }: { copy: Copy; history: PanelData["his
         </li>
       ))}
     </ul>
-  );
-}
-
-// A text control, not a 05 §5.7 button: 05 draws no quiet variant, and a 48px outline beside every
-// box would outweigh the box. Used for `外す` and for import. Removing a document from an unsaved
-// draft deletes nothing stored.
-function TextButton({ label, onClick, disabled }: { label: string; onClick: () => void; disabled?: boolean }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className={`${sectionLabel} hover:text-ink-2 hover:underline disabled:opacity-50 disabled:hover:no-underline`}
-    >
-      {label}
-    </button>
-  );
-}
-
-/**
- * `ファイルから読み込む` / `Import from a file` (10 §13): the text is extracted **in the browser** and
- * replaces the box's text, which stays editable; the file itself is never sent (07 §5.2). What is
- * saved is whatever the user leaves in the box.
- */
-function ImportControl({ label, onResult }: { label: string; onResult: (result: ImportResult, name: string) => void }) {
-  const input = useRef<HTMLInputElement>(null);
-  const [reading, setReading] = useState(false);
-
-  async function picked(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    // Cleared so picking the same file again is a new import.
-    event.target.value = "";
-    if (!file) return;
-    setReading(true);
-    try {
-      const { extractText } = await import("@/lib/cv/import/extract");
-      onResult(await extractText(file), file.name);
-    } catch {
-      onResult({ ok: false, reason: "unreadable" }, file.name);
-    } finally {
-      setReading(false);
-    }
-  }
-
-  return (
-    <>
-      <TextButton label={label} disabled={reading} onClick={() => input.current?.click()} />
-      <input ref={input} type="file" accept={IMPORT_ACCEPT} onChange={picked} hidden tabIndex={-1} />
-    </>
   );
 }
 

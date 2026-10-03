@@ -1,0 +1,43 @@
+Senior Backend Engineer, Routing Platform
+Tidewater Logistics Systems · Rotterdam or remote within the EU · Full time
+
+About Tidewater
+Tidewater Logistics Systems builds the routing and capacity-planning software that mid-sized freight forwarders use to decide which truck, barge or train carries which container. About 340 forwarders in eleven countries plan their daily operations on our platform, and on a normal weekday we compute a little over two million route options before 06:00 Central European Time. We are 140 people, 55 of them in engineering, and we have been profitable since 2022. We are not a marketplace and we do not own any vehicles: we sell software, and our customers stay because the plans it produces are cheaper to run than the ones their dispatchers used to draw by hand.
+
+The team
+The Routing Platform team owns the services that turn a forwarder's orders, a carrier's timetable and the day's disruptions into a plan. Today that is seven engineers, a product manager and a part-time operations researcher. The team is on call for its own services, one week in seven, and the rota is compensated. We deploy to production several times a day, we write a short design note before any change that touches a shared schema, and we review each other's incident write-ups in the open.
+
+What you will do
+You will be one of the two most senior engineers on the team. In your first year we expect you to take the lead on at least two of the following.
+
+- Replace the nightly planning batch with an incremental planner. Today a late change to a single order forces a full re-plan for that forwarder, which takes between four and nineteen minutes. Dispatchers have told us that anything over two minutes means they stop trusting the screen and reach for the telephone.
+- Make the carrier-timetable ingestion honest about what it does not know. We receive timetables from 96 carriers in five formats, and roughly one feed in twenty arrives late, truncated or silently repeated. The planner currently treats missing data as "no service", which is wrong about a third of the time.
+- Bring the cost of a route computation down. Compute is our second-largest cost after salaries, and the largest forwarders now plan across three countries at once.
+- Give the operations researcher a way to test a change to the cost model against last month's real orders before it ships, instead of after.
+
+You will also interview, mentor two mid-level engineers, and represent the team in the quarterly architecture review with the three other platform teams.
+
+What we are looking for
+- Eight or more years building backend systems that other people depended on in production, with at least three of them as the person who decided how a service was designed and then lived with the result.
+- Deep experience with a relational database under real load: you have changed a schema on a live system, found the query that was holding a lock, and can explain why your last migration was safe.
+- Experience moving a batch process to something incremental or event-driven, including the part where the two ran side by side and disagreed.
+- Evidence that you measure before you optimise, and that you can say what a change cost as well as what it saved.
+- You write clearly. Most of our decisions are made in documents, and a design note that only its author can follow is not a design note.
+- Working proficiency in English. Dutch or German helps with some customers and is not required.
+
+It would help, and is not required, if you have
+- worked on scheduling, routing, pricing or any other problem where the right answer is expensive to compute and a good answer on time is worth more;
+- run a service-level objective that a non-engineering team actually held you to;
+- used Kotlin or Go in production. Most of our services are Kotlin on the JVM, the ingestion path is Go, and the planner's core is Rust. We do not expect you to know all three.
+
+What we do not need
+We are not looking for someone to introduce a new language, a new message broker or a rewrite. The system is seven years old and mostly sound. The work is making it faster and more truthful without stopping the business that runs on it.
+
+How we work
+Core hours are 10:00 to 15:00 CET; outside them your day is yours. Remote engineers come to Rotterdam for one week each quarter, and we pay for it. We do not track hours and we do not expect messages to be answered in the evening unless you are on call.
+
+Compensation and benefits
+The salary band for this level is EUR 95,000 to 118,000 depending on experience, plus a yearly profit share that has paid between six and nine percent in each of the last three years. Thirty days of leave, a pension contribution of eight percent, a hardware budget, and a learning budget of EUR 2,500 a year that most people spend on conferences.
+
+The process
+A forty-minute call with the hiring manager; a ninety-minute technical conversation with two engineers about a system you have built, with no whiteboard puzzle; a written exercise you do in your own time, limited to two hours, reviewing a design note of ours; a conversation with the product manager and the operations researcher; and a final conversation with our chief executive. We aim to finish within three weeks and we tell every candidate the outcome, with reasons.
