@@ -32,7 +32,8 @@ steps marked in each (Next).
 **#42, the round-loop tracer, is built (2026-10-01), on `fm/suburi-42`:** an English realistic round
 end to end, its latencies measured (`03` §4). Two steps are the user's before it closes: reviewing
 rubric `en` v1.0, and the proof round on `develop` (Next).
-**Updated:** 2026-10-01 (#42 built; #55 and #56 on 2026-09-30)
+**#47, generated questions and role context, is built (2026-10-03), on `fm/suburi-47`** (Next).
+**Updated:** 2026-10-03 (#47 built; #42 on 2026-10-01; #55 and #56 on 2026-09-30)
 
 ## Done
 - Phase 1 — `docs/01-project-brief.md`, `docs/02-product-requirements.md`, `docs/06-decision-log.md`.
@@ -355,6 +356,22 @@ Neon `develop`, then a real English round from a real browser, audio under `dev/
 before leaving the machine. The three new Japanese error strings are in
 `docs/checklists/native-read-round-loop.md`.
 
+**#47 is built (2026-10-03), on `fm/suburi-47`.** Built: migration `0008_generated-questions`
+(`near_duplicate_checks`, `role_contexts.source_filename`, the digest's five new signals), expand-only
+and **not yet applied to either Neon branch**; `POST /api/role-contexts` for a `posting`, capped at
+20,000 code points (`422 role_context_too_large`); Setup's two role-context cards, posting picker and
+add form with the in-browser import, and the bank-exhausted warning (`10` §2); eight generator
+prompts in `lib/prompts/`; generation and embedding behind ports with fakes; the near-duplicate guard
+at 0.90 with every comparison stored; selection per `07` §5.4, generating beside the preflight; the
+digest's near-miss figures on `/status`. Tests: `11` §3.7 and §3.13, and a Playwright spec for Setup.
+**Measured** (`scripts/measure-question-generation.mts`, `03` §4): round-start generation takes 6 to
+16 s at the median and 28 s at the slowest, against the 4 s #42's draft suggested — **kept at round
+start, with `reasoning.effort: low` recorded as the lever; the owner's to overrule** (`06`). **Not
+yet reachable:** a Japanese generated round, until #43 opens `ja` on `POST /api/rounds`. **The user's
+steps:** the native read of one string and of what the four Japanese generator prompts write
+(`docs/checklists/native-read-round-loop.md`), and `npm run db:migrate` against Neon `develop` before
+the merge is verified there (`12` §4).
+
 **#54, #55 and #56 are next, then #21. #20, #29 and #38 are done.** #21 is blocked by all three
 (native `blocked_by` edges, 2026-09-29), and #56 by #55. They were triaged 2026-09-29 (`06`): #54 and
 #55 are `ready-for-agent`, and #56 is ready once #55 closes. The two criteria only production could
@@ -367,7 +384,7 @@ before release.
 and Home's one line (`10` §1). Migration `0005_monitoring` is expand-only and **not yet applied to
 either Neon branch** (`12` §4 steps 3 and 5). **The user's step:** `CRON_SECRET` in Vercel's
 Production scope before the first production deploy (`12` §3 step 12). Decisions in `06`, "Phase 6 —
-#55". #47 wires the digest's near-miss row if it merges second.
+#55". #47 wired the digest's near-miss rows (2026-10-03).
 
 **#56 is built (2026-09-30), on `fm/suburi-56`:** `self-check` writes the daily dump before its
 readings, in-process rather than with the `pg_dump` binary (`06`, "Phase 6 — #56"): a data-only psql

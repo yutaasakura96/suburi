@@ -8,7 +8,7 @@ import { createAuth } from "../lib/auth/auth";
 import { mintSessionCookie } from "../lib/auth/test/session";
 import { getConfig } from "../lib/config";
 import { E2E_URL } from "./database";
-import { startMockOpenAi, type MockOpenAi } from "./mock-openai";
+import { generatedQuestions, startMockOpenAi, type MockOpenAi } from "./mock-openai";
 import { startMockS3, type MockS3 } from "./mock-s3";
 
 // The round-loop tracer (#42), end to end against the production build: a realistic English round
@@ -87,6 +87,8 @@ test.beforeAll(async () => {
         return { scores: DIMENSIONS.map((dimension) => ({ dimension, value: SCORES[dimension as keyof typeof SCORES], justification: "e2e" })) };
       }
       if (formatOf(body) === "round_feedback") return feedbackFails ? { fail: 500 } : FINDINGS;
+      // Once these specs have answered the seeded questions, a round's are generated (07 §5.4).
+      if (formatOf(body) === "generated_questions") return generatedQuestions(body);
       return { fail: 400 };
     },
     { transcription: () => ({ text: RAW, seconds: 18 }) },
@@ -138,6 +140,9 @@ test("a realistic English round: Setup → record → correct → pressure → f
   // v1 seeded here, or a later version cv.spec.ts saved: whichever is current.
   await expect(page.getByTestId("setup-cv")).toContainText(/^CV v\d+/);
   await expect(page.getByTestId("setup-estimate")).toContainText("3 questions · up to about 12 min");
+  // A role context is required, and neither card is chosen for the user (10 §2).
+  await expect(page.getByRole("button", { name: "Start this round" })).toBeDisabled();
+  await page.getByRole("radio", { name: "General practice" }).click();
   await page.getByRole("button", { name: "Start this round" }).click();
   await expect(page).toHaveURL(/\/round\/[0-9a-f-]{36}$/);
   const roundId = page.url().split("/").at(-1)!;

@@ -4,7 +4,8 @@ import { getDb } from "@/lib/db";
 import { loadStatus } from "@/lib/monitor/status";
 import {
   CHECK_NAMES,
-  FIGURE_NAMES,
+  LAST_WEEK_ROWS,
+  NEAR_MISS_NOTE,
   formatThreshold,
   formatValue,
   lastRunText,
@@ -128,18 +129,28 @@ export default async function StatusPage() {
                   {weekRange(lastWeek.start, lastWeek.end)}
                 </p>
                 <dl className="grid max-w-[420px] grid-cols-[minmax(0,1fr)_auto]">
-                  {(Object.keys(FIGURE_NAMES) as (keyof typeof FIGURE_NAMES)[]).map((figure) => (
-                    <div key={figure} className="contents">
-                      <dt className={`${row} text-[13px] text-ink-3`}>{FIGURE_NAMES[figure]}</dt>
-                      <dd className={`${row} text-right font-mono text-[13px] text-ink-2`} data-testid={`figure-${figure}`}>
-                        {formatValue(figure, lastWeek.figures[figure])}
-                      </dd>
-                    </div>
-                  ))}
+                  {LAST_WEEK_ROWS.map((figure) => {
+                    const value = figure.value(lastWeek.figures);
+                    return (
+                      <div key={figure.key} className="contents">
+                        <dt className={`${row} text-[13px] text-ink-3`}>
+                          {figure.name}
+                          {figure.hint ? <span className="block text-[11px] text-ink-6">{figure.hint}</span> : null}
+                        </dt>
+                        <dd
+                          className={`${row} text-right font-mono text-[13px] ${value === "—" ? "text-ink-9" : "text-ink-2"}`}
+                          data-testid={`figure-${figure.key}`}
+                        >
+                          {value}
+                        </dd>
+                      </div>
+                    );
+                  })}
                 </dl>
                 {unpricedModelsText(lastWeek.unpricedModelIds) ? (
                   <p className="text-[12px] text-attention-ink">{unpricedModelsText(lastWeek.unpricedModelIds)}</p>
                 ) : null}
+                <p className="max-w-[640px] text-[12px] leading-[1.7] text-ink-6">{NEAR_MISS_NOTE}</p>
               </>
             ) : (
               <p className="text-[12px] text-ink-6">No weekly digest has run yet.</p>

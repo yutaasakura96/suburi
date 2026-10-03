@@ -1,4 +1,6 @@
+import { createHash, randomUUID } from "node:crypto";
 import { createServer, type Server } from "node:http";
+import { EMBEDDING_DIMENSIONS } from "../lib/ai/models";
 import { MOCK_OPENAI_PORT } from "./database";
 
 // The e2e server's OpenAI (playwright.config.ts points OPENAI_BASE_URL here). No test calls OpenAI
@@ -41,10 +43,40 @@ export interface MockOpenAiOptions {
 }
 
 /**
+ * As many questions as the generator was asked for — what a spec answers a `generated_questions`
+ * request with. Tagged and numbered, so no two calls write the same question, in this worker or the
+ * next.
+ */
+const RUN = randomUUID().slice(0, 8);
+let generated = 0;
+export function generatedQuestions(body: Record<string, unknown>) {
+  const count = Number(/=== questions needed ===\n(\d+)/.exec(String(body.input))?.[1] ?? 0);
+  return { questions: Array.from({ length: count }, () => `Generated e2e question ${RUN}-${(generated += 1)}?`) };
+}
+
+/**
+ * A unit vector that depends on the text alone: the same text embeds the same way, and two texts are
+ * as good as orthogonal, so nothing the mock embeds is anything else's near-duplicate.
+ */
+export function mockEmbedding(text: string) {
+  let state = createHash("sha256").update(text).digest().readUInt32LE(0) || 1;
+  const values = Array.from({ length: EMBEDDING_DIMENSIONS }, () => {
+    // xorshift32: spread enough for a direction, and the same on every machine.
+    state ^= state << 13;
+    state ^= state >>> 17;
+    state ^= state << 5;
+    return (state >>> 0) / 0xffffffff - 0.5;
+  });
+  const norm = Math.hypot(...values);
+  return values.map((value) => value / norm);
+}
+
+/**
  * Answers every POST /v1/responses with `payload` as the model's structured output — or, given a
  * function, with what it returns for that request's body, so a spec can answer each extraction
  * window (#29) with that window's claims, or each round-loop call by its format. `GET /v1/models/{id}`
- * — the round's preflight — always answers. A multipart body (a transcription) is recorded as `{}`.
+ * — the round's preflight — always answers, and so does `POST /v1/embeddings`, with a vector per
+ * input that is unlike every other. A multipart body (a transcription) is recorded as `{}`.
  */
 export async function startMockOpenAi(
   payload: object | ((body: Record<string, unknown>) => object | MockFailure),
@@ -73,6 +105,11 @@ export async function startMockOpenAi(
         const result = options.transcription();
         if (failed(result)) send(result.fail, { error: { message: "mock failure", type: "server_error" } });
         else send(200, { text: result.text, usage: { type: "duration", seconds: result.seconds } });
+        return;
+      }
+      if (request.method === "POST" && path === "/v1/embeddings") {
+        const data = (body.input as string[]).map((text, index) => ({ object: "embedding", index, embedding: mockEmbedding(text) }));
+        send(200, { object: "list", data, model: body.model, usage: { prompt_tokens: 1, total_tokens: 1 } });
         return;
       }
       if (request.method !== "POST" || path !== "/v1/responses") {

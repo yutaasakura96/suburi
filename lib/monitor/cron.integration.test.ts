@@ -2,7 +2,7 @@ import { asc, eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as s from "../../db/schema";
 import { closePool, inRolledBackTransaction, type TestDb } from "../../db/test/database";
-import { answerValues, attemptValues, insertWorld, roundValues, type World } from "../../db/test/fixtures";
+import { answerValues, attemptValues, insertUser, insertWorld, roundValues, type World } from "../../db/test/fixtures";
 import { statusLine } from "../../app/(app)/status/copy";
 import { CV_EXTRACTION_MODEL } from "../ai/models";
 import type { BackupOutcome } from "../backup/run";
@@ -477,6 +477,86 @@ describe("digest", () => {
       for (const reading of Object.values(readings)) {
         expect(reading).toMatchObject({ threshold: null, isRed: null, subjectIds: [], windowStart: lastWeekStart, windowEnd: WEEK_START });
       }
+    }));
+});
+
+describe("digest — the near-duplicate guard's week (12 §6, #47)", () => {
+  const lastWeekStart = new Date(WEEK_START.getTime() - 7 * 24 * HOUR);
+  const inLastWeek = new Date(lastWeekStart.getTime() + 24 * HOUR);
+
+  async function question(db: TestDb, world: World) {
+    const [row] = await db
+      .insert(s.questions)
+      .values({ userId: world.userId, language: "en", roundType: "hr", origin: "generated", body: SENTINEL, generatorPromptVersion: "generate-fixture" })
+      .returning({ id: s.questions.id });
+    return row.id;
+  }
+
+  /** A stored comparison: a near-miss when it is below the threshold, a reuse at or above it. */
+  async function check(db: TestDb, world: World, matched: string, similarity: number, createdAt: Date, userId = world.userId) {
+    const threshold = 0.9;
+    await db.insert(s.nearDuplicateChecks).values({
+      userId,
+      matchedQuestionId: matched,
+      questionId: similarity >= threshold ? null : await question(db, world),
+      similarity,
+      threshold,
+      embeddingModelId: "fixture-embedder",
+      createdAt,
+    });
+  }
+
+  it("reports the week's near-misses, their lowest, median and highest similarity, and the reuses", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await insertWorld(db);
+      const matched = await question(db, world);
+      for (const similarity of [0.2, 0.5, 0.6, 0.88]) await check(db, world, matched, similarity, inLastWeek);
+      await check(db, world, matched, 0.95, inLastWeek);
+      await check(db, world, matched, 0.99, inLastWeek);
+      await check(db, world, matched, 0.89, WEEK_START); // this week: not reported
+      await check(db, world, matched, 0.1, new Date(lastWeekStart.getTime() - 1)); // the week before
+      await check(db, world, matched, 0.01, inLastWeek, await insertUser(db)); // another user's
+
+      const { json } = await call(db, "digest");
+      const readings = await readingsOf(db, json.run_id, world.userId);
+
+      expect(readings.digest_near_misses.value).toBe(4);
+      expect(readings.digest_near_miss_similarity_min.value).toBeCloseTo(0.2, 9);
+      expect(readings.digest_near_miss_similarity_median.value).toBeCloseTo(0.55, 9);
+      expect(readings.digest_near_miss_similarity_max.value).toBeCloseTo(0.88, 9);
+      expect(readings.digest_near_duplicates_reused.value).toBe(2);
+      for (const signal of s.DIGEST_FIGURES.filter((figure) => figure.includes("near_"))) {
+        expect(readings[signal]).toMatchObject({ threshold: null, isRed: null, subjectIds: [], windowStart: lastWeekStart, windowEnd: WEEK_START });
+      }
+    }));
+
+  it("has no similarity reading for a week with no near-miss: null, never zero", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await insertWorld(db);
+      await check(db, world, await question(db, world), 0.97, inLastWeek);
+
+      const { json } = await call(db, "digest");
+      const readings = await readingsOf(db, json.run_id, world.userId);
+
+      expect(readings.digest_near_misses.value).toBe(0);
+      expect(readings.digest_near_miss_similarity_min.value).toBeNull();
+      expect(readings.digest_near_miss_similarity_median.value).toBeNull();
+      expect(readings.digest_near_miss_similarity_max.value).toBeNull();
+      expect(readings.digest_near_duplicates_reused.value).toBe(1);
+      const lastWeek = (await loadStatus(db, world.userId, NOW)).lastWeek!;
+      expect(lastWeek.figures).toMatchObject({ digest_near_misses: 0, digest_near_miss_similarity_max: null, digest_near_duplicates_reused: 1 });
+    }));
+
+  it("carries no question text into the run, the response or a log line", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await insertWorld(db);
+      await check(db, world, await question(db, world), 0.5, inLastWeek);
+
+      const { text, json } = await call(db, "digest");
+
+      expect(text).not.toContain(SENTINEL);
+      expect(JSON.stringify(await readingsOf(db, json.run_id, world.userId))).not.toContain(SENTINEL);
+      for (const line of logged) expect(line).not.toContain(SENTINEL);
     }));
 });
 
