@@ -439,6 +439,10 @@ Direction C's matrix had none of these and had to caption itself. This one does 
   **Decided 2026-09-27** (`06`, `10` §0): the screens inside a round follow the round's language;
   Home, Setup, Progress and History are in English. §3.3's uppercase Latin labels stay Latin only in
   an English round — in a Japanese round they are Japanese labels, without `text-transform`.
+  **Built 2026-10-03 (#43):** the six Japanese labels are in `10` §0, set in mono 11px at `0.16em`
+  with no transform. Their read, and the rules it earns for §6, is
+  `docs/checklists/native-read-round.md` — one of which is already a question: §6 sets Japanese tight
+  against a Latin numeral, and `10` §7's `緊張度 4 を…` does not.
 - **Hover surface and focus ring are undrawn.** §10.2 aliases shadcn's `--accent` (hover) to
   `--ground` and `--ring` (focus) to `--mark` as placeholders. §7 requires keyboard focus on score
   rows, so the focus ring is needed, not optional — it wants a design read, not a default.

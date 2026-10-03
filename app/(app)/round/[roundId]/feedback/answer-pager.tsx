@@ -7,16 +7,19 @@ import { ScoreRow } from "../../parts";
 
 /**
  * 10 §8's per-answer region: one answer at a time, its scores as 05 §5.3 rows, and a pager to the
- * rest. Every row is one dimension; there is no row, cell or line that combines them.
+ * rest. Every row is one dimension; there is no row, cell or line that combines them. A dimension is
+ * named in the language the feedback is being read in (PRD §4); the rest is the round's chrome.
  */
 export function AnswerPager({
   answers,
   length,
   language,
+  reading,
 }: {
   answers: readonly FeedbackAnswerView[];
   length: number;
   language: RoundLanguage;
+  reading: RoundLanguage;
 }) {
   const copy = ROUND_COPY[language];
   const [index, setIndex] = useState(0);
@@ -35,11 +38,11 @@ export function AnswerPager({
       <p className="text-[15px] leading-[1.85] text-ink-2">{answer.prompt}</p>
       <div className="flex flex-col">
         {answer.scores.map((score) => (
-          <ScoreRow key={score.label} label={score.label} value={score.value} unscored={unscored} />
+          <ScoreRow key={score.key} label={score.labels[reading]} value={score.value} unscored={unscored} />
         ))}
       </div>
       {answers.length > 1 ? (
-        <nav className="flex items-center gap-[14px] pt-[6px] text-[12px] text-ink-label" aria-label="Answers">
+        <nav className="flex items-center gap-[14px] pt-[6px] text-[12px] text-ink-label" aria-label={copy.answers}>
           {answers.map((other, otherIndex) => (
             <button
               key={other.position}

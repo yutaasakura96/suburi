@@ -41,7 +41,20 @@ measures, order, states and refusals stand. What changes:
   `YOUR ANSWER — EDIT FREELY`, `RAW — KEPT, NEVER REPLACED`, `Raw transcript`, `Rewrite`, `BEFORE THE
   FEEDBACK`, `WHAT THIS IS NOT`. Keeping them Latin as a design device was considered and rejected.
   `05` §3.3's uppercase and tracking are for Latin labels only; a Japanese label never relies on
-  `text-transform` (`05` §6).
+  `text-transform` (`05` §6). **The Japanese labels, since #43** (`06`, 2026-10-03), pending their
+  native read:
+
+  | Artboard label | In a Japanese round |
+  | --- | --- |
+  | `Raw transcript — 未修正` | `文字起こし — 未修正` |
+  | `YOUR ANSWER — EDIT FREELY` | `あなたの回答 — 自由に直せます` |
+  | `RAW — KEPT, NEVER REPLACED` | `未修正の文字起こし — 置き換えずに残します` |
+  | `Rewrite` | `書き直し` |
+  | `BEFORE THE FEEDBACK` | `講評の前に` |
+  | `WHAT THIS IS NOT` | `緊張度について` |
+
+  §5–§7 below still quote the artboards' Latin labels, as what was drawn. A Japanese round shows the
+  right-hand column, and its tab title is Japanese too (`ラウンド — Suburi`, `講評 — Suburi`).
 - **An English round needs its round-screen copy written**; every Japanese string on the round screens
   still needs its native read before it ships.
 
@@ -340,6 +353,14 @@ surfaced on round feedback and History as `緊張度 4 を講評前に記録`.
 Header: `行動面接` 17px/600, `日本語・実戦・5問` 13px `--ink-4`; right, the date in 11px mono and a
 language pill (`1px --tick`, `padding: 4px 10px`, 11px `--ink-4`) reading `English` — the toggle to
 read a Japanese round's feedback in English.
+
+**What the pill changes (`06`, 2026-10-03):** the feedback, and nothing else — the seven dimension
+names (`Structure … Keigo (register)`) and the round-level findings with their two headings
+(`To fix 3`, `What worked 1`), read from the stored translation (`04` `round_feedback.body_translated`).
+The round's own chrome stays Japanese: the header, `第1問 / 5問`, the figures, the question, the pager
+and the stamps. The pill names the language it switches to, in that language — `English`, then
+`日本語` — and the choice is the page's, not stored. **An English round has no pill**: its feedback is
+English already (PRD §4).
 
 3-column grid: per-answer scores at `span 2`, round-level findings in the last column.
 

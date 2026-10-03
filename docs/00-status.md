@@ -353,7 +353,22 @@ median and 38.1 s slowest, so `complete` waits 60 s (`07` §5.12). **The user's 
 step 9); (2) the proof round on `develop`: `npm run db:migrate` and `npm run db:seed:develop` against
 Neon `develop`, then a real English round from a real browser, audio under `dev/`, feedback on screen
 before leaving the machine. The three new Japanese error strings are in
-`docs/checklists/native-read-round-loop.md`.
+`docs/checklists/native-read-round.md` (renamed by #43, which added its own to it).
+
+**#43 is built (2026-10-03), on `fm/suburi-43`, and waits on two steps of the user's.** Built: rubric
+`ja` v1.0 with 敬語 as its seventh dimension (`lib/rubric/ja-1.0.ts`); the four Japanese set pieces
+under `set-piece-ja-1.0`, no 逆質問; 17 synthetic Japanese bank questions for `develop`; `POST
+/api/rounds` in either language; pace in characters per minute of the raw transcript; `score-ja-1.0`
+and `feedback-ja-1.0`, the second returning the English translation in the same call, stored in
+`round_feedback.body_translated`; the round screens in Japanese throughout, the artboards' Latin
+section labels replaced (`10` §0); the feedback pill, which switches the dimension names and the
+findings to English and nothing else; Setup's language option. No migration. Tests: the seeds in both
+languages, a Japanese round through every route, and a Playwright Japanese round beside the English
+one. **The user's steps, both before it ships:** (1) review rubric `ja` v1.0, with its native read —
+it is seeded nowhere until then, `develop` included (`12` §1); (2) the native read of
+`docs/checklists/native-read-round.md`, whose rules go into `05` §6. **Not yet checked against the
+real model:** the two Japanese prompts ran only against fakes; the first Japanese round on `develop`
+is that check.
 
 **#54, #55 and #56 are next, then #21. #20, #29 and #38 are done.** #21 is blocked by all three
 (native `blocked_by` edges, 2026-09-29), and #56 by #55. They were triaged 2026-09-29 (`06`): #54 and

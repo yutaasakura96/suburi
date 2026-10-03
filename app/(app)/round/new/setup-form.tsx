@@ -5,7 +5,16 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { failureText, postJson, type FailureCode } from "../api";
-import { ROUND_LENGTHS, ROUND_TYPE_NAMES, ROUND_TYPES, SETUP_COPY as COPY, type RoundType } from "../copy";
+import {
+  LANGUAGE_NAMES,
+  ROUND_LANGUAGES,
+  ROUND_LENGTHS,
+  ROUND_TYPE_NAMES,
+  ROUND_TYPES,
+  SETUP_COPY as COPY,
+  type RoundLanguage,
+  type RoundType,
+} from "../copy";
 import { CalloutRail, caption, sectionLabel } from "../parts";
 
 /** The realistic cap, in minutes: the estimate's multiplier (10 §2). The server holds the value. */
@@ -51,19 +60,21 @@ function Options<T extends string | number>({
   );
 }
 
-export function SetupForm({
-  cv,
-  rubricLabel,
-}: {
-  cv: { label: string; date: string } | null;
-  rubricLabel: string | null;
-}) {
+export interface SetupFacts {
+  readonly cv: { readonly label: string; readonly date: string } | null;
+  readonly rubricLabel: string | null;
+}
+
+export function SetupForm({ facts }: { facts: Record<RoundLanguage, SetupFacts> }) {
   const router = useRouter();
   const [roundType, setRoundType] = useState<RoundType>("hr");
+  const [language, setLanguage] = useState<RoundLanguage>("en");
   const [length, setLength] = useState<(typeof ROUND_LENGTHS)[number]>(3);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<FailureCode | null>(null);
 
+  // What the chosen language's round would be scored against (10 §2, `SCORED AGAINST`).
+  const { cv, rubricLabel } = facts[language];
   const ready = cv !== null && rubricLabel !== null;
 
   async function start() {
@@ -73,7 +84,7 @@ export function SetupForm({
     const created = context.ok
       ? await postJson<{ round: { id: string } }>("/api/rounds", {
           round_type: roundType,
-          language: "en",
+          language,
           mode: "realistic",
           length,
           role_context_id: context.json.id,
@@ -95,10 +106,7 @@ export function SetupForm({
       <div className="grid grid-cols-3">
         <div className="col-span-2 flex flex-col gap-[28px] border-r border-rule-frame px-[32px] py-[30px]">
           <Options label={COPY.roundType} options={ROUND_TYPES} value={roundType} name={(t) => ROUND_TYPE_NAMES[t]} onChange={setRoundType} />
-          <div className="flex flex-col gap-[10px]">
-            <Options label={COPY.language} options={["en"] as const} value="en" name={() => COPY.english} />
-            <p className={caption}>{COPY.englishOnly}</p>
-          </div>
+          <Options label={COPY.language} options={ROUND_LANGUAGES} value={language} name={(l) => LANGUAGE_NAMES[l]} onChange={setLanguage} />
           <Options label={COPY.length} options={ROUND_LENGTHS} value={length} name={COPY.lengthOption} onChange={setLength} />
           <div className="flex flex-col gap-[10px]">
             <Options label={COPY.mode} options={["realistic"] as const} value="realistic" name={() => COPY.realistic} />
@@ -125,13 +133,13 @@ export function SetupForm({
               </p>
             ) : (
               <CalloutRail tone="attention">
-                {COPY.noCv}{" "}
+                {COPY.noCv(language)}{" "}
                 <Link href="/cv" className="text-link hover:text-link-hover hover:underline">
                   {COPY.noCvLink}
                 </Link>
               </CalloutRail>
             )}
-            {cv && rubricLabel === null ? <CalloutRail tone="attention">{COPY.noRubric}</CalloutRail> : null}
+            {cv && rubricLabel === null ? <CalloutRail tone="attention">{COPY.noRubric(language)}</CalloutRail> : null}
           </div>
 
           <div className="mt-auto flex flex-col gap-[10px]">

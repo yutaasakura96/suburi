@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { pace, rewriteMagnitude, rewritePercent } from "./measures";
+import { pace, paceUnits, rewriteMagnitude, rewritePercent } from "./measures";
 
 // 11 §3.9: the expected values are the specification.
 describe("rewriteMagnitude", () => {
@@ -64,5 +64,22 @@ describe("pace", () => {
   it("is null without a duration", () => {
     expect(pace("en", "some words", null)).toBeNull();
     expect(pace("en", "some words", 0)).toBeNull();
+  });
+
+  it("counts a character outside the BMP once", () => {
+    expect(pace("ja", "𠮷田です", 60_000)).toBe(4);
+  });
+});
+
+describe("paceUnits", () => {
+  // The count screens 5 and 6 show beside the pace is the count the pace was computed from.
+  it("is the characters of a ja transcript, whitespace aside", () => {
+    expect(paceUnits("ja", "あ".repeat(800))).toBe(800);
+    expect(paceUnits("ja", " 決済基盤の\n移行　です ")).toBe(9);
+  });
+
+  it("is the words of an en transcript", () => {
+    expect(paceUnits("en", "  I led the\nmigration. ")).toBe(4);
+    expect(paceUnits("en", "")).toBe(0);
   });
 });

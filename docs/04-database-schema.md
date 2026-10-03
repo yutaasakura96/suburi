@@ -541,14 +541,15 @@ Unique on `(scoring_attempt_id, dimension)`.
 | `to_fix` | `jsonb` | no | — | two or three items |
 | `what_worked` | `text` | no | — | exactly one |
 | `language` | `text` | no | — | the round's language |
-| `body_translated` | `jsonb` | yes | — | the other-language toggle (PRD §4) |
+| `body_translated` | `jsonb` | yes | — | the other-language toggle (PRD §4): `{ language, to_fix, what_worked }`, the same findings item for item in the other language. `en` on a Japanese round; null on an English one |
 | `untouched_claim_ids` | `jsonb` | no | `'[]'` | **untouched material** — an array of at most three `cv_claims.id`, picked by the model from the round's never-cited claims and **validated against that set** before the row is written; an id outside it is dropped and counted |
 | `model_id`, `prompt_version` | `text` | no | — | stamps |
 | `tokens_in` / `tokens_out` | `integer` | yes | — | |
 | `created_at` | `timestamptz` | no | `now()` | |
 
 **Written once, whole, and never rewritten** — which is why it is generated only after every score is
-in (`07` §5.12, `06`, 2026-09-27). A round whose feedback failed has no row until the retry writes one;
+in (`07` §5.12, `06`, 2026-09-27), and why the translation comes from the same model call as the
+feedback rather than a later one (`06`, 2026-10-03). A round whose feedback failed has no row until the retry writes one;
 the absence is the pending state.
 
 ---
