@@ -207,6 +207,44 @@ test("a reloaded realistic round asks for its prompt by position, and plays it w
   expect(upstream.at(-1)!.body.input).toBe(await page.getByTestId("round-question").textContent());
 });
 
+test("pausing a pending spoken question to record does not show a speech failure", async ({ page }) => {
+  const consoleErrors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") consoleErrors.push(message.text());
+  });
+  await signIn(page);
+  const round = await startRound(page, "realistic");
+  await page.route(`**/api/rounds/${round.id}/speech?*`, (route) =>
+    route.fulfill({ status: 200, contentType: "audio/mpeg", body: Buffer.from(silentMp3()) }),
+  );
+  await page.addInitScript(() => {
+    let gesture = false;
+    let rejectPlayback: (error: DOMException) => void = () => {};
+    document.addEventListener("click", () => { gesture = true; }, { capture: true });
+    HTMLMediaElement.prototype.play = function () {
+      if (!gesture) return Promise.reject(new DOMException("Playback requires a gesture", "NotAllowedError"));
+      return new Promise<void>((_resolve, reject) => {
+        rejectPlayback = reject;
+      });
+    };
+    HTMLMediaElement.prototype.pause = function () {
+      rejectPlayback(new DOMException("Playback was paused", "AbortError"));
+    };
+    navigator.mediaDevices.getUserMedia = async () => {
+      throw new DOMException("Microphone unavailable", "NotAllowedError");
+    };
+  });
+  await page.goto(`/round/${round.id}`);
+
+  const line = page.getByTestId("speaker-line");
+  await line.getByRole("button", { name: "Hear the question" }).click();
+  await page.getByRole("button", { name: "Start recording" }).click();
+  await expect(page.getByText("The microphone is not available. Nothing was recorded, and the question stays unseen.")).toBeVisible();
+  await expect(line).toHaveText(SPOKEN);
+  await page.screenshot({ path: test.info().outputPath("screen3-paused-speech.png"), fullPage: true });
+  expect(consoleErrors).toEqual([]);
+});
+
 test("a failed speech request shows the notice, and the round goes on as text", async ({ page }) => {
   await signIn(page);
   speechFails = true;

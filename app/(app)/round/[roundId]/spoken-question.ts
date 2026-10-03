@@ -48,7 +48,9 @@ export function useSpokenQuestion(src: string | null) {
     const audio = element.current;
     if (!audio || src === null) return;
     setOutcome({ src, status: "asked" });
-    audio.play().catch(() => setOutcome({ src, status: "failed" }));
+    audio.play().catch((error: unknown) => {
+      if ((error as { name?: string }).name === "NotAllowedError") setOutcome({ src, status: "blocked" });
+    });
   }, [src]);
 
   /** Recording starts: the microphone must not hear the question. */
