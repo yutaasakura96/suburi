@@ -32,7 +32,11 @@ steps marked in each (Next).
 **#42, the round-loop tracer, is built (2026-10-01), on `fm/suburi-42`:** an English realistic round
 end to end, its latencies measured (`03` §4). Two steps are the user's before it closes: reviewing
 rubric `en` v1.0, and the proof round on `develop` (Next).
-**Updated:** 2026-10-01 (#42 built; #55 and #56 on 2026-09-30)
+**#45, the spoken question, the cap and one take, is built (2026-10-03), on `fm/suburi-45`:** the
+speech route on `gpt-4o-mini-tts-2025-12-15`, screen 3's speaker line, and practice's 15-minute guard,
+stored and never drawn. One step is the user's: `11` §5's ear check (`npm run ear-check`). **OpenAI
+removes that model on 2027-01-06** (`06`); moving to its Realtime replacement is a slice of its own.
+**Updated:** 2026-10-03 (#45 built; #42 on 2026-10-01; #55 and #56 on 2026-09-30)
 
 ## Done
 - Phase 1 — `docs/01-project-brief.md`, `docs/02-product-requirements.md`, `docs/06-decision-log.md`.

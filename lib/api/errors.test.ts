@@ -36,6 +36,7 @@ describe("the error code table", () => {
       "round_not_complete",
       "round_abandoned",
       "feedback_generation_failed",
+      "speech_failed",
       "write_failed",
       "cv_unchanged",
       "cv_too_large",

@@ -8,7 +8,8 @@ import { createAuth } from "../lib/auth/auth";
 import { mintSessionCookie } from "../lib/auth/test/session";
 import { getConfig } from "../lib/config";
 import { E2E_URL } from "./database";
-import { startMockOpenAi, type MockOpenAi } from "./mock-openai";
+import { TTS_MODEL, TTS_VOICE } from "../lib/ai/models";
+import { silentMp3, startMockOpenAi, type MockOpenAi } from "./mock-openai";
 import { startMockS3, type MockS3 } from "./mock-s3";
 
 // The round-loop tracer (#42), end to end against the production build: a realistic English round
@@ -89,7 +90,7 @@ test.beforeAll(async () => {
       if (formatOf(body) === "round_feedback") return feedbackFails ? { fail: 500 } : FINDINGS;
       return { fail: 400 };
     },
-    { transcription: () => ({ text: RAW, seconds: 18 }) },
+    { transcription: () => ({ text: RAW, seconds: 18 }), speech: silentMp3 },
   );
 });
 
@@ -131,6 +132,11 @@ test("a realistic English round: Setup → record → correct → pressure → f
   test.setTimeout(120_000);
   await signIn(page);
   const userId = await seededUserId();
+  const speechRequests: string[] = [];
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (url.pathname.endsWith("/speech")) speechRequests.push(url.pathname + url.search);
+  });
 
   await page.goto("/");
   await page.getByRole("link", { name: "Start a round" }).click();
@@ -141,11 +147,15 @@ test("a realistic English round: Setup → record → correct → pressure → f
   await page.getByRole("button", { name: "Start this round" }).click();
   await expect(page).toHaveURL(/\/round\/[0-9a-f-]{36}$/);
   const roundId = page.url().split("/").at(-1)!;
+  const questions: string[] = [];
 
   for (let position = 1; position <= 3; position += 1) {
     await expect(page.getByTestId("round-step")).toHaveText(`Question ${position} / 3`);
     // Realistic asks one unseen set piece first (07 §5.4).
     if (position === 1) await expect(page.getByTestId("round-question")).toHaveText("Could you start by introducing yourself?");
+    // …and speaks it (10 §3): the speaker line stands, which a failed or refused playback would replace.
+    await expect(page.getByTestId("speaker-line")).toHaveText("Read aloud. The text stays on screen.");
+    questions.push((await page.getByTestId("round-question").textContent())!);
     await expect(page.getByText("The feedback comes together when the round ends. Nothing is shown along the way.")).toBeVisible();
 
     const asked = await page.getByTestId("round-question").boundingBox();
@@ -201,6 +211,13 @@ test("a realistic English round: Setup → record → correct → pressure → f
     expect(s3.objects.get(key)!.bytes).toBeGreaterThan(0);
     expect(s3.objects.get(key)!.contentType).toMatch(/^audio\/webm/);
   }
+  // Each prompt was spoken once, by the pinned model and voice, from the text the server holds for
+  // that position — the browser named a position and sent no text (07 §5.15).
+  const speech = openAi.requests.filter((request) => request.path === "/v1/audio/speech");
+  expect(speech.map((request) => request.body.input)).toEqual(questions);
+  for (const request of speech) expect(request.body).toMatchObject({ model: TTS_MODEL, voice: TTS_VOICE, response_format: "mp3" });
+  expect(speechRequests).toEqual([1, 2, 3].map((position) => `/api/rounds/${roundId}/speech?position=${position}&kind=question`));
+
   // The scorer read the corrected text, never the raw one (03 §4).
   const scoring = openAi.requests.filter((request) => formatOf(request.body) === "answer_scores");
   expect(scoring.length).toBeGreaterThanOrEqual(3);

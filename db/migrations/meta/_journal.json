@@ -57,6 +57,13 @@
       "when": 1790772286363,
       "tag": "0007_round-loop-tracer",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1790997310736,
+      "tag": "0008_speech-route",
+      "breakpoints": true
     }
   ]
 }

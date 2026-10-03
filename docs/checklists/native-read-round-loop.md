@@ -21,3 +21,13 @@ Japanese round is #43's. These are the three error codes the tracer added to the
 | | 講評をまとめられませんでした。ラウンドは終了し、採点は残っています。もう一度お試しください。 | `feedback_generation_failed` — The round feedback could not be written. The round is complete and its scores are kept. Try again. |
 | | 保存に失敗しました。何も書き込まれていません。同じ操作をもう一度お試しください。 | `write_failed` — The save failed, and nothing was written. Try the same step again. |
 | | このラウンドは中断されています。新しいラウンドを始めてください。 | `round_abandoned` — This round was abandoned. Start a new round. |
+
+## 2. #45, the spoken question — `lib/copy/errors.ts`
+
+One code. Screen 3 shows it in place of the speaker line when a realistic round's question could not
+be spoken (`10` §3). The speaker line itself and its `Hear the question` control are round chrome,
+English until the Japanese round (#43) writes them.
+
+| | Japanese | Intent |
+| --- | --- | --- |
+| | 質問を読み上げられませんでした。文字はそのまま残ります。このまま回答してください。 | `speech_failed` — The question could not be read aloud. It stays as text; answer it as usual. |

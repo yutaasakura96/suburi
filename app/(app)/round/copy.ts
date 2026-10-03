@@ -4,6 +4,7 @@
 
 export type RoundType = "behavioural" | "technical" | "hr" | "ceo";
 export type RoundLanguage = "en";
+export type RoundMode = "realistic" | "practice";
 
 /** Data, not chrome: a round type is named in English on the app-level screens (10 §0). */
 export const ROUND_TYPE_NAMES: Record<RoundType, string> = {
@@ -60,17 +61,23 @@ export interface PressureOption {
   readonly label: string;
 }
 
+const EN_MODES: Record<RoundMode, string> = { realistic: "Realistic", practice: "Practice" };
+
 export const ROUND_COPY = {
   en: {
     languageName: "English",
-    realistic: "Realistic",
-    meta: (length: number) => `English · Realistic · ${length} questions`,
+    meta: (mode: RoundMode, length: number) => `English · ${EN_MODES[mode]} · ${length} questions`,
     step: (position: number, of: number) => `Question ${position} / ${of}`,
 
     // 10 §3–§5, the footer every record frame carries but the transcript one.
     withheld: "The feedback comes together when the round ends. Nothing is shown along the way.",
     goesOn:
       "The round goes on. You can correct the full text on the next screen. Neither the audio nor the uncorrected transcript is ever discarded.",
+
+    // 10 §3, realistic only: the speaker line, and what it becomes when the browser will not play
+    // sound unasked (a reload). A failed synthesis shows the catalogue's `speech_failed` instead.
+    spoken: "Read aloud. The text stays on screen.",
+    playQuestion: "Hear the question",
 
     startRecording: "Start recording",
     cap: (seconds: number) => `Up to ${Math.round(seconds / 60)} min`,

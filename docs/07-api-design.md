@@ -65,8 +65,9 @@ by round end the scores are already rows.
    **The round routes' limits (#42), from the round's own shape** — a 7-question round makes 14
    `transcribe` and 14 `submit` calls: `POST /api/rounds` **6 per 10 minutes**; `transcribe` and
    `submit` **30 per 10 minutes** each, two of the longest rounds with retries to spare; `complete` and
-   `feedback` **6 per 10 minutes** each. Every one its own bucket. A later slice's ⚡ route sets its
-   own here the same way.
+   `feedback` **6 per 10 minutes** each. Every one its own bucket. **The speech route (#45): 30 per 10
+   minutes** — one request per prompt asked, 14 in the longest round, and a reload asks again. A later
+   slice's ⚡ route sets its own here the same way.
 6. **The client never chooses an S3 key, an object prefix, a `user_id`, a `position`, an
    `is_first_attempt`, a question, a CV version, text to be spoken, or any version stamp.** All are
    server-derived. This is not defensive coding; it is what makes the four stamps and first-attempt
@@ -168,9 +169,9 @@ that asserts the two lists match.
 
 **Four codes are added by the round loop** (`06`, 2026-09-27 and 2026-09-28).
 `feedback_generation_failed` and `write_failed` **landed with the round-loop tracer (#42)**, in
-`lib/api/errors.ts` with their `ja` and `en` copy; `speech_failed` lands with the spoken question (#45)
-and `role_context_too_large` with its measured cap (#47), each with its copy in the same change, as
-`11` §3.10 requires.
+`lib/api/errors.ts` with their `ja` and `en` copy, and `speech_failed` **with the spoken question
+(#45)**; `role_context_too_large` lands with its measured cap (#47), with its copy in the same change,
+as `11` §3.10 requires.
 
 **`round_abandoned` landed with the tracer too** (#42 review): `answers`, `submit` and `complete` read
 the derived status (§5.5) inside their locked transaction, so a stale tab cannot write into a round a
@@ -949,11 +950,15 @@ Content-Type: audio/mpeg
 **The server reads the text** from `round_questions` at that position, or from the parent's
 `follow_ups` row; the client sends none, so the route cannot be used to synthesise anything else on
 the user's key (§1 rule 6). A `practice` round is `404` — practice is text only. A position with no
-prompt yet, or a `missing` follow-up, is `404`. Question audio is well under the 4.5 MB body cap, so it
-crosses the function; it is **not retained** (`03` §4).
+prompt yet, or a `missing` follow-up, is `404`; until follow-ups exist (#44), so is every `follow_up`
+request. Question audio is well under the 4.5 MB body cap, so it crosses the function; it is **not
+retained** (`03` §4), and the response is `Cache-Control: no-store` so the browser keeps none either.
 
-**The model is not named yet.** It is a constant in `lib/ai/models.ts`, pinned only once verified at
-implementation (`03` §4).
+**The query is validated like a body** (§1 rule 3). `position` is 1–7 and `kind` is `question` or
+`follow_up`; anything else, a `text` parameter included, is `400 invalid_request` naming the field.
+
+**The model is `TTS_MODEL` in `lib/ai/models.ts`**, with its voice beside it (`03` §4, `06`, #45).
+Synthesis has 10 s to reach its first byte.
 
 **When synthesis fails, the round goes on** (`06`, 2026-09-28). The route returns `502
 speech_failed`; screen 3 shows that code's copy as a short notice, and the question, already on screen

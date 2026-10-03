@@ -202,6 +202,10 @@ absent only from the transcript state, which substitutes:
   on screen.** Practice mode is text-only, so this line and glyph are omitted. The audio streams from
   the speech route (`07` §5.15). **When synthesis fails**, this line is replaced by a short notice —
   the catalogue's `speech_failed` copy — and the round goes on with the text (`06`, 2026-09-28).
+  **When the browser will not play sound unasked** — a round opened or reloaded with no gesture yet in
+  the tab — the line is a control with the same glyph, `Hear the question` in an English round;
+  pressing it plays the question and the line returns. Starting the recording silences a question
+  still being spoken, so the microphone never records it (`06`, #45).
 - **The question is the one fixed when the round started** (`round_questions`) — a reload shows the
   same one.
 - The question at **19px/1.9** in `--ink-2`, `max-width: 880px`. This is the largest reading text in
@@ -548,7 +552,9 @@ Restated from PRD §9 because a specification that omits them invites a build th
   delivers feedback per answer as well as at round end. Only realistic mode is drawn. **Their shape is
   decided** (`06`, 2026-09-27) and they are specified here from `05` components before they are built,
   the way §13 was:
-  - realistic's flow, text only, no timer and no `最長` line;
+  - realistic's flow, text only, no timer and no `最長` line — **built by #45 as far as the record
+    frames:** no speaker line, no clock, no limit and no one-take line, and the waveform scrolls at a
+    fixed pace with no remainder, so the 15-minute guard is never drawn (`03` §7);
   - a **re-take** control on the record frames until the take is transcribed — it replaces the take;
   - after each submit, a **per-answer frame**: that answer's score rows (§5.3) and flags once it is
     scored, stated as pending until then, with the follow-up ready beside it;

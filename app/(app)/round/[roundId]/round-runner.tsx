@@ -6,10 +6,11 @@ import { useDeferredValue, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { rewriteMagnitude, rewritePercent } from "@/lib/round/measures";
 import { failureText, postJson, type FailureCode } from "../api";
-import { ROUND_COPY, ROUND_TYPE_NAMES, clock, wordCount, type RoundCopy } from "../copy";
+import { ROUND_COPY, ROUND_TYPE_NAMES, clock, wordCount, type RoundCopy, type RoundMode } from "../copy";
 import type { RoundFrame } from "../load";
 import { CalloutRail, RoundFooter, RoundHeader, caption, sectionLabel } from "../parts";
 import { WAVEFORM_BARS, useRecorder, type Take } from "./recorder";
+import { useSpokenQuestion } from "./spoken-question";
 
 interface Transcript {
   readonly answerId: string;
@@ -75,7 +76,7 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
   const header = (
     <RoundHeader
       title={ROUND_TYPE_NAMES[round.roundType]}
-      meta={copy.meta(round.length)}
+      meta={copy.meta(round.mode, round.length)}
       done={done}
       length={round.length}
       step={copy.step(position, round.length)}
@@ -180,7 +181,13 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
       body = (
         <RecordFrame
           copy={copy}
+          mode={round.mode}
           capSeconds={round.capSeconds}
+          // Named by position, never by text: the server reads what it says (07 §5.15).
+          speechSrc={
+            round.mode === "realistic" ? `/api/rounds/${round.id}/speech?position=${screen.question.position}&kind=question` : null
+          }
+          speechFailed={failureText("speech_failed", round.language)}
           question={screen.question}
           uploading={screen.kind === "uploading"}
           onTake={(take) => void deliver(screen.question, take)}
@@ -239,10 +246,30 @@ function ErrorLine({ error, retryLabel }: { error: { text: string; retry: (() =>
   );
 }
 
-/** 10 §3 and §4: the question at 19px, which does not move when recording starts. */
+/** 10 §3: a 15px speaker, 1.2 stroke, in the line's own colour. */
+function SpeakerGlyph() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M4.6 6H2.4v4h2.2l3 2.4V3.6L4.6 6Z" />
+      <path d="M10.1 5.7a3.1 3.1 0 0 1 0 4.6" />
+      <path d="M12 3.7a5.7 5.7 0 0 1 0 8.6" />
+    </svg>
+  );
+}
+
+/**
+ * 10 §3 and §4: the question at 19px, which does not move when recording starts.
+ *
+ * **Realistic speaks the question and times the take; practice does neither** (10 §12). A practice
+ * take still ends at its cap — the runaway guard, `per_answer_cap_seconds = 900` — and is kept, but
+ * the guard is never drawn: no clock, no `Up to` line, no waveform filling toward an end (03 §7).
+ */
 function RecordFrame({
   copy,
+  mode,
   capSeconds,
+  speechSrc,
+  speechFailed,
   question,
   uploading,
   onTake,
@@ -250,27 +277,51 @@ function RecordFrame({
   stamp,
 }: {
   copy: RoundCopy;
+  mode: RoundMode;
   capSeconds: number;
+  /** The speech route's URL for this prompt; null in practice, which is text only. */
+  speechSrc: string | null;
+  /** The catalogue's `speech_failed` sentence, in the round's language. */
+  speechFailed: string;
   question: Question;
   uploading: boolean;
   onTake: (take: Take) => void;
   error: { text: string; retry: (() => void) | null } | null;
   stamp: string;
 }) {
-  const recorder = useRecorder(capSeconds, onTake);
+  const timed = mode === "realistic";
+  const recorder = useRecorder(capSeconds, onTake, { timed });
   const recording = recorder.state.kind === "recording" ? recorder.state : null;
   const failed = recorder.state.kind === "failed" ? recorder.state.reason : null;
+  const spoken = useSpokenQuestion(speechSrc);
+
+  function startRecording() {
+    spoken.silence();
+    void recorder.start();
+  }
 
   return (
     <div className="flex flex-grow flex-col gap-[26px] px-[32px] pt-[36px] pb-[32px]">
-      {/* The status replaces the speaker line (10 §4); until speech arrives (#45) the line is empty but
-          keeps its height, so the question does not move when recording starts. */}
-      <div className="flex h-[18px] items-center gap-[9px]" role="status">
+      {/* The status replaces the speaker line (10 §4). The line keeps its height in every state, an
+          empty practice one included, so the question does not move when recording starts. */}
+      <div className="flex h-[18px] items-center gap-[9px]" role="status" data-testid="speaker-line">
         {recording ? (
           <>
             <span className="size-[9px] rounded-full bg-attention-mark" aria-hidden />
             <span className="text-[12px] text-attention-ink">{copy.recording}</span>
           </>
+        ) : spoken.status === "failed" ? (
+          <span className="text-[12px] text-attention-ink">{speechFailed}</span>
+        ) : spoken.status === "blocked" ? (
+          <button type="button" onClick={spoken.play} className="flex items-center gap-[9px] text-[12px] text-link hover:text-link-hover hover:underline">
+            <SpeakerGlyph />
+            {copy.playQuestion}
+          </button>
+        ) : spoken.status === "asked" ? (
+          <span className="flex items-center gap-[9px] text-ink-label">
+            <SpeakerGlyph />
+            <span className="text-[12px]">{copy.spoken}</span>
+          </span>
         ) : null}
       </div>
 
@@ -281,36 +332,39 @@ function RecordFrame({
 
       {recording ? (
         <>
-          <p className="flex items-baseline gap-[10px]">
-            <span className="font-mono text-[30px] font-medium tracking-[0.02em]" data-testid="record-timer">
-              {clock(recording.elapsedMs)}
-            </span>
-            <span className="font-mono text-[13px] text-ink-label">/ {clock(capSeconds * 1000)}</span>
-          </p>
+          {timed ? (
+            <p className="flex items-baseline gap-[10px]">
+              <span className="font-mono text-[30px] font-medium tracking-[0.02em]" data-testid="record-timer">
+                {clock(recording.elapsedMs)}
+              </span>
+              <span className="font-mono text-[13px] text-ink-label">/ {clock(capSeconds * 1000)}</span>
+            </p>
+          ) : null}
           <div className="flex h-[34px] w-[880px] items-center" aria-hidden data-testid="waveform">
             <span className="flex items-center gap-[3px]">
               {recording.bars.map((height, index) => (
                 <span key={index} className="w-[2px] bg-mark-mid" style={{ height }} />
               ))}
             </span>
-            {recording.bars.length < WAVEFORM_BARS ? <span className="ml-[4px] h-px flex-1 bg-rule-axis" /> : null}
+            {/* The un-elapsed remainder of the take (10 §4) — which an untimed take does not have. */}
+            {timed && recording.bars.length < WAVEFORM_BARS ? <span className="ml-[4px] h-px flex-1 bg-rule-axis" /> : null}
           </div>
           <div className="flex items-center gap-[22px]">
             <Button variant="outline" onClick={recorder.stop} className="gap-[12px]">
               <span className="size-[10px] bg-ink-1" aria-hidden />
               {copy.stop}
             </Button>
-            <span className={caption}>{copy.autoStop(capSeconds)}</span>
+            {timed ? <span className={caption}>{copy.autoStop(capSeconds)}</span> : null}
           </div>
         </>
       ) : (
         <>
           <div className="flex items-center gap-[22px]">
-            <Button variant="outline" onClick={() => void recorder.start()} disabled={uploading} className="gap-[12px]">
+            <Button variant="outline" onClick={startRecording} disabled={uploading} className="gap-[12px]">
               <span className="size-[11px] rounded-full bg-attention-mark" aria-hidden />
               {copy.startRecording}
             </Button>
-            <span className="font-mono text-[12px] text-ink-label">{copy.cap(capSeconds)}</span>
+            {timed ? <span className="font-mono text-[12px] text-ink-label">{copy.cap(capSeconds)}</span> : null}
           </div>
           {uploading && !error ? (
             <p className={caption} role="status">
@@ -318,7 +372,7 @@ function RecordFrame({
             </p>
           ) : (
             <div className="flex flex-col gap-[9px] text-[12px] leading-[1.75] text-ink-6">
-              <span>{copy.oneTake}</span>
+              {timed ? <span>{copy.oneTake}</span> : null}
               <span>{copy.correctAfter}</span>
             </div>
           )}

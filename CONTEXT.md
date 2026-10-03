@@ -105,8 +105,8 @@ follow the feedback language.
 Next.js (App Router) + TypeScript on Vercel · Tailwind CSS v4 · shadcn/ui on Base UI · Drizzle ·
 Postgres 18 + `pgvector` on Neon (Docker locally) · Better Auth with Google as the only IdP · AWS S3
 for audio · OpenAI `gpt-5.6-sol`, pinned, for every text job — question generation, follow-ups,
-scoring, round feedback, CV claim extraction. Embeddings are `text-embedding-3-small`; the TTS model
-is pinned once verified (`03` §4).
+scoring, round feedback, CV claim extraction. Embeddings are `text-embedding-3-small`; TTS is
+`gpt-4o-mini-tts-2025-12-15` (`03` §4).
 
 **`docs/05-design-system.md` is the only palette.** Tailwind's defaults are wiped, shadcn's variables
 alias `05`'s tokens, and code outside `components/ui/` uses `05` names. `05`'s `--accent` is `--mark`
@@ -206,8 +206,9 @@ Carry these; do not silently decide them in a ticket.
   §3's three prose strings now say `応募書類`, one rewritten for register (`05` §6, `06`).
 - ~~**What a database failure mid-write returns.**~~ **Decided 2026-09-28:** `write_failed`, a
   catalogued `500` in the `07` §2 envelope, on every round route; the round stays resumable (`07` §3).
-- **The text-to-speech model.** A constant in `lib/ai/models.ts`, **pinned only after it is verified**
-  at implementation (`03` §4, `06`, 2026-09-27).
+- ~~**The text-to-speech model.**~~ **Pinned 2026-10-03 (#45):** `gpt-4o-mini-tts-2025-12-15`, voice
+  `marin`. **OpenAI removes it on 2027-01-06**, and its replacement is a Realtime model, so that is a
+  slice of its own before then (`03` §4, `06`).
 - ~~**Who sends the alert mail.**~~ **Decided 2026-09-28:** nobody. The cron routes write to a private,
   signed-in status page the user checks; no email vendor (`12` §6, `06`). Built by #55.
 - **User-facing copy for the error catalogue.** `docs/07-api-design.md` §3 closes the set of error codes;

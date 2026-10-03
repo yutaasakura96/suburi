@@ -628,7 +628,7 @@ so concurrent requests on different serverless instances cannot both slip under 
 | `id` | `uuid` | no | `gen_random_uuid()` | PK |
 | `user_id` | `text` | no | — | → `users.id` **restrict** |
 | `session_id` | `text` | no | — | `sessions.id`, **deliberately not a foreign key** — see below |
-| `route` | `text` | no | — | Checked: `cv-versions`, and since #42 `rounds`, `transcribe`, `submit`, `complete`, `feedback`. Each later ⚡ route in `07` extends the list in the migration of the slice that builds it — the speech route among them (`06`, 2026-09-27) |
+| `route` | `text` | no | — | Checked: `cv-versions`, since #42 `rounds`, `transcribe`, `submit`, `complete`, `feedback`, and since #45 `speech`. Each later ⚡ route in `07` extends the list in the migration of the slice that builds it |
 | `window_started_at` | `timestamptz` | no | — | Database clock, never the function's |
 | `count` | `integer` | no | — | Requests counted in this window, **refused ones included** |
 | `created_at` | `timestamptz` | no | `now()` | |

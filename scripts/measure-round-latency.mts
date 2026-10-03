@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { zodTextFormat } from "openai/helpers/zod";
 import { z } from "zod";
-import { SCORING_MODEL, TRANSCRIPTION_MODEL } from "../lib/ai/models.ts";
+import { SCORING_MODEL, TRANSCRIPTION_MODEL, TTS_MODEL } from "../lib/ai/models.ts";
 import { openAiRoundFeedbackGenerator } from "../lib/ai/round-feedback.ts";
 import { openAiAnswerScorer } from "../lib/ai/score.ts";
 import { openAiTranscriber } from "../lib/ai/transcribe.ts";
@@ -26,7 +26,6 @@ import { EN_1_0 } from "../lib/rubric/en-1.0.ts";
 // Prints timings, token counts and counts only — never a prompt, an answer or a model's output.
 
 const RUNS = Number(process.env.RUNS ?? 5);
-const TTS_MODEL = "gpt-4o-mini-tts-2025-12-15"; // measured, not pinned: #45 pins the speech model
 const EMBEDDING_MODEL = "text-embedding-3-small";
 
 const apiKey = process.env.OPENAI_API_KEY;

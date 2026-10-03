@@ -357,7 +357,7 @@ wiring between screens that no unit test sees.
 | Screen 7 is not skippable | Realistic mode offers no way past the felt-pressure rating to feedback. **This screen is load-bearing for latency** (`03` §3) as well as for the brief's falsification test — a future "skip" link is a regression in two places at once. |
 | Pending score renders | The feedback screen states a pending score plainly and **does not spin** (`03` §5, §8). |
 | Resume | Reload mid-round returns to **the same** question, with earlier answers intact. Starting another round, then opening the first, shows it read-only as abandoned. |
-| Spoken question | Realistic mode requests the speech route for the prompt on screen, by position; practice mode never requests it. |
+| Spoken question | Realistic mode requests the speech route for the prompt on screen, by position; practice mode never requests it. A round opened with no gesture offers the control that plays it. A failed request puts the `speech_failed` notice where the speaker line was, and the take is recorded as usual. |
 | Feedback not ready | With the fake feedback generator failing, screen 8 renders every score, a plain pending sentence and a retry — **no spinner** — and the retry fills the round-level region. |
 | Practice frame | After a practice submit, the per-answer frame states the score as pending, then shows it once scored; "answer again" writes a second answer at the same position with no follow-up. |
 | No deletion surface | No delete or share control on History, a round, an answer or a score (refusals #3, #6). |
@@ -377,7 +377,7 @@ either irreducibly human or need a real human ear.
 
 - [ ] Real mic, real Chrome, real 4-minute take: audio uploads, transcribes, and plays back from History.
 - [ ] Japanese transcription is good enough to correct rather than retype — on **spoken keigo**, which is the hardest case and the one the rubric scores.
-- [ ] Realistic mode's TTS pronounces the question correctly, including company names and 役職 — in both languages, with the model pinned in `lib/ai/models.ts`.
+- [ ] Realistic mode's TTS pronounces the question correctly, including company names and 役職 — in both languages, with the model pinned in `lib/ai/models.ts`. `npm run ear-check` speaks synthetic questions in both languages through the real port and writes them, with a page to play them from, to `private/ear-check/` (#45).
 - [ ] **The round loop's latencies are measured and recorded in `03` §4** — scoring, follow-up generation, round feedback, question generation, transcription and TTS — before the loop is built beyond its tracer (`06`, 2026-09-27). Re-measured whenever a model or prompt for one of them changes.
 - [ ] **The rubric v1.0 read**: the user has reviewed every dimension's per-level anchors in both languages, and the Japanese has had its native read, before it is seeded anywhere real.
 - [ ] The felt-pressure screen still feels unhurried. It is instrumentation and it is where the last score lands; if it starts feeling like a loading screen, both purposes are damaged.
