@@ -360,7 +360,8 @@ round on `develop` on 2026-10-03. The three new Japanese error strings are in
 under `set-piece-ja-1.0`, no 逆質問; 17 synthetic Japanese bank questions for `develop`; `POST
 /api/rounds` in either language; pace in characters per minute of the raw transcript; `score-ja-1.0`
 and `feedback-ja-1.0`, both with #46's CV check, the second returning the English translation in the
-same call, stored in `round_feedback.body_translated`; the round screens in Japanese throughout, the artboards' Latin
+same call, stored in `round_feedback.body_translated`; the Japanese copy of #46's grounding region
+(`10` §8); the round screens in Japanese throughout, the artboards' Latin
 section labels replaced (`10` §0); the feedback pill, which switches the dimension names and the
 findings to English and nothing else; Setup's language option. No migration. Tests: the seeds in both
 languages, a Japanese round through every route, and a Playwright Japanese round beside the English

@@ -735,7 +735,9 @@ asked, the **corrected** transcript — never the raw one — the answer's durat
 CV version's claims. **What it returns**, beside the scores: the citations, the unsupported spans of
 the answer (US-11), and `answered_language`. **The scoring prompt version bumped for this** (#46):
 `score-en-1.1` is `1.0`'s scoring unchanged plus the CV check, a new file and so a new stamp (`03` §4),
-and Progress draws the boundary where an answer's `scoring_prompt_version` changes.
+and Progress draws the boundary where an answer's `scoring_prompt_version` changes. **A Japanese
+round's `score-ja-1.0` carries the same check from its first version** (#43; `06`, 2026-10-03), so it
+has no such boundary.
 
 ```json
 200
@@ -901,7 +903,8 @@ dropped, a repeat is ignored, and anything past the third is dropped. **What sur
 one, two or three ids** — and the feedback is written either way: a bad pick is not a reason to refuse
 findings that are otherwise whole. The `round_feedback_written` log line carries `never_cited`,
 `untouched` and `untouched_dropped`. The feedback prompt version bumped with this, to
-`feedback-en-1.1`.
+`feedback-en-1.1`; a Japanese round's `feedback-ja-1.0` picks untouched material from its first
+version (#43).
 
 **If step 2's bound runs out or step 3 fails**, no `round_feedback` is written: it is one row, never
 rewritten, and feedback from an incomplete set of scores would be permanent (`04`). The response is

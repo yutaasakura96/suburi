@@ -512,7 +512,8 @@ numbers, **all four `not null`**. **Progress draws a boundary wherever any of th
 **What the scorer reads** (`03` §4): the corrected text, the answer's duration and its pace, and the
 CV version's claims — not `transcript_raw`.
 
-**`answered_language` is written on every `ok` attempt from `score-en-1.1` on** (#46), in the
+**`answered_language` is written on every `ok` attempt from `score-en-1.1` on** (#46), and on every
+`ok` attempt of a Japanese round, whose first prompt, `score-ja-1.0`, already returns it (#43), in the
 transaction that writes the scores. **An `ok` attempt from before that has null**, and null is not a
 mismatch: such an answer is neither flagged as wrong-language nor excluded from Progress on that
 ground. Nothing back-fills it — that would be a re-score, which is a new row and a boundary.
