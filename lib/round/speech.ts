@@ -8,10 +8,10 @@ import { getRound, promptAt } from "./state";
 /**
  * `GET /api/rounds/{roundId}/speech` ⚡ (07 §5.15): realistic mode's spoken question, streamed.
  *
- * **The prompt is named by position and kind, never by text.** The text is read from
- * `round_questions` — or the parent's `follow_ups` row — so the route can say nothing but a prompt of
- * this user's own round on the user's key (07 §1 rule 6). A practice round is a 404: practice is text
- * only. So is a position with no prompt, and a `missing` follow-up.
+ * **The prompt is named by position and kind, never by text.** Question text is read from
+ * `round_questions`, so the route can say nothing but a prompt of this user's own round on the user's
+ * key (07 §1 rule 6). Until #44 adds `follow_ups`, every follow-up request is a 404. A practice round
+ * is also a 404: practice is text only.
  *
  * **A failed synthesis is `502 speech_failed`, and the round goes on** (06, 2026-09-28): the question
  * is already on screen as text. The audio is streamed through and not retained.

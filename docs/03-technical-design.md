@@ -442,7 +442,7 @@ when the question is asked and the audio is not retained — questions are stabl
 re-synthesis is cheap and caching adds a store to invalidate for no benefit.
 
 **Through a ⚡ route that streams an OpenAI TTS model's audio** (`07` §5.15, `06`, 2026-09-27). The
-route takes a position, not text, and reads the prompt from `round_questions` or `follow_ups`.
+route takes a position and kind, never text; `07` §5.15 specifies which prompts it currently serves.
 **The model is `gpt-4o-mini-tts-2025-12-15`, voice `marin`**, both constants in `lib/ai/models.ts`,
 pinned on 2026-10-03 after a check of OpenAI's docs (`06`, #45). It is the newest snapshot the speech
 endpoint takes and the one #42 measured above; the alias `gpt-4o-mini-tts` is never used. The model is

@@ -27,7 +27,7 @@ export const TRANSCRIPTION_MODEL = "gpt-transcribe";
  */
 export const TTS_MODEL = "gpt-4o-mini-tts-2025-12-15";
 
-/** The voice is part of what the ear check heard (11 §5), so it is pinned beside the model. */
+/** The voice is part of what the pending ear check will assess (11 §5), so it is pinned beside the model. */
 export const TTS_VOICE = "marin";
 
 /**

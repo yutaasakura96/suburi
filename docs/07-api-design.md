@@ -939,7 +939,7 @@ Realistic mode's spoken question (`06`, 2026-09-27). Streams audio synthesised b
 for **one prompt of this round**, named by position and kind — never by text.
 
 ```
-GET /api/rounds/77af0b13-…/speech?position=2&kind=follow_up
+GET /api/rounds/77af0b13-…/speech?position=2&kind=question
 ```
 ```
 200
@@ -947,11 +947,11 @@ Content-Type: audio/mpeg
 <streamed audio>
 ```
 
-**The server reads the text** from `round_questions` at that position, or from the parent's
-`follow_ups` row; the client sends none, so the route cannot be used to synthesise anything else on
-the user's key (§1 rule 6). A `practice` round is `404` — practice is text only. A position with no
-prompt yet, or a `missing` follow-up, is `404`; until follow-ups exist (#44), so is every `follow_up`
-request. Question audio is well under the 4.5 MB body cap, so it crosses the function; it is **not
+**The server reads question text** from `round_questions` at that position; the client sends none, so
+the route cannot be used to synthesise anything else on the user's key (§1 rule 6). A `practice` round
+or a position with no prompt is `404`. Until #44 adds `follow_ups`, every `follow_up` request is also
+`404`; then the route reads its text from the parent's `follow_ups` row, with a `missing` one still
+`404`. Question audio is well under the 4.5 MB body cap, so it crosses the function; it is **not
 retained** (`03` §4), and the response is `Cache-Control: no-store` so the browser keeps none either.
 
 **The query is validated like a body** (§1 rule 3). `position` is 1–7 and `kind` is `question` or
