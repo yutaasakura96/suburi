@@ -115,6 +115,7 @@ test("the cap fires: a realistic take stops by itself at 4:00 and is kept, with 
   // Screen 3 states the cap and the one take before anything is recorded.
   await expect(page.getByText("Up to 4 min")).toBeVisible();
   await expect(page.getByText("One take. There is no re-recording.")).toBeVisible();
+  await page.screenshot({ path: test.info().outputPath("screen3-realistic.png"), fullPage: true });
   await page.getByRole("button", { name: "Start recording" }).click();
   await expect(page.getByText("Stops by itself at 4 minutes. What was recorded up to then is kept.")).toBeVisible();
   await expect(page.getByTestId("record-timer")).toHaveText("0:01", { timeout: 5_000 });
@@ -153,6 +154,7 @@ test("the runaway guard fires: a practice take is kept at 15 minutes, and is nev
   await expect(frame).toContainText("English · Practice · 3 questions");
   // Practice is text only (10 §3): no speaker line, and nothing is asked of the speech route.
   await expect(page.getByTestId("speaker-line")).toBeEmpty();
+  await page.screenshot({ path: test.info().outputPath("screen3-practice.png"), fullPage: true });
   const neverATimer = /\d:\d\d|\bmin(ute)?s?\b|up to|stops by itself|one take/i;
   await expect(frame).not.toContainText(neverATimer);
 

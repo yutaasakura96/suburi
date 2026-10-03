@@ -1058,8 +1058,8 @@ convert a guarantee in `04` §6 into a preference.
   (`03` §4), and §5.7's response carries the real string.
 - **The near-duplicate threshold** used in §5.4. **Starts at cosine similarity 0.90** (`06`,
   2026-09-27) — an unverified guess until there is real data; see §5.4 and `04`.
-- **The TTS model** behind §5.15, pinned only once verified. ~~What realistic mode does when synthesis
-  fails~~ — **decided 2026-09-28**: text, a notice, `speech_failed` (§5.15).
+- ~~**The TTS model and synthesis failure.**~~ **Resolved:** the pinned model and voice are in `03`
+  §4; §5.15 specifies the text fallback and `speech_failed` response.
 - ~~**`complete`'s wait bound**~~ — **set 2026-10-01** at 60 s, from the round loop's latency
   measurement (§5.12 step 2, `03` §4).
 - ~~**Round feedback when a score ended `failed`**~~ — **decided 2026-09-28**: generated without that
