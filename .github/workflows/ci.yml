@@ -63,5 +63,6 @@ jobs:
       # Playwright's global setup builds its own suburi_e2e database from the migrations.
       - name: End-to-end
         run: npm run test:e2e
+      # `npm audit --audit-level=high`, less the advisory scripts/audit-gate.ts accepts by name.
       - name: Audit
-        run: npm audit --audit-level=high
+        run: npm run audit:ci
