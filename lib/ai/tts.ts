@@ -7,8 +7,8 @@ import { ModelCallFailed, openAiClient, upstreamErrorClass } from "./upstream.ts
  * synthesised when the question is asked and **never retained** — nothing here stores, caches or logs
  * it, or the text it was made from. One real implementation and a fake.
  *
- * **A failure is thrown before the first byte**, as `ModelCallFailed`: the upstream answers with its
- * status before any audio, so the route can still say `502 speech_failed` (07 §5.15).
+ * Upstream status failures throw as `ModelCallFailed`; the route reads the first audio byte before
+ * committing its response so a body failure can still become `502 speech_failed` (07 §5.15).
  */
 
 export interface SpeechInput {

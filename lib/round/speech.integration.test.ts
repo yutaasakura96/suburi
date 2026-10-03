@@ -192,6 +192,48 @@ describe("GET /api/rounds/{id}/speech", () => {
       expect(logged.join("\n")).not.toContain(question);
     }));
 
+  it.each([
+    ["fails before audio", (controller: ReadableStreamDefaultController<Uint8Array>) => controller.error(new Error("upstream reset")), "stream_interrupted"],
+    ["ends without audio", (controller: ReadableStreamDefaultController<Uint8Array>) => controller.close(), "empty_audio"],
+  ])("returns 502 when the stream %s", (_case, start, errorClass) =>
+    inRolledBackTransaction(async (db) => {
+      const { startRound, speakWith } = await setUp(db);
+      const roundId = await startRound();
+      const speech = { modelId: "fake-tts", synthesize: async () => new ReadableStream<Uint8Array>({ start }) };
+      const response = await speakWith(speech, roundId, "position=1&kind=question");
+      expect(response.status).toBe(502);
+      expect((await response.json()).error).toMatchObject({ code: "speech_failed", detail: { error_class: errorClass } });
+      expect(logged.map((line) => JSON.parse(line)).filter((line) => line.event === "question_spoken")).toEqual([]);
+    }));
+
+  it("times out before the first audio byte and cancels the upstream", () =>
+    inRolledBackTransaction(async (db) => {
+      const { startRound, speakWith } = await setUp(db);
+      const roundId = await startRound();
+      let reading: () => void = () => {};
+      const enteredRead = new Promise<void>((resolve) => { reading = resolve; });
+      let cancelled = false;
+      const speech = {
+        modelId: "fake-tts",
+        synthesize: async () => new ReadableStream<Uint8Array>({
+          pull: () => { reading(); return new Promise<void>(() => {}); },
+          cancel: () => { cancelled = true; },
+        }),
+      };
+      vi.useFakeTimers();
+      try {
+        const pending = speakWith(speech, roundId, "position=1&kind=question");
+        await enteredRead;
+        await vi.advanceTimersByTimeAsync(10_000);
+        const response = await pending;
+        expect(response.status).toBe(502);
+        expect((await response.json()).error).toMatchObject({ code: "speech_failed", detail: { error_class: "upstream_timeout" } });
+        expect(cancelled).toBe(true);
+      } finally {
+        vi.useRealTimers();
+      }
+    }));
+
   it("logs a stream that breaks after its first byte, when it can no longer be a 502", () =>
     inRolledBackTransaction(async (db) => {
       const { startRound, speakWith } = await setUp(db);

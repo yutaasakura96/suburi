@@ -32,11 +32,13 @@ const querySchema = z.strictObject({
  * The upstream's audio, passed through. A stream that breaks after its first byte can no longer be a
  * 502, so it is logged here; a client that stops listening cancels the upstream with it.
  */
-function relay(audio: ReadableStream<Uint8Array>, onInterrupted: () => void) {
-  const reader = audio.getReader();
+function relay(reader: ReadableStreamDefaultReader<Uint8Array>, firstByte: Uint8Array, onInterrupted: () => void) {
   // Recording starts mid-question and the browser drops the request: that is not a failure.
   let cancelled = false;
   return new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(firstByte);
+    },
     async pull(controller) {
       try {
         const { done, value } = await reader.read();
@@ -85,10 +87,38 @@ export function createSpeech(deps: SpeechDeps) {
     if (!prompt) return notFound("prompt", { round_id: round.id, position });
 
     const started = performance.now();
-    let audio: ReadableStream<Uint8Array>;
+    const abort = new AbortController();
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+    let firstByte: Uint8Array;
     try {
-      audio = await deps.speech.synthesize({ text: prompt.text, language: round.language }, { timeoutMs: SPEECH_TIMEOUT_MS });
+      const deadline = new Promise<never>((_, reject) => {
+        timeout = setTimeout(() => {
+          abort.abort();
+          reject(new ModelCallFailed("Speech", "upstream_timeout"));
+        }, SPEECH_TIMEOUT_MS);
+      });
+      const audio = await Promise.race([
+        deps.speech.synthesize({ text: prompt.text, language: round.language }, { signal: abort.signal, timeoutMs: SPEECH_TIMEOUT_MS }),
+        deadline,
+      ]);
+      reader = audio.getReader();
+      for (;;) {
+        let chunk: ReadableStreamReadResult<Uint8Array>;
+        try {
+          chunk = await Promise.race([reader.read(), deadline]);
+        } catch (error) {
+          if (error instanceof ModelCallFailed) throw error;
+          throw new ModelCallFailed("Speech", "stream_interrupted");
+        }
+        if (chunk.done) throw new ModelCallFailed("Speech", "empty_audio");
+        if (chunk.value.byteLength > 0) {
+          firstByte = chunk.value;
+          break;
+        }
+      }
     } catch (error) {
+      if (reader) void reader.cancel().catch(() => {});
       const errorClass = error instanceof ModelCallFailed ? error.errorClass : "unexpected";
       // Round id, position and error class, and nothing else (03 §8).
       log("error", { event: "speech_failed", round_id: round.id, position, error_class: errorClass });
@@ -97,6 +127,8 @@ export function createSpeech(deps: SpeechDeps) {
         position,
         error_class: errorClass,
       });
+    } finally {
+      clearTimeout(timeout);
     }
 
     log("info", {
@@ -105,7 +137,7 @@ export function createSpeech(deps: SpeechDeps) {
       position,
       first_byte_ms: Math.round(performance.now() - started),
     });
-    const body = relay(audio, () =>
+    const body = relay(reader, firstByte, () =>
       log("error", { event: "speech_failed", round_id: round.id, position, error_class: "stream_interrupted" }),
     );
     // `no-store`: the audio is not retained (03 §4), by the browser's cache either.
