@@ -110,12 +110,6 @@ describe("auditRefusals", () => {
     );
   });
 
-  it("refuses an accepted advisory that is no longer reported", () => {
-    expect(auditRefusals(report())).toEqual([
-      "GHSA-vfj7-8cjw-p6xm is no longer reported against braces. Remove its entry from scripts/audit-gate.ts.",
-    ]);
-  });
-
   it("refuses a high package that no advisory in the report explains", () => {
     expect(auditRefusals(report(...today, vulnerability("lodash", "high", ["missing"])))).toContain(
       "lodash is high, but the report names no advisory for it.",

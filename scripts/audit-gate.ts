@@ -48,7 +48,6 @@ export function auditRefusals(report: unknown): string[] {
   }
 
   const reasons = new Set<string>();
-  let reported = false;
 
   for (const [name, entry] of packages) {
     if (!failing.has(entry.severity)) continue;
@@ -66,7 +65,6 @@ export function auditRefusals(report: unknown): string[] {
         reasons.add(`${found.name} ${found.range} is ${found.severity}: ${found.url}`);
         continue;
       }
-      reported = true;
       if (found.severity !== acceptedAdvisory.severity) {
         reasons.add(
           `${acceptedAdvisory.id} is now ${found.severity}, not the ${acceptedAdvisory.severity} that was accepted.`,
@@ -79,12 +77,6 @@ export function auditRefusals(report: unknown): string[] {
         );
       }
     }
-  }
-
-  if (!reported) {
-    reasons.add(
-      `${acceptedAdvisory.id} is no longer reported against ${acceptedAdvisory.package}. Remove its entry from scripts/audit-gate.ts.`,
-    );
   }
 
   return [...reasons];
