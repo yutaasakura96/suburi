@@ -125,7 +125,7 @@ for the same reason: an error payload is a third home for sensitive material.
 | `429` | Per-session rate limit on a model route | envelope, `Retry-After` |
 | `500` | A database write failed on a round route | envelope, `code: "write_failed"` — never a bare `500` (`06`, 2026-09-28) |
 | `502` | Upstream failed — OpenAI or S3 | envelope, `code` names which |
-| `503` | Preflight says the scorer is unavailable | envelope, `code: "model_unavailable"`. **Includes a spent OpenAI project** — upstream that is `429 project_spend_limit_exceeded` (or `organization_spend_limit_exceeded`, the same limit one level up), and it is mapped here, never retried as a rate limit (`06`, 2026-09-27, confirm 5). `detail.error_class` carries the upstream code |
+| `503` | Preflight says the scorer is unavailable | envelope, `code: "model_unavailable"`. **Includes a spent OpenAI project** — upstream that is `429 project_spend_limit_exceeded`, mapped here and never retried as a rate limit (`06`, 2026-09-27, confirm 5). `detail.error_class` carries the upstream code |
 
 **`422` is the interesting one.** It is the code for *"this is refused by design"* — submitting a
 felt-pressure rating for a practice round, retrying a score that succeeded, a second first attempt.
@@ -603,7 +603,7 @@ database facts.
 
 **As built (#48).** `round` carries what `POST /api/rounds` returned, less its `stamps`, plus the
 derived `status`. `prompt` and `progress` are the ones `submit` returns as `next` (§5.9). `resume.at`
-is one of `answers` (open the slot for `prompt`), `transcribe` or `submit` (each with the
+is one of `answers` (open the slot for `prompt`), `upload`, `transcribe` or `submit` (each with the
 `answer_id` it is waiting on), or `complete` (every answer is in; the round is waiting for §5.12).
 The route takes no query parameters: one it does not know is a `400` naming it. `POST /api/rounds`
 names this route in its `Location` (§2), now that it exists.
@@ -618,12 +618,12 @@ when a follow-up is next — never selected or generated again. A follow-up shar
 and the same body sent again writes the row (§5.9). Resume never generates one itself, and never
 moves past it.
 
-`state` is derived, not stored: `open` (row exists, no audio) → `uploaded` (`audio_s3_key` set) →
+`state` is derived: `open` (row exists, upload unconfirmed) → `uploaded` (`audio_uploaded_at` set) →
 `transcribed` (`transcript_raw` set) → `submitted` (`transcript_corrected` set). `resume.at` tells the
-client which of the four calls to make next. **`open` is never read in practice** (`06`, 2026-10-04):
-the slot is opened only once a take exists and its key is written with the row (§5.6), so a row reads
-`uploaded` from the start — whether or not the PUT has landed. A resume at `transcribe` whose object
-is not there answers `404 audio_missing`, and the client holds the take, or asks the question again.
+client which call comes next. A reserved `audio_s3_key` never proves the PUT landed. After the server
+reads the object on `transcribe`, it records `audio_uploaded_at` before invoking the model. Until then,
+`resume.at` is `upload`, and the client retains the take for a retry. If the object is absent,
+`transcribe` answers `404 audio_missing` and the question can be recorded again.
 
 **`round.status` is derived** — `in_progress`, `abandoned` or `complete` (`04` `rounds`). **Only the
 newest open round started today — the user's local day, Asia/Tokyo — resumes**; an abandoned round

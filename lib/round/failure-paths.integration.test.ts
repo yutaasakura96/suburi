@@ -254,7 +254,7 @@ async function count(db: TestDb, table: typeof s.rounds | typeof s.answers | typ
 }
 
 describe("GET /api/rounds/{id} — resume (07 §5.5)", () => {
-  it("names each of the four calls in turn, with the stored prompt and each answer's derived state", () =>
+  it("names each next call with the stored prompt and each answer's derived state", () =>
     inRolledBackTransaction(async (db) => {
       const world = await setUp(db);
       const roundId = await world.startRound();
@@ -269,8 +269,8 @@ describe("GET /api/rounds/{id} — resume (07 §5.5)", () => {
 
       const answerId = await world.upload(roundId);
       const uploaded = await world.read(roundId);
-      expect(uploaded.json.answers).toEqual([{ id: answerId, position: 1, kind: "question", state: "uploaded" }]);
-      expect(uploaded.json.resume).toEqual({ at: "transcribe", answer_id: answerId });
+      expect(uploaded.json.answers).toEqual([{ id: answerId, position: 1, kind: "question", state: "open" }]);
+      expect(uploaded.json.resume).toEqual({ at: "upload", answer_id: answerId });
       // The same prompt on every read: it was fixed when the round started.
       expect(uploaded.json.prompt.text).toBe(asked);
 
@@ -300,6 +300,24 @@ describe("GET /api/rounds/{id} — resume (07 §5.5)", () => {
       expect(answered.json.answers).toHaveLength(6);
       // Reading never generates: one follow-up call per question, whatever was read.
       expect(world.followUps.calls).toBe(3);
+    }));
+
+  it("keeps an unconfirmed upload at upload after a failed PUT and confirms one before a failed transcription", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const roundId = await world.startRound();
+      const opened = await world.call(world.handlers.open, roundId, { content_type: "audio/webm", expected_bytes: AUDIO.byteLength });
+      const answerId = opened.json.answer_id as string;
+      expect((await world.read(roundId)).json.resume).toEqual({ at: "upload", answer_id: answerId });
+      const missing = await world.call(world.handlers.transcribe, answerId, {});
+      expect(missing.json.error.code).toBe("audio_missing");
+      world.store.put(world.store.presigned.at(-1)!.key, AUDIO);
+      world.transcriber.transcribe = async () => { throw new ModelCallFailed("Transcription", "upstream_500"); };
+      const failed = await world.call(world.handlers.transcribe, answerId, {});
+      expect(failed.json.error.code).toBe("transcription_failed");
+      expect((await world.read(roundId)).json).toMatchObject({
+        answers: [{ state: "uploaded" }], resume: { at: "transcribe", answer_id: answerId },
+      });
     }));
 
   it("resumes a submitted answer whose follow-up is not stored at `submit`, with no prompt", () =>
@@ -430,6 +448,26 @@ describe("POST /api/answers/{id}/transcript — the typed answer (07 §5.8)", ()
     expect(failed.json.error.code).toBe("transcription_failed");
     return { roundId, answerId };
   }
+
+  it("refuses writes to abandoned and completed rounds without changing the transcript", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const first = await world.startRound();
+      const opened = await world.call(world.handlers.open, first, { content_type: "audio/webm", expected_bytes: AUDIO.byteLength });
+      const answerId = opened.json.answer_id as string;
+      await world.startRound();
+      const abandoned = await world.call(world.handlers.typed, answerId, { source: "typed", text: TYPED });
+      expect(abandoned.json.error.code).toBe("round_abandoned");
+      expect((await db.select().from(s.answers).where(eq(s.answers.id, answerId)))[0].transcriptRaw).toBeNull();
+
+      const current = await world.startRound();
+      const next = await world.call(world.handlers.open, current, { content_type: "audio/webm", expected_bytes: AUDIO.byteLength });
+      const nextId = next.json.answer_id as string;
+      await db.update(s.rounds).set({ completedAt: new Date() }).where(eq(s.rounds.id, current));
+      const completed = await world.call(world.handlers.typed, nextId, { source: "typed", text: TYPED });
+      expect(completed.json.error.code).toBe("round_already_complete");
+      expect((await db.select().from(s.answers).where(eq(s.answers.id, nextId)))[0].transcriptRaw).toBeNull();
+    }));
 
   it("stores the typed text as the raw transcript, with no transcriber, no duration and no pace", () =>
     inRolledBackTransaction(async (db) => {
@@ -652,7 +690,7 @@ describe("write_failed on every round route (11 §3.16)", () => {
         const [row] = await db.select().from(s.answers).where(eq(s.answers.id, answerId));
         expect(row.transcriptRaw).toBeNull();
         expect(world.store.objects.has(row.audioS3Key!)).toBe(true);
-        expect((await world.read(roundId)).json.resume).toEqual({ at: "transcribe", answer_id: answerId });
+        expect((await world.read(roundId)).json.resume).toEqual({ at: row.audioUploadedAt === null ? "upload" : "transcribe", answer_id: answerId });
         expect((await act()).status).toBe(200);
       });
       expect(calls).toBeGreaterThan(0);
@@ -667,7 +705,7 @@ describe("write_failed on every round route (11 §3.16)", () => {
       const calls = await failAtEveryCall(world, act, async () => {
         const [row] = await db.select().from(s.answers).where(eq(s.answers.id, answerId));
         expect(row.transcriptRaw).toBeNull();
-        expect((await world.read(roundId)).json.resume).toEqual({ at: "transcribe", answer_id: answerId });
+        expect((await world.read(roundId)).json.resume).toEqual({ at: "upload", answer_id: answerId });
         expect((await act()).status).toBe(201);
       });
       expect(calls).toBeGreaterThan(0);
@@ -956,12 +994,12 @@ describe("a spent OpenAI project (12 §6, 06 2026-09-27 confirm 5)", () => {
       const roundId = await world.startRound();
       world.followUps.generate = async () => {
         world.followUps.calls += 1;
-        throw new ModelCallFailed("Follow-up generation", "organization_spend_limit_exceeded");
+        throw new ModelCallFailed("Follow-up generation", "project_spend_limit_exceeded");
       };
       const { answerId, submitted } = await world.answerCurrent(roundId);
       expect(submitted.status).toBe(502);
       expect(world.followUps.calls).toBe(1);
       const [row] = await db.select().from(s.followUps).where(eq(s.followUps.parentAnswerId, answerId));
-      expect(row).toMatchObject({ status: "missing", errorClass: "organization_spend_limit_exceeded" });
+      expect(row).toMatchObject({ status: "missing", errorClass: "project_spend_limit_exceeded" });
     }));
 });

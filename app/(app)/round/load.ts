@@ -167,6 +167,7 @@ export interface RoundFrame {
          * resumes at `transcribe` (07 §5.5) — or at the upload, when the take never reached S3.
          */
         readonly openAnswerId: string | null;
+        readonly uploadConfirmed: boolean;
       }
     /**
      * The answer at this position is submitted and its follow-up is not stored yet: the page loaded
@@ -316,6 +317,7 @@ export async function roundFrame(db: Db, userId: string, round: RoundRow): Promi
           ? { answerId: open.id, raw: open.transcriptRaw, durationMs: open.audioDurationMs, wpm: open.wordsPerMinute }
           : null,
       openAnswerId: open && open.transcriptRaw === null ? open.id : null,
+      uploadConfirmed: open?.audioUploadedAt !== null && open?.audioUploadedAt !== undefined,
     },
   };
 }

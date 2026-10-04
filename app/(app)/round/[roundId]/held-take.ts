@@ -2,11 +2,10 @@ import type { Take, TakeContentType } from "./recorder";
 
 // A take that has not reached S3 yet, held in IndexedDB (03 §5): the upload goes browser → S3, so a
 // failed PUT leaves the only copy of the answer in the browser, and a reload must not be what loses
-// it. Written when the take exists, removed once the PUT succeeds.
+// it. Written when the take exists, removed once the server confirms it read the uploaded object.
 //
 // **One take per round**, keyed by the round: a round asks one prompt at a time. A take held for an
-// older round is left alone — only that round's own page may judge it — until it is two days old: a
-// round resumes only on the Asia/Tokyo day it started (04 `rounds`), so by then nothing could take it.
+// older round is left alone — only that round's own page may judge it.
 //
 // Every function resolves rather than throws: where IndexedDB is unavailable the take is simply not
 // held, and the screen says it is only in the tab.
@@ -24,10 +23,7 @@ export interface TakeSlot {
 interface HeldTake extends TakeSlot {
   readonly blob: Blob;
   readonly contentType: TakeContentType;
-  readonly heldAt: number;
 }
-
-const UNDELIVERABLE_AFTER_MS = 2 * 24 * 60 * 60 * 1000;
 
 function open(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -57,14 +53,8 @@ async function transact<T>(mode: IDBTransactionMode, work: (store: IDBObjectStor
 /** Holds the take for its prompt, in place of any earlier take of the same round. `false` when it could not be stored: it is then only in the tab. */
 export async function holdTake(slot: TakeSlot, take: Take): Promise<boolean> {
   try {
-    const held: HeldTake = { ...slot, blob: take.blob, contentType: take.contentType, heldAt: Date.now() };
-    await transact("readwrite", (store) => {
-      const all = store.getAll() as IDBRequest<HeldTake[]>;
-      all.onsuccess = () => {
-        for (const other of all.result) if (held.heldAt - other.heldAt > UNDELIVERABLE_AFTER_MS) store.delete(other.roundId);
-        store.put(held);
-      };
-    });
+    const held: HeldTake = { ...slot, blob: take.blob, contentType: take.contentType };
+    await transact("readwrite", (store) => store.put(held));
     return true;
   } catch {
     return false;

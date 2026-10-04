@@ -7,7 +7,8 @@ function apiError(status: number, code: string | null) {
 }
 
 describe("a spent OpenAI budget (12 §6, 06 2026-09-27 confirm 5)", () => {
-  it.each(["project_spend_limit_exceeded", "organization_spend_limit_exceeded"])("classes a 429 %s as itself, not as a rate limit", (code) => {
+  it("classes a 429 project spend limit as itself, not as a rate limit", () => {
+    const code = "project_spend_limit_exceeded";
     const errorClass = upstreamErrorClass(apiError(429, code));
     expect(errorClass).toBe(code);
     expect(retryableErrorClass(errorClass)).toBe(false);

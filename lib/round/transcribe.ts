@@ -58,6 +58,16 @@ export function createTranscribe(deps: TranscribeDeps) {
       return apiError("audio_missing", "No take has been uploaded for this answer.", { answer_id: answerId });
     }
 
+    if (answer.audioUploadedAt === null) {
+      try {
+        await deps.transaction((tx) =>
+          tx.update(s.answers).set({ audioUploadedAt: new Date() }).where(and(eq(s.answers.id, answerId), isNull(s.answers.audioUploadedAt))),
+        );
+      } catch (error) {
+        return writeFailed("upload_confirmation_write_failed", error, { answer_id: answerId });
+      }
+    }
+
     let result;
     try {
       result = await deps.transcriber.transcribe({

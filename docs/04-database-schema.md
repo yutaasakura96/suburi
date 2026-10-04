@@ -497,6 +497,7 @@ is, and nothing ever backfills it. The follow-up's own answer points at the pare
 | `language` | `text` | no | — | denormalised from `rounds` — see indexes |
 | `is_first_attempt` | `boolean` | no | `false` | see below |
 | `audio_s3_key` | `text` | yes | — | server-generated key; client never chooses it |
+| `audio_uploaded_at` | `timestamptz` | yes | — | set only after the server reads the uploaded object; a reserved key alone does not confirm upload |
 | `audio_duration_ms` | `integer` | yes | — | |
 | `transcript_raw` | `text` | yes | — | **never discarded** (PRD §9) |
 | `transcript_corrected` | `text` | yes | — | |

@@ -2,7 +2,8 @@ import { and, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 import * as s from "../../db/schema";
 import { apiError } from "../api/errors";
-import { answerIdOf, authenticate, guarded, isUuid, log, notFound, parseBody, writeFailed, type RoundDeps } from "./http";
+import { answerIdOf, authenticate, guarded, isUuid, log, notFound, parseBody, roundAbandoned, writeFailed, type RoundDeps } from "./http";
+import { isAbandoned } from "./state";
 
 /**
  * `POST /api/answers/{answerId}/transcript` (07 §5.8): the typing fallback, for a take transcription
@@ -60,13 +61,19 @@ export function createTypedTranscript(deps: RoundDeps) {
     let stored;
     try {
       // Written only while still null: a transcript that landed first is kept, never overwritten.
-      [stored] = await deps.transaction((tx) =>
-        tx
+      const result = await deps.transaction(async (tx) => {
+        const [round] = await tx.select().from(s.rounds).where(eq(s.rounds.id, answer.roundId)).for("update");
+        if (round.completedAt !== null) return apiError("round_already_complete", "The round is already complete.", { round_id: round.id });
+        if (await isAbandoned(tx, round)) return roundAbandoned(round.id);
+        const [updated] = await tx
           .update(s.answers)
           .set({ transcriptRaw: body.text, transcriberModelId: null, audioDurationMs: null, wordsPerMinute: null })
           .where(and(eq(s.answers.id, answerId), isNull(s.answers.transcriptRaw)))
-          .returning(),
-      );
+          .returning();
+        return updated;
+      });
+      if (result instanceof Response) return result;
+      stored = result;
     } catch (error) {
       return writeFailed("typed_transcript_write_failed", error, { answer_id: answerId });
     }

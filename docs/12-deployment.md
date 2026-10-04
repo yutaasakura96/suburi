@@ -451,7 +451,7 @@ the preflight reports it as `503 model_unavailable`, which the app already handl
 route retries it as though it were a rate limit (`07` §2, `06`, confirm 5).
 
 **As built (#48).** `lib/ai/upstream.ts` classes the `429` by its code — `project_spend_limit_exceeded`
-or `organization_spend_limit_exceeded` — instead of as `upstream_429`, marks it not retryable for the
+— instead of as `upstream_429`, marks it not retryable for the
 SDK, and the scoring loop stops on it after one call. **Not verified, and not verifiable without
 spending a project to its limit:** whether OpenAI refuses `GET /v1/models/{id}`, the preflight's
 probe, for a spent project. If it does not, the limit is first met mid-round, where each call fails

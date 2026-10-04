@@ -1669,6 +1669,8 @@ describe("follow-ups: one per answer, written by submit (07 §5.9, 11 §3.1)", (
           followUpVersion: "follow-up-en-fake",
           again: null,
           transcript: null,
+          openAnswerId: null,
+          uploadConfirmed: false,
         });
         expect(frame !== "complete" && frame.followUpVersions).toEqual(["follow-up-en-fake"]);
       }

@@ -9,6 +9,14 @@ What a round does when a recording, an upload, a transcription, a score or a dat
 how it resumes. The behaviour was settled on 2026-09-12, 2026-09-27 and 2026-09-28 (below); these are
 the choices the build needed.
 
+### [2026-10-04] Review correction: reserved keys do not confirm upload
+
+The uploaded state and `transcribe` resume now require `answers.audio_uploaded_at`, recorded after
+the server reads the object. Until then, the take remains on the device and resume names `upload`.
+Typed transcript writes check the round status in their transaction. Spend-limit handling recognizes
+only `project_spend_limit_exceeded`; held takes for other rounds are left alone. The earlier #48
+entries below record the build's first behavior and are superseded on these points.
+
 ### [2026-10-04] Every round route is wrapped: whatever throws leaves as `write_failed`
 
 2026-09-28 made `write_failed` the answer to a failed write. Failing each route at every database

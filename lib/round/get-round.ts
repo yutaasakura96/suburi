@@ -22,16 +22,16 @@ import { nextPrompt } from "./submit";
  */
 export type AnswerState = "open" | "uploaded" | "transcribed" | "submitted";
 
-/** Derived, not stored (07 §5.5). The key is written when the slot opens, so a row reads `uploaded` from then. */
-export function answerState(answer: Pick<AnswerRow, "audioS3Key" | "transcriptRaw" | "transcriptCorrected">): AnswerState {
+/** Derived from the persisted upload confirmation and transcripts (07 §5.5). */
+export function answerState(answer: Pick<AnswerRow, "audioUploadedAt" | "transcriptRaw" | "transcriptCorrected">): AnswerState {
   if (answer.transcriptCorrected !== null) return "submitted";
   if (answer.transcriptRaw !== null) return "transcribed";
-  return answer.audioS3Key !== null ? "uploaded" : "open";
+  return answer.audioUploadedAt !== null ? "uploaded" : "open";
 }
 
 export type Resume =
   | { readonly at: "answers" }
-  | { readonly at: "transcribe" | "submit"; readonly answer_id: string }
+  | { readonly at: "upload" | "transcribe" | "submit"; readonly answer_id: string }
   | { readonly at: "complete" };
 
 /** Which call the round is waiting for. A submitted answer whose follow-up is not stored resumes at `submit`. */
@@ -40,7 +40,10 @@ export function resumeAt(step: RoundStep): Resume | null {
   if (step.kind === "follow_up_due") return { at: "submit", answer_id: step.parent.id };
   if (step.kind !== "answer") return { at: "complete" };
   if (!step.answer) return { at: "answers" };
-  return { at: step.answer.transcriptRaw === null ? "transcribe" : "submit", answer_id: step.answer.id };
+  return {
+    at: step.answer.transcriptRaw !== null ? "submit" : step.answer.audioUploadedAt === null ? "upload" : "transcribe",
+    answer_id: step.answer.id,
+  };
 }
 
 export function createGetRound(deps: RoundDeps) {

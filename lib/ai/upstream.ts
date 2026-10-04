@@ -21,7 +21,7 @@ export class ModelCallFailed extends Error {
  * reached (its spend-limits guide). **It is a 429 that no wait clears**, so it keeps its own class —
  * the code itself — and is never read as a rate limit (06, 2026-09-27, confirm 5).
  */
-export const SPEND_LIMIT_CLASSES = ["project_spend_limit_exceeded", "organization_spend_limit_exceeded"] as const;
+export const SPEND_LIMIT_CLASSES = ["project_spend_limit_exceeded"] as const;
 
 function spendLimitClass(error: InstanceType<typeof OpenAI.APIError>) {
   if (error.status !== 429) return undefined;

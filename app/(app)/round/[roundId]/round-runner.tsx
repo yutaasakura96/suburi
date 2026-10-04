@@ -75,8 +75,7 @@ function initialScreen(start: RoundFrame["start"]): Screen {
   if (start.kind !== "question") return start;
   const question = { position: start.position, text: start.text, followUpVersion: start.followUpVersion };
   if (start.transcript) return { kind: "transcript", question, transcript: start.transcript };
-  // A slot left open resumes at `transcribe` (07 §5.5), unless its take turns out to be held here.
-  return start.openAnswerId ? { kind: "uploading", question, uploaded: true } : { kind: "asked", question };
+  return start.openAnswerId && start.uploadConfirmed ? { kind: "uploading", question, uploaded: true } : { kind: "asked", question };
 }
 
 interface OpenedAnswer {
@@ -214,7 +213,6 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
     } catch {
       return hold(null);
     }
-    await releaseTake(round.id);
     await transcribe(question, opened.json.answer_id);
   }
 
@@ -226,6 +224,7 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
     const transcribed = await postJson<Transcribed>(`/api/answers/${answerId}/transcribe`);
     if (!transcribed.ok) {
       if (transcribed.code === "transcription_failed") {
+        await releaseTake(round.id);
         // The take is kept (07 §5.7): the answer is retried, or typed.
         setBusy(false);
         setScreen({ kind: "untranscribed", question, answerId });
@@ -239,6 +238,7 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
       }
       return fail(transcribed.code, () => void transcribe(question, answerId));
     }
+    await releaseTake(round.id);
     setBusy(false);
     setScreen({
       kind: "transcript",
@@ -267,14 +267,14 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
   }
 
   // Once, when the page loads onto a question with no transcript: a take held on this device goes
-  // back on screen; failing that, a slot already open resumes at `transcribe` (07 §5.5).
+  // back on screen; failing that, a confirmed slot resumes at `transcribe` (07 §5.5).
   const resumeTake = useEffectEvent(async () => {
     const { start } = frame;
     if (start.kind !== "question" || start.transcript) return releaseTake(round.id);
     const question = { position: start.position, text: start.text, followUpVersion: start.followUpVersion };
     const take = await heldTake(slotOf(question));
     if (take) setScreen({ kind: "held", question, take, onDevice: true, cause: null });
-    else if (start.openAnswerId) await transcribe(question, start.openAnswerId);
+    else if (start.openAnswerId && start.uploadConfirmed) await transcribe(question, start.openAnswerId);
   });
   const resumed = useRef(false);
   useEffect(() => {

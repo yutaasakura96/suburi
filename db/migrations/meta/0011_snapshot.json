@@ -1,5 +1,5 @@
 {
-  "id": "23d0d49f-3d4e-4222-b910-2e316069647f",
+  "id": "3bc06dde-5298-47af-b3ce-3ad4a93179ce",
   "prevId": "8cca974e-2c22-45b9-a9d0-5cb5f805cd0c",
   "version": "7",
   "dialect": "postgresql",
@@ -318,6 +318,12 @@
         "audio_s3_key": {
           "name": "audio_s3_key",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "audio_uploaded_at": {
+          "name": "audio_uploaded_at",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         },
@@ -1892,7 +1898,7 @@
       "checkConstraints": {
         "rate_limit_windows_route_check": {
           "name": "rate_limit_windows_route_check",
-          "value": "\"rate_limit_windows\".\"route\" in ('cv-versions', 'rounds', 'transcribe', 'submit', 'complete', 'feedback', 'speech')"
+          "value": "\"rate_limit_windows\".\"route\" in ('cv-versions', 'rounds', 'transcribe', 'submit', 'complete', 'feedback')"
         }
       },
       "isRLSEnabled": false
