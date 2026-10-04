@@ -149,9 +149,19 @@ async function seedEverything(db: TestDb) {
   // Self-references in both directions: a follow-up and a retry.
   await db.insert(s.answers).values(answerValues(world, round.id, { questionId: null, parentAnswerId: first.id, position: 2 }));
   await db.insert(s.answers).values(answerValues(world, round.id, { retryOfAnswerId: first.id, position: 3 }));
+  await db.insert(s.followUps).values({
+    parentAnswerId: first.id,
+    userId: world.userId,
+    status: "generated",
+    promptText: AWKWARD,
+    modelId: "fixture-model",
+    promptVersion: "follow-up-fixture",
+    tokensIn: 400,
+    tokensOut: 20,
+  });
   const [attempt] = await db
     .insert(s.scoringAttempts)
-    .values({ ...attemptValues(world, first.id), status: "ok", tokensIn: 3_000, tokensOut: 600 })
+    .values({ ...attemptValues(world, first.id), status: "ok", answeredLanguage: "en", tokensIn: 3_000, tokensOut: 600 })
     .returning({ id: s.scoringAttempts.id });
   const [rescore] = await db
     .insert(s.scoringAttempts)
@@ -160,11 +170,13 @@ async function seedEverything(db: TestDb) {
   await db.insert(s.heldOutRescores).values({ answerId: first.id, baselineAttemptId: attempt.id, rescoreAttemptId: rescore.id });
   await db.insert(s.scores).values({ scoringAttemptId: attempt.id, dimension: "structure", value: 3, justification: AWKWARD });
   await db.insert(s.claimCitations).values({ answerId: first.id, cvClaimId: claim.id, relation: "supported_by" });
+  await db.insert(s.answerFlags).values({ answerId: first.id, scoringAttemptId: attempt.id, userId: world.userId, kind: "unsupported", spanStart: 0, spanEnd: 3 });
   await db.insert(s.roundFeedback).values({
     roundId: round.id,
     toFix: [{ point: AWKWARD, nested: { n: 1.5, list: [null, true] } }],
     whatWorked: AWKWARD,
     language: "en",
+    untouchedClaimIds: [claim.id],
     modelId: "fixture-model",
     promptVersion: "feedback-fixture",
   });

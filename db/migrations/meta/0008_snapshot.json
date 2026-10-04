@@ -1,5 +1,5 @@
 {
-  "id": "f7699d9c-bbae-404a-8e71-831e87d244e2",
+  "id": "881dd6ee-f06b-44e2-9fd2-ec9ee60ea8f9",
   "prevId": "af299275-f525-4b5b-adba-dfd4758649a7",
   "version": "7",
   "dialect": "postgresql",
@@ -125,6 +125,134 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.answer_flags": {
+      "name": "answer_flags",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "answer_id": {
+          "name": "answer_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "scoring_attempt_id": {
+          "name": "scoring_attempt_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "span_start": {
+          "name": "span_start",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "span_end": {
+          "name": "span_end",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "answer_flags_answer_id_idx": {
+          "name": "answer_flags_answer_id_idx",
+          "columns": [
+            {
+              "expression": "answer_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "answer_flags_answer_id_answers_id_fk": {
+          "name": "answer_flags_answer_id_answers_id_fk",
+          "tableFrom": "answer_flags",
+          "tableTo": "answers",
+          "columnsFrom": [
+            "answer_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "answer_flags_scoring_attempt_id_scoring_attempts_id_fk": {
+          "name": "answer_flags_scoring_attempt_id_scoring_attempts_id_fk",
+          "tableFrom": "answer_flags",
+          "tableTo": "scoring_attempts",
+          "columnsFrom": [
+            "scoring_attempt_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "answer_flags_user_id_users_id_fk": {
+          "name": "answer_flags_user_id_users_id_fk",
+          "tableFrom": "answer_flags",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "answer_flags_kind_check": {
+          "name": "answer_flags_kind_check",
+          "value": "\"answer_flags\".\"kind\" in ('unsupported')"
+        },
+        "answer_flags_span_order_check": {
+          "name": "answer_flags_span_order_check",
+          "value": "\"answer_flags\".\"span_end\" > \"answer_flags\".\"span_start\""
+        }
+      },
       "isRLSEnabled": false
     },
     "public.answers": {
@@ -645,7 +773,7 @@
       "checkConstraints": {
         "cron_readings_signal_check": {
           "name": "cron_readings_signal_check",
-          "value": "\"cron_readings\".\"signal\" in ('scoring_pending_over_24h', 'scoring_failed_unsuperseded', 'spend_week_to_date_usd', 'cv_spans_rejected', 'cv_claims_split', 'cv_claims_duplicated', 'cv_unclaimed_run_max', 'cv_quotes_outside_window', 'round_feedback_missing_over_24h', 'backup_dump_failed', 'digest_rounds_started', 'digest_rounds_completed', 'digest_tokens_in', 'digest_tokens_out', 'digest_spend_usd', 'digest_near_misses', 'digest_near_miss_similarity_min', 'digest_near_miss_similarity_median', 'digest_near_miss_similarity_max', 'digest_near_duplicates_reused')"
+          "value": "\"cron_readings\".\"signal\" in ('scoring_pending_over_24h', 'scoring_failed_unsuperseded', 'spend_week_to_date_usd', 'cv_spans_rejected', 'cv_claims_split', 'cv_claims_duplicated', 'cv_unclaimed_run_max', 'cv_quotes_outside_window', 'round_feedback_missing_over_24h', 'backup_dump_failed', 'digest_rounds_started', 'digest_rounds_completed', 'digest_tokens_in', 'digest_tokens_out', 'digest_spend_usd')"
         },
         "cron_readings_judged_check": {
           "name": "cron_readings_judged_check",
@@ -1249,140 +1377,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.near_duplicate_checks": {
-      "name": "near_duplicate_checks",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "matched_question_id": {
-          "name": "matched_question_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "question_id": {
-          "name": "question_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "similarity": {
-          "name": "similarity",
-          "type": "double precision",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "threshold": {
-          "name": "threshold",
-          "type": "double precision",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "embedding_model_id": {
-          "name": "embedding_model_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "near_duplicate_checks_user_created_at_idx": {
-          "name": "near_duplicate_checks_user_created_at_idx",
-          "columns": [
-            {
-              "expression": "user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "near_duplicate_checks_user_id_users_id_fk": {
-          "name": "near_duplicate_checks_user_id_users_id_fk",
-          "tableFrom": "near_duplicate_checks",
-          "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
-        },
-        "near_duplicate_checks_matched_question_id_questions_id_fk": {
-          "name": "near_duplicate_checks_matched_question_id_questions_id_fk",
-          "tableFrom": "near_duplicate_checks",
-          "tableTo": "questions",
-          "columnsFrom": [
-            "matched_question_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
-        },
-        "near_duplicate_checks_question_id_questions_id_fk": {
-          "name": "near_duplicate_checks_question_id_questions_id_fk",
-          "tableFrom": "near_duplicate_checks",
-          "tableTo": "questions",
-          "columnsFrom": [
-            "question_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "near_duplicate_checks_decision_check": {
-          "name": "near_duplicate_checks_decision_check",
-          "value": "(\"near_duplicate_checks\".\"question_id\" is null) = (\"near_duplicate_checks\".\"similarity\" >= \"near_duplicate_checks\".\"threshold\")"
-        },
-        "near_duplicate_checks_distinct_check": {
-          "name": "near_duplicate_checks_distinct_check",
-          "value": "\"near_duplicate_checks\".\"question_id\" <> \"near_duplicate_checks\".\"matched_question_id\""
-        }
-      },
-      "isRLSEnabled": false
-    },
     "public.questions": {
       "name": "questions",
       "schema": "",
@@ -1681,12 +1675,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "source_filename": {
-          "name": "source_filename",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -1779,6 +1767,13 @@
           "type": "jsonb",
           "primaryKey": false,
           "notNull": false
+        },
+        "untouched_claim_ids": {
+          "name": "untouched_claim_ids",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
         },
         "model_id": {
           "name": "model_id",
@@ -2389,6 +2384,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "answered_language": {
+          "name": "answered_language",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "tokens_in": {
           "name": "tokens_in",
           "type": "integer",
@@ -2533,6 +2534,14 @@
         "scoring_attempts_status_check": {
           "name": "scoring_attempts_status_check",
           "value": "\"scoring_attempts\".\"status\" in ('pending', 'ok', 'failed')"
+        },
+        "scoring_attempts_answered_language_check": {
+          "name": "scoring_attempts_answered_language_check",
+          "value": "\"scoring_attempts\".\"answered_language\" in ('ja', 'en')"
+        },
+        "scoring_attempts_answered_language_ok_check": {
+          "name": "scoring_attempts_answered_language_ok_check",
+          "value": "\"scoring_attempts\".\"answered_language\" is null or \"scoring_attempts\".\"status\" = 'ok'"
         }
       },
       "isRLSEnabled": false

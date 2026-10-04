@@ -1,12 +1,15 @@
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import { z } from "zod";
 import * as s from "../../db/schema";
 import { apiError } from "../api/errors";
-import type { RoundFeedbackGenerator } from "../ai/round-feedback";
+import { translationLanguage, type RoundFeedbackGenerator, type TranslatedFeedback } from "../ai/round-feedback";
 import { ModelCallFailed } from "../ai/upstream";
+import { sliceQuote } from "../cv/spans";
 import type { Rubric } from "../rubric/types";
+import { pickUntouched } from "./grounding";
+import { citableClaimsOf } from "./run-scoring";
 import { authenticate, isUuid, log, notFound, parseBody, roundAbandoned, writeFailed, type Db, type RoundDeps } from "./http";
-import { isAbandoned, latestAttempts, noScores, roundAnswers, roundStep, scoringCounts, type RoundRow } from "./state";
+import { isAbandoned, latestAttempts, noScores, readRoundStep, roundAnswers, scoringCounts, type RoundRow } from "./state";
 
 /**
  * `POST /api/rounds/{roundId}/complete` ⚡ (07 §5.12) and its retry, `POST …/feedback` (§5.16).
@@ -17,7 +20,9 @@ import { isAbandoned, latestAttempts, noScores, roundAnswers, roundStep, scoring
  * 2. Wait, bounded, for the round's pending scores. **A score that ended `failed` is not waited for**,
  *    and its answer never reaches the generator: the feedback is written without it (06, 2026-09-28).
  *    A round with no score at all is refused as `no_scores`.
- * 3. Generate the feedback outside any transaction.
+ * 3. Generate the feedback outside any transaction — from every scored answer with its unsupported
+ *    spans, and the claims of the round's CV version that no answer in the round cited, from which the
+ *    call picks its **untouched material**. Its picks are validated against that set (`grounding.ts`).
  * 4. Write `round_feedback`, whole, once.
  *
  * If the bound runs out or generation fails, **no row is written** — feedback from an incomplete set of
@@ -49,7 +54,9 @@ export function feedbackView(row: FeedbackRow) {
   return {
     to_fix: row.toFix,
     what_worked: row.whatWorked,
+    untouched_claim_ids: row.untouchedClaimIds,
     language: row.language,
+    body_translated: row.bodyTranslated,
     model_id: row.modelId,
     prompt_version: row.promptVersion,
   };
@@ -58,6 +65,23 @@ export function feedbackView(row: FeedbackRow) {
 async function existingFeedback(db: Db, roundId: string) {
   const [row] = await db.select().from(s.roundFeedback).where(eq(s.roundFeedback.roundId, roundId));
   return row ?? null;
+}
+
+/**
+ * The round's never-cited set (04 `round_feedback`): the claims of its CV version that no answer in
+ * the round cited, with either relation — an answer that contradicted a claim did not leave it unused.
+ */
+export async function neverCitedClaims(db: Db, round: Pick<RoundRow, "id" | "cvVersionId">) {
+  const [{ claims }, cited] = await Promise.all([
+    citableClaimsOf(db, round.cvVersionId),
+    db
+      .selectDistinct({ id: s.claimCitations.cvClaimId })
+      .from(s.claimCitations)
+      .innerJoin(s.answers, eq(s.answers.id, s.claimCitations.answerId))
+      .where(eq(s.answers.roundId, round.id)),
+  ]);
+  const used = new Set(cited.map((row) => row.id));
+  return claims.filter((claim) => !used.has(claim.id));
 }
 
 type Outcome =
@@ -109,6 +133,14 @@ async function writeRoundFeedback(deps: CompleteDeps, round: RoundRow): Promise<
     dimensions: rubricRow.dimensions as Rubric["dimensions"],
   };
   const order = rubric.dimensions.map((dimension) => dimension.key as string);
+  const [flagRows, neverCited] = await Promise.all([
+    deps.db
+      .select()
+      .from(s.answerFlags)
+      .where(inArray(s.answerFlags.scoringAttemptId, scored.map(({ attemptId }) => attemptId)))
+      .orderBy(asc(s.answerFlags.spanStart)),
+    neverCitedClaims(deps.db, round),
+  ]);
 
   // Step 3, outside any transaction.
   let result;
@@ -118,6 +150,7 @@ async function writeRoundFeedback(deps: CompleteDeps, round: RoundRow): Promise<
         rubric,
         answers: scored.map(({ answer, attemptId }) => ({
           position: answer.position,
+          followUp: answer.questionId === null,
           prompt: answer.promptText,
           answer: answer.transcriptCorrected ?? "",
           durationMs: answer.audioDurationMs,
@@ -126,7 +159,12 @@ async function writeRoundFeedback(deps: CompleteDeps, round: RoundRow): Promise<
             .filter((score) => score.scoringAttemptId === attemptId)
             .sort((a, b) => order.indexOf(a.dimension) - order.indexOf(b.dimension))
             .map((score) => ({ dimension: score.dimension, value: score.value })),
+          // Sliced from the corrected text by the stored span, never a model's wording (04 `answer_flags`).
+          unsupported: flagRows
+            .filter((flag) => flag.scoringAttemptId === attemptId)
+            .map((flag) => sliceQuote(answer.transcriptCorrected ?? "", { start: flag.spanStart, end: flag.spanEnd })),
         })),
+        unusedClaims: neverCited.map((claim) => claim.text),
       },
       { timeoutMs: FEEDBACK_TIMEOUT_MS },
     );
@@ -135,6 +173,15 @@ async function writeRoundFeedback(deps: CompleteDeps, round: RoundRow): Promise<
   }
   const promptVersion = deps.generator.promptVersions[round.language];
   if (!promptVersion) return failure("no_prompt_for_language");
+  // An id is stored only if the call picked it from the never-cited set it was shown; at most three.
+  const untouched = pickUntouched(neverCited, result.untouched);
+
+  // The English toggle of a Japanese round (PRD §4), from the same call: the row is written once.
+  const translatedInto = translationLanguage(round.language);
+  const bodyTranslated: TranslatedFeedback | null =
+    translatedInto && result.translated
+      ? { language: translatedInto, to_fix: result.translated.toFix, what_worked: result.translated.whatWorked }
+      : null;
 
   // Step 4: written once. A concurrent retry that wrote first keeps its row.
   let feedback: FeedbackRow | null;
@@ -147,7 +194,8 @@ async function writeRoundFeedback(deps: CompleteDeps, round: RoundRow): Promise<
           toFix: result.toFix,
           whatWorked: result.whatWorked,
           language: round.language,
-          bodyTranslated: null,
+          bodyTranslated,
+          untouchedClaimIds: untouched.ids,
           modelId: deps.generator.modelId,
           promptVersion,
           tokensIn: result.tokensIn,
@@ -164,6 +212,9 @@ async function writeRoundFeedback(deps: CompleteDeps, round: RoundRow): Promise<
     event: "round_feedback_written",
     round_id: round.id,
     ...counts,
+    never_cited: neverCited.length,
+    untouched: untouched.ids.length,
+    untouched_dropped: untouched.dropped,
     tokens_in: result.tokensIn,
     tokens_out: result.tokensOut,
     duration_ms: elapsed(),
@@ -210,8 +261,9 @@ export function createComplete(deps: CompleteDeps) {
         if (round.mode === "practice" && pressure !== null) {
           return apiError("pressure_not_applicable", "A practice round records no felt pressure.", { round_id: roundId });
         }
-        const step = roundStep(round, await roundAnswers(tx, roundId));
-        if (step.kind === "answer") {
+        const step = await readRoundStep(tx, round);
+        // A follow-up still to be asked or answered leaves the round as open as an unanswered question.
+        if (step.kind === "answer" || step.kind === "follow_up_due") {
           return apiError("round_not_complete", "Not every question in the round is answered.", {
             round_id: roundId,
             position: step.position,

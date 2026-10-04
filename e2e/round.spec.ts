@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq, isNotNull } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { expect, test, type Page } from "@playwright/test";
 import * as s from "../db/schema";
@@ -11,9 +11,10 @@ import { E2E_URL } from "./database";
 import { generatedQuestions, startMockOpenAi, type MockOpenAi } from "./mock-openai";
 import { startMockS3, type MockS3 } from "./mock-s3";
 
-// The round-loop tracer (#42), end to end against the production build: a realistic English round
-// from Setup to feedback. The microphone is Chromium's fake device; S3 and OpenAI are the local
-// mocks, so nothing leaves the machine and no test calls OpenAI (11 §2).
+// The round loop, end to end against the production build: a realistic round from Setup to feedback,
+// in English (#42) and in Japanese (#43), each answer with its follow-up (#44). The microphone is
+// Chromium's fake device; S3 and OpenAI are the local mocks, so nothing leaves the machine and no
+// test calls OpenAI (11 §2).
 
 test.describe.configure({ mode: "serial" });
 
@@ -48,8 +49,20 @@ async function signIn(page: Page) {
 const RAW = "I led the pay mints migration, um, over six months and cut the failure rate by half.";
 const CORRECTED = "I led the payments migration over six months and cut the failure rate by half.";
 
+// What the fake generator asks after every answer.
+const FOLLOW_UP = "What did you measure to know the failure rate had halved?";
+const FOLLOW_UP_JA = "その移行で、障害率はどのように測りましたか。";
+const HEARD_EN = { text: RAW, seconds: 18 };
+
+// A Japanese take, as 10 §5 draws it: 800 characters in 3:12 is 250 字/分, with an ASR slip (決済期版
+// for 決済基盤) the correction screen exists to fix.
+const RAW_JA = "えー、前職では決済期版の移行を担当しておりまして、半年で完了いたしました。".repeat(22).slice(0, 800);
+const CORRECTED_JA = RAW_JA.replaceAll("決済期版", "決済基盤");
+const HEARD_JA = { text: RAW_JA, seconds: 192 };
+
 const DIMENSIONS = ["structure", "evidence", "relevance", "fluency", "accuracy", "length_pacing"];
-const SCORES = { structure: 4, evidence: 3, relevance: 4, fluency: 3, accuracy: 4, length_pacing: 2 } as const;
+// 10 §8's sample row: 構成 4 · 根拠 3 · 関連性 4 · 流暢さ 3 · 正確さ 4 · 長さ・配分 2 · 敬語 3.
+const SCORES = { structure: 4, evidence: 3, relevance: 4, fluency: 3, accuracy: 4, length_pacing: 2, keigo: 3 } as const;
 const FINDINGS = {
   to_fix: [
     { title: "Lead with the result", body: "In answer 1, the outcome arrives last." },
@@ -57,16 +70,60 @@ const FINDINGS = {
   ],
   what_worked: "In answer 3, the example was concrete and your own.",
 };
+// What the Japanese feedback prompt returns: the findings, and the same findings in English.
+const FINDINGS_JA = {
+  to_fix: [
+    { title: "結論を最初の一文に置く", body: "第1問で、結論が最後に出てくる。" },
+    { title: "数値を一つ挙げる", body: "第2問で、成果が抽象的なままである。" },
+  ],
+  what_worked: "第3問で、具体的な場面を挙げて説明できている。",
+  translated: {
+    to_fix: [
+      { title: "Put the conclusion first", body: "In answer 1, the conclusion arrives last." },
+      { title: "Name one number", body: "In answer 2, the outcome stays abstract." },
+    ],
+    what_worked: "In answer 3, you explained with a concrete situation.",
+  },
+};
+
+// The CV check (#46), as the mock's scorer and feedback call answer it. Each returns one thing the
+// server can verify and one it cannot: the invented ones must never reach the screen.
+const UNSUPPORTED = "cut the failure rate by half";
+const INVENTED_QUOTE = "doubled the company's revenue";
+const INVENTED_CLAIM = 999;
+// An answer given in Japanese to an English round (PRD §7). Synthetic.
+const JAPANESE = "決済基盤の移行を担当し、障害率を半分にしました。";
+const UNUSED_HEADING = "=== CV claims no answer in this round used ===";
+
+/** The claims a call was shown under `heading`, by the number it was shown them with. */
+function claimsShown(body: Record<string, unknown>, heading: string) {
+  const block = String(body.input).split(heading)[1]?.split("\n\n")[0] ?? "";
+  return new Map([...block.matchAll(/^\[(\d+)\] (.+)$/gm)].map((match) => [Number(match[1]), match[2]]));
+}
 
 let s3: MockS3;
 let openAi: MockOpenAi;
 let feedbackFails = false;
+// What the fake transcriber hears next: the mock sees a multipart body, not the round's language.
+let heard = HEARD_EN;
 // Scoring fails, past its retries, for an answer whose text carries UNSCORABLE — or for every answer.
 const UNSCORABLE = "zebra-unscorable-sentinel";
 let scoringFails = false;
+let followUpFails = false;
+let followUpMalformed = false;
 
 function formatOf(body: Record<string, unknown>) {
   return ((body.text as { format?: { name?: string } } | undefined)?.format?.name ?? "") as string;
+}
+
+/** Whether a model call is for a Japanese round: every round-loop input opens with its rubric. */
+function japanese(body: Record<string, unknown>) {
+  return String(body.input).startsWith("=== rubric ja ");
+}
+
+/** Whether a follow-up call is for a Japanese round: its input carries no rubric, its prompt names the 深掘り. */
+function japaneseFollowUp(body: Record<string, unknown>) {
+  return String(body.instructions).includes("深掘り");
 }
 
 test.beforeAll(async () => {
@@ -75,6 +132,7 @@ test.beforeAll(async () => {
   const userId = await seededUserId();
   await withDb(async (db) => {
     await db.transaction((tx) => seedSyntheticCv(tx, userId, "en"));
+    await db.transaction((tx) => seedSyntheticCv(tx, userId, "ja"));
     await seedRubrics(db);
     await seedSetPieces(db, userId);
     await seedSyntheticQuestions(db, userId);
@@ -84,14 +142,36 @@ test.beforeAll(async () => {
     (body) => {
       if (formatOf(body) === "answer_scores") {
         if (scoringFails || JSON.stringify(body).includes(UNSCORABLE)) return { fail: 500 };
-        return { scores: DIMENSIONS.map((dimension) => ({ dimension, value: SCORES[dimension as keyof typeof SCORES], justification: "e2e" })) };
+        const dimensions = japanese(body) ? [...DIMENSIONS, "keigo"] : DIMENSIONS;
+        const answeredJapanese = japanese(body) || String(body.input).includes(JAPANESE);
+        return {
+          scores: dimensions.map((dimension) => ({ dimension, value: SCORES[dimension as keyof typeof SCORES], justification: "e2e" })),
+          citations: [
+            { claim: 1, relation: "supported_by" },
+            { claim: INVENTED_CLAIM, relation: "contradicted_by" },
+          ],
+          unsupported: answeredJapanese
+            ? []
+            : [
+                { quote: UNSUPPORTED, start_hint: 50 },
+                { quote: INVENTED_QUOTE, start_hint: 0 },
+              ],
+          answered_language: answeredJapanese ? "ja" : "en",
+        };
       }
-      if (formatOf(body) === "round_feedback") return feedbackFails ? { fail: 500 } : FINDINGS;
+      if (formatOf(body) === "round_feedback") {
+        return feedbackFails ? { fail: 500 } : { ...(japanese(body) ? FINDINGS_JA : FINDINGS), untouched: [1, 2, INVENTED_CLAIM] };
+      }
+      if (formatOf(body) === "follow_up") {
+        if (followUpFails) return { fail: 500 };
+        if (followUpMalformed) return { follow_up: "What changed? Who approved it?" };
+        return { follow_up: japaneseFollowUp(body) ? FOLLOW_UP_JA : FOLLOW_UP };
+      }
       // Once these specs have answered the seeded questions, a round's are generated (07 §5.4).
       if (formatOf(body) === "generated_questions") return generatedQuestions(body);
       return { fail: 400 };
     },
-    { transcription: () => ({ text: RAW, seconds: 18 }) },
+    { transcription: () => heard },
   );
 });
 
@@ -103,20 +183,23 @@ test.afterAll(async () => {
 test.beforeEach(() => {
   feedbackFails = false;
   scoringFails = false;
+  followUpFails = false;
+  followUpMalformed = false;
+  heard = HEARD_EN;
 });
 
 /** Starts a round through the API, as Setup does. */
-async function startRound(page: Page) {
+async function startRound(page: Page, language: "ja" | "en" = "en") {
   const context = await page.request.post("/api/role-contexts", { data: { kind: "general" } });
   expect(context.ok()).toBe(true);
   const round = await page.request.post("/api/rounds", {
-    data: { round_type: "hr", language: "en", mode: "realistic", length: 3, role_context_id: (await context.json()).id },
+    data: { round_type: "hr", language, mode: "realistic", length: 3, role_context_id: (await context.json()).id },
   });
   expect(round.status()).toBe(201);
   return (await round.json()).round.id as string;
 }
 
-/** One answer through the API — slot, PUT, transcribe, submit — for specs about what comes after. */
+/** One answer through the API — slot, PUT, transcribe, submit — to the round's current prompt. */
 async function answerByApi(page: Page, roundId: string, corrected = CORRECTED) {
   const opened = await page.request.post(`/api/rounds/${roundId}/answers`, {
     data: { content_type: "audio/webm", expected_bytes: 4 },
@@ -127,19 +210,110 @@ async function answerByApi(page: Page, roundId: string, corrected = CORRECTED) {
   expect((await page.request.post(`/api/answers/${slot.answer_id}/transcribe`, { data: {} })).ok()).toBe(true);
   const submitted = await page.request.post(`/api/answers/${slot.answer_id}/submit`, { data: { transcript_corrected: corrected } });
   expect(submitted.ok()).toBe(true);
+  return (await submitted.json()) as { next: { kind: string } };
 }
 
-test("a realistic English round: Setup → record → correct → pressure → feedback, all six rows", async ({ page }) => {
-  test.setTimeout(120_000);
+/** A whole position through the API: the question, then its follow-up — for specs about what comes after. */
+async function positionByApi(page: Page, roundId: string, corrected = CORRECTED, followUpCorrected = CORRECTED) {
+  const { next } = await answerByApi(page, roundId, corrected);
+  expect(next.kind).toBe("follow_up");
+  await answerByApi(page, roundId, followUpCorrected);
+}
+
+/** Screens 4 to 6 in the browser, for the prompt on screen: record, stop, correct, send. */
+async function answerInBrowser(page: Page) {
+  const asked = await page.getByTestId("round-question").boundingBox();
+  await page.getByRole("button", { name: "Start recording" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Recording" })).toBeVisible();
+  // The question does not shrink or move when recording starts (10 §4).
+  expect(await page.getByTestId("round-question").boundingBox()).toEqual(asked);
+  await expect(page.getByTestId("record-timer")).toHaveText("0:01", { timeout: 5_000 });
+  await page.getByRole("button", { name: "Stop and transcribe" }).click();
+
+  // Screen 5: the raw transcript with its slip intact, and figures that agree with each other.
+  await expect(page.getByTestId("raw-transcript")).toHaveText(RAW);
+  await expect(page.getByTestId("take-figures")).toHaveText("0:18 · ~57 wpm · 17 words");
+  await page.getByRole("button", { name: "Correct the transcript" }).click();
+
+  // Screen 6: the raw text stays beside the editor, and the meter moves as the text does.
+  await expect(page.getByTestId("rewrite-percent")).toHaveText("0%");
+  await page.getByRole("textbox").fill(CORRECTED);
+  await expect(page.getByTestId("rewrite-percent")).not.toHaveText("0%");
+  await expect(page.getByTestId("raw-kept")).toHaveText(RAW);
+  await page.getByRole("button", { name: "Send this answer" }).click();
+}
+
+const followUpCalls = () => openAi.requests.filter((request) => formatOf(request.body) === "follow_up");
+
+test("practice asks one follow-up, then moves to the next question", async ({ page }) => {
+  await signIn(page);
+  const context = await page.request.post("/api/role-contexts", { data: { kind: "general" } });
+  expect(context.ok()).toBe(true);
+  const created = await page.request.post("/api/rounds", {
+    data: { round_type: "hr", language: "en", mode: "practice", length: 3, role_context_id: (await context.json()).id },
+  });
+  expect(created.status()).toBe(201);
+  const roundId = (await created.json()).round.id as string;
+  // The mock is shared across this file: count only the calls this round makes.
+  const followUpsBefore = followUpCalls().length;
+
+  const first = await answerByApi(page, roundId);
+  expect(first.next.kind).toBe("follow_up");
+  await page.goto(`/round/${roundId}`);
+  await expect(page.getByTestId("round-step")).toHaveText("Question 1 / 3 · follow-up");
+  await expect(page.getByTestId("round-question")).toHaveText(FOLLOW_UP);
+  await page.screenshot({ path: test.info().outputPath("screen4-practice-follow-up.png"), fullPage: true });
+
+  const second = await answerByApi(page, roundId);
+  expect(second.next.kind).toBe("question");
+  await page.reload();
+  await expect(page.getByTestId("round-step")).toHaveText("Question 2 / 3");
+  expect(followUpCalls().slice(followUpsBefore)).toHaveLength(1);
+});
+
+test("Japanese practice asks its stored 深掘り at the same position", async ({ page }) => {
+  heard = HEARD_JA;
+  await signIn(page);
+  const context = await page.request.post("/api/role-contexts", { data: { kind: "general" } });
+  expect(context.ok()).toBe(true);
+  const created = await page.request.post("/api/rounds", {
+    data: { round_type: "hr", language: "ja", mode: "practice", length: 3, role_context_id: (await context.json()).id },
+  });
+  expect(created.status()).toBe(201);
+  const roundId = (await created.json()).round.id as string;
+  const before = followUpCalls().length;
+
+  const first = await answerByApi(page, roundId, CORRECTED_JA);
+  expect(first.next.kind).toBe("follow_up");
+  await page.goto(`/round/${roundId}`);
+  await expect(page.getByTestId("round-step")).toHaveText("第1問 / 3問・深掘り");
+  await expect(page.getByTestId("round-question")).toHaveText(FOLLOW_UP_JA);
+  await page.reload();
+  await expect(page.getByTestId("round-question")).toHaveText(FOLLOW_UP_JA);
+  expect(followUpCalls().slice(before)).toHaveLength(1);
+  await page.screenshot({ path: test.info().outputPath("ja-practice-follow-up.png"), fullPage: true });
+
+  const second = await answerByApi(page, roundId, CORRECTED_JA);
+  expect(second.next.kind).toBe("question");
+  await page.reload();
+  await expect(page.getByTestId("round-step")).toHaveText("第2問 / 3問");
+  expect(followUpCalls().slice(before)).toHaveLength(1);
+});
+
+test("a realistic English round: Setup → each question and its follow-up → pressure → feedback, all six rows", async ({ page }) => {
+  test.setTimeout(180_000);
   await signIn(page);
   const userId = await seededUserId();
+  // The mock is shared across this file: count only the calls this round makes.
+  const requestsBefore = openAi.requests.length;
+  const followUpsBefore = followUpCalls().length;
 
   await page.goto("/");
   await page.getByRole("link", { name: "Start a round" }).click();
   await expect(page).toHaveURL("/round/new");
   // v1 seeded here, or a later version cv.spec.ts saved: whichever is current.
   await expect(page.getByTestId("setup-cv")).toContainText(/^CV v\d+/);
-  await expect(page.getByTestId("setup-estimate")).toContainText("3 questions · up to about 12 min");
+  await expect(page.getByTestId("setup-estimate")).toContainText("3 questions + 3 follow-ups · up to about 24 min");
   // A role context is required, and neither card is chosen for the user (10 §2).
   await expect(page.getByRole("button", { name: "Start this round" })).toBeDisabled();
   await page.getByRole("radio", { name: "General practice" }).click();
@@ -152,26 +326,20 @@ test("a realistic English round: Setup → record → correct → pressure → f
     // Realistic asks one unseen set piece first (07 §5.4).
     if (position === 1) await expect(page.getByTestId("round-question")).toHaveText("Could you start by introducing yourself?");
     await expect(page.getByText("The feedback comes together when the round ends. Nothing is shown along the way.")).toBeVisible();
+    await answerInBrowser(page);
 
-    const asked = await page.getByTestId("round-question").boundingBox();
-    await page.getByRole("button", { name: "Start recording" }).click();
-    await expect(page.getByRole("status").filter({ hasText: "Recording" })).toBeVisible();
-    // The question does not shrink or move when recording starts (10 §4).
-    expect(await page.getByTestId("round-question").boundingBox()).toEqual(asked);
-    await expect(page.getByTestId("record-timer")).toHaveText("0:01", { timeout: 5_000 });
-    await page.getByRole("button", { name: "Stop and transcribe" }).click();
-
-    // Screen 5: the raw transcript with its slip intact, and figures that agree with each other.
-    await expect(page.getByTestId("raw-transcript")).toHaveText(RAW);
-    await expect(page.getByTestId("take-figures")).toHaveText("0:18 · ~57 wpm · 17 words");
-    await page.getByRole("button", { name: "Correct the transcript" }).click();
-
-    // Screen 6: the raw text stays beside the editor, and the meter moves as the text does.
-    await expect(page.getByTestId("rewrite-percent")).toHaveText("0%");
-    await page.getByRole("textbox").fill(CORRECTED);
-    await expect(page.getByTestId("rewrite-percent")).not.toHaveText("0%");
-    await expect(page.getByTestId("raw-kept")).toHaveText(RAW);
-    await page.getByRole("button", { name: "Send this answer" }).click();
+    // The one follow-up, generated from what was just sent, at the same position (07 §5.9).
+    await expect(page.getByTestId("round-step")).toHaveText(`Question ${position} / 3 · follow-up`);
+    await expect(page.getByTestId("round-question")).toHaveText(FOLLOW_UP);
+    if (position === 2) {
+      // A reload asks the stored follow-up again; nothing generates it a second time (07 §5.5).
+      const generated = followUpCalls().length;
+      await page.reload();
+      await expect(page.getByTestId("round-step")).toHaveText("Question 2 / 3 · follow-up");
+      await expect(page.getByTestId("round-question")).toHaveText(FOLLOW_UP);
+      expect(followUpCalls()).toHaveLength(generated);
+    }
+    await answerInBrowser(page);
   }
 
   // Screen 7: not skippable — inert until a rating is picked, and no way round it.
@@ -194,22 +362,68 @@ test("a realistic English round: Setup → record → correct → pressure → f
   await expect(page.getByTestId("pressure-stamp")).toHaveText("Pressure 4 recorded before the feedback");
   await expect(page.getByTestId("round-stamp")).toContainText("Rubric v1.0");
   await expect(page.getByTestId("answer-figures")).toContainText("0 min 18 s · ~57 wpm · rewrite");
+  // The follow-up is a row under its answer's scores, with no scale of its own (10 §8).
+  await expect(page.getByTestId("follow-up-row")).toHaveText(`└ Follow-up${FOLLOW_UP}Scored on 6 dimensions. Not counted in progress.`);
+  await expect(page.getByTestId("round-stamp")).toContainText("follow-up-en-1.0");
+  await page.screenshot({ path: test.info().outputPath("screen8-follow-up.png"), fullPage: true });
   // No composite, anywhere on the screen (AGENTS.md invariant 1).
   await expect(page.locator("main")).not.toContainText(/total|average|overall/i);
+
+  // The CV check (10 §8): one flag per answer, quoted from the corrected text by span; one unused
+  // claim, quoted from the CV by span. What the mock invented was dropped.
+  const feedbackCall = openAi.requests.findLast((request) => formatOf(request.body) === "round_feedback")!;
+  const unused = claimsShown(feedbackCall.body, UNUSED_HEADING);
+  expect(unused.size).toBeGreaterThan(0);
+  const grounding = page.getByTestId("grounding");
+  await expect(grounding).toContainText("Checked against your CV");
+  await expect(grounding.getByTestId("unsupported")).toHaveText(
+    [1, 2, 3].map((position) => new RegExp(`^Unsupported \\(Question ${position}\\) — nothing in CV v\\d+ backs “${UNSUPPORTED}”\\.$`)),
+  );
+  await expect(grounding.getByTestId("untouched")).toHaveText(`Unused — “${unused.get(1)}” “${unused.get(2)}”`);
+  await expect(grounding).not.toContainText(INVENTED_QUOTE);
+  // Every answer was in English: no answer carries the wrong-language line.
+  await expect(page.getByTestId("wrong-language")).toHaveCount(0);
+  const stored = await withDb(async (db) => ({
+    attempts: await db.select({ status: s.scoringAttempts.status, prompt: s.scoringAttempts.scoringPromptVersion, language: s.scoringAttempts.answeredLanguage })
+      .from(s.scoringAttempts).innerJoin(s.answers, eq(s.answers.id, s.scoringAttempts.answerId))
+      .where(eq(s.answers.roundId, roundId)),
+    citations: await db.select({ relation: s.claimCitations.relation }).from(s.claimCitations)
+      .innerJoin(s.answers, eq(s.answers.id, s.claimCitations.answerId))
+      .where(eq(s.answers.roundId, roundId)),
+    flags: await db.select({ start: s.answerFlags.spanStart, end: s.answerFlags.spanEnd, corrected: s.answers.transcriptCorrected })
+      .from(s.answerFlags).innerJoin(s.answers, eq(s.answers.id, s.answerFlags.answerId))
+      .where(eq(s.answers.roundId, roundId)),
+    feedback: await db.select({ ids: s.roundFeedback.untouchedClaimIds }).from(s.roundFeedback)
+      .where(eq(s.roundFeedback.roundId, roundId)),
+  }));
+  // Three questions and three follow-ups: a follow-up's answer goes through the same check. Its flag
+  // is stored and sent to the feedback call; the region above names the bank questions' only.
+  expect(stored.attempts).toHaveLength(6);
+  expect(stored.attempts.every((attempt) => attempt.status === "ok" && attempt.prompt === "score-en-1.1" && attempt.language === "en")).toBe(true);
+  expect(stored.citations.map((citation) => citation.relation)).toEqual(Array(6).fill("supported_by"));
+  expect(stored.flags).toHaveLength(6);
+  for (const flag of stored.flags) expect([...flag.corrected!].slice(flag.start, flag.end).join("")).toBe(UNSUPPORTED);
+  expect(stored.feedback[0].ids).toHaveLength(2);
+  await page.screenshot({ path: test.info().outputPath("screen8-grounding.png"), fullPage: true });
+
   await page.getByRole("button", { name: "Question 2" }).click();
   await expect(page.getByTestId("answer-region")).toHaveAttribute("data-position", "2");
+  await expect(page.getByTestId("wrong-language")).toHaveCount(0);
 
-  // Three takes under dev/{user}/{round}/, each as the browser recorded it.
+  // Six takes under dev/{user}/{round}/ — three questions, three follow-ups — each as the browser recorded it.
   const keys = [...s3.objects.keys()].filter((key) => key.startsWith(`dev/${userId}/${roundId}/`));
-  expect(keys).toHaveLength(3);
+  expect(keys).toHaveLength(6);
   for (const key of keys) {
     expect(s3.objects.get(key)!.bytes).toBeGreaterThan(0);
     expect(s3.objects.get(key)!.contentType).toMatch(/^audio\/webm/);
   }
   // The scorer read the corrected text, never the raw one (03 §4).
-  const scoring = openAi.requests.filter((request) => formatOf(request.body) === "answer_scores");
-  expect(scoring.length).toBeGreaterThanOrEqual(3);
-  for (const request of scoring) {
+  const scoring = openAi.requests.slice(requestsBefore).filter((request) => formatOf(request.body) === "answer_scores");
+  expect(scoring.length).toBeGreaterThanOrEqual(6);
+  // So did the follow-up generator: one call per question's answer, none for a follow-up's own.
+  const generated = followUpCalls().slice(followUpsBefore);
+  expect(generated).toHaveLength(3);
+  for (const request of [...scoring, ...generated]) {
     expect(JSON.stringify(request.body)).toContain("payments migration");
     expect(JSON.stringify(request.body)).not.toContain("pay mints");
   }
@@ -217,12 +431,80 @@ test("a realistic English round: Setup → record → correct → pressure → f
   // A completed round's page is its feedback.
   await page.goto(`/round/${roundId}`);
   await expect(page).toHaveURL(`/round/${roundId}/feedback`);
+
+  // Coverage on /cv (10 §13): the claim the answers cited carries the heavier mark, and the count
+  // line says how many are still unused. The scorer was shown the claims in the order /cv draws them.
+  const shown = claimsShown(openAi.requests.findLast((request) => formatOf(request.body) === "answer_scores")!.body, "=== CV claims ===");
+  await page.goto("/cv");
+  const cv = page.getByRole("region", { name: "CV", exact: true });
+  await expect(cv.locator('[data-claim="used"]')).toHaveText([shown.get(1)!]);
+  await expect(cv.locator('[data-claim="unused"]')).toHaveCount(shown.size - 1);
+  await expect(cv.getByTestId("cv-claim-count")).toHaveText(`${shown.size} claims · ${shown.size - 1} never used`);
+  await expect(cv.getByTestId("cv-coverage-legend")).toHaveText("A heavier underline marks a claim one of your answers has used.");
+  await page.screenshot({ path: test.info().outputPath("cv-coverage.png"), fullPage: true });
+});
+
+test("an answer given in Japanese to an English round says so on its own page of the feedback", async ({ page }) => {
+  test.setTimeout(120_000);
+  await signIn(page);
+  const roundId = await startRound(page);
+  await positionByApi(page, roundId);
+  await positionByApi(page, roundId, JAPANESE);
+  await positionByApi(page, roundId);
+  await scoringSettled(roundId);
+
+  await page.goto(`/round/${roundId}`);
+  await page.getByRole("radio", { name: /Fairly tense/ }).click();
+  await page.getByRole("button", { name: "Go to the feedback" }).click();
+  await expect(page).toHaveURL(`/round/${roundId}/feedback`);
+
+  await expect(page.getByTestId("wrong-language")).toHaveCount(0);
+  await page.getByRole("button", { name: "Question 2" }).click();
+  await expect(page.getByTestId("wrong-language")).toHaveText("This answer was given in Japanese. It is kept out of your English progress.");
+  // It was still scored (PRD §7): the rows are there, and nothing was flagged in it.
+  await expect(page.getByTestId("score-value")).toHaveText(["4", "3", "4", "3", "4", "2"]);
+  await expect(page.getByTestId("grounding").getByTestId("unsupported")).toHaveCount(2);
+  await page.screenshot({ path: test.info().outputPath("screen8-wrong-language.png"), fullPage: true });
+  await page.getByRole("button", { name: "Question 3" }).click();
+  await expect(page.getByTestId("wrong-language")).toHaveCount(0);
+
+  // Stored on the attempt, for Progress to leave it out (04 `scoring_attempts`).
+  const languages = await withDb((db) =>
+    db
+      .select({ position: s.answers.position, answered: s.scoringAttempts.answeredLanguage })
+      .from(s.scoringAttempts)
+      .innerJoin(s.answers, eq(s.answers.id, s.scoringAttempts.answerId))
+      .where(and(eq(s.answers.roundId, roundId), isNotNull(s.answers.questionId)))
+      .orderBy(s.answers.position),
+  );
+  // The bank questions' answers; each follow-up was answered in English.
+  expect(languages.map((row) => row.answered)).toEqual(["en", "ja", "en"]);
+});
+
+test("two generated questions are recorded as a missing follow-up", async ({ page }) => {
+  await signIn(page);
+  const roundId = await startRound(page);
+  followUpMalformed = true;
+  await page.goto(`/round/${roundId}`);
+  await answerInBrowser(page);
+  await expect(page.getByTestId("follow-up-notice")).toContainText("could not be generated");
+  await page.screenshot({ path: test.info().outputPath("screen6-malformed-follow-up.png"), fullPage: true });
+  const rows = await withDb((db) =>
+    db
+      .select({ status: s.followUps.status, errorClass: s.followUps.errorClass })
+      .from(s.followUps)
+      .innerJoin(s.answers, eq(s.answers.id, s.followUps.parentAnswerId))
+      .where(eq(s.answers.roundId, roundId)),
+  );
+  expect(rows).toEqual([{ status: "missing", errorClass: "malformed_output" }]);
+  await page.getByRole("button", { name: "Go on" }).click();
+  await expect(page.getByTestId("round-step")).toHaveText("Question 2 / 3");
 });
 
 test("screen 7 cannot be skipped: the feedback URL sends an unrated round back to it", async ({ page }) => {
   await signIn(page);
   const roundId = await startRound(page);
-  for (let position = 1; position <= 3; position += 1) await answerByApi(page, roundId);
+  for (let position = 1; position <= 3; position += 1) await positionByApi(page, roundId);
 
   await page.goto(`/round/${roundId}/feedback`);
   await expect(page).toHaveURL(`/round/${roundId}`);
@@ -239,7 +521,7 @@ test("screen 7 cannot be skipped: the feedback URL sends an unrated round back t
 test("feedback not ready: the scores render, one sentence says so, and the retry writes the findings", async ({ page }) => {
   await signIn(page);
   const roundId = await startRound(page);
-  for (let position = 1; position <= 3; position += 1) await answerByApi(page, roundId);
+  for (let position = 1; position <= 3; position += 1) await positionByApi(page, roundId);
 
   feedbackFails = true;
   await page.goto(`/round/${roundId}`);
@@ -258,6 +540,84 @@ test("feedback not ready: the scores render, one sentence says so, and the retry
   await expect(page.getByTestId("findings-not-ready")).toHaveCount(0);
 });
 
+test("a follow-up that could not be generated: the answer is saved, the screen says so, and the round goes on", async ({ page }) => {
+  test.setTimeout(120_000);
+  await signIn(page);
+  const roundId = await startRound(page);
+
+  followUpFails = true;
+  await page.goto(`/round/${roundId}`);
+  await answerInBrowser(page);
+  // Said, not skipped silently (02 US-7): the answer is locked, and one control goes on.
+  await expect(page.getByTestId("follow-up-notice")).toHaveText("The follow-up question could not be generated. Your answer is saved.");
+  await expect(page.getByRole("textbox")).toHaveCount(0);
+  await page.screenshot({ path: test.info().outputPath("screen6-follow-up-missing.png"), fullPage: true });
+  await page.getByRole("button", { name: "Go on" }).click();
+  await expect(page.getByTestId("round-step")).toHaveText("Question 2 / 3");
+
+  // The hole is a row, with the class of the failure and no text.
+  const rows = await withDb((db) =>
+    db
+      .select({ status: s.followUps.status, promptText: s.followUps.promptText, errorClass: s.followUps.errorClass })
+      .from(s.followUps)
+      .innerJoin(s.answers, eq(s.answers.id, s.followUps.parentAnswerId))
+      .where(eq(s.answers.roundId, roundId)),
+  );
+  expect(rows).toEqual([{ status: "missing", promptText: null, errorClass: "upstream_500" }]);
+
+  followUpFails = false;
+  await positionByApi(page, roundId);
+  await positionByApi(page, roundId);
+  await page.reload();
+  await page.getByRole("radio", { name: /Fairly tense/ }).click();
+  await page.getByRole("button", { name: "Go to the feedback" }).click();
+  await expect(page).toHaveURL(`/round/${roundId}/feedback`);
+
+  // Screen 8 shows the gap on the answer it belongs to, and the follow-ups that were asked on theirs.
+  await expect(page.getByTestId("answer-region")).toHaveAttribute("data-position", "1");
+  await expect(page.getByTestId("score-row")).toHaveCount(6);
+  await expect(page.getByTestId("follow-up-missing")).toHaveText("The follow-up was not generated. It is recorded as a gap.");
+  await page.screenshot({ path: test.info().outputPath("screen8-follow-up-missing.png"), fullPage: true });
+  await page.getByRole("button", { name: "Question 2" }).click();
+  await expect(page.getByTestId("follow-up-missing")).toHaveCount(0);
+  await expect(page.getByTestId("follow-up-row")).toContainText(FOLLOW_UP);
+});
+
+test("a reload between an answer's commit and its follow-up: the saved answer, and going on writes the follow-up", async ({ page }) => {
+  await signIn(page);
+  const roundId = await startRound(page);
+  await answerByApi(page, roundId);
+  // A submit that died after committing the answer and before storing its follow-up leaves no row.
+  // Nothing in the app removes one; this is the throwaway database standing in for that crash.
+  await withDb(async (db) => {
+    const [parent] = await db.select({ id: s.answers.id }).from(s.answers).where(eq(s.answers.roundId, roundId));
+    await db.delete(s.followUps).where(eq(s.followUps.parentAnswerId, parent.id));
+  });
+
+  await page.goto(`/round/${roundId}`);
+  await expect(page.getByTestId("round-step")).toHaveText("Question 1 / 3");
+  await expect(page.getByTestId("follow-up-notice")).toHaveText(
+    "Your answer is saved. Its follow-up question had not been written when this page loaded.",
+  );
+  // The answer is committed: no recorder and no editor, only the way on.
+  await expect(page.getByRole("button", { name: "Start recording" })).toHaveCount(0);
+  await expect(page.getByRole("textbox")).toHaveCount(0);
+  await page.screenshot({ path: test.info().outputPath("screen6-follow-up-not-stored.png"), fullPage: true });
+
+  await page.getByRole("button", { name: "Go on" }).click();
+  await expect(page.getByTestId("round-step")).toHaveText("Question 1 / 3 · follow-up");
+  await expect(page.getByTestId("round-question")).toHaveText(FOLLOW_UP);
+  await page.screenshot({ path: test.info().outputPath("screen4-follow-up.png"), fullPage: true });
+  const rows = await withDb((db) =>
+    db
+      .select({ status: s.followUps.status })
+      .from(s.followUps)
+      .innerJoin(s.answers, eq(s.answers.id, s.followUps.parentAnswerId))
+      .where(eq(s.answers.roundId, roundId)),
+  );
+  expect(rows).toEqual([{ status: "generated" }]);
+});
+
 /** Waits until every answer of the round has a finished latest scoring attempt. */
 async function scoringSettled(roundId: string) {
   await expect
@@ -269,7 +629,7 @@ async function scoringSettled(roundId: string) {
             .from(s.scoringAttempts)
             .innerJoin(s.answers, eq(s.answers.id, s.scoringAttempts.answerId))
             .where(eq(s.answers.roundId, roundId));
-          return rows.length >= 3 && rows.every((row) => row.status !== "pending");
+          return rows.length >= 6 && rows.every((row) => row.status !== "pending");
         }),
       { timeout: 60_000, intervals: [1_000] },
     )
@@ -280,9 +640,9 @@ test("an answer whose scoring failed never reaches the feedback generator", asyn
   test.setTimeout(120_000);
   await signIn(page);
   const roundId = await startRound(page);
-  await answerByApi(page, roundId);
-  await answerByApi(page, roundId, `I could not be scored ${UNSCORABLE}.`);
-  await answerByApi(page, roundId);
+  await positionByApi(page, roundId);
+  await positionByApi(page, roundId, `I could not be scored ${UNSCORABLE}.`);
+  await positionByApi(page, roundId);
   await scoringSettled(roundId);
 
   const before = openAi.requests.length;
@@ -299,6 +659,8 @@ test("an answer whose scoring failed never reaches the feedback generator", asyn
   expect(sent).toContain("=== answer 1 ===");
   expect(sent).not.toContain("=== answer 2 ===");
   expect(sent).toContain("=== answer 3 ===");
+  // Its follow-up's answer was scored on its own, and is sent under the same number.
+  expect(sent).toContain("=== answer 2, follow-up ===");
   await page.screenshot({ path: test.info().outputPath("screen8-one-failed.png"), fullPage: true });
 });
 
@@ -307,7 +669,7 @@ test("no answer scored: screen 8 says so, offers no retry, and the API refuses a
   await signIn(page);
   const roundId = await startRound(page);
   scoringFails = true;
-  for (let position = 1; position <= 3; position += 1) await answerByApi(page, roundId);
+  for (let position = 1; position <= 3; position += 1) await positionByApi(page, roundId);
   await scoringSettled(roundId);
 
   const before = openAi.requests.length;
@@ -330,4 +692,216 @@ test("no answer scored: screen 8 says so, offers no retry, and the API refuses a
   expect(openAi.requests.slice(before).filter((request) => formatOf(request.body) === "round_feedback")).toHaveLength(0);
   await page.reload();
   await expect(page.getByTestId("findings-unavailable")).toBeVisible();
+});
+
+// The English chrome's own words: none of them may appear on a Japanese round's screens (10 §0).
+const ENGLISH_CHROME = /Question|Record|Rewrite|Raw|transcript|feedback|Send|Start|Stop|Correct|tense|Pressure|Rubric|wpm|words|Home|scored/i;
+
+test("a realistic Japanese round: Japanese throughout, seven rows, and the feedback read in English", async ({ page }) => {
+  test.setTimeout(180_000);
+  heard = HEARD_JA;
+  await signIn(page);
+  const requestsBefore = openAi.requests.length;
+  const shot = (name: string) => page.screenshot({ path: test.info().outputPath(`ja-${name}.png`), fullPage: true });
+
+  // Setup is app-level and English (10 §0); the stored label keeps its own language.
+  await page.goto("/round/new");
+  await page.getByRole("radio", { name: "Japanese" }).click();
+  await expect(page.getByTestId("setup-cv")).toContainText(/^応募書類 v\d+/);
+  await expect(page.getByTestId("setup-estimate")).toContainText("Rubric v1.0");
+  await page.getByRole("radio", { name: "General practice" }).click();
+  await shot("2-setup");
+  await page.getByRole("button", { name: "Start this round" }).click();
+  await expect(page).toHaveURL(/\/round\/[0-9a-f-]{36}$/);
+  const roundId = page.url().split("/").at(-1)!;
+  const main = page.locator("main");
+  await expect(main).toHaveAttribute("lang", "ja");
+  await expect(page).toHaveTitle("ラウンド — Suburi");
+
+  for (let position = 1; position <= 3; position += 1) {
+    // Screen 3: the round header and the asked frame.
+    await expect(page.getByTestId("round-step")).toHaveText(`第${position}問 / 3問`);
+    await expect(page.getByRole("heading", { name: "人事面接" })).toBeVisible();
+    await expect(page.getByText("日本語・実戦・3問")).toBeVisible();
+    if (position === 1) await expect(page.getByTestId("round-question")).toHaveText("まず、簡単に自己紹介をお願いします。");
+    await expect(page.getByText("講評はラウンドが終わってからまとめて出ます。途中では何も出ません。")).toBeVisible();
+    await expect(page.getByText("一発勝負です。録り直しはできません。")).toBeVisible();
+    await expect(page.getByText("最長 4分")).toBeVisible();
+    await expect(page.getByTestId("round-stamp")).toContainText("・応募書類 v");
+    await expect(main).not.toContainText(ENGLISH_CHROME);
+    if (position === 1) await shot("3-asked");
+
+    // Screen 4.
+    await page.getByRole("button", { name: "録音を開始" }).click();
+    await expect(page.getByRole("status").filter({ hasText: "録音中" })).toBeVisible();
+    await expect(page.getByText("4分で自動的に止まります。そこまでの録音は残ります。")).toBeVisible();
+    await expect(page.getByTestId("record-timer")).toHaveText("0:01", { timeout: 5_000 });
+    await expect(main).not.toContainText(ENGLISH_CHROME);
+    if (position === 1) await shot("4-recording");
+    await page.getByRole("button", { name: "停止して文字起こし" }).click();
+
+    // Screen 5: 10 §5's three figures, consistent with each other, in 字.
+    await expect(page.getByTestId("raw-transcript")).toHaveText(RAW_JA);
+    await expect(page.getByTestId("take-figures")).toHaveText("3:12・約250字/分・800字");
+    await expect(page.getByText("文字起こし — 未修正")).toBeVisible();
+    await expect(page.getByText("この先も続きます。全文は次の画面で直せます。音声も未修正の文字起こしも消えません。")).toBeVisible();
+    await expect(main).not.toContainText(ENGLISH_CHROME);
+    if (position === 1) await shot("5-transcript");
+    await page.getByRole("button", { name: "文字起こしを直す" }).click();
+
+    // Screen 6: the Latin section labels are Japanese, and the count is in 字.
+    await expect(page.getByText("あなたの回答 — 自由に直せます")).toBeVisible();
+    await expect(page.getByText("未修正の文字起こし — 置き換えずに残します")).toBeVisible();
+    await expect(page.getByTestId("word-change")).toHaveText("800字 → 800字");
+    await expect(page.getByTestId("rewrite-percent")).toHaveText("0%");
+    await page.getByRole("textbox").fill(CORRECTED_JA);
+    await expect(page.getByTestId("rewrite-percent")).not.toHaveText("0%");
+    await expect(page.getByTestId("raw-kept")).toHaveText(RAW_JA);
+    await expect(page.getByText("送ると、いま直した文から深掘りが1問つくられます。")).toBeVisible();
+    await expect(main).not.toContainText(ENGLISH_CHROME);
+    if (position === 1) await shot("6-correction");
+    await page.getByRole("button", { name: "この回答を送る" }).click();
+
+    // The 深掘り, asked on the same frame at the same position, in Japanese (10 §3, 07 §5.9).
+    await expect(page.getByTestId("round-step")).toHaveText(`第${position}問 / 3問・深掘り`);
+    await expect(page.getByTestId("round-question")).toHaveText(FOLLOW_UP_JA);
+    await expect(page.getByTestId("round-stamp")).toContainText("follow-up-ja-1.0・応募書類 v");
+    await expect(main).not.toContainText(ENGLISH_CHROME);
+    if (position === 1) await shot("3-follow-up");
+    await page.getByRole("button", { name: "録音を開始" }).click();
+    await expect(page.getByTestId("record-timer")).toHaveText("0:01", { timeout: 5_000 });
+    await page.getByRole("button", { name: "停止して文字起こし" }).click();
+    await page.getByRole("button", { name: "文字起こしを直す" }).click();
+    // A follow-up's own answer makes no follow-up, and the caption does not promise one (10 §6).
+    await expect(page.getByText("送ると、先へ進む間にこの回答を採点します。結果はラウンドが終わるまで出ません。")).toBeVisible();
+    await page.getByRole("textbox").fill(CORRECTED_JA);
+    await page.getByRole("button", { name: "この回答を送る" }).click();
+  }
+
+  // Screen 7.
+  await expect(page.getByText("いまのラウンド、どのくらい緊張しましたか。")).toBeVisible();
+  await expect(page.getByText("講評の前に", { exact: true })).toBeVisible();
+  const toFeedback = page.getByRole("button", { name: "講評に進む" });
+  await expect(toFeedback).toBeDisabled();
+  await expect(page.getByText("1つ選ぶと講評に進めます。")).toBeVisible();
+  await page.getByRole("radio", { name: /かなり緊張した/ }).click();
+  await expect(page.getByText("緊張度4をこのラウンドに記録します。")).toBeVisible();
+  await expect(page.getByTestId("round-stamp")).toContainText("評価基準 v1.0・");
+  await expect(main).not.toContainText(ENGLISH_CHROME);
+  await shot("7-pressure");
+  await toFeedback.click();
+
+  // Screen 8, in Japanese: seven rows, 敬語 last.
+  await expect(page).toHaveURL(`/round/${roundId}/feedback`);
+  await expect(page).toHaveTitle("講評 — Suburi");
+  await expect(main).toHaveAttribute("lang", "ja");
+  const rows = page.getByTestId("score-row");
+  await expect(rows).toHaveCount(7);
+  const labels = () => rows.evaluateAll((elements) => elements.map((element) => element.getAttribute("data-dimension")));
+  expect(await labels()).toEqual(["構成", "根拠", "関連性", "流暢さ", "正確さ", "長さ・配分", "敬語"]);
+  await expect(page.getByTestId("score-value")).toHaveText(["4", "3", "4", "3", "4", "2", "3"]);
+  await expect(page.getByTestId("answer-region")).toContainText("第1問 / 3問");
+  await expect(page.getByTestId("answer-figures")).toHaveText(/^3分12秒・約250字\/分・書き直し \d+%$/);
+  // The follow-up is a row under its answer's scores, with no scale of its own (10 §8).
+  await expect(page.getByTestId("follow-up-row")).toHaveText(`└ 深掘り${FOLLOW_UP_JA}7項目を採点。進捗には入れません。`);
+  await expect(page.getByTestId("to-fix")).toContainText("直すところ 2件");
+  await expect(page.getByTestId("to-fix")).toContainText("結論を最初の一文に置く");
+  await expect(page.getByTestId("what-worked")).toContainText("良かったところ 1件");
+  await expect(page.getByTestId("what-worked")).toContainText("第3問で、具体的な場面を挙げて説明できている。");
+  await expect(page.getByTestId("pressure-stamp")).toHaveText("緊張度4を講評前に記録");
+  await expect(page.getByTestId("round-stamp")).toContainText(/^評価基準 v1\.0・.*・応募書類 v\d+/);
+  await expect(main).not.toContainText(/total|average|overall|合計|平均|総合/i);
+  // The pill is the one Latin word on the screen, and it names the language it switches to.
+  const pill = page.getByTestId("feedback-language");
+  await expect(pill).toHaveText("English");
+  await expect(page.getByTestId("findings")).not.toContainText(ENGLISH_CHROME);
+  await shot("8-feedback");
+
+  // The toggle changes the feedback — the dimension names and the findings — and nothing else.
+  await pill.click();
+  await expect(pill).toHaveText("日本語");
+  expect(await labels()).toEqual(["Structure", "Evidence", "Relevance", "Fluency", "Accuracy", "Length and pacing", "Keigo (register)"]);
+  await expect(page.getByTestId("score-value")).toHaveText(["4", "3", "4", "3", "4", "2", "3"]);
+  await expect(page.getByTestId("to-fix")).toContainText("To fix 2");
+  await expect(page.getByTestId("to-fix")).toContainText("Put the conclusion first");
+  await expect(page.getByTestId("to-fix")).not.toContainText("結論を最初の一文に置く");
+  await expect(page.getByTestId("what-worked")).toContainText("What worked 1");
+  await expect(page.getByTestId("what-worked")).toContainText("In answer 3, you explained with a concrete situation.");
+  await expect(page.getByTestId("findings")).toHaveAttribute("lang", "en");
+  await expect(page.getByText("日本語・実戦・3問")).toBeVisible();
+  await expect(page.getByTestId("answer-region")).toContainText("第1問 / 3問");
+  await expect(page.getByTestId("pressure-stamp")).toHaveText("緊張度4を講評前に記録");
+  await shot("8-feedback-english");
+  await pill.click();
+  await expect(pill).toHaveText("English");
+  await expect(page.getByTestId("to-fix")).toContainText("結論を最初の一文に置く");
+  await page.getByRole("button", { name: "第2問" }).click();
+  await expect(page.getByTestId("answer-region")).toHaveAttribute("data-position", "2");
+
+  // The translation is stored with the feedback, once (04 `body_translated`).
+  const [stored] = await withDb((db) => db.select().from(s.roundFeedback).where(eq(s.roundFeedback.roundId, roundId)));
+  expect(stored.language).toBe("ja");
+  expect(stored.bodyTranslated).toEqual({ language: "en", ...FINDINGS_JA.translated });
+  expect(stored.promptVersion).toBe("feedback-ja-1.1");
+
+  // The scorer read the Japanese rubric and the corrected text, never the raw one (03 §4).
+  const scoring = openAi.requests.slice(requestsBefore).filter((request) => formatOf(request.body) === "answer_scores");
+  expect(scoring.length).toBeGreaterThanOrEqual(6);
+  for (const request of scoring) {
+    const sent = JSON.stringify(request.body);
+    expect(sent).toContain("- keigo (敬語): ");
+    expect(sent).toContain("pace: 250 characters per minute");
+    expect(sent).toContain("決済基盤");
+    expect(sent).not.toContain("決済期版");
+  }
+  // The pace is stored in characters per minute of the raw transcript (04 `answers`).
+  // Three questions and their three 深掘り, each follow-up asked in Japanese and stamped (04 `follow_ups`).
+  const answers = await withDb((db) => db.select().from(s.answers).where(eq(s.answers.roundId, roundId)));
+  expect(answers).toHaveLength(6);
+  for (const answer of answers) expect(answer.wordsPerMinute).toBe(250);
+  const followUps = await withDb((db) =>
+    db
+      .select({ status: s.followUps.status, promptText: s.followUps.promptText, promptVersion: s.followUps.promptVersion })
+      .from(s.followUps)
+      .innerJoin(s.answers, eq(s.answers.id, s.followUps.parentAnswerId))
+      .where(eq(s.answers.roundId, roundId)),
+  );
+  expect(followUps).toHaveLength(3);
+  for (const followUp of followUps) expect(followUp).toEqual({ status: "generated", promptText: FOLLOW_UP_JA, promptVersion: "follow-up-ja-1.0" });
+
+  // A stored Japanese finding without an English translation must never offer the toggle.
+  await withDb((db) => db.update(s.roundFeedback).set({ bodyTranslated: null }).where(eq(s.roundFeedback.roundId, roundId)));
+  await page.reload();
+  await expect(page.getByTestId("feedback-language")).toHaveCount(0);
+  await expect(page.getByTestId("to-fix")).toContainText("結論を最初の一文に置く");
+  await expect(page.getByTestId("what-worked")).toContainText("第3問で、具体的な場面を挙げて説明できている。");
+  await page.screenshot({ path: test.info().outputPath("ja-8-no-translation.png"), fullPage: true });
+});
+
+test("a Japanese round whose findings are not ready says so in Japanese, and the retry writes them", async ({ page }) => {
+  heard = HEARD_JA;
+  await signIn(page);
+  const roundId = await startRound(page, "ja");
+  for (let position = 1; position <= 3; position += 1) await positionByApi(page, roundId, CORRECTED_JA, CORRECTED_JA);
+
+  feedbackFails = true;
+  await page.goto(`/round/${roundId}`);
+  await page.getByRole("radio", { name: /それなりに緊張した/ }).click();
+  await page.getByRole("button", { name: "講評に進む" }).click();
+
+  await expect(page).toHaveURL(`/round/${roundId}/feedback`);
+  await expect(page.getByTestId("findings-not-ready")).toContainText("このラウンドの講評はまだできていません。");
+  await expect(page.getByTestId("score-row")).toHaveCount(7);
+  await expect(page.getByTestId("pressure-stamp")).toHaveText("緊張度3を講評前に記録");
+  await expect(page.locator("main")).not.toContainText(ENGLISH_CHROME);
+  await page.screenshot({ path: test.info().outputPath("ja-8-not-ready.png"), fullPage: true });
+
+  // The retry fails once more: the catalogue's sentence, in the round's language.
+  await page.getByRole("button", { name: "講評をまとめる" }).click();
+  await expect(page.getByTestId("findings-not-ready").getByRole("alert")).toHaveText("講評をまとめられませんでした。ラウンドは終了し、採点は残っています。もう一度お試しください。");
+
+  feedbackFails = false;
+  await page.getByRole("button", { name: "講評をまとめる" }).click();
+  await expect(page.getByTestId("to-fix")).toContainText("結論を最初の一文に置く");
+  await expect(page.getByTestId("findings-not-ready")).toHaveCount(0);
 });

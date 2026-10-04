@@ -10,7 +10,16 @@ import { characterLength } from "@/lib/cv/spans";
 import { bankSupply, type BankCounts } from "@/lib/round/bank-supply";
 import { MAX_POSTING_CHARS, MAX_POSTING_NAME_CHARS, MAX_SOURCE_FILENAME_CHARS } from "@/lib/round/limits";
 import { failureText, postJson, type FailureCode } from "../api";
-import { ROUND_LENGTHS, ROUND_TYPE_NAMES, ROUND_TYPES, SETUP_COPY as COPY, type RoundType } from "../copy";
+import {
+  LANGUAGE_NAMES,
+  ROUND_LANGUAGES,
+  ROUND_LENGTHS,
+  ROUND_TYPE_NAMES,
+  ROUND_TYPES,
+  SETUP_COPY as COPY,
+  type RoundLanguage,
+  type RoundType,
+} from "../copy";
 import type { PostingOption } from "../load";
 import { CalloutRail, caption, sectionLabel } from "../parts";
 
@@ -224,19 +233,17 @@ function PostingPicker({ postings, picked, onPick }: { postings: readonly Postin
 
 type ContextKind = "posting" | "general";
 
-export function SetupForm({
-  cv,
-  rubricLabel,
-  postings: savedPostings,
-  bank,
-}: {
-  cv: { label: string; date: string } | null;
-  rubricLabel: string | null;
-  postings: readonly PostingOption[];
-  bank: Readonly<Record<RoundType, BankCounts>>;
-}) {
+export interface SetupFacts {
+  readonly cv: { readonly label: string; readonly date: string } | null;
+  readonly rubricLabel: string | null;
+  /** The language's bank, per round type: what the bank-exhausted warning reads. */
+  readonly bank: Readonly<Record<RoundType, BankCounts>>;
+}
+
+export function SetupForm({ facts, postings: savedPostings }: { facts: Record<RoundLanguage, SetupFacts>; postings: readonly PostingOption[] }) {
   const router = useRouter();
   const [roundType, setRoundType] = useState<RoundType>("hr");
+  const [language, setLanguage] = useState<RoundLanguage>("en");
   const [length, setLength] = useState<(typeof ROUND_LENGTHS)[number]>(3);
   const [postings, setPostings] = useState(savedPostings);
   // General practice is never the silent default (10 §2): nothing is chosen until the user chooses,
@@ -247,6 +254,8 @@ export function SetupForm({
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<FailureCode | null>(null);
 
+  // What the chosen language's round would be scored against (10 §2, `SCORED AGAINST`), and its bank.
+  const { cv, rubricLabel, bank } = facts[language];
   const posting = postings.find((option) => option.id === postingId) ?? null;
   const contextChosen = kind === "general" || (kind === "posting" && posting !== null);
   const ready = cv !== null && rubricLabel !== null && contextChosen;
@@ -268,7 +277,7 @@ export function SetupForm({
     const created = context.ok
       ? await postJson<{ round: { id: string } }>("/api/rounds", {
           round_type: roundType,
-          language: "en",
+          language,
           mode: "realistic",
           length,
           role_context_id: context.id,
@@ -298,10 +307,7 @@ export function SetupForm({
       <div className="grid grid-cols-3">
         <div className="col-span-2 flex flex-col gap-[28px] border-r border-rule-frame px-[32px] py-[30px]">
           <Options label={COPY.roundType} options={ROUND_TYPES} value={roundType} name={(t) => ROUND_TYPE_NAMES[t]} onChange={setRoundType} />
-          <div className="flex flex-col gap-[10px]">
-            <Options label={COPY.language} options={["en"] as const} value="en" name={() => COPY.english} />
-            <p className={caption}>{COPY.englishOnly}</p>
-          </div>
+          <Options label={COPY.language} options={ROUND_LANGUAGES} value={language} name={(l) => LANGUAGE_NAMES[l]} onChange={setLanguage} />
           <Options label={COPY.length} options={ROUND_LENGTHS} value={length} name={COPY.lengthOption} onChange={setLength} />
           <div className="flex flex-col gap-[10px]">
             <Options label={COPY.mode} options={["realistic"] as const} value="realistic" name={() => COPY.realistic} />
@@ -348,19 +354,19 @@ export function SetupForm({
               </p>
             ) : (
               <CalloutRail tone="attention">
-                {COPY.noCv}{" "}
+                {COPY.noCv(language)}{" "}
                 <Link href="/cv" className="text-link hover:text-link-hover hover:underline">
                   {COPY.noCvLink}
                 </Link>
               </CalloutRail>
             )}
-            {cv && rubricLabel === null ? <CalloutRail tone="attention">{COPY.noRubric}</CalloutRail> : null}
+            {cv && rubricLabel === null ? <CalloutRail tone="attention">{COPY.noRubric(language)}</CalloutRail> : null}
           </div>
 
           <div className="mt-auto flex flex-col gap-[10px]">
             {generates ? (
               <div data-testid="bank-exhausted">
-                <CalloutRail tone="information">{COPY.bankExhausted(ROUND_TYPE_NAMES[roundType], supply, length)}</CalloutRail>
+                <CalloutRail tone="information">{COPY.bankExhausted(ROUND_TYPE_NAMES[roundType], language, supply, length)}</CalloutRail>
               </div>
             ) : null}
             {error ? <CalloutRail tone="attention">{failureText(error, "en")}</CalloutRail> : null}

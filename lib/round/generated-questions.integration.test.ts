@@ -470,6 +470,35 @@ describe("POST /api/rounds — generation at round start (07 §5.4, 11 §3.13)",
       expect(written.map((question) => question.tokensOut).filter((tokens) => tokens !== null)).toEqual([120]);
     }));
 
+  it("generates a Japanese round's questions from the Japanese bank, with the Japanese prompt", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      await seedSyntheticCv(db, world.userId, "ja");
+      const english = await db.select({ id: s.questions.id }).from(s.questions).where(eq(s.questions.language, "en"));
+
+      const { status, json } = await world.startRound({ language: "ja", round_type: "technical", length: 7 });
+      expect(status).toBe(201);
+      const asked = await db
+        .select({ language: s.questions.language, version: s.questions.generatorPromptVersion, model: s.questions.generatorModelId })
+        .from(s.roundQuestions)
+        .innerJoin(s.questions, eq(s.questions.id, s.roundQuestions.questionId))
+        .where(eq(s.roundQuestions.roundId, json.round.id));
+
+      // Every question is Japanese, and the ones written for this round carry the Japanese prompt's stamp.
+      expect(asked).toHaveLength(7);
+      expect(asked.every((question) => question.language === "ja")).toBe(true);
+      const written = asked.filter((question) => question.model === world.questionGenerator.modelId);
+      expect(written.length).toBeGreaterThan(0);
+      expect(written.every((question) => question.version === "generate-technical-ja-1.0")).toBe(true);
+
+      // The generator was asked in Japanese and shown the Japanese slice only; the English bank is as it was.
+      const [input] = world.questionGenerator.inputs;
+      expect(input).toMatchObject({ language: "ja", roundType: "technical" });
+      const japanese = await db.select({ body: s.questions.body }).from(s.questions).where(eq(s.questions.language, "ja"));
+      expect(input.existing.every((body) => japanese.some((question) => question.body === body))).toBe(true);
+      expect(await db.select({ id: s.questions.id }).from(s.questions).where(eq(s.questions.language, "en"))).toEqual(english);
+    }));
+
   it("gives the generator the CV as claims quoted from its body, General practice, and the slice's questions", () =>
     inRolledBackTransaction(async (db) => {
       const world = await setUp(db);

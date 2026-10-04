@@ -8,7 +8,10 @@ this document is the source of truth for *why*. **Amended 2026-09-27 for the rou
 Each change lands with the slice that first needs it. **Migrated by #42** (`0007_round-loop-tracer`):
 `round_questions`; `questions.generator_prompt_version` and `scoring_attempts.generator_prompt_version`
 `not null`; the General-practice unique index on `role_contexts`; the `answers (question_id, language)`
-index; and `rate_limit_windows.route` extended for the round routes. The rest is not migrated yet.
+index; and `rate_limit_windows.route` extended for the round routes. **Migrated by #46**
+(`0008_cv-grounding`): `answer_flags`; `scoring_attempts.answered_language`; and
+`round_feedback.untouched_claim_ids`. **Migrated by #44** (`0009_follow-ups`): `follow_ups`. The
+remaining round-loop changes are not migrated yet.
 
 ---
 
@@ -232,7 +235,8 @@ language never matches. Anything else is a new claim with empty coverage.
 `text_normalised`. A new claim points at the matching previous claim with the **lowest `span_start`**,
 and several new claims may point at the same previous one; `carried_forward` counts new claims with a
 parent. The lineage may fork; coverage ("was anything in this chain ever cited?") reads the same
-either way (`06`, #16).
+either way (`06`, #16). **Coverage runs down the chain only** (#46): a claim is used when it or an
+ancestor was cited; a citation of a descendant does not reach back to the claim it was carried from.
 **`NFKC` is normalisation, not fuzziness:** `４０％` and `40%` are one written form of one assertion,
 and the key is still compared byte for byte.
 **No fuzzy matching, no similarity threshold, no review step** — a reworded claim honestly reads as a
@@ -545,7 +549,7 @@ visible.
 | `generator_prompt_version` | `text` | **no** | — | stamp 3 — copied from `questions.generator_prompt_version`, or from `follow_ups.prompt_version` for a follow-up |
 | `model_id` | `text` | no | — | stamp 4. **Exact string. Never an alias.** |
 | `scoring_prompt_version` | `text` | no | — | model and prompt versioned separately; part of stamp 4 |
-| `answered_language` | `text` | yes | — | `ja` \| `en`, as the scorer read it. **Null until `ok`.** An answer whose value differs from `answers.language` is flagged in feedback and excluded from Progress (PRD §7) |
+| `answered_language` | `text` | yes | — | `ja` \| `en`, as the scorer read it. **Null until `ok`**, and `check (answered_language is null or status = 'ok')` holds that. An answer whose value differs from `answers.language` is flagged in feedback and excluded from Progress (PRD §7) |
 | `tokens_in` / `tokens_out` | `integer` | yes | — | cost attribution |
 | `error_class` | `text` | yes | — | class only — **never the model's output** |
 | `is_superseding` | `boolean` | no | `false` | true when produced by a deliberate re-score |
@@ -556,8 +560,14 @@ numbers, **all four `not null`**. **Progress draws a boundary wherever any of th
 *Amended 2026-09-27:* `generator_prompt_version` was nullable here while §6 said all four were
 `not null`; set pieces now carry a content version instead of a null (`06`).
 
-**What the scorer reads** (`03` §4): the corrected text, the answer's duration and its pace — not
-`transcript_raw`.
+**What the scorer reads** (`03` §4): the corrected text, the answer's duration and its pace, and the
+CV version's claims — not `transcript_raw`.
+
+**`answered_language` is written on every `ok` attempt from `score-en-1.1` on** (#46), and on every
+`ok` attempt of a Japanese round, whose first prompt, `score-ja-1.0`, already returns it (#43), in the
+transaction that writes the scores. **An `ok` attempt from before that has null**, and null is not a
+mismatch: such an answer is neither flagged as wrong-language nor excluded from Progress on that
+ground. Nothing back-fills it — that would be a re-score, which is a new row and a boundary.
 
 `status = 'pending'` is a first-class state, not an error — History and Progress both render it, and
 **Progress excludes pending and failed attempts from trend lines rather than treating them as zero.**
@@ -591,15 +601,23 @@ Unique on `(scoring_attempt_id, dimension)`.
 | `to_fix` | `jsonb` | no | — | two or three items |
 | `what_worked` | `text` | no | — | exactly one |
 | `language` | `text` | no | — | the round's language |
-| `body_translated` | `jsonb` | yes | — | the other-language toggle (PRD §4) |
-| `untouched_claim_ids` | `jsonb` | no | `'[]'` | **untouched material** — an array of at most three `cv_claims.id`, picked by the model from the round's never-cited claims and **validated against that set** before the row is written; an id outside it is dropped and counted |
+| `body_translated` | `jsonb` | yes | — | the other-language toggle (PRD §4): `{ language, to_fix, what_worked }`, the same findings item for item in the other language. `en` on a Japanese round; null on an English one |
+| `untouched_claim_ids` | `jsonb` | no | `'[]'` | **untouched material** — an array of at most three `cv_claims.id`, in the order picked, chosen by the model from the round's never-cited claims and **validated against that set** before the row is written; a pick outside it, or a fourth, is dropped and counted |
 | `model_id`, `prompt_version` | `text` | no | — | stamps |
 | `tokens_in` / `tokens_out` | `integer` | yes | — | |
 | `created_at` | `timestamptz` | no | `now()` | |
 
 **Written once, whole, and never rewritten** — which is why it is generated only after every score is
-in (`07` §5.12, `06`, 2026-09-27). A round whose feedback failed has no row until the retry writes one;
+in (`07` §5.12, `06`, 2026-09-27), and why the translation comes from the same model call as the
+feedback rather than a later one (`06`, 2026-10-03). A round whose feedback failed has no row until the retry writes one;
 the absence is the pending state.
+
+**The round's never-cited set** (#46) is the claims of the round's CV version that may be cited
+(`claim_citations`, below) minus those any answer **in this round** cited, with either relation — a
+contradicted claim was used. It is scoped to the round, not to all history: untouched material is
+what *this* round left on the table, which is why a claim used last week can be untouched today. The
+all-history reading is coverage, on `/cv` (`cv_claims`, `10` §13). **Zero to three ids are stored**:
+bad picks are dropped, not a reason to fail feedback that is otherwise whole.
 
 ---
 
@@ -621,6 +639,17 @@ Unique on `(answer_id, cv_claim_id, relation)`.
 `contradicted_by` means **the answer contradicts this cited claim.** *Amended 2026-09-27:* it used to be
 described as "a claim in the answer the CV does not support" — which has no claim to point at and so
 cannot be a row here. That is an unsupported claim, and it lives in `answer_flags` (`06`).
+
+**Written only after span validation** (#46, `03` §11). Before the scorer is called, each claim of the
+attempt's CV version has its stored span checked against `cv_versions.body` by the same validator
+that admitted it, and its slice must still normalise to `text_normalised`. Only claims that pass are
+shown to the scorer, **numbered**, and the scorer cites by number: it never sees or returns a
+`cv_claim_id`, so an id it invents has nowhere to land. A number that names no shown claim is dropped
+and counted. Rows are written in the transaction that writes the scores, and the unique index makes a
+re-score's repeat of the same citation a no-op rather than a second row.
+
+**Coverage is read from this table, never stored.** A claim is *used* when it, or any claim it was
+carried forward from, has a row here with either relation (`cv_claims`, `lib/cv/coverage.ts`).
 
 ---
 
@@ -647,6 +676,10 @@ cannot be a row here. That is an unsupported claim, and it lives in `answer_flag
 > quote with a start hint, the server locates it, and a quote that is not there, a span outside the
 > text, or one that splits a grapheme is dropped and counted, never clamped. `transcript_corrected` is
 > final once submitted, so the span can never drift.
+
+**An answer's current flags are those of its latest `ok` attempt.** A re-score writes its own flags
+beside the first attempt's; nothing is deleted, and the feedback screen and the feedback call read
+the latest attempt's only. Two quotes that locate to the same span are one row.
 
 ---
 

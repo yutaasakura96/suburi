@@ -26,16 +26,13 @@ import { loadCandidates, planQuestions } from "./select-questions";
  * mode; none is a request field, because a client-chosen cap or version is a client-chosen stamp. The
  * strict schema makes a `cv_version_id` a 400 (11 §3.13).
  *
- * English only in this slice: the Japanese rubric and set pieces arrive with #43, so `ja` is a 400
- * until then rather than a round with no rubric.
- *
  * **Starting a round abandons any open one** — derived, nothing written to the old round.
  */
 export const CAP_SECONDS = { realistic: 240, practice: 900 } as const;
 
 const requestSchema = z.strictObject({
   round_type: z.enum(s.ROUND_TYPES),
-  language: z.literal("en"),
+  language: z.enum(s.LANGUAGES),
   mode: z.enum(s.MODES),
   length: z.union([z.literal(3), z.literal(5), z.literal(7)]),
   role_context_id: z.uuid(),

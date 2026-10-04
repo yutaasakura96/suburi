@@ -26,6 +26,17 @@ export function upstreamErrorClass(error: unknown): string {
 }
 
 /**
+ * A refusal the same request would get again is not retried: a 4xx other than a timeout, a conflict
+ * or a rate limit, or a call its caller aborted. Everything else — a 5xx, a timeout, an unreachable
+ * upstream, an output that failed its check — may come back differently the second time.
+ */
+export function retryableErrorClass(errorClass: string) {
+  if (errorClass === "aborted") return false;
+  const status = /^upstream_(4\d\d)$/u.exec(errorClass)?.[1];
+  return status === undefined || ["408", "409", "429"].includes(status);
+}
+
+/**
  * No SDK retries: every caller shares Vercel Hobby's 300 s with whatever else its invocation does, so
  * the retrying is the caller's, which knows how much of that budget is left. `baseURL` is set only by
  * Playwright, at its mock (`lib/config.ts` refuses anything but a local host).

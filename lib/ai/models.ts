@@ -12,6 +12,9 @@ export const SCORING_MODEL = "gpt-5.6-sol";
 /** Round feedback, stamped on `round_feedback`. */
 export const FEEDBACK_MODEL = "gpt-5.6-sol";
 
+/** Follow-up generation, stamped on `follow_ups` (04). */
+export const FOLLOW_UP_MODEL = "gpt-5.6-sol";
+
 /**
  * Question generation at round start (07 §5.4), stamped on `questions.generator_model_id`. Stamp 3 is
  * the generator *prompt* version, which lives in the prompt's filename (`lib/prompts/`).

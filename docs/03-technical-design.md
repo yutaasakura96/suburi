@@ -201,16 +201,18 @@ Five text jobs on one pinned model, and three more on models of their own:
 against OpenAI, five runs of each, from the development machine, the way #20 measured extraction. Synthetic
 answers of the lengths a realistic round produces (one to three and a half minutes spoken). Scoring
 and round feedback ran through the real ports and prompts (`score-en-1.0`, `feedback-en-1.0`);
-**follow-up generation ran a draft prompt**, since its port does not exist yet (#44), so its figure
-is the right order of magnitude, not the final one. Question generation's draft rows were replaced by
-#47's measurement through the real port, below. Transcription read takes
+**follow-up and question generation ran draft prompts**, since their ports did not exist yet. **Follow-up
+generation was re-measured on 2026-10-03 (#44)** through its real port and `follow-up-en-1.0`, the
+same way; the Japanese prompt is not measured until a real Japanese round with follow-ups runs on
+`develop`. **Question generation's draft rows were replaced by #47's measurement** through its real
+port, below. Transcription read takes
 synthesised by TTS and re-encoded to webm/opus by ffmpeg, the browser's format.
 
 | Job | Model | n | median | p90 | slowest | tokens in / out |
 | --- | --- | --- | --- | --- | --- | --- |
 | Answer scoring | `gpt-5.6-sol` | 15 | 7.1 s | 9.1 s | **38.1 s** | 1,812 / 440 |
 | Round feedback, 3 answers | `gpt-5.6-sol` | 5 | 10.0 s | 10.7 s | 11.0 s | 1,370 / 477 |
-| Follow-up generation (draft) | `gpt-5.6-sol` | 15 | 3.1 s | 3.7 s | 4.8 s | 411 / 88 |
+| Follow-up generation | `gpt-5.6-sol` | 15 | 3.2 s | 4.2 s | 4.7 s | 685 / 124 |
 | Transcription, 38 s take | `gpt-transcribe` | 5 | 1.8 s | 2.1 s | 2.2 s | — |
 | Transcription, 92 s take | `gpt-transcribe` | 5 | 3.8 s | 4.0 s | 4.1 s | — |
 | Transcription, 198 s take | `gpt-transcribe` | 5 | 5.8 s | 7.2 s | 7.3 s | — |
@@ -226,9 +228,37 @@ What they settle:
   the next table. The draft's 4 s was a tenth of the real prompt's input.
 - **The user's waits inside a round are short**: a near-cap take transcribes in about 6 s, a follow-up
   about 3 s. TTS starts playing in about a second; #45 pins the speech model and may re-measure.
+- **A follow-up call is bounded at 15 s with one retry** (`07` §5.9): about three times the slowest
+  call seen. Past that the follow-up is recorded as missing and the round goes on.
 - **Scoring's slowest call is the one to watch.** One in fifteen took five times the median, with no
   error. It is why the bound has a margin, and why scoring runs in `after()` rather than in front of
   the user.
+
+**Re-measured 2026-10-03 (#46), with the CV check.** `score-en-1.1` and `feedback-en-1.1` read the
+CV's claims and return citations, unsupported spans, `answered_language` and untouched material, so the
+two calls that changed were measured again, the same way: five runs, the same three synthetic answers,
+against a synthetic CV of 80 claims — the size of the real ones — and with what came back run through
+the validators (`lib/round/grounding.ts`).
+
+| Job | Prompt | n | median | p90 | slowest | tokens in / out |
+| --- | --- | --- | --- | --- | --- | --- |
+| Answer scoring | `score-en-1.1` | 15 | 9.7 s | 15.7 s | 19.5 s | 4,483 / 626 |
+| Round feedback, 3 answers | `feedback-en-1.1` | 5 | 15.4 s | 18.3 s | 19.5 s | 3,512 / 940 |
+
+- **The CV costs scoring about 2,700 input tokens and 2.6 s at the median**, and feedback about 2,100
+  and 5.4 s. Scoring still lands inside screen 7; what the user waits for after the rating is the
+  feedback call, about 15 s.
+- **`complete`'s 60 s bound stands.** By the rule that set it — the slowest scoring call, a 2 s backoff
+  and a median retry — this run asks for 31 s; the bound stays where #42's 38.1 s tail put it.
+- **Nothing was dropped**: 50 citations and 5 unsupported spans over 15 answers, every number a shown
+  claim and every quote found verbatim; 12 untouched picks over 5 rounds, every one from the set shown.
+  No `contradicted_by` — the answers contradict nothing, and none was invented. All 15 answers were read
+  as English.
+- **The picks were the right ones.** The synthetic CV holds three claims written to fit the questions
+  that no answer uses, among 65 of filler: all 12 picks were from those three.
+- **A first draft of the prompt was slower and wrong** — 19.7 s median, 1,591 output tokens, two or
+  three "unsupported" sentences an answer. It was flagging narration; the fix is in `06`, 2026-10-03.
+  The drop counters would not have shown it: every one of those quotes was verbatim.
 
 **Round-start generation, measured 2026-10-03 (#47)** with `scripts/measure-question-generation.mts`:
 the real port and prompts (`generate-behavioural-{en,ja}-1.0`), five runs of each, synthetic input
@@ -286,7 +316,9 @@ duration and its pace, and the CV version's claims. **Not the raw transcript** �
 would cost accuracy points for the machine's mistakes. Fluency is defined on what the correction step
 keeps: fillers and restarts, which screen 5's caption asks the user to leave in, so the correction
 step cannot launder it. It returns the scores, citations, unsupported spans of the answer, and
-`answered_language` (`07` §5.10).
+`answered_language` (`07` §5.10). **The claims go in numbered and sliced from the stored body, and come
+back as numbers** (#46): the scorer never sees a claim id and never supplies a quote that is stored
+(§11, `06`, 2026-10-03). The round-feedback call is sent the round's never-cited claims the same way.
 
 **CV claim extraction is one synchronous extraction (N parallel windowed calls), all-or-nothing.** The
 user saves a CV version and waits; the calls run first and the version, its documents and its claims
@@ -537,11 +569,12 @@ other client cache, router or global store.
   state.
 - **The transcript editor** — the edit buffer and the live rewrite-magnitude meter (screen 6).
 
-**A round survives a refresh.** Every answer is written server-side at submit, and every question the
-round asks was fixed when it started (`round_questions`, `follow_ups`), so the round's position and
-its prompt are database facts, not client facts. Reloading mid-round resumes at the current question,
-**the same question**. An in-flight recording is the one thing that does not survive, and the UI says
-so before recording.
+**A round survives a refresh.** Every answer is written server-side at submit. Bank questions are
+fixed when the round starts (`round_questions`); a follow-up is fixed when its parent answer is
+submitted (`follow_ups`). The round's position and any stored prompt are database facts, not client
+facts. Reloading mid-round resumes at the same prompt, or at the saved answer if its follow-up has
+not been stored yet (`07` §5.5). An in-flight recording is the one thing that does not survive, and
+the UI says so before recording.
 
 **Only the newest open round resumes, and only on the day it started** (`06`, 2026-09-27). Starting a
 new round abandons any open one, and an open round from an earlier day is abandoned too — the day
@@ -689,6 +722,11 @@ approximate start; the server finds the quote in the stored text and validates t
 quote that is not in the text verbatim, or a span that fails validation, is dropped and counted
 (`06`, 2026-09-21). Spans count Unicode code points, as Postgres `substring` does.
 Extraction quality itself is eyeballed on real data per CV upload (`11` §5; §4 holds the readings).
+**The same rule holds where the claims are used** (#46): the scorer and the feedback call are shown
+numbered claims and answer with numbers, so no id and no CV quote of theirs is ever stored; the
+unsupported spans of an answer are found in the stored corrected text the way a CV quote is found in
+the body; and every string in screen 8's grounding region and every underline on `/cv` is a slice by a
+validated span.
 
 **3. Near-duplicate questions in a growing bank.**
 Generated questions are written into the bank permanently, and first-attempt progress data is keyed
