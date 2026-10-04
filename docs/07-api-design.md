@@ -1176,7 +1176,7 @@ convert a guarantee in `04` §6 into a preference.
 | Any endpoint returning a composite score | Refusal #1. No column, no view, no field. |
 | `POST /api/rounds/{id}/abandon` | `completed_at is null` is the record. Abandonment is data, and derived (`04` `rounds`). |
 | Anything that changes a round's questions after it starts | `round_questions` is fixed with the round (`04` §6). A re-roll is how a question the user has already heard gets swapped for an easier one. |
-| A speech route that takes text | §5.15 reads the text from stored rows. One that took text would be a general TTS proxy on the user's key. |
+| A speech route that takes text | §5.15 defines the server-side prompt source. One that took text would be a general TTS proxy on the user's key. |
 | A model or rubric selector on any request | The stamps would become user-chosen, making drift voluntary and biased (decision log). Both are config and resolved server-side. |
 | Anything with a `share`, `visibility`, `export` or `public` in it | Refusal #6. Multi-tenancy is not permission to build a sharing surface (`03` §2, `08` §7). |
 | `POST /api/questions` | The bank is written by generation with the near-duplicate guard, or by seed. A hand-inserted question skips the embedding check and fragments the measurement (`03` §11). |
