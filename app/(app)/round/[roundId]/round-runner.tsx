@@ -10,7 +10,7 @@ import { failureText, postJson, type FailureCode } from "../api";
 import { ROUND_COPY, clock, type RoundCopy, type RoundLanguage, type RoundMode } from "../copy";
 import type { RoundFrame } from "../load";
 import { CalloutRail, RoundFooter, RoundHeader, caption, roundSectionLabel } from "../parts";
-import { heldTake, holdTake, releaseTake } from "./held-take";
+import { heldTake, holdTake, releaseRoundTakes, releaseTake, type UploadRejection } from "./held-take";
 import { WAVEFORM_BARS, useRecorder, type Take } from "./recorder";
 import { StuckTakeFrame } from "./stuck-take";
 
@@ -104,6 +104,14 @@ interface Submitted {
     | { kind: "feedback" };
 }
 
+interface Failure {
+  readonly text: string;
+  readonly retry: (() => void) | null;
+}
+
+const rejectionOf = (code: FailureCode | null): UploadRejection | null =>
+  code === "upload_too_large" || code === "unsupported_content_type" ? code : null;
+
 /**
  * A running round (10 §3–§7). Every step is a server call that leaves the database in a state a
  * reload resumes from, so nothing here is the record of where the round is.
@@ -178,7 +186,8 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
   /**
    * Open the slot after the take exists (07 §5.6), PUT it to S3, transcribe it. **The take is held in
    * IndexedDB before anything is sent** (03 §5), and released once it is in S3: whatever stops it on
-   * the way, a reload finds it. `onDevice` is passed by a retry, which need not hold it again.
+   * the way, a reload finds it. One the route refuses stays held, marked with the refusal, and is
+   * answered by typing. `onDevice` is passed by a retry, which need not hold it again.
    */
   async function deliver(question: Question, take: Take, onDevice?: boolean) {
     setScreen({ kind: "uploading", question, uploaded: false });
@@ -195,12 +204,8 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
       ...(question.again ? { retry_of_answer_id: question.again } : {}),
     });
     if (!opened.ok) {
-      if (opened.code === "upload_too_large" || opened.code === "unsupported_content_type") {
-        // No retry can send this take, so it is not held: the question is recorded again.
-        await releaseTake(round.id);
-        setScreen({ kind: "asked", question });
-        return fail(opened.code, null);
-      }
+      const rejection = rejectionOf(opened.code);
+      if (held && rejection) await holdTake(slotOf(question), take, rejection);
       return hold(opened.code);
     }
     try {
@@ -224,7 +229,7 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
     const transcribed = await postJson<Transcribed>(`/api/answers/${answerId}/transcribe`);
     if (!transcribed.ok) {
       if (transcribed.code === "transcription_failed") {
-        await releaseTake(round.id);
+        await releaseTake(slotOf(question));
         // The take is kept (07 §5.7): the answer is retried, or typed.
         setBusy(false);
         setScreen({ kind: "untranscribed", question, answerId });
@@ -242,7 +247,7 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
       }
       return fail(transcribed.code, () => void transcribe(question, answerId, local));
     }
-    await releaseTake(round.id);
+    await releaseTake(slotOf(question));
     setBusy(false);
     setScreen({
       kind: "transcript",
@@ -270,14 +275,23 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
     setScreen({ kind: "transcript", question, transcript: { answerId, raw: typed.json.transcript_raw, durationMs: null, wpm: null } });
   }
 
+  /** A take the route refused has no answer row: the slot is opened for typed text, then typed (07 §5.6, §5.8). */
+  async function openTyped(question: Question, text: string) {
+    setError(null);
+    setBusy(true);
+    const opened = await postJson<{ answer_id: string }>(`/api/rounds/${round.id}/answers`, { source: "typed" });
+    if (!opened.ok) return fail(opened.code, () => void openTyped(question, text));
+    await saveTyped(question, opened.json.answer_id, text);
+  }
+
   // Once, when the page loads onto a question with no transcript: a take held on this device goes
   // back on screen; failing that, a confirmed slot resumes at `transcribe` (07 §5.5).
   const resumeTake = useEffectEvent(async () => {
     const { start } = frame;
-    if (start.kind !== "question" || start.transcript) return releaseTake(round.id);
+    if (start.kind !== "question" || start.transcript) return;
     const question = { position: start.position, text: start.text, followUpVersion: start.followUpVersion };
     const take = await heldTake(slotOf(question));
-    if (take) setScreen({ kind: "held", question, take, onDevice: true, cause: null });
+    if (take) setScreen({ kind: "held", question, take, onDevice: true, cause: take.rejection ?? null });
     else if (start.openAnswerId && start.uploadConfirmed) await transcribe(question, start.openAnswerId);
   });
   const resumed = useRef(false);
@@ -365,6 +379,7 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
     const completed =
       result.ok || result.code === "feedback_generation_failed" || result.code === "round_already_complete";
     if (!completed) return fail(result.code, () => void complete(value));
+    await releaseRoundTakes(round.id);
     router.push(`/round/${round.id}/feedback`);
   }
 
@@ -437,12 +452,17 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
           notices={[
             ...(screen.cause === null ? [] : [failureText(screen.cause, language)]),
             screen.onDevice ? copy.uploadHeld : copy.uploadFailed,
+            ...(error ? [error.text] : []),
           ]}
           busy={busy}
-          working={copy.transcribing}
+          working={rejectionOf(screen.cause) ? copy.savingTyped : copy.transcribing}
           stamp={stamp(screen.question)}
-          onRetry={screen.cause === "round_abandoned" ? null : () => void deliver(screen.question, screen.take, screen.onDevice)}
-          onType={null}
+          onRetry={
+            screen.cause === "round_abandoned" || rejectionOf(screen.cause)
+              ? null
+              : () => void deliver(screen.question, screen.take, screen.onDevice)
+          }
+          onType={rejectionOf(screen.cause) ? (text) => void openTyped(screen.question, text) : null}
         />
       );
       break;

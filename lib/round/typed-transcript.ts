@@ -16,15 +16,9 @@ import { roundWriteRefusal } from "./state";
  * route, a different text is `422 transcript_already_final`. The same typed text sent again is a
  * retried request, and returns the row it made.
  */
-// Far past any spoken answer — four minutes is about 1,500 characters — and short of a request the function would refuse.
-export const MAX_TYPED_CHARACTERS = 20_000;
-
 const requestSchema = z.strictObject({
   source: z.literal("typed"),
-  text: z
-    .string()
-    .max(MAX_TYPED_CHARACTERS)
-    .refine((text) => text.trim() !== ""),
+  text: z.string().refine((text) => text.trim() !== ""),
 });
 
 function view(answer: Pick<typeof s.answers.$inferSelect, "id" | "transcriptRaw" | "transcriberModelId" | "wordsPerMinute">) {

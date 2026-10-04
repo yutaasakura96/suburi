@@ -9,6 +9,17 @@ What a round does when a recording, an upload, a transcription, a score or a dat
 how it resumes. The behaviour was settled on 2026-09-12, 2026-09-27 and 2026-09-28 (below); these are
 the choices the build needed.
 
+### [2026-10-05] A take the slot route refuses is kept and answered by typing
+
+The owner's ruling, superseding the build's "not held, recorded again": **a captured take is never
+deleted.** A take over the size cap, or of a type the route refuses, stays in IndexedDB marked with
+the refusal; the frame says why, offers no retry — none could succeed — and offers typing. No answer
+row exists at that point, so `POST …/answers` takes `{ "source": "typed" }` and opens the current
+slot with no `audio_s3_key`; `07` §5.8 then stores the text. **Held takes are keyed by prompt, not by
+round** — the 2026-10-04 entry below said one per round — so the refused take is not replaced by the
+next question's and stays until the round completes. The 20,000-character cap on typed text is
+removed with it: the fallback was specified with no limit.
+
 ### [2026-10-05] Round creation and writes serialize per user
 
 Starting a round and writing to an existing round take the same `users` row lock before checking

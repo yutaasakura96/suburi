@@ -534,6 +534,7 @@ wiring between screens that no unit test sees.
 | The cap fires | Fake device, realistic mode: recording stops at 240s and **the take is retained** — screen 4 promises `4分で自動的に止まります。そこまでの録音は残ります。` |
 | The runaway guard fires | Practice mode: at 15 minutes it behaves exactly like the cap, take kept, **and it is not rendered as a timer** (`03` §7 — not shown as pressure, not part of practice's rhythm). |
 | Upload failure | Intercepted S3 PUT fails → "held on this device", retry offered, tab-close warning present, blob still in IndexedDB after a reload. The retry then delivers the held bytes to the same answer row, and nothing is left held. |
+| Rejected upload | For each refusal — over the size cap, and an unsupported type — the take is still in IndexedDB, the reason and the typing fallback are shown with no upload retry, and a reload returns to them. The typed answer is stored on a slot with no key, and the take is still held after it. |
 | Transcription failure | Take kept; both retry **and** the typing fallback are reachable, and a reload returns to them. A typed answer is stored with no transcriber, no pace and no duration, and its take is kept; a retry that succeeds transcribes the same take. |
 | Mic denied | With the microphone refused, screen 3 names the fix, no request is made, no answer row exists, and the round's read still asks the same question. |
 | Spent project | With the mock answering the preflight `429 project_spend_limit_exceeded`, Setup shows the `model_unavailable` sentence, no round is created, and the preflight is asked once. |

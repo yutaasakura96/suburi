@@ -419,7 +419,8 @@ branch** (`12` §4). Decisions in `06`, "Phase 6 — #44".
 the resume read (`07` §5.5); `POST /api/answers/{id}/transcript`, the typed answer (`07` §5.8), stored
 with no transcriber, pace or duration; one guard around every round route, so nothing leaves as a
 bare `500`; a take held in IndexedDB from the moment it exists, with its retry, the leave-page
-warning and the frame a reload returns to; the transcription-failed frame, with retry and typing; a
+warning and the frame a reload returns to; a take the slot route refuses kept on the device and
+answered by typing (`06`, 2026-10-05); the transcription-failed frame, with retry and typing; a
 resumed round that transcribes the uploaded take instead of asking for another; a denied microphone
 named with its fix; the earlier-day abandonment's own sentence; and a spent OpenAI project classed by
 its code and never retried. **Tested:** every round route failed at each database call in turn

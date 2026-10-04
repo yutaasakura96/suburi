@@ -639,7 +639,6 @@ describe("POST /api/answers/{id}/transcript — the typed answer (07 §5.8)", ()
     [{ source: "typed", text: "   " }, ["text"]],
     [{ source: "spoken", text: TYPED }, ["source"]],
     [{ source: "typed", text: TYPED, transcriber_model_id: "mine" }, ["transcriber_model_id"]],
-    [{ source: "typed", text: "x".repeat(20_001) }, ["text"]],
   ])("is 400 naming the field, never its value, and writes nothing: %#", (body, fields) =>
     inRolledBackTransaction(async (db) => {
       const world = await setUp(db);
@@ -650,6 +649,92 @@ describe("POST /api/answers/{id}/transcript — the typed answer (07 §5.8)", ()
       expect(response.text).not.toContain(TYPED_SENTINEL);
       const [row] = await db.select().from(s.answers).where(eq(s.answers.id, answerId));
       expect(row.transcriptRaw).toBeNull();
+    }));
+
+  it("accepts typed text beyond the removed character cap", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const { answerId } = await failedTake(world);
+      const text = "x".repeat(20_001);
+      const response = await world.call(world.handlers.typed, answerId, { source: "typed", text });
+      expect(response.status).toBe(201);
+      const [row] = await db.select().from(s.answers).where(eq(s.answers.id, answerId));
+      expect(row.transcriptRaw).toBe(text);
+    }));
+
+  it("opens a slot with no key for a take the route refused, and the typed answer lands on it", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const roundId = await world.startRound();
+      const refused = await world.call(world.handlers.open, roundId, { content_type: "audio/webm", expected_bytes: 20 * 1024 * 1024 + 1 });
+      expect(refused.json.error.code).toBe("upload_too_large");
+      expect(await db.select().from(s.answers).where(eq(s.answers.roundId, roundId))).toHaveLength(0);
+
+      const opened = await world.call(world.handlers.open, roundId, { source: "typed" });
+      expect(opened.status).toBe(201);
+      const answerId = opened.json.answer_id as string;
+      expect(opened.json).toEqual({ answer_id: answerId });
+      expect(world.store.presigned).toHaveLength(0);
+      const again = await world.call(world.handlers.open, roundId, { source: "typed" });
+      expect(again.status).toBe(200);
+      expect(again.json.answer_id).toBe(answerId);
+      expect((await world.read(roundId)).json.resume).toEqual({ at: "upload", answer_id: answerId });
+
+      const typed = await world.call(world.handlers.typed, answerId, { source: "typed", text: TYPED });
+      expect(typed.status).toBe(201);
+      const rows = await db.select().from(s.answers).where(eq(s.answers.roundId, roundId));
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({
+        id: answerId,
+        position: 1,
+        transcriptRaw: TYPED,
+        transcriberModelId: null,
+        audioS3Key: null,
+        audioUploadedAt: null,
+        wordsPerMinute: null,
+      });
+      expect((await world.read(roundId)).json.resume).toEqual({ at: "submit", answer_id: answerId });
+    }));
+
+  it("gives a slot opened for typing its key when a take is sent to it after all", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const roundId = await world.startRound();
+      const typed = await world.call(world.handlers.open, roundId, { source: "typed" });
+      const answerId = typed.json.answer_id as string;
+      const taken = await world.call(world.handlers.open, roundId, { content_type: "audio/webm", expected_bytes: AUDIO.byteLength });
+      expect(taken.status).toBe(200);
+      expect(taken.json.answer_id).toBe(answerId);
+      const [row] = await db.select().from(s.answers).where(eq(s.answers.id, answerId));
+      expect(row.audioS3Key).toBe(world.store.presigned.at(-1)!.key);
+      expect(await db.select().from(s.answers).where(eq(s.answers.roundId, roundId))).toHaveLength(1);
+    }));
+
+  it.each([
+    [{}, ["content_type", "expected_bytes"]],
+    [{ source: "typed", content_type: "audio/webm" }, ["content_type"]],
+    [{ source: "spoken" }, ["source"]],
+    [{ source: "typed", text: TYPED }, ["text"]],
+  ])("refuses a slot body that is neither a take nor typed, naming the fields: %#", (body, fields) =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const roundId = await world.startRound();
+      const response = await world.call(world.handlers.open, roundId, body);
+      expect(response.status).toBe(400);
+      expect(response.json.error.code).toBe("invalid_request");
+      expect([...response.json.error.detail.fields].sort()).toEqual([...fields].sort());
+      expect(response.text).not.toContain(TYPED_SENTINEL);
+      expect(await db.select().from(s.answers).where(eq(s.answers.roundId, roundId))).toHaveLength(0);
+    }));
+
+  it("refuses a typed slot on an abandoned round", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const first = await world.startRound();
+      await world.startRound();
+      const refused = await world.call(world.handlers.open, first, { source: "typed" });
+      expect(refused.json.error.code).toBe("round_abandoned");
+      expect(await db.select().from(s.answers).where(eq(s.answers.roundId, first))).toHaveLength(0);
     }));
 
   it("is 404 for another user's answer and for no answer", () =>

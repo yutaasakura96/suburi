@@ -386,25 +386,44 @@ test("a take that cannot be transcribed at first is transcribed by the retry, wi
   expect(s3.objects.get(slot.audioS3Key!)?.bytes).toBe(uploaded);
 });
 
-test("a take no retry could ever send is not held: the question is recorded again", async ({ page }) => {
+for (const [code, message] of [
+  ["upload_too_large", "The audio is too large to upload. Keep the recording to four minutes or less."],
+  ["unsupported_content_type", "That audio format is not supported."],
+] as const) test(`a take refused as ${code} is kept on the device, says why, and is answered by typing`, async ({ page }) => {
   await signIn(page);
   const roundId = await startRound(page);
-  // What the slot route answers a take over the size cap (07 §5.6), before any upload.
-  await page.route("**/api/rounds/*/answers", (route) =>
-    route.fulfill({
+  await page.route("**/api/rounds/*/answers", (route) => {
+    if (route.request().postDataJSON()?.source === "typed") return route.continue();
+    return route.fulfill({
       status: 422,
       contentType: "application/json",
-      body: JSON.stringify({ error: { code: "upload_too_large", message: "The take is larger than the cap.", detail: {} } }),
-    }),
-  );
+      body: JSON.stringify({ error: { code, message, detail: {} } }),
+    });
+  });
   await page.goto(`/round/${roundId}`);
   await record(page);
 
-  await expect(page.getByText("The audio is too large to upload. Keep the recording to four minutes or less.")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Start recording" })).toBeEnabled();
+  await expect(page.getByText(message)).toBeVisible();
+  await expect(page.getByText(HELD)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Type the answer instead" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Try again" })).toHaveCount(0);
-  expect(await heldTakes(page)).toEqual([]);
-  expect(await warnsBeforeUnload(page)).toBe(false);
+  const [held] = await heldTakes(page);
+  expect(held).toMatchObject({ roundId, position: 1 });
+  expect(await warnsBeforeUnload(page)).toBe(true);
+  await page.reload();
+  await expect(page.getByText(message)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Try again" })).toHaveCount(0);
+  expect(await heldTakes(page)).toEqual([held]);
+  await page.getByRole("button", { name: "Type the answer instead" }).click();
+  await page.getByLabel("Your answer — typed, not spoken").fill(TYPED);
+  await page.getByRole("button", { name: "Save the typed answer" }).click();
+  await expect(page.getByTestId("raw-transcript")).toHaveText(TYPED);
+  expect(await heldTakes(page)).toEqual([held]);
+  const [answer] = await answersOf(roundId);
+  expect(answer).toMatchObject({ transcriptRaw: TYPED, transcriberModelId: null, audioS3Key: null });
+  await page.reload();
+  await expect(page.getByTestId("raw-transcript")).toHaveText(TYPED);
+  expect(await heldTakes(page)).toEqual([held]);
 });
 
 test("an unconfirmed upload resumes at upload, then transcription completes without a new take", async ({ page }) => {

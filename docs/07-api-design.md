@@ -675,11 +675,16 @@ for it: the question is simply asked again.
 ### 5.6 `POST /api/rounds/{roundId}/answers`
 
 Opens an answer slot and presigns the upload. Creates the `answers` row. **Called once the take
-exists** — after recording, before the upload (`06`, 2026-09-27).
+exists** — after recording, before the upload (`06`, 2026-09-27). When this route refuses a recorded
+take (`upload_too_large`, `unsupported_content_type`) no row exists yet: `{ "source": "typed" }`,
+alone, opens the same current slot with `audio_s3_key` null and returns only `answer_id`, and the
+client sends the typed transcript through §5.8 (`06`, 2026-10-05). It is idempotent like the take's
+form, and a take sent to that slot afterwards gives it its key. A body that is neither form is a
+`400` naming the fields.
 
 The client sends only what it cannot know about itself: the content type and the take's byte size.
 Everything that matters is server-derived — `question_id` or `parent_answer_id`, `prompt_text`,
-`position`, `language`, `is_first_attempt`, and the S3 key.
+`position`, `language`, `is_first_attempt`, and, for audio, the S3 key.
 
 ```http
 POST /api/rounds/77af0b13-…/answers
@@ -796,9 +801,10 @@ POST /api/answers/c003e8a2-…/transcript
 as a spoken one.** `422 transcript_already_final` if `transcript_raw` is set.
 
 **As built (#48; `06`, 2026-10-04).** `audio_duration_ms` is null with it, and **the take's
-`audio_s3_key` is kept**: the audio is still the record of what was said. `transcriber_model_id` null
+`audio_s3_key` is kept**: the audio is still the record of what was said. It is null only for a slot
+opened as typed (§5.6), whose take never left the device. `transcriber_model_id` null
 beside a set `transcript_raw` *is* the typed mark — the one Progress excludes on (`04` `answers`),
-with no column of its own. `text` is at most 20,000 characters and not blank, or the call is a `400`.
+with no column of its own. `text` must not be blank, or the call is a `400`.
 **The same text sent again while the round is writable is a `200` with the stored row**, so a retry after a lost response is not a
 refusal; any other text, or a transcribed answer, is the `422`. Written only while `transcript_raw`
 is null, so it can never replace a transcript (invariant 4). Calls no model, so it is not

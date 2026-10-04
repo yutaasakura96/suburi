@@ -496,7 +496,7 @@ is, and nothing ever backfills it. The follow-up's own answer points at the pare
 | `position` | `integer` | no | — | order within the round. **A follow-up and a retry share the position of the answer they belong to** |
 | `language` | `text` | no | — | denormalised from `rounds` — see indexes |
 | `is_first_attempt` | `boolean` | no | `false` | see below |
-| `audio_s3_key` | `text` | yes | — | server-generated key; client never chooses it |
+| `audio_s3_key` | `text` | yes | — | server-generated key; client never chooses it. Null only for a slot opened as typed (`07` §5.6) |
 | `audio_uploaded_at` | `timestamptz` | yes | — | set only after the server reads the uploaded object; a reserved key alone does not confirm upload |
 | `audio_duration_ms` | `integer` | yes | — | |
 | `transcript_raw` | `text` | yes | — | **never discarded** (PRD §9) |

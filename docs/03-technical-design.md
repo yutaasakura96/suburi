@@ -587,7 +587,7 @@ stamp: replacing it needs no re-score and draws no boundary.
 | Service | Blast radius | Behaviour |
 | --- | --- | --- |
 | **OpenAI** | No questions, no transcripts, no scores | Recording and correction still work. **Preflight at round setup** — a round is never started into a broken scorer, because a round that cannot deliver feedback while the user is there is a defect, not a degraded experience. Mid-round failure: scoring retries with backoff; if it still fails, the round completes with scores pending and the feedback screen says so plainly rather than spinning. |
-| **S3** | Cannot upload a take | The blob stays in the browser (IndexedDB) and retries. The user is told the take is held locally and must not close the tab. **As built (#48):** the take is written to IndexedDB the moment it exists and removed once the server confirms reading the object, one per round, so a reload returns to the held take and its retry; the browser's leave-page warning is on until that confirmation. The retry is the user's, not a timer's. |
+| **S3** | Cannot upload a take | The blob stays in the browser (IndexedDB) and retries. The user is told the take is held locally and must not close the tab. **As built (#48):** the take is written to IndexedDB the moment it exists and removed once the server confirms reading the object, one per prompt, so a reload returns to the held take and its retry; the browser's leave-page warning is on until that confirmation. The retry is the user's, not a timer's. |
 | **Neon** | App is down | No mitigation at this scale. Accepted. |
 | **Google IdP** | Cannot sign in | An existing session cookie keeps working for its lifetime. |
 | **Vercel** | App is down | Accepted. |
@@ -664,6 +664,7 @@ limit, and their waveform scrolls instead of filling toward the cap (`10` §15).
 | --- | --- | --- |
 | Mic permission denied | The browser-level fix, inline on screen 3: allow the microphone from the address bar, then record again. Nothing is written and the question stays unseen | nothing — it never reaches the server |
 | Upload failed | "Held on this device. Do not close this tab." + retry | the retry, server-side: `answer_reopened` with the answer id and the size. **Nothing is logged from the browser** — the key is the server's, and a count of attempts is the count of those lines (`06`, 2026-10-04) |
+| Upload rejected (over the size cap, or an unsupported type) | The refusal is stated; the take is never deleted — it stays on this device until the round ends — and typing is offered for that question, with no retry (`06`, 2026-10-05) | nothing until the typed slot is opened; then the typed answer's line |
 | Transcription failed | The take is kept; offers retry or typing the answer (`07` §5.7–§5.8). A typed answer is stored as typed: no pace, no duration, not in Progress | answer id, size, error class, duration |
 | Scoring failed | Answer saved, score pending, stated on the feedback screen | answer id, model, error class |
 | A database write failed on a round route | The call's own screen says it could not be saved; nothing was half-written, and the round resumes where it was (`write_failed`, `07` §3) | route, ids, `pg_<SQLSTATE>` |

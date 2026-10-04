@@ -374,8 +374,9 @@ and its nine Japanese strings were read and accepted by the owner on 2026-10-05
   and one outline control, `もう一度試す`. **No control records again:** the take is the answer. The
   frame comes back after a reload, from IndexedDB, and leaving the page is warned against until the
   take is in S3. If the browser could not store it, the rail says the take is only in this tab.
-  A take no retry could send — over the size cap, or of a type the route refuses — is not held: the
-  catalogue's sentence says why, on screen 3, and the question is recorded again.
+  A take no retry could send — over the size cap, or of a type the route refuses — stays held. The
+  catalogue's sentence says why in a rail above the held one, `もう一度試す` is not offered, and
+  `回答を入力する` opens the typing box below. The take remains on this device until the round ends.
 - **The take could not be transcribed.** The same frame, with `07` §3's sentence for
   `transcription_failed` in the rail and two outline controls: `もう一度試す` and `回答を入力する`. The
   second opens a box under them — label `あなたの回答 — 音声ではなく入力`, 200px, the transcript's own

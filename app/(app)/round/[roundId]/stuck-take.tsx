@@ -33,9 +33,9 @@ export function StuckTakeFrame({
   /** What the call in flight is doing, said in place of the caption. */
   working: string;
   stamp: string;
-  /** Null when no retry could succeed: the round takes no more writes. */
+  /** Null when no retry could succeed: the round takes no more writes, or the route refused the take. */
   onRetry: (() => void) | null;
-  /** Set when typing is offered: the take is uploaded and transcription failed. */
+  /** Set when typing is offered: transcription failed, or the take can never be uploaded. */
   onType: ((text: string) => void) | null;
 }) {
   const [typing, setTyping] = useState(false);

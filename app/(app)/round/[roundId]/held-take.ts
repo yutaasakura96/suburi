@@ -4,8 +4,9 @@ import type { Take, TakeContentType } from "./recorder";
 // failed PUT leaves the only copy of the answer in the browser, and a reload must not be what loses
 // it. Written when the take exists, removed once the server confirms it read the uploaded object.
 //
-// **One take per round**, keyed by the round: a round asks one prompt at a time. A take held for an
-// older round is left alone — only that round's own page may judge it.
+// **One take per prompt**, keyed by the round, the position and whether it is the follow-up. A take
+// the route refused can never reach S3: it stays, marked with the refusal, until its round ends. A
+// take held for an older round is left alone — only that round's own page may judge it.
 //
 // Every function resolves rather than throws: where IndexedDB is unavailable the take is simply not
 // held, and the screen says it is only in the tab.
@@ -20,15 +21,27 @@ export interface TakeSlot {
   readonly followUp: boolean;
 }
 
+/** The slot route's refusals no retry can get past (07 §5.6). */
+export type UploadRejection = "upload_too_large" | "unsupported_content_type";
+
+export interface StoredTake extends Take {
+  /** Set when the route refused the take: it is answered by typing, not by a retry. */
+  readonly rejection?: UploadRejection;
+}
+
 interface HeldTake extends TakeSlot {
+  readonly id: string;
   readonly blob: Blob;
   readonly contentType: TakeContentType;
+  readonly rejection?: UploadRejection;
 }
+
+const keyOf = (slot: TakeSlot) => `${slot.roundId}:${slot.position}:${slot.followUp}`;
 
 function open(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DATABASE, 1);
-    request.onupgradeneeded = () => request.result.createObjectStore(STORE, { keyPath: "roundId" });
+    request.onupgradeneeded = () => request.result.createObjectStore(STORE, { keyPath: "id" });
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
     request.onblocked = () => reject(new Error("blocked"));
@@ -50,10 +63,10 @@ async function transact<T>(mode: IDBTransactionMode, work: (store: IDBObjectStor
   }
 }
 
-/** Holds the take for its prompt, in place of any earlier take of the same round. `false` when it could not be stored: it is then only in the tab. */
-export async function holdTake(slot: TakeSlot, take: Take): Promise<boolean> {
+/** Holds the take for its prompt. `false` when it could not be stored: it is then only in the tab. */
+export async function holdTake(slot: TakeSlot, take: Take, rejection?: UploadRejection): Promise<boolean> {
   try {
-    const held: HeldTake = { ...slot, blob: take.blob, contentType: take.contentType };
+    const held: HeldTake = { ...slot, id: keyOf(slot), blob: take.blob, contentType: take.contentType, rejection };
     await transact("readwrite", (store) => store.put(held));
     return true;
   } catch {
@@ -61,24 +74,32 @@ export async function holdTake(slot: TakeSlot, take: Take): Promise<boolean> {
   }
 }
 
-/** The take held for exactly this prompt, or null. One held for another prompt of this round was answered some other way, and is dropped. */
-export async function heldTake(slot: TakeSlot): Promise<Take | null> {
+/** The take held for exactly this prompt, or null. */
+export async function heldTake(slot: TakeSlot): Promise<StoredTake | null> {
   try {
-    const held = await transact<HeldTake | undefined>("readonly", (store) => store.get(slot.roundId));
-    if (!held) return null;
-    if (held.position === slot.position && held.followUp === slot.followUp) return { blob: held.blob, contentType: held.contentType };
-    await releaseTake(slot.roundId);
-    return null;
+    const held = await transact<HeldTake | undefined>("readonly", (store) => store.get(keyOf(slot)));
+    return held ? { blob: held.blob, contentType: held.contentType, rejection: held.rejection } : null;
   } catch {
     return null;
   }
 }
 
-/** The round's take reached S3, or its prompt is gone: nothing is held for the round any more. */
-export async function releaseTake(roundId: string): Promise<void> {
+/** The prompt's take reached S3: it is no longer held. */
+export async function releaseTake(slot: TakeSlot): Promise<void> {
   try {
     await transact("readwrite", (store) => {
-      store.delete(roundId);
+      store.delete(keyOf(slot));
+    });
+  } catch {
+    // Nothing was held, or nothing can be: either way there is nothing to release.
+  }
+}
+
+/** The round has ended: nothing is held for it any more. */
+export async function releaseRoundTakes(roundId: string): Promise<void> {
+  try {
+    await transact("readwrite", (store) => {
+      store.delete(IDBKeyRange.bound(`${roundId}:`, `${roundId}:￿`));
     });
   } catch {
     // Nothing was held, or nothing can be: either way there is nothing to release.
