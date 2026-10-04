@@ -1121,9 +1121,9 @@ shows every score that landed and a pending round-level note, and generation is 
   round feedback (`06`, 2026-09-27).
 - **The feedback is written from the answers the round asked for** — each question's first answer and
   its follow-up's (#49, `06`, 2026-10-04). An answer given again in practice (§5.6) is scored and
-  shown on its own, and is **not** waited for in step 2, counted in `scoring`, or sent to the feedback
-  call in step 3: the findings describe the round as it was first answered, under the prompt version
-  that already reads it.
+  shown on its own. When an original answer scored, retries are not waited for, counted or sent to
+  the feedback call. When none scored, scored retries are used instead, with prompt versions
+  `feedback-en-1.3` and `feedback-ja-1.2`.
 - Already complete → `409 round_already_complete`, with `detail.has_feedback` saying whether the
   feedback exists. The envelope's `detail` is flat (§2), so it cannot carry the feedback itself;
   screen 8 reads it from the round (`06`, 2026-10-01).

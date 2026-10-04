@@ -677,7 +677,6 @@ describe("a practice round ends without a rating (07 §5.12)", () => {
       const roundId = await world.startRound();
       const { answerId, followUp } = await world.answerPosition(roundId);
       await world.answer(roundId, { again: answerId, corrected: "I led it, said a second time." });
-      // A follow-up's answer given again has no page, as the follow-up's own answer has none (10 §8).
       await world.answer(roundId, { again: followUp!.answerId, corrected: "It was my call, said a second time." });
       for (let position = 2; position <= 3; position += 1) await world.answerPosition(roundId);
       await world.drainAfter();
@@ -701,13 +700,41 @@ describe("a practice round ends without a rating (07 §5.12)", () => {
       expect(screen.answers.map((answer) => [answer.position, answer.again, answer.status])).toEqual([
         [1, 0, "ok"],
         [1, 1, "ok"],
+        [1, 1, "ok"],
         [2, 0, "ok"],
         [3, 0, "ok"],
       ]);
       // The answer given again has no follow-up of its own; the first keeps its one.
-      expect(screen.answers.map((answer) => answer.followUp?.kind ?? null)).toEqual(["asked", null, "asked", "asked"]);
+      expect(screen.answers.map((answer) => answer.followUp?.kind ?? null)).toEqual(["asked", null, null, "asked", "asked"]);
+      expect(screen.answers.map((answer) => answer.followUpAnswer)).toEqual([false, false, true, false, false]);
       // The CV region lists the first answers' spans alone: one per question, none from the answer given again.
       expect(screen.grounding?.unsupported.map((span) => span.position)).toEqual([1, 2, 3]);
+    }));
+
+  it("writes feedback from scored retries when every original score failed", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const roundId = await world.startRound();
+      world.scorer.score = async () => {
+        throw new ModelCallFailed("Scoring", "upstream_500");
+      };
+      const first = await world.answerPosition(roundId);
+      for (let position = 2; position <= 3; position += 1) await world.answerPosition(roundId);
+      await world.drainAfter();
+      world.scorer.score = async (input) => uniformScores(3)(input);
+      const retry = await world.answer(roundId, { again: first.followUp!.answerId });
+      await world.drainAfter();
+
+      const completed = await world.call(world.handlers.complete, roundId, {});
+      expect(completed.status).toBe(201);
+      expect(completed.json.feedback.prompt_version).toBe("feedback-en-retry-fake");
+      expect(world.generator.inputs[0].answers).toMatchObject([
+        { position: 1, followUp: true, again: true, answer: CORRECTED },
+      ]);
+      const screen = await feedbackScreen(db, await world.roundOf(roundId));
+      expect(screen.answers.find((answer) => answer.followUpAnswer && answer.again === 1)?.status).toBe("ok");
+      expect(screen.findingsUnavailable).toBe(false);
+      expect((await world.rowOf(retry.answerId)).retryOfAnswerId).toBe(first.followUp!.answerId);
     }));
 });
 

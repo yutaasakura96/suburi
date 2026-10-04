@@ -1098,7 +1098,7 @@ and the round's feedback at the end with no rating asked first (PRD §2, US-5, U
 Only realistic mode was drawn. **Practice's shape was decided on 2026-09-27 (`06`) and is specified
 here from `05` components, before it was built (#49)** — the way §13 was. Everything §3–§8 says holds
 in a practice round unless this section says otherwise, and every string is in the round's language
-(§0); the Japanese ones are in `docs/checklists/native-read-round.md` §10, unread.
+(§0); the Japanese ones are in `docs/checklists/native-read-round.md` §10, accepted by the owner on 2026-10-05.
 
 The round header (`05` §5.2) names the mode: `English · Practice · 3 questions`, `日本語・練習・3問`.
 A practice round is chosen on Setup (§2), where the mode's line already says what it is.
@@ -1224,11 +1224,11 @@ scores, and the frame after the last answer is the one that leads to the feedbac
   and the footer carries no `緊張度` line.
 - **An answer given again has its own page in the pager**, straight after the answer it follows:
   `Question 1 · again` / `第1問・再回答` — `again 2`, `再回答2` for a second one — with its own figures
-  and score rows, headed `Question 1 / 3 · again`. It has no follow-up row. A follow-up's answer
-  given again has no page, as the follow-up's own answer has none (§8).
-- **The round-level findings, and `Checked against your CV`, are written from the first answers and
-  their follow-ups.** An answer given again was scored and shown on its own frame, and is not sent to
-  the feedback call (`07` §5.12, `06`).
+  and score rows, headed `Question 1 / 3 · again`. It has no follow-up row. A scored retry of a
+  follow-up answer also has its own page, headed as a follow-up given again.
+- **The round-level findings, and `Checked against your CV`, use the first answers and their
+  follow-ups when one scored.** If none scored, they use scored answers given again under the new
+  feedback prompt versions (`07` §5.12, `06`).
 - The two sentences that stand in for missing findings do not mention a rating:
   `The findings for this round are not ready. The round is complete, and every score above is kept.` /
   `このラウンドの講評はまだできていません。ラウンドは終了し、上の採点はすべて残っています。` and

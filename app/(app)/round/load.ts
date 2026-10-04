@@ -3,7 +3,7 @@ import * as s from "@/db/schema";
 import type { FeedbackItem, TranslatedFeedback } from "@/lib/ai/round-feedback";
 import { underlineSegments } from "@/lib/cv/segments";
 import { characterLength, sliceQuote, type Span } from "@/lib/cv/spans";
-import { feedsRoundFeedback } from "@/lib/round/complete";
+import { feedbackAnswers, feedsRoundFeedback } from "@/lib/round/complete";
 import type { Db } from "@/lib/round/http";
 import { rewritePercent } from "@/lib/round/measures";
 import type { TranslatedModelAnswer } from "@/lib/round/model-answers";
@@ -332,6 +332,7 @@ function modelAnswerSegments(body: string, spans: readonly Span[]): ModelAnswerS
 
 export interface FeedbackAnswerView {
   readonly position: number;
+  readonly followUpAnswer: boolean;
   /** 0 for the first answer to the question; n for the nth answer given again (practice, 10 §15). */
   readonly again: number;
   readonly prompt: string;
@@ -417,7 +418,7 @@ export async function feedbackScreen(db: Db, round: RoundRow): Promise<FeedbackS
   const answered = answers.filter((answer) => answer.transcriptCorrected !== null);
   // The pager is one bank question per position, its follow-up hanging off it as a row — and, in a
   // practice round, a page for each time that question was answered again, straight after it.
-  const submitted = answered.filter((answer) => answer.questionId !== null);
+  const submitted = answered.filter((answer) => answer.questionId !== null || answer.retryOfAnswerId !== null);
   const againOf = (answer: AnswerRow) =>
     answer.retryOfAnswerId === null
       ? 0
@@ -454,7 +455,8 @@ export async function feedbackScreen(db: Db, round: RoundRow): Promise<FeedbackS
   const okIds = [...attempts.values()].filter((attempt) => attempt.status === "ok").map((attempt) => attempt.id);
   const scoreRows = okIds.length === 0 ? [] : await db.select().from(s.scores).where(inArray(s.scores.scoringAttemptId, okIds));
   // The round-level regions read what the feedback call read: no answer given again (07 §5.12).
-  const roundLevel = answered.filter(feedsRoundFeedback).flatMap((answer) => attempts.get(answer.id) ?? []);
+  const roundLevelAnswers = feedbackAnswers(answered, attempts);
+  const roundLevel = roundLevelAnswers.flatMap((answer) => attempts.get(answer.id) ?? []);
   // An attempt that went through the CV check says which language it read (04 `scoring_attempts`).
   const grounded = roundLevel.some((attempt) => attempt.status === "ok" && attempt.answeredLanguage !== null);
   const untouchedIds = findings?.untouchedClaimIds ?? [];
@@ -474,11 +476,12 @@ export async function feedbackScreen(db: Db, round: RoundRow): Promise<FeedbackS
           .innerJoin(s.cvVersions, eq(s.cvVersions.id, s.cvClaims.cvVersionId))
           .where(and(inArray(s.cvClaims.id, untouchedIds), eq(s.cvClaims.cvVersionId, round.cvVersionId))),
   ]);
-  const generatorVersions = submitted.length
+  const bankAnswers = submitted.filter((answer) => answer.questionId !== null);
+  const generatorVersions = bankAnswers.length
     ? await db
         .selectDistinct({ version: s.questions.generatorPromptVersion })
         .from(s.questions)
-        .where(inArray(s.questions.id, submitted.map((answer) => answer.questionId!)))
+        .where(inArray(s.questions.id, bankAnswers.map((answer) => answer.questionId!)))
     : [];
 
   const translated = (findings?.bodyTranslated ?? null) as TranslatedFeedback | null;
@@ -511,6 +514,7 @@ export async function feedbackScreen(db: Db, round: RoundRow): Promise<FeedbackS
       const status = attempt?.status ?? "pending";
       return {
         position: answer.position,
+        followUpAnswer: answer.questionId === null,
         again: againOf(answer),
         prompt: answer.promptText,
         own: answer.transcriptCorrected ?? "",
@@ -539,7 +543,7 @@ export async function feedbackScreen(db: Db, round: RoundRow): Promise<FeedbackS
     grounding: grounded
       ? {
           cvLabel,
-          unsupported: submitted.filter(feedsRoundFeedback).flatMap((answer) =>
+          unsupported: roundLevelAnswers.filter((answer) => answer.questionId !== null || answer.retryOfAnswerId !== null).flatMap((answer) =>
             flagRows
               .filter((flag) => flag.scoringAttemptId === attempts.get(answer.id)?.id)
               .map((flag) => ({

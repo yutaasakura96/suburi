@@ -489,9 +489,9 @@ tested with it. Through the handlers, against Postgres.
 - **`complete` with an empty body** closes a practice round with `felt_pressure` null and writes the
   round feedback; a rating is still `422 pressure_not_applicable`, and a realistic round with no
   rating is still `422 pressure_required`.
-- **The round feedback is generated from the first answers and the follow-ups**: the generator's
-  input holds no answer given again. Screen 8 pages it beside its original, and the CV region lists
-  the first answers' spans alone.
+- **The round feedback uses original answers when one scored**, omitting retries from the generator
+  input and CV region. When none scored, a scored retry produces feedback under the new prompt version.
+  Screen 8 gives both question retries and follow-up retries their own pages.
 - **After the round's last answer the page opens on that answer's frame with the feedback next**,
   never on screen 7 — the defect #44's review left for this slice.
 - The page opens, in order, on an open answer-again, the open answer to the current prompt, the frame
@@ -534,7 +534,7 @@ wiring between screens that no unit test sees.
 | Coverage marks | After the round, `/cv` draws the cited claim with the heavier mark, the rest without, and the count line states how many were never used. |
 | Practice frame | After a practice submit, the per-answer frame states the score as pending, then shows it once scored; "answer again" writes a second answer at the same position with no follow-up. **As built (#49), `e2e/practice.spec.ts`:** the mock holds the scoring call open while the frame is read, so "pending" is asserted, not raced; the follow-up is ready beside the pending rows. |
 | Practice re-take | Record, stop, record again: one answer row and one object key throughout, and no clock, cap line or timer on the frame. |
-| Practice ends without a rating | The last per-answer frame offers the feedback; screen 7 never renders, the round is complete with `felt_pressure` null, and the feedback call's input holds no answer given again. A round sent to its end through the API opens on the same frame. |
+| Practice ends without a rating | The last per-answer frame offers the feedback; screen 7 never renders, the round is complete with `felt_pressure` null, and the feedback call uses scored retries when no original answer scored. A round sent to its end through the API opens on the same frame. |
 | Practice asks seen questions | Setup's `Practice` starts a round whose first questions are the ones an earlier round answered, with no set piece. |
 | History's rail | Every round newest first; `Unscored — retry scoring` on the rounds with a pending or failed score, `Abandoned — not counted in progress` on the open one, no line on the scored one; the chrome English on a Japanese round; the newest open round started today offered for resuming; with no rounds, a sentence and the way to start one. After 120 older rounds are loaded, a detail refresh keeps all 120 visible, two of them a microsecond apart still in the server's order; a round started elsewhere before the refresh appears at the top and the oldest loaded round stays; and a page `Older rounds` adds while that refresh is in flight stays. |
 | History's matrix | Each question with its follow-up under it; 10 §10's sample row `4 3 4 3 4 2 3`; **the missing follow-up as a row spanning the score columns**; seven dimensions in a Japanese round and the pill renaming them without changing a score; an unreached question shown by its number alone. |

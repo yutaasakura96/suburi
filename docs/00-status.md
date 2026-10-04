@@ -47,8 +47,8 @@ pinned model and its replacement deadline are in `03` §4.
 **#50, History, is built (2026-10-04), on `fm/suburi-50`** (Next).
 **#74, a model answer for each question, is built (2026-10-04), on `fm/suburi-74`** (Next).
 **#49, practice mode, is built (2026-10-04), on `fm/suburi-49`:** Setup's mode, the re-take, the
-per-answer frame, answer again, and a round that ends with no rating (Next).
-**Updated:** 2026-10-05 (#50's catalogue string read; #43, #44, #45, #46, #47, #49, #50 and #74 built; #42 closed; #55 and #56 on 2026-09-30)
+per-answer frame, answer again, and a round that ends with no rating; its native read is done (Next).
+**Updated:** 2026-10-05 (#49 native read accepted; #50's catalogue string read; #43, #44, #45, #46, #47, #49, #50 and #74 built; #42 closed; #55 and #56 on 2026-09-30)
 
 ## Done
 - Phase 1 — `docs/01-project-brief.md`, `docs/02-product-requirements.md`, `docs/06-decision-log.md`.
@@ -489,10 +489,9 @@ the per-answer frame, pending in words and then scored, polling that read; answe
 `retry_of_answer_id` on the slot call (`07` §5.6); and a practice round that opens on the answer sent
 last and completes without a rating — the defect #44's review left for this slice. **No migration:**
 `answers.retry_of_answer_id` was already there. Tests: `11` §3.20, and `e2e/practice.spec.ts` for §4's
-practice rows. **One choice is this slice's and waits on the owner** (`06`, 2026-10-04): round
-feedback is written from the first answers and their follow-ups, and an answer given again is not
-sent to the feedback call. **The user's steps:** confirm that, and the native read of
-`docs/checklists/native-read-round.md` §10 — 28 strings, none read.
+practice rows. **Owner-confirmed 2026-10-05:** feedback uses scored retries when no original answer
+scored, with new prompt versions; scored follow-up retries have their own page on screen 8. The
+owner read and accepted all 28 Japanese strings in `docs/checklists/native-read-round.md` §10.
 
 **#54, #55 and #56 are next, then #21. #20, #29 and #38 are done.** #21 is blocked by all three
 (native `blocked_by` edges, 2026-09-29), and #56 by #55. They were triaged 2026-09-29 (`06`): #54 and

@@ -101,6 +101,13 @@ export function feedsRoundFeedback(answer: Pick<AnswerRow, "transcriptCorrected"
   return answer.transcriptCorrected !== null && answer.retryOfAnswerId === null;
 }
 
+export function feedbackAnswers(answers: readonly AnswerRow[], attempts: Awaited<ReturnType<typeof latestAttempts>>) {
+  const originals = answers.filter(feedsRoundFeedback);
+  return originals.some((answer) => ["ok", "pending"].includes(attempts.get(answer.id)?.status ?? ""))
+    ? originals
+    : answers.filter((answer) => answer.transcriptCorrected !== null && answer.retryOfAnswerId !== null);
+}
+
 type Outcome =
   | { readonly ok: true; readonly feedback: FeedbackRow; readonly counts: ReturnType<typeof scoringCounts> }
   | { readonly ok: false; readonly response: Response };
@@ -110,17 +117,24 @@ async function writeRoundFeedback(deps: FeedbackDeps, round: RoundRow): Promise<
   const sleep = deps.sleep ?? wait;
   const started = performance.now();
   const elapsed = () => Math.round(performance.now() - started);
-  // The round's own answers: a practice "answer again" was scored and shown on its own frame, and
-  // is neither waited for nor sent here (06, #49).
-  const answers = (await roundAnswers(deps.db, round.id)).filter(feedsRoundFeedback);
-  const ids = answers.map((answer) => answer.id);
+  const allAnswers = await roundAnswers(deps.db, round.id);
+  const originals = allAnswers.filter(feedsRoundFeedback);
 
   // Step 2: poll until no latest attempt is pending, or the bound runs out.
   const bound = deps.waitBoundMs ?? COMPLETE_WAIT_BOUND_MS;
-  let attempts = await latestAttempts(deps.db, ids);
+  let attempts = await latestAttempts(deps.db, originals.map((answer) => answer.id));
   while ([...attempts.values()].some((attempt) => attempt.status === "pending") && performance.now() - started < bound) {
     await sleep(POLL_MS);
-    attempts = await latestAttempts(deps.db, ids);
+    attempts = await latestAttempts(deps.db, originals.map((answer) => answer.id));
+  }
+  const retryOnly = noScores(scoringCounts(attempts.values()));
+  const answers = retryOnly ? allAnswers.filter((answer) => answer.transcriptCorrected !== null && answer.retryOfAnswerId !== null) : originals;
+  if (retryOnly) {
+    attempts = await latestAttempts(deps.db, answers.map((answer) => answer.id));
+    while ([...attempts.values()].some((attempt) => attempt.status === "pending") && performance.now() - started < bound) {
+      await sleep(POLL_MS);
+      attempts = await latestAttempts(deps.db, answers.map((answer) => answer.id));
+    }
   }
   const counts = scoringCounts(attempts.values());
   const failure = (errorClass: string) => {
@@ -169,6 +183,7 @@ async function writeRoundFeedback(deps: FeedbackDeps, round: RoundRow): Promise<
         rubric,
         answers: scored.map(({ answer, attemptId }) => ({
           position: answer.position,
+          again: retryOnly,
           followUp: answer.questionId === null,
           prompt: answer.promptText,
           answer: answer.transcriptCorrected ?? "",
@@ -190,7 +205,7 @@ async function writeRoundFeedback(deps: FeedbackDeps, round: RoundRow): Promise<
   } catch (error) {
     return failure(error instanceof ModelCallFailed ? error.errorClass : "unexpected");
   }
-  const promptVersion = deps.generator.promptVersions[round.language];
+  const promptVersion = retryOnly ? deps.generator.retryPromptVersions[round.language] : deps.generator.promptVersions[round.language];
   if (!promptVersion) return failure("no_prompt_for_language");
   // An id is stored only if the call picked it from the never-cited set it was shown; at most three.
   const untouched = pickUntouched(neverCited, result.untouched);

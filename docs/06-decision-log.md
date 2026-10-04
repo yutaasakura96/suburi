@@ -8,26 +8,23 @@ Newest first. Every entry records what was chosen, why, and what was rejected.
 The round with the pressure taken out: a re-take, each answer's scores as they land, a second go at
 the same question, and feedback with no rating asked first. The shape is 2026-09-27's (below); the
 server already completed a practice round and preferred seen questions. These are the choices the
-screens and the two remaining calls needed. **One of them is a product choice this slice made and the
-owner has not confirmed** — the feedback entry — and it says so.
+screens and the two remaining calls needed. The owner confirmed the feedback rule on 2026-10-05.
 
-### [2026-10-04] Round feedback is written from the first answers; an answer given again is not sent to the feedback call
+### [2026-10-04, owner-confirmed 2026-10-05] Round feedback uses scored retries when no original answer scored
 
-**Decided by this slice, not by the owner — flagged for confirmation.** `complete` waits for,
+**Owner-confirmed.** `complete` waits for,
 counts and sends to the feedback call the answers the round asked for: each question's first answer
 and its follow-up's. An answer given again is scored on its own, shown on its own per-answer frame
-and on its own page of screen 8, and is left out of the findings and of `Checked against your CV`.
+and on its own page of screen 8, and is left out of the findings and of `Checked against your CV`
+when an original answer scored. When none scored, `complete` uses scored retries instead, including
+their CV check, under `feedback-en-1.3` and `feedback-ja-1.2`.
 **Why:** `feedback-en-1.2` and `feedback-ja-1.1` read one answer per prompt, labelled by position; a
 second answer to the same question is something neither prompt has a word for, and findings written
 over both would say which was better — the comparison `10` §15 refuses. It also keeps `complete`'s
-60 s wait off a retry sent a moment before the round ended. **The cost, accepted:** the findings do
-not mention the retry, and a round whose first answers all failed scoring has no findings even if a
-retry scored. **Rejected:** sending retries as extra `answer N` blocks (the model would read two
+60 s wait off a retry sent a moment before the round ended when an original scored. **Rejected:** sending retries as extra `answer N` blocks (the model would read two
 answers to one question as two questions); replacing the first answer with the latest retry in the
 input (findings about an answer the Progress chart will never plot, and the first answer's flags
-disappear from the round). **Revisit if** the owner wants the findings to speak about a retry: that is
-a `feedback-*` prompt-version bump whose input labels the retry as one, not a change to what is sent
-under the current versions.
+disappear from the round). The fallback labels retries explicitly and uses new prompt versions.
 
 ### [2026-10-04] Practice's screens are `10` §15: a per-answer frame after every commit
 
@@ -90,11 +87,10 @@ response or server-sent events (a function held open per frame for a seven-secon
 `router.refresh()` on a timer (it re-renders the frame from the server and drops the error line and
 the go-on state it holds); a client cache library (`03` §7 names them as not added).
 
-### [2026-10-04] The new Japanese strings are listed, unread
+### [2026-10-04, owner-accepted 2026-10-05] The new Japanese strings passed the native read
 
-Every Japanese string practice adds is in `docs/checklists/native-read-round.md` §10, each row
-unread, written to `05` §6's rules. **None was read by a native reader before this merged**; the
-owner's read is the open item, and a string it changes is a copy edit, not a version of anything.
+Every Japanese string practice adds is in `docs/checklists/native-read-round.md` §10, written to
+`05` §6's rules. The owner read and accepted all 28 strings on 2026-10-05.
 
 ---
 
