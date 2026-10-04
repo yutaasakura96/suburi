@@ -159,7 +159,7 @@ that asserts the two lists match.
 | `round_not_complete` | 409 | `complete` | screen 7 |
 | `round_abandoned` | 409 | `answers`, `submit`, `complete` | the round screen — the round takes no more writes; start a new one (§5.5) |
 | `feedback_generation_failed` | 502 | `complete`, `feedback` | screen 8 — the round is complete and its scores show; the round-level note is pending and retryable, unless `detail.error_class` is `no_scores`, which no retry can fix (§5.12) |
-| `role_context_too_large` | 422 | `POST /api/role-contexts` | Setup — before anything is saved. **Its cap is measured first** (§5.3) |
+| `role_context_too_large` | 422 | `POST /api/role-contexts` | Setup's add form — before anything is saved. The cap is measured (§5.3) |
 | `speech_failed` | 502 | `speech` | screen 3 — a short notice; the question stays as text and the round goes on (§5.15) |
 | `write_failed` | 500 | every round route | the screen that made the call — nothing half-written; the round stays resumable |
 | `cv_unchanged` | 422 | `POST /api/cv-versions` | CV screen — the save is refused, nothing written |
@@ -169,9 +169,9 @@ that asserts the two lists match.
 
 **Four codes are added by the round loop** (`06`, 2026-09-27 and 2026-09-28).
 `feedback_generation_failed` and `write_failed` **landed with the round-loop tracer (#42)**, in
-`lib/api/errors.ts` with their `ja` and `en` copy, and `speech_failed` **with the spoken question
-(#45)**; `role_context_too_large` lands with its measured cap (#47), with its copy in the same change,
-as `11` §3.10 requires.
+`lib/api/errors.ts` with their `ja` and `en` copy; `speech_failed` **landed with the spoken question
+(#45)** and `role_context_too_large` **landed with its measured cap (#47)**, each with its copy in the
+same change, as `11` §3.10 requires.
 
 **`round_abandoned` landed with the tracer too** (#42 review): `answers`, `submit` and `complete` read
 the derived status (§5.5) inside their locked transaction, so a stale tab cannot write into a round a
@@ -433,11 +433,16 @@ POST /api/role-contexts
   "created_at": "2026-09-12T03:02:00Z" }
 ```
 
-**Round one accepts `posting` and `general`** (`06`, 2026-09-27). **The tracer (#42) accepts
-`general` alone**; `posting` is a `400` until #47 builds it with its measured cap. `researched` is a `400` until US-16
-ships, and arrives with "the file wins" (PRD US-2). A posting is pasted, or imported with the CV
-screen's importer (`lib/cv/import/`): the browser extracts the text, the user checks it, and only the
-text and the filename are sent — the file never reaches the server, as in §5.2.
+**Round one accepts `posting` and `general`** (`06`, 2026-09-27; `posting` since #47). `researched`
+is a `400` until US-16 ships, when a saved posting takes precedence (PRD US-2). A posting is pasted, or
+imported with the CV screen's importer (`lib/cv/import/`): the browser extracts the text, the user
+checks it, and only the text and the filename are sent — the file never reaches the server, as in §5.2.
+
+**A posting carries `company_name`, `role_title` and `body`, all three required and non-blank**:
+the picker names a posting by the first two, and a posting with no text is General practice under
+another name. Each is trimmed; `company_name` and `role_title` are at most 200 code points.
+`source_filename` is optional and at most 255 code points; Setup sends it when the text came from an
+import. The schema is strict: an unknown field is a `400`, as everywhere (§1).
 
 **Immutable and reusable.** There is no `PUT`, `PATCH` or `DELETE`; a changed posting is a new row, and
 Setup picks from the saved ones. The picker is a Server Component read (§1), so there is no `GET`.
@@ -446,8 +451,14 @@ Setup picks from the saved ones. The picker is a Server Component read (§1), so
 `400` otherwise. General practice is a real row, not a null foreign key (`04`), and there is **one per
 user**: a second `general` request returns the existing row with `200`, never a second row.
 
-**A posting's text-size cap is measured, not guessed**, the way the CV's was (§5.2, #20), in the
-slice that builds this endpoint. Over it is `422 role_context_too_large`, before anything is saved.
+**A posting's `body` is capped at 20,000 code points** — measured, not guessed, the way the CV's was
+(§5.2, #20; `06`, #47; `03` §4 has the table). Over it is `422 role_context_too_large`, before
+anything is saved, with `detail` carrying `body_chars` and `max_body_chars` and nothing else. The cap
+is one number for both languages, a constant in `lib/round/limits.ts`. It bounds what a round's
+question generation is sent at round start (§5.4), which is the only model call a posting reaches.
+
+**Not rate-limited and not ⚡**: the route calls no model. **Never logged:** `body`, `company_name`,
+`role_title`, `source_filename` — log lines carry the row id, the kind and the body's length.
 
 ### 5.4 `POST /api/rounds` ⚡
 
@@ -498,27 +509,55 @@ where retired_at is null` slice, in this order:
 3. **New questions generated** when the unseen pool cannot fill the round, with PRD §6's bank-exhausted
    warning on Setup before the round starts.
 
-**Practice rounds prefer seen questions** and fall back to unseen ones, so practice does not spend the
-unseen pool (`06`, 2026-09-27). Generation runs **in parallel with the preflight**, before the
-transaction; the round row and all its `round_questions` rows are then written in one transaction. No
-question repeats within a round (`04`).
+**Practice rounds prefer seen questions**: seen generated questions first, then unseen generated
+ones, then new ones — and **no set piece**, since a practice round that took one would spend its only
+first attempt off the record (`06`, 2026-09-27). No question repeats within a round (`04`).
 
-**The near-duplicate guard.** A generated question is embedded (`text-embedding-3-small`, `03` §4) and
-compared by cosine similarity within the same slice; **at or above the threshold the existing row is
-reused instead of inserted** (`04`, `03` §11). **The threshold starts at 0.90, an unverified guess.**
-Every near-miss is stored with its score (`04`); the weekly digest reads those records (`12` §6).
+**Generation, at round start** (#47). When the bank cannot fill the round by the order above, the
+shortfall is generated — one call, for the round's type and language, with the prompt
+`generate-<round type>-<language>-<version>` (`lib/prompts/`), given:
+
+- the round's **CV version as its claims**, each quoted from the stored body by its span;
+- the **role context**: the posting's company, role title and text, or the fact that this is General
+  practice;
+- **every question already in the slice**, set pieces included, so none is asked again in other words.
+
+The call asks for **two more than the shortfall**, so a candidate the guard maps to an existing
+question does not leave the round short. Each candidate is then embedded (`text-embedding-3-small`,
+`03` §4), all in one call. **Generation and embedding run in parallel with the preflight, before the
+transaction** — the round waits for the slower of the two, not their sum (`03` §4 has the measured
+wait).
+
+**The transaction** then takes an advisory lock on the `(user, language, round type)` slice — two
+round starts must not both insert the same new question — and, for each candidate in the model's
+order until the round is full, runs **the near-duplicate guard**: the candidate is compared by cosine
+similarity with the nearest embedded, non-retired question in the slice, **and at or above the
+threshold the existing row is reused instead of inserted** (`04`, `03` §11). **The threshold starts at
+0.90, an unverified guess.** Below it the candidate becomes a `questions` row — `origin: generated`,
+its embedding, the generator's model id and prompt version — and takes the next position. Every
+comparison is stored in `near_duplicate_checks` with its similarity (`04`); the weekly digest reads
+those records (`12` §6). Candidates left over once the round is full are discarded, unstored.
+
+**A reused candidate does not get asked twice.** The question it maps to is either already in this
+round, or one the user has answered before. If the candidates run out with the round still short, the
+remaining positions are filled from **seen generated questions** — the ones the guard mapped to first,
+then the rest, oldest first. They are repeats: scored, never first attempts (§5.6). Setup says so
+before the round starts (`10` §2). Only if the round still cannot be filled is it refused.
+
+The round row and all its `round_questions` rows are written in the same transaction as the new
+questions, so a round that fails to start leaves no question behind.
 
 **Starting a round abandons any open round** (`04` `rounds`). Nothing is written to the old round:
 abandonment is derived, and §6 still refuses an abandon endpoint.
 
-Failures: `503 model_unavailable` (preflight — the round is not created);
-`502 question_generation_failed` (nothing created).
+Failures: `503 model_unavailable` (preflight — the round is not created, and it wins over a
+generation failure in the same request); `502 question_generation_failed` (nothing created), whose
+`detail.error_class` is the generation or embedding call's error class, or `bank_too_small` when the
+candidates and the seen questions together could not fill the round.
 
-**Until generation exists (#47)** the tracer fills step 3 from the bank alone: a realistic round
-short of unseen questions takes seen generated ones, which are never first attempts (§5.6), and a bank
-that cannot fill the round at all is `502 question_generation_failed` with `error_class:
-"bank_too_small"`. **English only until #43**: `language: "ja"` is a `400`, rather than a round with no
-rubric (`06`, 2026-10-01).
+**Both languages since #43**: `language` is `ja` or `en`, and each takes its own rubric, CV version,
+bank and generator prompt — a Japanese round is filled from Japanese questions only, its set piece
+first, and what it generates is written by `generate-{round_type}-ja-1.0` (`06`, 2026-10-03).
 
 ### 5.5 `GET /api/rounds/{roundId}`
 
@@ -543,6 +582,12 @@ database facts.
 `prompt` is read from `round_questions` at the current position, or from the parent's `follow_ups` row
 when a follow-up is next — never selected or generated again. A follow-up shares its parent's
 `position` (`06`, 2026-09-27, confirm 3).
+
+**A submitted answer whose follow-up is not stored yet resumes at `submit`** (`06`, 2026-10-03): a
+`submit` that died between its commit and the follow-up's row leaves a bank-question answer with no
+`follow_ups` row. The read returns `prompt: null` and `resume: { "at": "submit", "answer_id": … }`,
+and the same body sent again writes the row (§5.9). Resume never generates one itself, and never
+moves past it.
 
 `state` is derived, not stored: `open` (row exists, no audio) → `uploaded` (`audio_s3_key` set) →
 `transcribed` (`transcript_raw` set) → `submitted` (`transcript_corrected` set). `resume.at` tells the
@@ -616,7 +661,12 @@ Failures: `422 upload_too_large` (the take's size against `max_bytes`, **after r
 upload** — the take is still in the browser); `422 unsupported_content_type`;
 `409 round_already_complete`; `409 round_abandoned` (§5.5); `502 presign_failed` — the slot is kept, and the retry lands on it;
 `422 answer_already_submitted` when every position is already submitted — there is no slot left to
-open; `422 transcript_already_final` when the open slot's take is already transcribed.
+open — **or when the current position's answer is submitted and its follow-up is not stored yet**
+(§5.5): `detail` carries that `answer_id`, and no second answer to the question is opened;
+`422 transcript_already_final` when the open slot's take is already transcribed.
+
+**A follow-up's slot** returns `"kind": "follow_up", "question_id": null, "parent_answer_id": "c003…"`,
+its parent's `position`, and `is_first_attempt: false` in both modes.
 
 `audio_s3_key` is written when the slot opens, before the upload: the key is server-derived and fixed
 for the row, so a retried open presigns the same one.
@@ -678,7 +728,7 @@ POST /api/answers/c003e8a2-…/submit
   "rewrite_magnitude": 0.12,
   "scoring": { "attempt_id": "s903…", "status": "pending" },
   "next": { "kind": "follow_up", "position": 2, "parent_answer_id": "c003e8a2-…",
-            "follow_up_id": "f210…",
+            "follow_up_id": "f210…", "prompt_version": "follow-up-ja-1.0",
             "text": "その40%という数字は、どう測ったものですか。", "speak": true },
   "progress": { "position": 2, "of": 5 } }
 ```
@@ -690,7 +740,8 @@ computed server-side and returned so screen 6's meter and the stored value canno
 at round end would put a reasoning model on the critical path of a screen PRD §9 requires to render
 while the user is still at the machine. So `submit` creates the `scoring_attempts` row — `status:
 'pending'`, all four stamps written, **stamp 3 from the question row or, for a follow-up, from its
-`follow_ups` row** — and returns immediately. By round end, all but the last score are already rows and
+`follow_ups` row** — and dispatches scoring immediately, while `submit` waits for follow-up generation
+after the answer's commit. By round end, all but the last score are already rows and
 the feedback screen is a read. *(Seven questions and seven follow-ups make at most 14 answers a round —
 not the "sixteen" this used to say, confirm 7. Practice retries add rows without adding follow-ups.)*
 
@@ -713,15 +764,41 @@ requires one (`04` §6).
 **No follow-up is generated for** a follow-up's own answer, or for practice's "answer again" (§5.6).
 A retry's `next` is whatever the round was already on.
 
-**Its latency, measured with a draft prompt** (`03` §4, 2026-10-01): 3.1 s median, 4.8 s slowest of
-15. The user waits for it inside a timed round; #44 re-measures it with the real prompt.
+**What the generator reads** (`06`, 2026-10-03): the round type, the question exactly as it was
+asked, and the **corrected** transcript — never the raw one, and nothing else. No CV, no rubric, no
+earlier answer. What comes back is checked before it is stored: one question, not blank, at most 400
+code points. English ends in `?`; Japanese ends in a question mark or `か。`. A second sentence or
+question is refused: a full stop followed by a space ends a sentence, whatever the case of the next
+word. A full stop inside a figure, or closing a known abbreviation or a single-letter initial, is
+not one. The abbreviation list is finite, so an unlisted one loses its follow-up as `missing`, and a
+single-letter initial before a second sentence still passes. Anything else is
+`malformed_output`, and counts as a failed call. **One sentence that asks two things is not
+detected** — a rule on "and" would refuse valid single questions — and is left to the prompt.
+
+**The order of the writes.** The answer's commit — corrected text and scoring attempt — is one
+transaction, and scoring is scheduled from it. The follow-up is then generated **outside any
+transaction** and stored in a second one, which locks the round and refuses an abandoned one.
+`follow_ups.parent_answer_id` is unique, so a concurrent `submit` that stored first keeps its row and
+this call returns that one. `next` is computed from the stored rows, never from the request.
+
+**Its latency, measured with `follow-up-en-1.0`** (`03` §4, 2026-10-03): 3.2 s median, 4.7 s slowest
+of 15. The user waits for it inside a timed round, so the call is bounded on its own: **15 s, and one
+retry after 1 s** when the failure is one a second call could get past (not a `4xx` other than `408`,
+`409` or `429`). After that the follow-up is `missing`.
 
 Failures: `400 invalid_request` naming `transcript_raw` when the answer has no transcript yet — there
 is nothing to correct; `422 answer_already_submitted` (idempotent alternative: the same body returns `200` with the
 existing attempt — a different body is the `422`); `409 round_already_complete`; `409 round_abandoned` (§5.5); `502 followup_generation_failed`, which is **not
-fatal** — the answer is saved and scored, the `missing` row is written, and `next` degrades to
-`question`, `pressure` or `feedback`. A missing follow-up costs one prompt; a lost answer costs a
-measurement.
+fatal** — the answer is saved with scoring scheduled, and the `missing` row is written. A missing follow-up costs
+one prompt; a lost answer costs a measurement.
+
+**The `502` is returned once, by the call that wrote the `missing` row** (`06`, 2026-10-03), with
+`detail: { answer_id, attempt_id, error_class }` — an envelope carries no `next` (§2). **The same body
+sent again is the `200`**, with `next` degraded: that is the idempotent repeat above, reading the
+stored row, and it generates nothing. The same repeat is what completes a `submit` that died before
+its follow-up was stored (§5.5): the row is written then, by `submit`, and by nothing else. A
+`500 write_failed` on the follow-up's own write leaves the answer committed and no `follow_ups` row,
+which is that same state.
 
 ### 5.10 `POST /api/scoring-attempts/{attemptId}/run` ⚡
 
@@ -733,7 +810,11 @@ completion by hand.
 **What the scorer reads** (`03` §4, `06`, 2026-09-27): the round's rubric version, the prompt as
 asked, the **corrected** transcript — never the raw one — the answer's duration and its pace, and the
 CV version's claims. **What it returns**, beside the scores: the citations, the unsupported spans of
-the answer (US-11), and `answered_language`.
+the answer (US-11), and `answered_language`. **The scoring prompt version bumped for this** (#46):
+`score-en-1.1` is `1.0`'s scoring unchanged plus the CV check, a new file and so a new stamp (`03` §4),
+and Progress draws the boundary where an answer's `scoring_prompt_version` changes. **A Japanese
+round's `score-ja-1.0` carries the same check from its first version** (#43; `06`, 2026-10-03), so it
+has no such boundary.
 
 ```json
 200
@@ -766,13 +847,31 @@ Retries three times with exponential backoff inside the handler before the row i
 Citations are written to `claim_citations` **only after span validation**: the quote is
 `substring(cv_versions.body, span_start, span_end - span_start)`, never text returned by the model.
 A span outside the body, or a quote that does not match its span, drops the citation (`03` §11,
-`04`).
+`04`). **How, as built (#46):** before the call, every claim of the attempt's CV version is
+re-validated — its span against the body, its slice against `text_normalised` — and only those that
+pass are sent, as a **numbered list** of their sliced text. The scorer returns
+`{ claim: <number>, relation }` and never an id. A number is resolved to the claim it was shown as; a
+number that names none is dropped and counted. **`contradicted_by` is for a real contradiction with a
+cited claim** — the prompt says so, and structurally it cannot be anything else, since a relation with
+no shown claim behind it has no number to carry. An answer asserting what the CV does not mention is
+an unsupported span.
 
 **Unsupported spans get the same rule on the answer side** (`04` `answer_flags`). The scorer returns a
 verbatim quote from the corrected text and a start hint; the server locates it in
-`transcript_corrected` and writes the span, or drops and counts it. **`answered_language` is stored on
-the attempt**; a value that is not the round's language flags the answer in feedback and keeps it out
-of that language's Progress (PRD §7).
+`transcript_corrected` and writes the span, or drops and counts it. The hint only chooses between
+occurrences of a quote that is there; it never moves a span onto text the quote does not match, and a
+located span still passes the span validator — in range, non-empty, on grapheme boundaries — before it
+is written. **`answered_language` is stored on the attempt**, on every attempt that ends `ok`; a value
+that is not the round's language flags the answer in feedback and keeps it out of that language's
+Progress (PRD §7).
+
+**"Counted" means the `scoring_ok` log line**, which carries `claims`, `claims_rejected`, `citations`,
+`citations_dropped`, `flags`, `flags_dropped` and `answered_language` beside the ids and durations —
+counts only, never a quote or a claim (`03` §8). There is no counter column: a rising drop rate is a
+question about the prompt or the model, read from the logs, and not a fact about the answer.
+
+**All of it is one transaction with the scores**: the attempt turns `ok`, and its scores, citations and
+flags are written together or not at all. A failed attempt stores no citation, no flag and no language.
 
 **The trigger is `after()` in `submit`, not a client `fetch`** — resolved 2026-09-12, on the condition
 this TBD set for itself. Next.js documents that `after` runs for the route's configured max duration,
@@ -837,9 +936,18 @@ POST /api/rounds/77af0b13-…/complete
                 { "title": "結論を最初の一文に置く", "body": "…" } ],
     "what_worked": "困難だった点を具体的な場面で説明できていました。",
     "untouched_claim_ids": [ "9c57…", "9c63…" ],
-    "language": "ja", "model_id": "gpt-5.6-sol", "prompt_version": "feedback-ja-1.0" },
+    "body_translated": {
+      "language": "en",
+      "to_fix": [ { "title": "Say where the number comes from first", "body": "…" },
+                  { "title": "Put the conclusion in the first sentence", "body": "…" } ],
+      "what_worked": "You explained the difficulty with a concrete situation." },
+    "language": "ja", "model_id": "gpt-5.6-sol", "prompt_version": "feedback-ja-1.1" },
   "scoring": { "ok": 10, "pending": 0, "failed": 0 } }
 ```
+
+**`body_translated` is the English toggle of a Japanese round's feedback** (PRD §4): the same
+findings, item for item and in the same order, in English. It is `null` on an English round, whose
+feedback is already English.
 
 **Why the rating and the completion are the same call:** `04` requires `felt_pressure` to be captured
 **before any feedback**, and one endpoint makes that ordering structural rather than a rule someone
@@ -857,8 +965,24 @@ has to remember.
    already been spent.
 3. **Generate the round feedback, outside any transaction** — from every answer's scores and flags,
    and the never-cited claims of the round's CV version, from which the model picks two or three
-   relevant ones as untouched material. Their ids are validated against that set.
-4. **Write `round_feedback`**, whole, once.
+   relevant ones as untouched material. Their ids are validated against that set. **A Japanese
+   round's call returns the English translation with the feedback**, and a result whose translation is
+   missing or does not match the feedback item for item is refused as malformed, like one with four
+   things to fix (`06`, 2026-10-03).
+4. **Write `round_feedback`**, whole, once — the translation in `body_translated`, in the same row.
+
+**Step 3's CV material, as built (#46).** Each answer is sent with its unsupported spans — the quotes
+sliced from `transcript_corrected` by the stored spans of its latest `ok` attempt, not the scorer's
+wording. **The never-cited set is the round's** (`04` `round_feedback`): the CV version's citable
+claims minus any claim an answer in this round cited, with either relation. It is sent as a numbered
+list, and the model returns numbers in `untouched`; a number that names no claim it was shown is
+dropped, a repeat is ignored, and anything past the third is dropped. **What survives is stored — none,
+one, two or three ids** — and the feedback is written either way: a bad pick is not a reason to refuse
+findings that are otherwise whole. The `round_feedback_written` log line carries `never_cited`,
+`untouched` and `untouched_dropped`. The feedback prompt version bumped with this, to
+`feedback-en-1.1`; a Japanese round's `feedback-ja-1.0` picks untouched material from its first
+version (#43). Both bumped again with follow-ups (#44), whose answers they read, to `feedback-en-1.2`
+and `feedback-ja-1.1`.
 
 **If step 2's bound runs out or step 3 fails**, no `round_feedback` is written: it is one row, never
 rewritten, and feedback from an incomplete set of scores would be permanent (`04`). The response is
@@ -873,7 +997,9 @@ shows every score that landed and a pending round-level note, and generation is 
 - Already complete → `409 round_already_complete`, with `detail.has_feedback` saying whether the
   feedback exists. The envelope's `detail` is flat (§2), so it cannot carry the feedback itself;
   screen 8 reads it from the round (`06`, 2026-10-01).
-- Not all answers submitted → `409 round_not_complete`.
+- Not all answers submitted → `409 round_not_complete`. A position counts once its question is
+  submitted and its follow-up is either answered or `missing`; a follow-up unanswered, or not stored
+  yet, keeps the round open.
 - Abandoned (§5.5) → `409 round_abandoned`. **An abandoned round is never completed**, and nothing is
   written.
 - Feedback could not be generated → `502 feedback_generation_failed`, as above.
@@ -949,9 +1075,10 @@ Content-Type: audio/mpeg
 
 **The server reads question text** from `round_questions` at that position; the client sends none, so
 the route cannot be used to synthesise anything else on the user's key (§1 rule 6). A `practice` round
-or a position with no prompt is `404`. Until #44 adds `follow_ups`, every `follow_up` request is also
-`404`; then the route reads its text from the parent's `follow_ups` row, with a `missing` one still
-`404`. Question audio is well under the 4.5 MB body cap, so it crosses the function; it is **not
+or a position with no prompt is `404`. **Every `follow_up` request is still `404`:** #44's
+`follow_ups` exists, and the route does not read it yet (`06`, 2026-10-04), so screen 3 asks for no
+audio while a follow-up is on screen. When it does, it reads the text from the parent's `follow_ups`
+row, with a `missing` one still `404`. Question audio is well under the 4.5 MB body cap, so it crosses the function; it is **not
 retained** (`03` §4), and the response is `Cache-Control: no-store` so the browser keeps none either.
 
 **The query is validated like a body** (§1 rule 3). `position` is 1–7 and `kind` is `question` or
@@ -976,7 +1103,8 @@ The retry path for §5.12's step 3, and nothing else — the way §5.10's `run` 
 ```json
 201
 { "feedback": { "to_fix": [ … ], "what_worked": "…", "untouched_claim_ids": [ … ],
-                "language": "ja", "model_id": "gpt-5.6-sol", "prompt_version": "feedback-ja-1.0" } }
+                "body_translated": { "language": "en", "to_fix": [ … ], "what_worked": "…" },
+                "language": "ja", "model_id": "gpt-5.6-sol", "prompt_version": "feedback-ja-1.1" } }
 ```
 
 A round with feedback returns it with `200` and makes no model call. An incomplete round is
@@ -1026,7 +1154,10 @@ The weekly job (`12` §6), at `0 20 * * 0` UTC — Monday between 05:00 and 05:5
 it reports has ended. Authenticated exactly as §5.17. It appends a `digest` run whose readings are the
 week's rounds started and completed, tokens in and out, and spend, over **the Asia/Tokyo week (Monday
 00:00 to Monday 00:00) that ended before the run**. The same response shape, with `red: 0`: a digest
-reports, it does not judge. **The near-miss row is #47's** (`06`, 2026-09-29).
+reports, it does not judge. **Its near-duplicate figures** (#47; `06`, 2026-09-29) read
+`near_duplicate_checks` over the same week: how many questions went into the bank beside a neighbour,
+the lowest, median and highest similarity among them, and how many candidates were reused (`04`
+`cron_readings`).
 
 ---
 
@@ -1059,7 +1190,8 @@ convert a guarantee in `04` §6 into a preference.
   The trigger is `after()` inside `submit` (§5.10); the model is `gpt-transcribe` at $0.0045/minute
   (`03` §4), and §5.7's response carries the real string.
 - **The near-duplicate threshold** used in §5.4. **Starts at cosine similarity 0.90** (`06`,
-  2026-09-27) — an unverified guess until there is real data; see §5.4 and `04`.
+  2026-09-27) — an unverified guess until there is real data; see §5.4 and `04`. Since #47 the data is
+  being collected: `near_duplicate_checks`, reported weekly.
 - ~~**The TTS model and synthesis failure.**~~ **Resolved:** the pinned model and voice are in `03`
   §4; §5.15 specifies the text fallback and `speech_failed` response.
 - ~~**`complete`'s wait bound**~~ — **set 2026-10-01** at 60 s, from the round loop's latency

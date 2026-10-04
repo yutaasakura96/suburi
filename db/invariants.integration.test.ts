@@ -5,6 +5,7 @@ import { closePool, expectRefused, inRolledBackTransaction } from "./test/databa
 import {
   answerValues,
   attemptValues,
+  followUpValues,
   insertAnswer,
   insertAttempt,
   insertRound,
@@ -176,6 +177,61 @@ describe("the measurement record refuses", () => {
     }),
   );
 
+  it.each([
+    [10, 10],
+    [10, 4],
+  ])("an answer flag span from %i to %i", (spanStart, spanEnd) =>
+    inRolledBackTransaction(async (db) => {
+      const world = await insertWorld(db);
+      const round = await insertRound(db, world);
+      const answer = await insertAnswer(db, world, round);
+      const attempt = await insertAttempt(db, world, answer);
+
+      await expectRefused(
+        db,
+        () =>
+          db.insert(s.answerFlags).values({
+            answerId: answer,
+            scoringAttemptId: attempt,
+            userId: world.userId,
+            kind: "unsupported",
+            spanStart,
+            spanEnd,
+          }),
+        { kind: "check", constraint: "answer_flags_span_order_check" },
+      );
+    }),
+  );
+
+  it("deleting a scoring attempt that raised a flag", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await insertWorld(db);
+      const round = await insertRound(db, world);
+      const answer = await insertAnswer(db, world, round);
+      const attempt = await insertAttempt(db, world, answer);
+      await db.insert(s.answerFlags).values({ answerId: answer, scoringAttemptId: attempt, userId: world.userId, kind: "unsupported", spanStart: 0, spanEnd: 4 });
+
+      await expectRefused(db, () => db.delete(s.scoringAttempts).where(eq(s.scoringAttempts.id, attempt)), {
+        kind: "restrict",
+        constraint: "answer_flags_scoring_attempt_id_scoring_attempts_id_fk",
+      });
+    }));
+
+  // 04 `scoring_attempts`: null until `ok`. A pending or failed attempt read no answer.
+  it.each(["pending", "failed"] as const)("an answered language on a %s scoring attempt", (status) =>
+    inRolledBackTransaction(async (db) => {
+      const world = await insertWorld(db);
+      const round = await insertRound(db, world);
+      const answer = await insertAnswer(db, world, round);
+
+      await expectRefused(
+        db,
+        () => db.insert(s.scoringAttempts).values({ ...attemptValues(world, answer), status, answeredLanguage: "ja" }),
+        { kind: "check", constraint: "scoring_attempts_answered_language_ok_check" },
+      );
+    }),
+  );
+
   it("an answer that is both a bank question and a follow-up", () =>
     inRolledBackTransaction(async (db) => {
       const world = await insertWorld(db);
@@ -263,6 +319,97 @@ describe("the measurement record refuses", () => {
         () => db.insert(s.roundQuestions).values({ roundId: round, userId: world.userId, position: 0, questionId: other.id }),
         { kind: "check", constraint: "round_questions_position_check" },
       );
+    }));
+
+  it("a second follow-up for one answer", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await insertWorld(db);
+      const round = await insertRound(db, world);
+      const parent = await insertAnswer(db, world, round);
+      await db.insert(s.followUps).values(followUpValues(world, parent));
+
+      await expectRefused(
+        db,
+        () => db.insert(s.followUps).values(followUpValues(world, parent, { promptText: "別の深掘り。" })),
+        { kind: "unique", constraint: "follow_ups_parent_answer_id_unique" },
+      );
+      // A hole is one follow-up too: it cannot be recorded beside a generated one, or twice.
+      await expectRefused(
+        db,
+        () =>
+          db
+            .insert(s.followUps)
+            .values(followUpValues(world, parent, { status: "missing", promptText: null, errorClass: "upstream_500" })),
+        { kind: "unique", constraint: "follow_ups_parent_answer_id_unique" },
+      );
+    }));
+
+  it.each([
+    ["generated with no text", { status: "generated", promptText: null }, "follow_ups_generated_has_text_check"],
+    ["missing with a text", { status: "missing", errorClass: "upstream_500" }, "follow_ups_generated_has_text_check"],
+    ["generated with an error class", { errorClass: "upstream_500" }, "follow_ups_error_class_missing_check"],
+  ] as const)("a follow-up %s", (_, overrides, constraint) =>
+    inRolledBackTransaction(async (db) => {
+      const world = await insertWorld(db);
+      const round = await insertRound(db, world);
+      const parent = await insertAnswer(db, world, round);
+
+      await expectRefused(db, () => db.insert(s.followUps).values(followUpValues(world, parent, overrides)), {
+        kind: "check",
+        constraint,
+      });
+    }),
+  );
+
+  it("a missing follow-up is a row: no text, its error class, and both stamps", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await insertWorld(db);
+      const round = await insertRound(db, world);
+      const parent = await insertAnswer(db, world, round);
+      const [hole] = await db
+        .insert(s.followUps)
+        .values(followUpValues(world, parent, { status: "missing", promptText: null, errorClass: "upstream_timeout" }))
+        .returning();
+
+      expect(hole).toMatchObject({
+        status: "missing",
+        promptText: null,
+        errorClass: "upstream_timeout",
+        modelId: "fixture-model-2026-01-01",
+        promptVersion: "follow-up-fixture",
+      });
+    }));
+
+  it.each([
+    ["modelId", "model_id"],
+    ["promptVersion", "prompt_version"],
+  ] as const)("a follow-up without its %s stamp", (field, column) =>
+    inRolledBackTransaction(async (db) => {
+      const world = await insertWorld(db);
+      const round = await insertRound(db, world);
+      const parent = await insertAnswer(db, world, round);
+      const unstamped = { ...followUpValues(world, parent), [field]: null };
+
+      await expectRefused(
+        db,
+        // Deliberately ill-typed: the point is that the database refuses it too.
+        () => db.insert(s.followUps).values(unstamped as typeof s.followUps.$inferInsert),
+        { kind: "not_null", column },
+      );
+    }),
+  );
+
+  it("deleting an answer that a follow-up was generated from", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await insertWorld(db);
+      const round = await insertRound(db, world);
+      const parent = await insertAnswer(db, world, round);
+      await db.insert(s.followUps).values(followUpValues(world, parent));
+
+      await expectRefused(db, () => db.delete(s.answers).where(eq(s.answers.id, parent)), {
+        kind: "restrict",
+        constraint: "follow_ups_parent_answer_id_answers_id_fk",
+      });
     }));
 
   it("a second General practice row for one user", () =>

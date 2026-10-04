@@ -42,7 +42,7 @@ These terms are used precisely throughout.
 | **Question** | A bank entry with a permanent ID. Either a **set piece** (hand-authored, fixed, belonging to one round type) or **generated** (created from CV + role context, then written into the bank on first use). |
 | **Follow-up** | A question generated from what the user just said. Not a bank entry, has no stable identity, and never appears in progress data. |
 | **First attempt** | A realistic-mode answer to a question ID, in a language, when **no earlier answer to it in that language exists in either mode**. A question practised first never has one. Never overwritten. The only data the progress screen plots. |
-| **Role context** | The company and role the round is pitched at: an uploaded posting/notes file, AI research, or explicit **General practice**. Kept and reusable across rounds; never edited once saved. |
+| **Role context** | Defined in `CONTEXT.md`; US-2 below sets the product requirements. |
 
 ---
 
@@ -117,12 +117,12 @@ realistic round can be run — everything else in v1 may land during the 30-day 
 > relevance scoring are about the job I am actually applying for.
 
 *Acceptance:*
-- A role context is one of: an uploaded posting/notes file, AI research (US-16), or **General
+- A role context is one of: a pasted or browser-imported posting, AI research (US-16), or **General
   practice**. **Round one needs only the posting and General practice**; AI research lands with US-16
   (amended 2026-09-27 — this cited a nonexistent "US-17", and research is not a round-one gate).
 - A saved role context is kept and can be picked again for later rounds. It is never edited; a changed
   posting is a new one. There is one General practice, not one per round.
-- When a file and researched context both exist, **the file wins** and the app says so.
+- When an imported posting and researched context both exist, **the posting wins** and the app says so.
 - A round cannot start without one selected; the selection is stored with the round.
 - **General practice** is a first-class choice, not a fallback, and rounds run under it are grouped
   separately in progress data.
@@ -292,7 +292,7 @@ realistic round can be run — everything else in v1 may land during the 30-day 
 > start a round without preparing input first.
 
 *Acceptance:*
-- Runs **only** when no posting/notes file exists for that role context. An uploaded file always wins.
+- Runs **only** when no posting exists for that role context. A saved posting always wins.
 - The researched context is shown to the user and is **editable before the round starts**.
 - Its provenance is stored with the round, so rounds run on researched context are distinguishable
   from rounds run on a real posting.
@@ -316,10 +316,10 @@ Empty states are requirements.
 | State | Behaviour |
 | --- | --- |
 | **No CV uploaded** | Starting a round is blocked. One screen, one action: upload a CV. The app does not offer a degraded round without one — CV-grounded evaluation is a reason the project exists. |
-| **No role context for this round** | The three choices are presented with **General practice** as an equal option, not a fallback. Never silently defaults. |
+| **No role context for this round** | Setup presents posting and **General practice** as equal choices; AI research adds a third with US-16. General practice never silently defaults. |
 | **No rounds completed yet** | The progress screen shows the dimensions it will plot, in both languages, and states the count needed (≥30 first attempts per language). Not a blank chart. |
 | **Too few first attempts to trend** | Points are shown but no trend line is drawn below **5 first attempts** for that dimension × language × round type. The screen says how many remain. |
-| **Bank exhausted for a round type × language** | The app says the unseen pool for that combination is empty, offers to generate new questions, and warns that repeats will not appear in progress data. |
+| **Bank exhausted for a round type × language** | Setup says new questions will be written when the round starts and warns that repeats will not appear in progress data. |
 | **Story bank not yet extracted** | Feedback omits the story section entirely rather than showing an empty one. |
 | **A round with no scores yet** (scoring failed or pending) | Shown in history marked unscored, with a retry. Excluded from progress until scored. |
 

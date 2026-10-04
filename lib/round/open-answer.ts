@@ -5,7 +5,7 @@ import * as s from "../../db/schema";
 import { apiError } from "../api/errors";
 import { answerAudioKey, type AudioStore } from "../audio/store";
 import { authenticate, isUuid, log, notFound, parseBody, roundAbandoned, writeFailed, type RoundDeps } from "./http";
-import { answeredBefore, isAbandoned, promptAt, roundAnswers, roundStep, type AnswerRow } from "./state";
+import { answeredBefore, isAbandoned, promptAt, readRoundStep, type AnswerRow } from "./state";
 
 /**
  * `POST /api/rounds/{roundId}/answers` (07 §5.6): opens the answer slot and presigns the upload.
@@ -13,7 +13,10 @@ import { answeredBefore, isAbandoned, promptAt, roundAnswers, roundStep, type An
  * recording writes nothing and the question stays unseen (PRD §7).
  *
  * The client sends only what it cannot know about itself: the content type and the take's size.
- * `question_id`, `prompt_text`, `position`, `language`, `is_first_attempt` and the key are derived here.
+ * `question_id` or `parent_answer_id`, `prompt_text`, `position`, `language`, `is_first_attempt` and
+ * the key are derived here. **The prompt comes from stored rows** — `round_questions`, or the parent's
+ * `follow_ups` row — so nothing is selected or generated here, and a follow-up's slot takes its
+ * parent's position.
  *
  * **Idempotent.** An open slot at the current position is returned, with a fresh URL for the same key
  * while its transcript is still null — so an expired URL, a retried upload or a double click all land
@@ -72,7 +75,15 @@ export function createOpenAnswer(deps: OpenAnswerDeps) {
         }
         if (await isAbandoned(tx, round)) return roundAbandoned(roundId);
 
-        const step = roundStep(round, await roundAnswers(tx, roundId));
+        const step = await readRoundStep(tx, round);
+        if (step.kind === "follow_up_due") {
+          // The answer here is submitted and its follow-up is not a row yet: `submit`, sent again,
+          // writes it (07 §5.9). No slot is opened for a prompt that does not exist.
+          return apiError("answer_already_submitted", "This position's answer is submitted and its follow-up is not stored yet.", {
+            round_id: roundId,
+            answer_id: step.parent.id,
+          });
+        }
         if (step.kind !== "answer") {
           return apiError("answer_already_submitted", "Every position in this round is already answered.", { round_id: roundId });
         }
@@ -85,25 +96,32 @@ export function createOpenAnswer(deps: OpenAnswerDeps) {
           return { answer: step.answer, created: false };
         }
 
+        const id = randomUUID();
+        const slot = {
+          id,
+          roundId,
+          userId,
+          position: step.position,
+          language: round.language,
+          audioS3Key: answerAudioKey(deps.prefix, userId, roundId, id),
+        };
+        if (step.followUp) {
+          // Never a first attempt: a follow-up has no question id, and the column's check refuses one (04).
+          const [answer] = await tx
+            .insert(s.answers)
+            .values({ ...slot, parentAnswerId: step.followUp.parent.id, promptText: step.followUp.row.promptText })
+            .returning();
+          return { answer, created: true };
+        }
+
         const prompt = await promptAt(tx, roundId, step.position);
         if (!prompt) throw new Error("round_questions has no row at the current position");
         // A first attempt: realistic, a bank question, and no earlier answer to it in this language in
         // either mode (06, 2026-09-27). The partial unique index is the backstop, not the rule.
         const isFirstAttempt = round.mode === "realistic" && !(await answeredBefore(tx, prompt.questionId, round.language));
-        const id = randomUUID();
         const [answer] = await tx
           .insert(s.answers)
-          .values({
-            id,
-            roundId,
-            userId,
-            questionId: prompt.questionId,
-            promptText: prompt.text,
-            position: step.position,
-            language: round.language,
-            isFirstAttempt,
-            audioS3Key: answerAudioKey(deps.prefix, userId, roundId, id),
-          })
+          .values({ ...slot, questionId: prompt.questionId, promptText: prompt.text, isFirstAttempt })
           .returning();
         return { answer, created: true };
       });
@@ -126,6 +144,7 @@ export function createOpenAnswer(deps: OpenAnswerDeps) {
       round_id: roundId,
       answer_id: answer.id,
       position: answer.position,
+      follow_up: answer.questionId === null,
       is_first_attempt: answer.isFirstAttempt,
       expected_bytes: body.expected_bytes,
     });
@@ -134,8 +153,9 @@ export function createOpenAnswer(deps: OpenAnswerDeps) {
       {
         answer_id: answer.id,
         position: answer.position,
-        kind: "question",
+        kind: answer.questionId === null ? "follow_up" : "question",
         question_id: answer.questionId,
+        parent_answer_id: answer.parentAnswerId,
         is_first_attempt: answer.isFirstAttempt,
         upload: {
           method: "PUT",

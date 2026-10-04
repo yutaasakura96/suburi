@@ -8,7 +8,7 @@ import { createAuth } from "../lib/auth/auth";
 import { mintSessionCookie } from "../lib/auth/test/session";
 import { getConfig } from "../lib/config";
 import { E2E_URL } from "./database";
-import { silentMp3, startMockOpenAi, type MockOpenAi } from "./mock-openai";
+import { generatedQuestions, silentMp3, startMockOpenAi, type MockOpenAi } from "./mock-openai";
 import { startMockS3, type MockS3 } from "./mock-s3";
 
 // What makes a realistic round realistic (#45), against the production build: the spoken question,
@@ -47,6 +47,12 @@ async function signIn(page: Page) {
 
 const RAW = "I led the payments migration over six months and cut the failure rate by half.";
 const SPOKEN = "Read aloud. The text stays on screen.";
+const FOLLOW_UP = "What did you measure to know the failure rate had halved?";
+
+/** The structured output a Responses call asks for, by its format's name. */
+function formatOf(body: Record<string, unknown>) {
+  return ((body.text as { format?: { name?: string } } | undefined)?.format?.name ?? "") as string;
+}
 
 let s3: MockS3;
 let openAi: MockOpenAi;
@@ -64,7 +70,13 @@ test.beforeAll(async () => {
   });
   s3 = await startMockS3();
   openAi = await startMockOpenAi(
-    { fail: 500 },
+    // By the time this file runs the seeded questions are answered, so a round's are generated (07
+    // §5.4), and each answer gets its follow-up. Scoring is not what is under test here: it fails.
+    (body) => {
+      if (formatOf(body) === "generated_questions") return generatedQuestions(body);
+      if (formatOf(body) === "follow_up") return { follow_up: FOLLOW_UP };
+      return { fail: 500 };
+    },
     {
       transcription: () => ({ text: RAW, seconds: 240 }),
       speech: () => (speechFails ? { fail: 503 } : silentMp3()),
@@ -187,7 +199,17 @@ test("a reloaded realistic round asks for its prompt by position, and plays it w
   await signIn(page);
   const speech = speechRequestsOf(page);
   const round = await startRound(page, "realistic");
-  // A page opened by URL has had no gesture, so the browser will not play sound yet.
+  // A page opened by URL has had no gesture, so the browser will not play sound yet. Headless Chromium
+  // on Linux plays it anyway, so the refusal is stated here; after the click the browser's own play runs.
+  await page.addInitScript(() => {
+    let gesture = false;
+    document.addEventListener("click", () => { gesture = true; }, { capture: true });
+    const play = HTMLMediaElement.prototype.play;
+    HTMLMediaElement.prototype.play = function () {
+      if (!gesture) return Promise.reject(new DOMException("Playback requires a gesture", "NotAllowedError"));
+      return play.call(this);
+    };
+  });
   await page.goto(`/round/${round.id}`);
 
   const line = page.getByTestId("speaker-line");
@@ -248,6 +270,7 @@ test("pausing a pending spoken question to record does not show a speech failure
 test("a failed speech request shows the notice, and the round goes on as text", async ({ page }) => {
   await signIn(page);
   speechFails = true;
+  const speech = speechRequestsOf(page);
   const round = await startRound(page, "realistic");
   const failed = page.waitForResponse((response) => new URL(response.url()).pathname.endsWith("/speech"));
   await page.goto(`/round/${round.id}`);
@@ -273,5 +296,9 @@ test("a failed speech request shows the notice, and the round goes on as text", 
   await expect(page.getByTestId("raw-transcript")).toHaveText(RAW);
   await page.getByRole("button", { name: "Correct the transcript" }).click();
   await page.getByRole("button", { name: "Send this answer" }).click();
-  await expect(page.getByTestId("round-step")).toHaveText("Question 2 / 3");
+  // Its follow-up is asked as text: nothing is requested of the route for it, so nothing has failed.
+  await expect(page.getByTestId("round-step")).toHaveText("Question 1 / 3 · follow-up");
+  await expect(page.getByTestId("round-question")).toHaveText(FOLLOW_UP);
+  await expect(line).toBeEmpty();
+  expect(speech).toEqual([`/api/rounds/${round.id}/speech?position=1&kind=question`]);
 });

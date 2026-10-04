@@ -34,6 +34,13 @@ describe("the 応募書類 panel's Japanese chrome", () => {
     expect(COPY.ja.claims(34)).toBe("記載事項 34件");
   });
 
+  // 10 §13's coverage line: the feedback screen's own word for unused material, counted in 件.
+  it("states how many claims were never used beside the count, in both languages", () => {
+    expect(COPY.ja.coverage(34, 22)).toBe("記載事項 34件・未使用 22件");
+    expect(COPY.en.coverage(34, 22)).toBe("34 claims · 22 never used");
+    expect(COPY.en.coverage(1, 1)).toBe("1 claim · 1 never used");
+  });
+
   // #20's reviewed draft (05 §6), kept by the 2026-09-27 AI review and testable without an ear.
   it.each(ja)("%s sets a Japanese particle tight against a Latin numeral", (_, text) => {
     expect(text).not.toMatch(/[0-9][ 　]+[ぁ-んァ-ヿ一-龯]/u);

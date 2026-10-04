@@ -8,7 +8,10 @@ this document is the source of truth for *why*. **Amended 2026-09-27 for the rou
 Each change lands with the slice that first needs it. **Migrated by #42** (`0007_round-loop-tracer`):
 `round_questions`; `questions.generator_prompt_version` and `scoring_attempts.generator_prompt_version`
 `not null`; the General-practice unique index on `role_contexts`; the `answers (question_id, language)`
-index; and `rate_limit_windows.route` extended for the round routes. The rest is not migrated yet.
+index; and `rate_limit_windows.route` extended for the round routes. **Migrated by #46**
+(`0008_cv-grounding`): `answer_flags`; `scoring_attempts.answered_language`; and
+`round_feedback.untouched_claim_ids`. **Migrated by #44** (`0009_follow-ups`): `follow_ups`. The
+remaining round-loop changes are not migrated yet.
 
 ---
 
@@ -55,6 +58,7 @@ index; and `rate_limit_windows.route` extended for the round routes. The rest is
 | `role_contexts` | The company/role a round is pitched at — a posting, researched notes, or General practice. |
 | `rubric_versions` | One version of a rubric: its dimensions and their definitions, as data. |
 | `questions` | A permanent bank entry. Set piece or generated. Has a stable identity forever. |
+| `near_duplicate_checks` | One generated question's comparison with its nearest neighbour in the bank: the two ids, the similarity, the threshold in force. Ids and numbers, no question text. |
 | `rounds` | One sitting: one type, one language, one mode, one length. |
 | `round_questions` | One bank question a round will ask, at one position — fixed when the round starts. |
 | `follow_ups` | The one follow-up generated from one answer — its text and stamps, or the record that it is missing. |
@@ -231,7 +235,8 @@ language never matches. Anything else is a new claim with empty coverage.
 `text_normalised`. A new claim points at the matching previous claim with the **lowest `span_start`**,
 and several new claims may point at the same previous one; `carried_forward` counts new claims with a
 parent. The lineage may fork; coverage ("was anything in this chain ever cited?") reads the same
-either way (`06`, #16).
+either way (`06`, #16). **Coverage runs down the chain only** (#46): a claim is used when it or an
+ancestor was cited; a citation of a descendant does not reach back to the claim it was carried from.
 **`NFKC` is normalisation, not fuzziness:** `４０％` and `40%` are one written form of one assertion,
 and the key is still compared byte for byte.
 **No fuzzy matching, no similarity threshold, no review step** — a reworded claim honestly reads as a
@@ -268,8 +273,12 @@ row, not as `role_context_id IS NULL`, so "was this round pitched at anything?" 
 **Immutable and reusable** (`06`, 2026-09-27). A row is never updated; a changed posting is a new row,
 and a row can be picked by any number of rounds. **General practice is one row per user:**
 `unique (user_id) where kind = 'general'`. **Round one writes `posting` and `general` only;**
-`researched` arrives with US-16. The posting's text-size cap is measured the way the CV's was (`07`
-§5.3).
+`researched` arrives with US-16. **A posting carries all three of `company_name`, `role_title` and
+`body`** — the route refuses one without (`07` §5.3), so the picker never has a posting it cannot
+name; it is not a column check, since US-16 has yet to say what `researched` carries.
+`source_filename` is null on `general`. The posting's text-size cap is **20,000 code points**,
+measured the way the CV's was (`07` §5.3; `06`, #47): a constant in `lib/round/limits.ts`, not a
+column check — a cap that moves must not make a stored row invalid.
 
 ---
 
@@ -312,7 +321,7 @@ rewriting one silently rewrites history.
 | `embedding` | `vector(1536)` | yes | — | for near-duplicate detection |
 | `generator_model_id` | `text` | yes | — | null for set pieces — no model wrote them |
 | `generator_prompt_version` | `text` | **no** | — | the generator prompt version; for a set piece, the set pieces' **content version**, e.g. `set-piece-ja-1.0`. Stamp 3's source (`06`, 2026-09-27) |
-| `tokens_in` / `tokens_out` | `integer` | yes | — | cost attribution |
+| `tokens_in` / `tokens_out` | `integer` | yes | — | cost attribution. **One generation call writes several rows; its tokens are stored on the first row it inserted and null on the rest**, so a sum over rows is the spend (`06`, #47). A call whose every candidate was reused stores none |
 | `retired_at` | `timestamptz` | yes | — | **soft retire only. Never delete.** |
 | `created_at` | `timestamptz` | no | `now()` | |
 
@@ -328,13 +337,58 @@ There is **no difficulty tier column**, deliberately — US-4's tier was struck 
 questions are asked first; practice rounds prefer seen ones (`07` §5.4).
 
 **Near-duplicate guard.** Before inserting a generated question, embed it and compare by cosine
-distance against non-retired questions in the same `(user_id, language, round_type)` slice. Above
-threshold, **reuse the existing row instead of inserting.** Rationale in `03` §11: five rephrasings
-of one question fragment the first-attempt measurement into five points of one instead of one of
-five. **The threshold starts at cosine similarity 0.90** — an unverified guess, a constant beside the
-guard, not a column. Store every near-miss with its score and tune the threshold from those records,
-not from intuition. `12` §6's weekly digest reads them from the database; #47 designs the table or
-columns here before building the guard (`06`, 2026-09-29).
+similarity against non-retired questions in the same `(user_id, language, round_type)` slice that
+carry an embedding. **At or above** the threshold, **reuse the existing row instead of inserting.**
+Rationale in `03` §11: five rephrasings of one question fragment the first-attempt measurement into
+five points of one instead of one of five. **The threshold starts at cosine similarity 0.90** — an
+unverified guess, `NEAR_DUPLICATE_THRESHOLD` in `lib/questions/near-duplicate-threshold.ts`, not a column. Every
+comparison is stored in `near_duplicate_checks`, below, and the threshold is tuned from those records,
+not from intuition; `12` §6's weekly digest reads them.
+
+**Set pieces carry no embedding**, so the guard never compares against one: they are kept out of the
+generator's output by its prompt, which is given every question in the slice and told to repeat none.
+A row seeded without an embedding is invisible to the guard for the same reason.
+
+---
+
+### `near_duplicate_checks`
+
+**Append-only. The record the threshold is tuned from** (`03` §11, `06` #47). One row per generated
+candidate the guard compared: its nearest neighbour in the slice, how similar the two were, and what
+the guard did. **Ids and numbers only — no question text, ever**, in this table or in any log line
+about it.
+
+| Column | Type | Null | Default | Notes |
+| --- | --- | --- | --- | --- |
+| `id` | `uuid` | no | `gen_random_uuid()` | PK |
+| `user_id` | `text` | no | — | → `users.id` **restrict** |
+| `matched_question_id` | `uuid` | no | — | → `questions.id` **restrict**. The nearest neighbour: the existing question the candidate was most like |
+| `question_id` | `uuid` | yes | — | → `questions.id` **restrict**. The row the candidate was inserted as. **Null exactly when it was not inserted** — the candidate was reused as `matched_question_id` |
+| `similarity` | `double precision` | no | — | cosine similarity of the two embeddings, −1 to 1 |
+| `threshold` | `double precision` | no | — | the constant in force when the guard decided. Stored because the constant moves and a row must stay readable against the number it was judged by |
+| `embedding_model_id` | `text` | no | — | the pinned embedding model. A similarity is only comparable with others from the same model (`03` §4) |
+| `created_at` | `timestamptz` | no | `now()` | |
+
+**Constraints:** `check ((question_id is null) = (similarity >= threshold))` — the row cannot say the
+guard did anything but what its numbers say; `check (question_id <> matched_question_id)`.
+
+**A near-miss is a row with `question_id` set**: a question that went into the bank beside a
+neighbour, below the threshold. **A reuse is a row without one.** Both are kept, because the threshold
+can be wrong in either direction: near-misses just under it are rephrasings it let through, and reuses
+just over it are distinct questions it collapsed.
+
+**There is no floor.** Every compared candidate is stored, however unlike its neighbour, so the whole
+distribution is on record and a threshold moved a long way is still judged from data. A second
+"similar enough to log" constant would be a second unverified guess deciding what the first is tuned
+from. The cost is one small row per generated question.
+
+**No row when there was nothing to compare with** — the slice held no embedded, non-retired question.
+**A reused candidate's wording is not kept anywhere**: the candidate is discarded, and this table holds
+no text. A near-miss can be read by its two ids; a reuse can only be judged by its similarity (`06`,
+#47).
+
+Candidates of one generation call are compared in order, each against the bank **including the
+candidates of the same call already inserted**, so two rephrasings in one model response collapse too.
 
 ---
 
@@ -495,7 +549,7 @@ visible.
 | `generator_prompt_version` | `text` | **no** | — | stamp 3 — copied from `questions.generator_prompt_version`, or from `follow_ups.prompt_version` for a follow-up |
 | `model_id` | `text` | no | — | stamp 4. **Exact string. Never an alias.** |
 | `scoring_prompt_version` | `text` | no | — | model and prompt versioned separately; part of stamp 4 |
-| `answered_language` | `text` | yes | — | `ja` \| `en`, as the scorer read it. **Null until `ok`.** An answer whose value differs from `answers.language` is flagged in feedback and excluded from Progress (PRD §7) |
+| `answered_language` | `text` | yes | — | `ja` \| `en`, as the scorer read it. **Null until `ok`**, and `check (answered_language is null or status = 'ok')` holds that. An answer whose value differs from `answers.language` is flagged in feedback and excluded from Progress (PRD §7) |
 | `tokens_in` / `tokens_out` | `integer` | yes | — | cost attribution |
 | `error_class` | `text` | yes | — | class only — **never the model's output** |
 | `is_superseding` | `boolean` | no | `false` | true when produced by a deliberate re-score |
@@ -506,8 +560,14 @@ numbers, **all four `not null`**. **Progress draws a boundary wherever any of th
 *Amended 2026-09-27:* `generator_prompt_version` was nullable here while §6 said all four were
 `not null`; set pieces now carry a content version instead of a null (`06`).
 
-**What the scorer reads** (`03` §4): the corrected text, the answer's duration and its pace — not
-`transcript_raw`.
+**What the scorer reads** (`03` §4): the corrected text, the answer's duration and its pace, and the
+CV version's claims — not `transcript_raw`.
+
+**`answered_language` is written on every `ok` attempt from `score-en-1.1` on** (#46), and on every
+`ok` attempt of a Japanese round, whose first prompt, `score-ja-1.0`, already returns it (#43), in the
+transaction that writes the scores. **An `ok` attempt from before that has null**, and null is not a
+mismatch: such an answer is neither flagged as wrong-language nor excluded from Progress on that
+ground. Nothing back-fills it — that would be a re-score, which is a new row and a boundary.
 
 `status = 'pending'` is a first-class state, not an error — History and Progress both render it, and
 **Progress excludes pending and failed attempts from trend lines rather than treating them as zero.**
@@ -541,15 +601,23 @@ Unique on `(scoring_attempt_id, dimension)`.
 | `to_fix` | `jsonb` | no | — | two or three items |
 | `what_worked` | `text` | no | — | exactly one |
 | `language` | `text` | no | — | the round's language |
-| `body_translated` | `jsonb` | yes | — | the other-language toggle (PRD §4) |
-| `untouched_claim_ids` | `jsonb` | no | `'[]'` | **untouched material** — an array of at most three `cv_claims.id`, picked by the model from the round's never-cited claims and **validated against that set** before the row is written; an id outside it is dropped and counted |
+| `body_translated` | `jsonb` | yes | — | the other-language toggle (PRD §4): `{ language, to_fix, what_worked }`, the same findings item for item in the other language. `en` on a Japanese round; null on an English one |
+| `untouched_claim_ids` | `jsonb` | no | `'[]'` | **untouched material** — an array of at most three `cv_claims.id`, in the order picked, chosen by the model from the round's never-cited claims and **validated against that set** before the row is written; a pick outside it, or a fourth, is dropped and counted |
 | `model_id`, `prompt_version` | `text` | no | — | stamps |
 | `tokens_in` / `tokens_out` | `integer` | yes | — | |
 | `created_at` | `timestamptz` | no | `now()` | |
 
 **Written once, whole, and never rewritten** — which is why it is generated only after every score is
-in (`07` §5.12, `06`, 2026-09-27). A round whose feedback failed has no row until the retry writes one;
+in (`07` §5.12, `06`, 2026-09-27), and why the translation comes from the same model call as the
+feedback rather than a later one (`06`, 2026-10-03). A round whose feedback failed has no row until the retry writes one;
 the absence is the pending state.
+
+**The round's never-cited set** (#46) is the claims of the round's CV version that may be cited
+(`claim_citations`, below) minus those any answer **in this round** cited, with either relation — a
+contradicted claim was used. It is scoped to the round, not to all history: untouched material is
+what *this* round left on the table, which is why a claim used last week can be untouched today. The
+all-history reading is coverage, on `/cv` (`cv_claims`, `10` §13). **Zero to three ids are stored**:
+bad picks are dropped, not a reason to fail feedback that is otherwise whole.
 
 ---
 
@@ -571,6 +639,17 @@ Unique on `(answer_id, cv_claim_id, relation)`.
 `contradicted_by` means **the answer contradicts this cited claim.** *Amended 2026-09-27:* it used to be
 described as "a claim in the answer the CV does not support" — which has no claim to point at and so
 cannot be a row here. That is an unsupported claim, and it lives in `answer_flags` (`06`).
+
+**Written only after span validation** (#46, `03` §11). Before the scorer is called, each claim of the
+attempt's CV version has its stored span checked against `cv_versions.body` by the same validator
+that admitted it, and its slice must still normalise to `text_normalised`. Only claims that pass are
+shown to the scorer, **numbered**, and the scorer cites by number: it never sees or returns a
+`cv_claim_id`, so an id it invents has nowhere to land. A number that names no shown claim is dropped
+and counted. Rows are written in the transaction that writes the scores, and the unique index makes a
+re-score's repeat of the same citation a no-op rather than a second row.
+
+**Coverage is read from this table, never stored.** A claim is *used* when it, or any claim it was
+carried forward from, has a row here with either relation (`cv_claims`, `lib/cv/coverage.ts`).
 
 ---
 
@@ -597,6 +676,10 @@ cannot be a row here. That is an unsupported claim, and it lives in `answer_flag
 > quote with a start hint, the server locates it, and a quote that is not there, a span outside the
 > text, or one that splits a grapheme is dropped and counted, never clamped. `transcript_corrected` is
 > final once submitted, so the span can never drift.
+
+**An answer's current flags are those of its latest `ok` attempt.** A re-score writes its own flags
+beside the first attempt's; nothing is deleted, and the feedback screen and the feedback call read
+the latest attempt's only. Two quotes that locate to the same span are one row.
 
 ---
 
@@ -706,8 +789,16 @@ is_red is not true)`; `check (cardinality(unpriced_model_ids) = 0 or signal in
 
 `digest`, figures without a threshold, over the Asia/Tokyo week that ended before the run:
 `digest_rounds_started`, `digest_rounds_completed`, `digest_tokens_in`, `digest_tokens_out`,
-`digest_spend_usd`. **The near-miss row is #47's** (`06`, 2026-09-29): #47 extends this list with it,
-in its own migration, or #55 does if it merges second.
+`digest_spend_usd`, and **the near-duplicate guard's week** from `near_duplicate_checks` (#47; `06`,
+2026-09-29):
+
+| `signal` | `value` |
+| --- | --- |
+| `digest_near_misses` | rows created in the week with `question_id` set — questions inserted below the threshold |
+| `digest_near_miss_similarity_min` | the lowest `similarity` among them. **Null when there were none** |
+| `digest_near_miss_similarity_median` | the median, `percentile_cont(0.5)`. Null when there were none |
+| `digest_near_miss_similarity_max` | the highest — the closest call the guard let through. Null when there were none |
+| `digest_near_duplicates_reused` | rows created in the week with `question_id` null — candidates mapped to an existing question |
 
 **A CV counter reads the current version in each language**, not every version ever saved (`06`,
 #55): a bad reading stays red while the version it describes is the one rounds are scored against,
@@ -733,8 +824,9 @@ version's is null, the reading is null.
 | `scoring_attempts (answer_id, created_at desc)` | Latest attempt per answer — every score read. |
 | `scoring_attempts (user_id, model_id, rubric_version_id)` | Where Progress draws its boundaries. |
 | `scores (scoring_attempt_id)` | Fetch all dimensions of one attempt. |
-| `questions (user_id, language, round_type) where retired_at is null` | Pick the next question; the near-duplicate candidate slice. |
-| `questions using hnsw (embedding vector_cosine_ops)` | Near-duplicate similarity search on insert. |
+| `questions (user_id, language, round_type) where retired_at is null` | Pick the next question; the near-duplicate candidate slice. **The guard's query runs on this index and sorts the slice exactly** — it does not use the `hnsw` index below (`06`, #47). |
+| `questions using hnsw (embedding vector_cosine_ops)` | Similarity search across the bank. **Not the guard's query**: an approximate index filtered to a slice can return fewer rows than exist, and a missed neighbour is a duplicate inserted. Kept for an unfiltered search; the guard's slice is small enough to sort. |
+| `near_duplicate_checks (user_id, created_at)` | The digest's week of checks. |
 | `claim_citations (cv_claim_id)` | **"Which claims have never been cited?"** — the coverage query. |
 | `cv_claims (cv_version_id)` | Load a version's claims. |
 | `cv_claims (text_normalised, cv_version_id)` | Carry-forward exact match on new CV upload. |
@@ -822,6 +914,7 @@ characters per minute. The rubric label `v1.2` is the artboards' sample; the fir
 | `answers`, `scoring_attempts`, `scores` | Never deleted. Never updated. The measurement record. |
 | `round_questions`, `follow_ups`, `answer_flags` | Never deleted. Never updated. What a round asked, what it followed up with, and what its scorer flagged. |
 | `role_contexts` | Never deleted, never updated. A changed posting is a new row. |
+| `near_duplicate_checks` | Never deleted. Never updated. The guard's decisions, each beside the threshold it was made under. |
 | `transcript_raw` | **Never discarded**, even after correction (PRD §9). |
 | `questions` | Soft retire via `retired_at`. Never deleted — progress data is keyed by its id. |
 | `cv_versions`, `cv_documents`, `cv_claims` | Never deleted. **Never updated.** Spans, document ranges and citations all point into `body`. |

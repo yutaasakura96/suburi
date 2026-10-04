@@ -10,8 +10,8 @@ import { getRound, promptAt } from "./state";
  *
  * **The prompt is named by position and kind, never by text.** Question text is read from
  * `round_questions`, so the route can say nothing but a prompt of this user's own round on the user's
- * key (07 §1 rule 6). Until #44 adds `follow_ups`, every follow-up request is a 404. A practice round
- * is also a 404: practice is text only.
+ * key (07 §1 rule 6). Every follow-up request is still a 404: the route does not read `follow_ups`
+ * yet (06, 2026-10-04). A practice round is also a 404: practice is text only.
  *
  * **A failed synthesis is `502 speech_failed`, and the round goes on** (06, 2026-09-28): the question
  * is already on screen as text. The audio is streamed through and not retained.
@@ -81,8 +81,8 @@ export function createSpeech(deps: SpeechDeps) {
     const round = await getRound(deps.db, userId, roundId);
     if (!round || round.mode !== "realistic") return notFound("round");
 
-    // A follow-up's text is its `follow_ups` row (#44). Until that table exists there is none to
-    // read, which is the 404 a `missing` one gets.
+    // A follow-up's text is its `follow_ups` row, which this route does not read yet (06,
+    // 2026-10-04): the 404 a `missing` one gets.
     const prompt = query.data.kind === "question" ? await promptAt(deps.db, round.id, position) : null;
     if (!prompt) return notFound("prompt", { round_id: round.id, position });
 

@@ -78,6 +78,16 @@ bank questions** across the four round types (`db/seed-questions.ts`), stamped
 and stamp. **`db:seed` is unchanged**: production gets the rubric and set pieces only once the user has
 reviewed rubric `en` v1.0 (§3 step 9), and never gets a synthetic question.
 
+**What the Japanese round added (#43).** The same three seeds now carry both languages:
+`db:seed:develop` also seeds rubric `ja` v1.0 (seven dimensions, 敬語 the seventh), the four Japanese
+set pieces under `set-piece-ja-1.0`, and **17 synthetic generated-origin Japanese bank questions**
+stamped `synthetic-generated-ja-1.0`, parallel to the English ones. A re-run on a branch that already
+holds the English rows adds only the Japanese ones. **Rubric `ja` v1.0 is reviewed, with
+its read, before it is seeded anywhere** — `develop` included: a seeded version is immutable
+(`04` §5), so a wording changed after the seed is v1.1, a re-score and a boundary. **That review was
+done on 2026-10-03, by an AI at the user's explicit delegation** (`06`): one anchor reworded, the
+rest accepted, and nothing was seeded before it. `db:seed` is unchanged here too.
+
 **Cron is off on `develop` on purpose.** The self-check alerts on pending scores and cost drift (§6);
 run against synthetic data it would fill the status page with noise, and an alert channel that cries
 wolf is one you stop reading — which is the whole failure §6 exists to prevent. The routes and the
@@ -167,9 +177,9 @@ In this order. Steps 3 and 4 are the ones that fail silently if skipped.
 6. **OpenAI:** one key per environment, each with a monthly usage cap (§6). Each key's account must be **API Tier 1 or above** for `gpt-transcribe` (§2). The local and `develop` checks are recorded in `06` (2026-09-28 and 2026-09-30).
 7. **Vercel:** import the repo. **Production branch = `main`.** Give `develop` a stable domain and point the Preview scope's `DATABASE_URL` at Neon `develop`. Populate §2 per scope. **Leave the import form's environment variables empty** — it scopes them to Production and Preview at once. A variable added after this step follows the same rule: branch-scoped in Preview, before the deploy that first reads it (`OPENAI_API_KEY`, step 8). Importing deploys `main` immediately, and that build fails without Production variables; that is expected until production is set up. Vercel's Deployment Protection is on for Preview by default and stays on: `develop` asks for a Vercel login before the app's own sign-in.
    > **Per-branch environment variables — available on Hobby** (verified 2026-09-14 against Vercel's environment-variable and environments docs). A Preview variable can be scoped to one Git branch, and it overrides the general Preview value. Assigning a stable domain to a branch, with branch-specific variables, is marked "All plans, including Hobby". Custom Environments are Pro and Enterprise only and are not needed. **So:** every §2 variable for `develop` is scoped to the `develop` branch in Preview. General Preview holds nothing; feature branches are not deployed (§1).
-8. **Neon `develop` branch:** create it as **Schema only** from `main` (Neon has no empty-branch option; this copies no rows), then give it a role and database of its own — `suburi_develop`, owning database `suburi` — because a Schema only branch copies `main`'s roles *with their passwords*. Only `suburi_develop` goes in `develop`'s URLs, and `main` refuses it (`28P01`, checked 2026-09-19). Then migrate, then run `npm run db:seed:develop` with `develop`'s own `ALLOWED_EMAIL` — never `db:seed` alone here, and never `db:seed:develop` against `main`. It seeds the user row and one synthetic CV version per language with its documents and fixture claims, and since #42 rubric `en` v1.0, the English set pieces and the synthetic English bank questions (§1); synthetic completed rounds arrive with the slice that first needs them. Never branch it from `main` (§1).
+8. **Neon `develop` branch:** create it as **Schema only** from `main` (Neon has no empty-branch option; this copies no rows), then give it a role and database of its own — `suburi_develop`, owning database `suburi` — because a Schema only branch copies `main`'s roles *with their passwords*. Only `suburi_develop` goes in `develop`'s URLs, and `main` refuses it (`28P01`, checked 2026-09-19). Then migrate, then run `npm run db:seed:develop` with `develop`'s own `ALLOWED_EMAIL` — never `db:seed` alone here, and never `db:seed:develop` against `main`. It seeds the user row and one synthetic CV version per language with its documents and fixture claims, and the rubrics, set pieces and synthetic bank questions §1 lists; synthetic completed rounds arrive with the slice that first needs them. Never branch it from `main` (§1).
    > **Adding a variable to an existing environment is the same step, later.** `OPENAI_API_KEY` joins the `develop` branch's Preview scope when CV extraction lands — branch-scoped, like every other §2 variable for `develop` (step 7). Because `lib/config.ts` validates at boot and a missing variable fails the boot loudly, the deploy that first reads it must not land before the variable does.
-9. **Seed production:** migrations, then the single `users` row, the set-piece questions, and rubric **`v1.0`** for both `ja` and `en`. *Amended 2026-09-27:* this said `v1.2`, a label from the artboards' sample data; no rubric existed (`06`). The set pieces are 自己紹介, 自己PR and 転職理由 (`hr`) and 志望動機 (`ceo`), with their English counterparts, each carrying its content version — **no 逆質問**. Both seeds are real, checked-in data (`11` §8), written by the round loop's tracer (English) and Japanese slices; this step waits for them. **The English half exists since #42** (`lib/rubric/en-1.0.ts`, `lib/questions/set-pieces.ts`) and is seeded on `develop`; `db:seed` gains it after the user's review of rubric `en` v1.0, not before. The user row is inserted by the hand-run seed script from `ALLOWED_EMAIL`, with `email_verified = true` — **not by migration**, which would commit the email to a public repository. `disableSignUp: true` means it cannot be created by signing in (`08` §2).
+9. **Seed production:** migrations, then the single `users` row, the set-piece questions, and rubric **`v1.0`** for both `ja` and `en`. *Amended 2026-09-27:* this said `v1.2`, a label from the artboards' sample data; no rubric existed (`06`). The set pieces are 自己紹介, 自己PR and 転職理由 (`hr`) and 志望動機 (`ceo`), with their English counterparts, each carrying its content version — **no 逆質問**. Both seeds are real, checked-in data (`11` §8), written by the round loop's tracer (English) and Japanese slices; this step waits for them. **The English half exists since #42** (`lib/rubric/en-1.0.ts`, `lib/questions/set-pieces.ts`) and is seeded on `develop`; `db:seed` gains it after the user's review of rubric `en` v1.0, not before. **The Japanese half exists since #43** (`lib/rubric/ja-1.0.ts`, the same `set-pieces.ts`), under the same condition for rubric `ja` v1.0. Both halves are seeded by the two functions this step will call — `seedRubrics` and `seedSetPieces` in `db/seed-questions.ts`, idempotent on `(version_label, language)` and on body and content version — and `db/seed-questions.integration.test.ts` holds what they write. The user row is inserted by the hand-run seed script from `ALLOWED_EMAIL`, with `email_verified = true` — **not by migration**, which would commit the email to a public repository. `disableSignUp: true` means it cannot be created by signing in (`08` §2).
 10. **Verify the allowlist twice:** sign in with the allowlisted account (works), and confirm a second Google account is rejected. `08` §2 deliberately has two independent mechanisms; this checks both, before there is anything to protect.
 11. **Sentry:** project, DSN, and the scrubbing configuration in §7 — **configured before the first real error, not after.** The integration is built (#54); what is left is the owner's: a Sentry project **named `suburi`** in the organization **`personal-projects-ge`** (`next.config.ts` names both), an **organization** auth token with the source-map upload scope, and both variables in Production and the `develop` branch's Preview scope, never general Preview (step 7). In the project's settings, leave server-side data scrubbing on. Then prove it on `develop`: one deliberate test exception arrives tagged `develop`, with no body in it. A failed upload does not fail the build; it logs `401` or `403` from the upload step (on 2026-09-30 it was `403`, from the organization lookup), so read `develop`'s first build log for either.
 12. **`CRON_SECRET`:** generate one (`openssl rand -base64 32`) and add it to **Production only**, before the first production deploy that carries the cron routes — `lib/config.ts` refuses to boot production without it (§2). The user's step (#55); the first *scheduled* run on the status page is #21's criterion (`06`, 2026-09-29).
@@ -272,7 +282,7 @@ retry loop or a prompt that doubled in size shows up on a bill, not on a screen.
 | `quotes_outside_window > 0` on the current CV | any | status page — an extraction call quoted outside the window it was given (`07` §5.2, #29) |
 | A completed round with no `round_feedback` | for over **24 hours** | status page — feedback failed and was never retried (`07` §5.12) |
 | The daily dump (§8) failed | any | status page — a missing dump is the staleness line: no `self-check` run, no dump (#56) |
-| Near-duplicate near-misses | weekly count and score distribution | the weekly digest — this is the log the threshold gets tuned from (`03` §11). The threshold starts at **0.90, unverified**. Stored and reported by #47, not #55 |
+| Near-duplicate near-misses | weekly count and score distribution | the weekly digest — this is the record the threshold gets tuned from (`03` §11). The threshold starts at **0.90, unverified**. Stored in `near_duplicate_checks` (`04`) and reported by #47: the week's near-misses, their lowest, median and highest similarity, and the candidates reused as duplicates |
 | Unhandled exception | any | Sentry, scrubbed per §7 (#54) |
 | App down | — | **not alerted.** You will know. |
 
@@ -291,8 +301,8 @@ response (`06`, 2026-09-29). The current-version selection rule is in `04` `cron
 
 **The round-cost baseline is a constant, not a measurement yet** (`06`, 2026-09-29). It is set from
 `03` §6's estimate, **about $0.40 a round**, because no real round exists to measure. Spend is counted
-from every stored `tokens_in`/`tokens_out` row — `questions`, `scoring_attempts`, `round_feedback`,
-and `follow_ups` once built (`04`) — each counted in the week of its own `created_at`, with no round
+from every stored `tokens_in`/`tokens_out` row — `questions`, `scoring_attempts`, `round_feedback`
+and `follow_ups` (`04`) — each counted in the week of its own `created_at`, with no round
 attribution. The threshold is 3× the baseline × max(1, rounds started that week). Rows are priced
 by per-model constants beside the pinned strings in `lib/ai/models.ts`. Transcription, speech, embeddings and CV extraction
 store no tokens and are not in it, so the threshold is loose until it is re-measured: **after eight
@@ -306,10 +316,9 @@ guards the windowing itself and is strict, because it measured 0 across every wi
 **Implementation** (#55): two Vercel Cron routes under `/api/cron/` (`07` §5.17, §5.18), authenticated
 with `CRON_SECRET`, returning `401` without it. `self-check` (daily, `0 19 * * *` UTC) **writes the
 daily dump first** (§8, #56) and then covers the first ten rows; `digest` (weekly, `0 20 * * 0` UTC,
-Monday morning in Tokyo) reports the Asia/Tokyo week's rounds, tokens and spend. Each run is
-**appended** to `cron_runs` with its `cron_readings` (`04`) and the status page reads the newest.
-Still to come: #47 (the near-miss log and its digest row; whichever of #47 and #55 merges second wires
-it).
+Monday morning in Tokyo) reports the Asia/Tokyo week's rounds, tokens and spend, and — since #47 —
+the near-duplicate guard's week. Each run is **appended** to `cron_runs` with its `cron_readings`
+(`04`) and the status page reads the newest.
 
 How the rows are read, decided in #55 (`06`):
 

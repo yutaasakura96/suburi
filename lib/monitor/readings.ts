@@ -88,8 +88,8 @@ async function roundsWithoutFeedback(db: Db, userId: string, now: Date) {
 
 /**
  * Every stored token pair in the window, by model, each row counted in the week of its own
- * `created_at` with no round attribution (06, 2026-09-29). `follow_ups` joins this union when it is
- * built (04). Transcription, speech, embeddings and CV extraction store no tokens and are not here.
+ * `created_at` with no round attribution (06, 2026-09-29). Transcription, speech, embeddings and CV
+ * extraction store no tokens and are not here.
  */
 async function tokenTotals(db: Db, userId: string, window: Week): Promise<TokenTotals[]> {
   const result = await db.execute<{ model_id: string | null; tokens_in: string; tokens_out: string }>(sql`
@@ -103,6 +103,9 @@ async function tokenTotals(db: Db, userId: string, window: Week): Promise<TokenT
       union all
       select f.model_id, f.tokens_in, f.tokens_out, f.created_at
         from ${s.roundFeedback} f join ${s.rounds} r on r.id = f.round_id where r.user_id = ${userId}
+      union all
+      select model_id, tokens_in, tokens_out, created_at
+        from ${s.followUps} where user_id = ${userId}
     ) token_rows
     where created_at >= ${window.start} and created_at < ${window.end}
       and (tokens_in is not null or tokens_out is not null)
@@ -192,11 +195,36 @@ export async function selfCheckReadings(db: Db, userId: string, now: Date): Prom
   ];
 }
 
-function figure(signal: DigestFigure, value: number, window: Week, unpricedModelIds: readonly (string | null)[] = []): Reading {
+function figure(signal: DigestFigure, value: number | null, window: Week, unpricedModelIds: readonly (string | null)[] = []): Reading {
   return { signal, value, threshold: null, isRed: null, subjectIds: [], unpricedModelIds, window };
 }
 
-/** The Asia/Tokyo week that ended before `now`: rounds, tokens and spend. #47 adds the near-miss row. */
+/**
+ * The near-duplicate guard's week, from `near_duplicate_checks` (04): the questions that went into the
+ * bank beside a neighbour, how close they came, and the candidates mapped to an existing question.
+ * **A similarity with no near-miss behind it is no reading**, not zero.
+ */
+async function nearDuplicateFigures(db: Db, userId: string, week: Week): Promise<Reading[]> {
+  const result = await db.execute<{ near_misses: number; lowest: number | null; median: number | null; highest: number | null; reused: number }>(sql`
+    select
+      count(*) filter (where question_id is not null)::int as near_misses,
+      min(similarity) filter (where question_id is not null) as lowest,
+      percentile_cont(0.5) within group (order by similarity) filter (where question_id is not null) as median,
+      max(similarity) filter (where question_id is not null) as highest,
+      count(*) filter (where question_id is null)::int as reused
+    from ${s.nearDuplicateChecks}
+    where user_id = ${userId} and created_at >= ${week.start} and created_at < ${week.end}`);
+  const [row] = result.rows;
+  return [
+    figure("digest_near_misses", row.near_misses, week),
+    figure("digest_near_miss_similarity_min", row.lowest, week),
+    figure("digest_near_miss_similarity_median", row.median, week),
+    figure("digest_near_miss_similarity_max", row.highest, week),
+    figure("digest_near_duplicates_reused", row.reused, week),
+  ];
+}
+
+/** The Asia/Tokyo week that ended before `now`: rounds, tokens, spend and the near-duplicate guard. */
 export async function digestReadings(db: Db, userId: string, now: Date): Promise<Reading[]> {
   const week = previousWeek(now);
   const started = await roundCount(db, userId, s.rounds.startedAt, week);
@@ -210,5 +238,6 @@ export async function digestReadings(db: Db, userId: string, now: Date): Promise
     figure("digest_tokens_in", sum((row) => row.tokensIn), week),
     figure("digest_tokens_out", sum((row) => row.tokensOut), week),
     figure("digest_spend_usd", spend.usd, week, spend.unpricedModelIds),
+    ...(await nearDuplicateFigures(db, userId, week)),
   ];
 }

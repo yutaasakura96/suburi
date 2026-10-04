@@ -60,15 +60,22 @@ export function rewritePercent(magnitude: number) {
 }
 
 /**
+ * How long a transcript is, in the unit its language is paced in: characters for `ja`, whitespace
+ * aside, and words for `en`. Screens 5 and 6 show this count beside the pace, and 10 §5 requires the
+ * two to agree, so they are the same count.
+ */
+export function paceUnits(language: "ja" | "en", transcript: string): number {
+  return language === "ja"
+    ? codePoints(transcript.replace(/\s/gu, "")).length
+    : transcript.split(/\s+/u).filter((word) => word !== "").length;
+}
+
+/**
  * The pace, in the language's own unit (06, 2026-09-27, confirm 4): characters per minute of the raw
  * transcript for `ja`, words per minute for `en`. Stored in `answers.words_per_minute` whatever the
  * unit. Null without a duration — there is no delivery to measure.
  */
 export function pace(language: "ja" | "en", transcript: string, durationMs: number | null): number | null {
   if (durationMs === null || durationMs <= 0) return null;
-  const units =
-    language === "ja"
-      ? codePoints(transcript.replace(/\s/gu, "")).length
-      : transcript.split(/\s+/u).filter((word) => word !== "").length;
-  return units / (durationMs / 60_000);
+  return paceUnits(language, transcript) / (durationMs / 60_000);
 }

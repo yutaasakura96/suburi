@@ -5,6 +5,7 @@ import {
   type ExtractedClaim,
   type ExtractionDocument,
 } from "../ai/extract-cv-claims";
+import { retryableErrorClass } from "../ai/upstream";
 import { planWindows, type ExtractionWindow } from "./windows";
 
 /**
@@ -33,16 +34,6 @@ const FIRST_ATTEMPT_TIMEOUT_MS = 240_000;
 
 /** A retry needs this much of the deadline left: above the slowest measured window call, 52.7 s. */
 export const MIN_RETRY_MS = 60_000;
-
-/**
- * A refusal the same request would get again is not retried: a 4xx other than a timeout, a conflict
- * or a rate limit, or a call aborted because another window already failed.
- */
-function retryable(errorClass: string) {
-  if (errorClass === "aborted") return false;
-  const status = /^upstream_(4\d\d)$/u.exec(errorClass)?.[1];
-  return status === undefined || ["408", "409", "429"].includes(status);
-}
 
 export interface WindowResult {
   readonly window: ExtractionWindow;
@@ -92,7 +83,7 @@ export async function extractByWindow(
       return { window, claims };
     } catch (first) {
       const left = EXTRACTION_DEADLINE_MS - (now() - started);
-      if (abort.signal.aborted || !retryable(classOf(first)) || left < MIN_RETRY_MS) throw first;
+      if (abort.signal.aborted || !retryableErrorClass(classOf(first)) || left < MIN_RETRY_MS) throw first;
       retries += 1;
       const claims = await extractor.extract(language, documents, window, {
         signal: abort.signal,

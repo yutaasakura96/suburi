@@ -1,4 +1,5 @@
 import type { CheckReading, DigestFigure, SelfCheckSignal, Status } from "../../../lib/monitor/status";
+import { NEAR_DUPLICATE_THRESHOLD } from "../../../lib/questions/near-duplicate-threshold";
 import { tokyoDate, tokyoDateTime } from "../../../lib/monitor/week";
 
 // English chrome, as on every app-level screen (10 §0). Relative imports: the unit tests load this
@@ -18,13 +19,41 @@ export const CHECK_NAMES: Record<SelfCheckSignal, string> = {
   backup_dump_failed: "Daily backup failed",
 };
 
-export const FIGURE_NAMES: Record<DigestFigure, string> = {
-  digest_rounds_started: "Rounds started",
-  digest_rounds_completed: "Rounds completed",
-  digest_tokens_in: "Tokens in",
-  digest_tokens_out: "Tokens out",
-  digest_spend_usd: "Spend",
-};
+type Figures = Readonly<Record<DigestFigure, number | null>>;
+
+const similarity = (value: number | null) => (value === null ? null : value.toFixed(3));
+
+/** `0.412 – 0.655 – 0.871`: lowest, median, highest. `—` for a week with no near-miss (10 §14). */
+export function similarityRange(figures: Figures) {
+  const parts = [
+    similarity(figures.digest_near_miss_similarity_min),
+    similarity(figures.digest_near_miss_similarity_median),
+    similarity(figures.digest_near_miss_similarity_max),
+  ];
+  return parts.some((part) => part === null) ? "—" : parts.join(" – ");
+}
+
+/**
+ * 10 §14's "Last week" list, in order. One row per figure, but for the near-miss similarities, which
+ * are one row of three: a distribution reads as one thing.
+ */
+export const LAST_WEEK_ROWS: readonly { key: string; name: string; hint?: string; value: (figures: Figures) => string }[] = [
+  { key: "digest_rounds_started", name: "Rounds started", value: (figures) => formatValue("digest_rounds_started", figures.digest_rounds_started) },
+  { key: "digest_rounds_completed", name: "Rounds completed", value: (figures) => formatValue("digest_rounds_completed", figures.digest_rounds_completed) },
+  { key: "digest_tokens_in", name: "Tokens in", value: (figures) => formatValue("digest_tokens_in", figures.digest_tokens_in) },
+  { key: "digest_tokens_out", name: "Tokens out", value: (figures) => formatValue("digest_tokens_out", figures.digest_tokens_out) },
+  { key: "digest_spend_usd", name: "Spend", value: (figures) => formatValue("digest_spend_usd", figures.digest_spend_usd) },
+  { key: "digest_near_misses", name: "Near-miss questions", value: (figures) => formatValue("digest_near_misses", figures.digest_near_misses) },
+  { key: "digest_near_miss_similarity", name: "Near-miss similarity", hint: "lowest – median – highest", value: similarityRange },
+  {
+    key: "digest_near_duplicates_reused",
+    name: "Questions reused as duplicates",
+    value: (figures) => formatValue("digest_near_duplicates_reused", figures.digest_near_duplicates_reused),
+  },
+];
+
+/** Under the list (10 §14). The threshold is read from the constant, never written. */
+export const NEAR_MISS_NOTE = `A near-miss is a generated question that went into the bank beside a similar one, below the duplicate threshold of ${NEAR_DUPLICATE_THRESHOLD.toFixed(2)}. At or above it, the existing question is reused. The threshold is a guess; these figures are what it gets tuned from.`;
 
 const count = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
 const dollars = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });

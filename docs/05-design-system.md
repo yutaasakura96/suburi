@@ -78,8 +78,8 @@ The accent means **this one**: the selected tab, the current round, the score ma
 
 | Token | Value | Meaning |
 | --- | --- | --- |
-| `--accent` | `oklch(0.55 0.09 230)` | The score dot; the selected-tab underline; the selection rail; the active step in the round stepper. 112 uses — the workhorse. |
-| `--accent-mid` | `oklch(0.72 0.07 230)` | The live waveform; a due-soon rail; an informational callout rail |
+| `--accent` | `oklch(0.55 0.09 230)` | The score dot; the selected-tab underline; the selection rail; the active step in the round stepper; **the 2px underline of a CV claim an answer has used** (`10` §13 — "this one was said", not "this one is good"). 112 uses — the workhorse. |
+| `--accent-mid` | `oklch(0.72 0.07 230)` | The live waveform; a due-soon rail; an informational callout rail; the 1px underline of a CV claim (`10` §13) |
 | `--accent-faint` | `oklch(0.82 0.045 230)` | **The trend line only.** Deliberately lighter than the dots it runs through, so the data outranks the fit. |
 | `--accent-pale` | `oklch(0.84 0.04 230)` | The furthest-out due rail on Home |
 | `--link` / `--link-hover` | `oklch(0.52 0.09 230)` / `oklch(0.42 0.09 230)` | Anchors |
@@ -370,6 +370,13 @@ review — neither is a native read.** `app/(app)/cv/copy.test.ts` asserts both.
 - **No space between a Latin numeral and the Japanese that follows it.** `14:32から保存できます。`, not
   `14:32 から`. The same family as the nakaguro rule — the space is Latin typography, and Japanese
   sets the particle tight against the numeral.
+  **Refined 2026-10-03 by the round's read** (`docs/checklists/native-read-round.md`; an AI read at
+  the user's delegation, like the one above — `06`): **inside a sentence or phrase the numeral sits
+  tight on both sides** — `緊張度4をこのラウンドに記録します。`, `緊張度4を講評前に記録`. **A value
+  shown as a label's figure keeps one space before it** — `最長 4分`, `直すところ 3件`,
+  `良かったところ 1件`, `書き直し 8%`, `記載事項 12件・未使用 3件` — and none between the numeral and
+  its counter. `app/(app)/round/copy.test.ts` asserts the first half over every sentence of the
+  round's chrome.
 - **A document's body is `本文`, never a bare `文`.** `文` alone is one sentence. The import caption
   read `読み込んだ文を確認して…` while the box beside it was labelled `本文`. `文字` is unaffected.
 
@@ -439,6 +446,9 @@ Direction C's matrix had none of these and had to caption itself. This one does 
   **Decided 2026-09-27** (`06`, `10` §0): the screens inside a round follow the round's language;
   Home, Setup, Progress and History are in English. §3.3's uppercase Latin labels stay Latin only in
   an English round — in a Japanese round they are Japanese labels, without `text-transform`.
+  **Built 2026-10-03 (#43):** the six Japanese labels are in `10` §0, set in mono 11px at `0.16em`
+  with no transform. Their read is `docs/checklists/native-read-round.md` — all six accepted, and
+  the one rule it earned, on numeral spacing, is in §6.
 - **Hover surface and focus ring are undrawn.** §10.2 aliases shadcn's `--accent` (hover) to
   `--ground` and `--ring` (focus) to `--mark` as placeholders. §7 requires keyboard focus on score
   rows, so the focus ring is needed, not optional — it wants a design read, not a default.

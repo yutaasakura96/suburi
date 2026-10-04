@@ -26,7 +26,9 @@ export const MODES = ["practice", "realistic"] as const;
 export const QUESTION_ORIGINS = ["set_piece", "generated"] as const;
 export const ROLE_CONTEXT_KINDS = ["posting", "researched", "general"] as const;
 export const SCORING_STATUSES = ["pending", "ok", "failed"] as const;
+export const FOLLOW_UP_STATUSES = ["generated", "missing"] as const;
 export const CITATION_RELATIONS = ["supported_by", "contradicted_by"] as const;
+export const ANSWER_FLAG_KINDS = ["unsupported"] as const;
 export const CV_DOCUMENT_KINDS = ["rirekisho", "shokumu_keirekisho", "cv", "additional"] as const;
 // Every ⚡ route (07 §1 rule 5). A new one extends this list in its own migration.
 export const RATE_LIMITED_ROUTES = ["cv-versions", "rounds", "transcribe", "submit", "complete", "feedback", "speech"] as const;
@@ -51,6 +53,11 @@ export const DIGEST_FIGURES = [
   "digest_tokens_in",
   "digest_tokens_out",
   "digest_spend_usd",
+  "digest_near_misses",
+  "digest_near_miss_similarity_min",
+  "digest_near_miss_similarity_median",
+  "digest_near_miss_similarity_max",
+  "digest_near_duplicates_reused",
 ] as const;
 export const CRON_SIGNALS = [...SELF_CHECK_SIGNALS, ...DIGEST_FIGURES] as const;
 
@@ -237,6 +244,8 @@ export const roleContexts = pgTable(
     companyName: text("company_name"),
     roleTitle: text("role_title"),
     body: text("body"),
+    // The file a posting's text was imported from, as cv_documents.source_filename. Never logged.
+    sourceFilename: text("source_filename"),
     createdAt: createdAt(),
   },
   (t) => [
@@ -291,6 +300,34 @@ export const questions = pgTable(
       .on(t.userId, t.language, t.roundType)
       .where(sql`${t.retiredAt} is null`),
     index("questions_embedding_hnsw_idx").using("hnsw", t.embedding.op("vector_cosine_ops")),
+  ],
+);
+
+// The record the near-duplicate threshold is tuned from (04, 03 §11): one row per generated
+// candidate the guard compared. Ids and numbers only — no column here can hold question text.
+export const nearDuplicateChecks = pgTable(
+  "near_duplicate_checks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    // The nearest neighbour: the existing question the candidate was most like.
+    matchedQuestionId: uuid("matched_question_id")
+      .notNull()
+      .references(() => questions.id, { onDelete: "restrict" }),
+    // The row the candidate was inserted as. Null exactly when it was reused as the matched question.
+    questionId: uuid("question_id").references(() => questions.id, { onDelete: "restrict" }),
+    similarity: doublePrecision("similarity").notNull(),
+    // The constant in force when the guard decided: it moves, and a row is read against its own.
+    threshold: doublePrecision("threshold").notNull(),
+    embeddingModelId: text("embedding_model_id").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    check("near_duplicate_checks_decision_check", sql`(${t.questionId} is null) = (${t.similarity} >= ${t.threshold})`),
+    check("near_duplicate_checks_distinct_check", sql`${t.questionId} <> ${t.matchedQuestionId}`),
+    index("near_duplicate_checks_user_created_at_idx").on(t.userId, t.createdAt),
   ],
 );
 
@@ -418,6 +455,42 @@ export const answers = pgTable(
   ],
 );
 
+// Append-only: the one follow-up generated from one answer, or the record that it is missing (04).
+// A generation failure is a row, never an absence, and nothing backfills it.
+export const followUps = pgTable(
+  "follow_ups",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    parentAnswerId: uuid("parent_answer_id")
+      .notNull()
+      .references(() => answers.id, { onDelete: "restrict" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    status: text("status", { enum: FOLLOW_UP_STATUSES }).notNull(),
+    // The follow-up as asked. Null exactly when missing.
+    promptText: text("prompt_text"),
+    // Exact pinned string, never an alias.
+    modelId: text("model_id").notNull(),
+    // Stamp 3 for the follow-up's own answer.
+    promptVersion: text("prompt_version").notNull(),
+    tokensIn: integer("tokens_in"),
+    tokensOut: integer("tokens_out"),
+    // Class only, never the model's output.
+    errorClass: text("error_class"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    unique("follow_ups_parent_answer_id_unique").on(t.parentAnswerId),
+    oneOf("follow_ups", "status", t.status, FOLLOW_UP_STATUSES),
+    check(
+      "follow_ups_generated_has_text_check",
+      sql`(${t.status} = 'generated') = (${t.promptText} is not null)`,
+    ),
+    check("follow_ups_error_class_missing_check", sql`${t.status} = 'missing' or ${t.errorClass} is null`),
+  ],
+);
+
 // Append-only. A re-score is a new row, never an update.
 export const scoringAttempts = pgTable(
   "scoring_attempts",
@@ -441,6 +514,8 @@ export const scoringAttempts = pgTable(
     // Exact pinned string, never an alias.
     modelId: text("model_id").notNull(),
     scoringPromptVersion: text("scoring_prompt_version").notNull(),
+    // As the scorer read the answer. Null until `ok`, and on attempts scored before score-*-1.1.
+    answeredLanguage: text("answered_language", { enum: LANGUAGES }),
     tokensIn: integer("tokens_in"),
     tokensOut: integer("tokens_out"),
     // Class only, never the model's output.
@@ -450,6 +525,11 @@ export const scoringAttempts = pgTable(
   },
   (t) => [
     oneOf("scoring_attempts", "status", t.status, SCORING_STATUSES),
+    oneOf("scoring_attempts", "answered_language", t.answeredLanguage, LANGUAGES),
+    check(
+      "scoring_attempts_answered_language_ok_check",
+      sql`${t.answeredLanguage} is null or ${t.status} = 'ok'`,
+    ),
     index("scoring_attempts_answer_id_created_at_idx").on(t.answerId, t.createdAt.desc()),
     index("scoring_attempts_user_id_model_id_rubric_version_id_idx").on(
       t.userId,
@@ -490,6 +570,8 @@ export const roundFeedback = pgTable(
     whatWorked: text("what_worked").notNull(),
     language: text("language", { enum: LANGUAGES }).notNull(),
     bodyTranslated: jsonb("body_translated"),
+    // Untouched material: at most three cv_claims ids, validated against the round's never-cited set.
+    untouchedClaimIds: jsonb("untouched_claim_ids").$type<string[]>().notNull().default([]),
     modelId: text("model_id").notNull(),
     promptVersion: text("prompt_version").notNull(),
     tokensIn: integer("tokens_in"),
@@ -520,6 +602,34 @@ export const claimCitations = pgTable(
       t.relation,
     ),
     index("claim_citations_cv_claim_id_idx").on(t.cvClaimId),
+  ],
+);
+
+// Append-only: a span of one answer's corrected text that one scoring attempt flagged (04). A span,
+// never text — the quote is sliced from transcript_corrected, as a claim's is from cv_versions.body.
+export const answerFlags = pgTable(
+  "answer_flags",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    answerId: uuid("answer_id")
+      .notNull()
+      .references(() => answers.id, { onDelete: "restrict" }),
+    scoringAttemptId: uuid("scoring_attempt_id")
+      .notNull()
+      .references(() => scoringAttempts.id, { onDelete: "restrict" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    kind: text("kind", { enum: ANSWER_FLAG_KINDS }).notNull(),
+    // [start, end) into answers.transcript_corrected, in characters (code points).
+    spanStart: integer("span_start").notNull(),
+    spanEnd: integer("span_end").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    oneOf("answer_flags", "kind", t.kind, ANSWER_FLAG_KINDS),
+    check("answer_flags_span_order_check", sql`${t.spanEnd} > ${t.spanStart}`),
+    index("answer_flags_answer_id_idx").on(t.answerId),
   ],
 );
 

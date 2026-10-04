@@ -5,7 +5,15 @@ import { seedUser } from "../../db/seed";
 import { seedSyntheticCv } from "../../db/seed-cv";
 import { seedRubrics, seedSetPieces, seedSyntheticQuestions } from "../../db/seed-questions";
 import { closePool, inRolledBackTransaction, type TestDb } from "../../db/test/database";
-import { fakeModelHealth, fakeScorer, fakeSpeechSynthesizer, uniformScores } from "../ai/fake-round-ports";
+import {
+  fakeEmbedder,
+  fakeModelHealth,
+  fakeQuestionGenerator,
+  fakeScorer,
+  fakeSpeechSynthesizer,
+  numberedQuestions,
+  uniformScores,
+} from "../ai/fake-round-ports";
 import type { SpeechInput, SpeechSynthesizer } from "../ai/tts";
 import { ModelCallFailed } from "../ai/upstream";
 import { RATE_LIMITS } from "../api/rate-limit";
@@ -66,7 +74,13 @@ async function setUp(db: TestDb, respond: (input: SpeechInput) => Uint8Array = (
     const context = await createPostRoleContext(base)(
       new Request("http://localhost:3000/api/role-contexts", { method: "POST", headers, body: JSON.stringify({ kind: "general" }) }),
     );
-    const created = await createPostRound({ ...base, health: fakeModelHealth(), scorer: fakeScorer(uniformScores(3)) })(
+    const created = await createPostRound({
+      ...base,
+      health: fakeModelHealth(),
+      scorer: fakeScorer(uniformScores(3)),
+      questionGenerator: fakeQuestionGenerator(numberedQuestions()),
+      embedder: fakeEmbedder(),
+    })(
       new Request("http://localhost:3000/api/rounds", {
         method: "POST",
         headers,

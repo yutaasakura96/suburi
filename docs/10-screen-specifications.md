@@ -41,9 +41,25 @@ measures, order, states and refusals stand. What changes:
   `YOUR ANSWER — EDIT FREELY`, `RAW — KEPT, NEVER REPLACED`, `Raw transcript`, `Rewrite`, `BEFORE THE
   FEEDBACK`, `WHAT THIS IS NOT`. Keeping them Latin as a design device was considered and rejected.
   `05` §3.3's uppercase and tracking are for Latin labels only; a Japanese label never relies on
-  `text-transform` (`05` §6).
-- **An English round needs its round-screen copy written**; every Japanese string on the round screens
-  still needs its native read before it ships.
+  `text-transform` (`05` §6). **The Japanese labels, since #43** (`06`, 2026-10-03), pending their
+  native read:
+
+  | Artboard label | In a Japanese round |
+  | --- | --- |
+  | `Raw transcript — 未修正` | `文字起こし — 未修正` |
+  | `YOUR ANSWER — EDIT FREELY` | `あなたの回答 — 自由に直せます` |
+  | `RAW — KEPT, NEVER REPLACED` | `未修正の文字起こし — 置き換えずに残します` |
+  | `Rewrite` | `書き直し` |
+  | `BEFORE THE FEEDBACK` | `講評の前に` |
+  | `WHAT THIS IS NOT` | `緊張度について` |
+
+  §5–§7 below still quote the artboards' Latin labels, as what was drawn. A Japanese round shows the
+  right-hand column, and its tab title is Japanese too (`ラウンド — Suburi`, `講評 — Suburi`).
+- **English round-screen copy is built (#42).** The Japanese strings for #43 were read on 2026-10-03
+  (`docs/checklists/native-read-round.md` — an AI read at the user's delegation, `06`). Two things
+  it changed in what the sections below quote: **a Japanese round is titled `人事面接` and
+  `最終面接`**, not the artboards' `HR` and `CEO・最終` (`行動面接` and `技術面接` stand), and
+  **`緊張度4を…` is set tight** (`05` §6).
 
 ---
 
@@ -159,13 +175,103 @@ precedence: `求人票とAI調査の両方があります。ファイルを優�
 equal, in a `repeat(2, 1fr)` grid. The research card and the precedence callout arrive with US-16.
 A posting is picked from the ones already saved, or added — pasted, or imported through the CV
 screen's importer into an editable box, as on §13. Saved postings are never edited; a changed one is
-a new one. **The picker and the add form are specified here from `05` components by the slice that
-builds them**, as §13 was. The drawn detail `Mercari_SRE_2026.pdf` is the picked posting's
-`source_filename`.
+a new one. The drawn detail `Mercari_SRE_2026.pdf` is the picked posting's `source_filename`.
 
-**The bank-exhausted warning** (PRD §6) appears here, before the round starts, when the unseen pool
-for the chosen type and language cannot fill the round: it says new questions will be generated and
-that repeats do not count toward progress. Its copy is written with the slice that builds selection.
+### Role context, as built (#47)
+
+Specified from `05` components, as §13 was, by the slice that built it. English chrome (§0); a
+posting's company, title and text are data and shown as written.
+
+**The two cards.** `Posting` and `General practice`, in that order, each a button with `role="radio"`
+in one `radiogroup`: a 14px title over a 12px/1.7 `--ink-6` detail, `2px --accent` underline when
+selected, `1px --rule-section` when not — the drawn card.
+
+| Card | Detail line |
+| --- | --- |
+| `Posting` | the picked posting's `source_filename` (the drawn `Mercari_SRE_2026.pdf`); `Pasted text` when it has none; `Pitch the round at a role you are applying for` when no posting is picked |
+| `General practice` | `Counted separately in progress` |
+
+**The cards are equal and the group is required.** The label reads `Role context` with, beside it in
+12px `--ink-6`, `Required. The two are equal.` **Nothing is selected when the page opens unless a
+posting has been saved before**, in which case `Posting` is, with the newest one picked — the last
+thing the user did was save it for a round. General practice is never the silent default: it is a
+choice that splits the progress record (`CONTEXT.md`), so it is made, not inherited. Until a card is
+selected — and, on `Posting`, a posting is picked — the start button is the §5.7 **inert** primary,
+and its caption reads `Choose a role context to start.`
+
+**The picker**, under the cards when `Posting` is selected. A `05` §5.6 selection rail: one row per
+saved posting, newest first, `padding: 11px 0` on `--rule-hairline` separators, each a `role="radio"`
+button —
+
+- the company at 14px `--ink-1`, then the role title at 13px `--ink-4`, on one baseline, gap `12px`,
+  each truncated with an ellipsis rather than wrapped;
+- right-aligned in 11px mono `--ink-label`: the `source_filename` if any, then the saved date
+  (`2026-10-03`, Asia/Tokyo);
+- the rail's 2px bar, `34px` tall, to the row's left: `--accent` when selected, `--rule-row` when not;
+  the selected row's company steps to weight 500.
+
+The list is every posting, not a recent few: nothing is deleted (`04` §5), so the row is how an old
+posting is used again. Past eight rows the list scrolls inside `max-height: 352px`. **No edit and no
+delete control** on a row — a changed posting is a new one.
+
+Below the list, or in its place when no posting is saved yet, a text control in the §3.3 label style
+— `Add a posting` — opens the add form in place. With no posting saved the form is already open.
+
+**The add form.** Three fields, each a §3.3 section label over its control:
+
+| Field | Control |
+| --- | --- |
+| `Company` | one-line input, 14px, `1px --rule-frame` like §13's box, `padding: 9px 12px`; cut at 200 code points as it is typed, the unit `07` §5.3 states — not the `maxlength` attribute, which counts UTF-16 units |
+| `Role title` | the same |
+| `Posting text` | a textarea, 13px/1.9, eight rows, vertically resizable — §13's box. Beside its label, `Import from a file` (`.docx`, `.pdf`), the §13 control: **the text is extracted in the browser and dropped into the box, which stays editable; the file is never uploaded** (`07` §5.3). An import replaces the box's text and sets the posting's `source_filename`; editing the box afterwards keeps it; clearing the box drops it |
+
+- After an import, §13's line: `Check the imported text and fix anything wrong. What you save is what
+  the questions are written from.`
+- A failed import: §13's two `--attention-mark` callout rails, word for word, under the box, which is
+  left as it was.
+- Under the box, right-aligned in 11px mono `--ink-label`, the count against the cap:
+  `1,204 / 20,000 characters`. Over the cap the count takes `--attention-ink` and the save control
+  goes inert — the client half of `role_context_too_large`; the server refuses whether or not the
+  client got it right.
+- An **outline** button `Save this posting` (§5.7, no glyph), inert until company, title and text are
+  all non-blank, with the caption `Saving fixes this posting as it is. It cannot be edited afterwards
+  — a changed posting is saved as a new one.` While saving: `Saving the posting.`, and the button, `Cancel`, the
+  three fields and the import control are all disabled, so what is on screen is what is saved.
+  Outline, not solid: the screen's one solid primary is `Start this round`.
+- `Cancel`, a text control in the §3.3 label style, beside the button when at least one posting is
+  already saved. It closes the form and keeps nothing.
+
+**After a save** the form closes, the new posting is at the top of the picker and is the picked one.
+The page does not navigate and the other four groups keep their values.
+
+**On failure** nothing was saved (`07` §5.3) and the form keeps its contents. An `--attention-mark`
+callout rail above the save button carries the catalogue's English copy for `role_context_too_large`,
+`invalid_request`, `write_failed` or the unreachable sentence.
+
+**Picking General practice** needs no form. Its row is created the first time a round starts with it
+(`07` §5.3), as the tracer did.
+
+### The bank-exhausted warning (#47)
+
+PRD §6. Shown in the rationale column, above the start button, as an `--accent-mid` callout rail
+(`05` §5.8) — information, not an error — **whenever the bank cannot fill the round being set up
+without generating**: for the chosen round type, language, mode and length, the questions the
+selection order (`07` §5.4) would take from the bank are fewer than the length. It is computed from
+counts the page already holds, so changing the type or the length updates it without a request, and
+it is on screen before the round starts.
+
+`There are 2 unseen Behavioural questions in English, and this round asks 5. The rest are written when
+it starts, which can take up to half a minute. If a new question turns out to match one you have
+already answered, it is asked as a repeat: scored, but not counted in progress.`
+
+The language named is the round's — `in Japanese` for a Japanese round, whose bank is its own (`07`
+§5.4). The two numbers are the bank's supply and the round's length; with none unseen it opens `There are no
+unseen Behavioural questions in English, and this round asks 5.` It does not offer a choice: the
+round's length is the user's, and generation is how the round keeps it.
+
+**While the round is starting** the start button's caption reads `Fixing the questions for this
+round.`, or, when the warning is showing, `Writing new questions for this round. This can take up to
+half a minute.` — the measured wait (`03` §4), said before it is felt.
 
 ### Rationale column
 - `WHY THESE DEFAULTS` → `行動面接・日本語は18日空いています。既定値はそこから決めました。` then
@@ -203,11 +309,18 @@ absent only from the transcript state, which substitutes:
   the speech route (`07` §5.15). **When synthesis fails**, this line is replaced by a short notice —
   the catalogue's `speech_failed` copy — and the round goes on with the text (`06`, 2026-09-28).
   **When the browser will not play sound unasked** — a round opened or reloaded with no gesture yet in
-  the tab — the line is a control with the same glyph, `Hear the question` in an English round;
+  the tab — the line is a control with the same glyph, `Hear the question` in an English round and
+  `質問を聞く` in a Japanese one;
   pressing it plays the question and the line returns. Starting the recording silences a question
   still being spoken, so the microphone never records it (`06`, #45).
 - **The question is the one fixed when the round started** (`round_questions`) — a reload shows the
   same one.
+- **A follow-up is asked on this same frame**, from its `follow_ups` row — a reload shows the same
+  one, and nothing generates it again. It shares its question's position, so the header's step keeps
+  the number and names it: `Question 2 / 3 · follow-up`, `第2問 / 3問・深掘り` in a Japanese round
+  (`06`, 2026-10-03). The footer's stamp carries the follow-up prompt's version in place of the
+  question's. **A follow-up is not spoken yet**, in realistic mode either: it has no speaker line,
+  and its question's audio is not played over it (`06`, 2026-10-04).
 - The question at **19px/1.9** in `--ink-2`, `max-width: 880px`. This is the largest reading text in
   the app and the only thing the screen is asking the user to do.
 - A `--rule-row` divider.
@@ -291,7 +404,18 @@ Solid primary `この回答を送る`, caption
 `送ると、いま直した文から深掘りが1問つくられます。`, then `3:12・約250字/分` /
 `出題 v1.0・応募書類 v3`.
 
-**The follow-up is generated from the corrected text, not the raw text.** Both are stored.
+**The follow-up is generated from the corrected text, not the raw text.** Both are stored. Under a
+follow-up's own answer the caption does not promise one: it makes none.
+
+### After the commit, when there is no follow-up to ask
+The answer is saved and locked — no editor, no recorder — the question stays at the top, and one
+solid primary goes on (`06`, 2026-10-03). Two cases, one frame:
+
+- **The follow-up could not be generated.** The catalogue's `followup_generation_failed` sentence in
+  a callout rail, attention tone. Going on asks the next question, or screen 7. The hole is said
+  here, never skipped silently (US-7).
+- **The follow-up had not been stored when the page loaded.** A plain sentence in the information
+  tone. Going on writes it and asks it.
 
 ---
 
@@ -328,12 +452,12 @@ Three lines at 12px/1.85 `--ink-4`:
 ### States
 - **Nothing picked:** button is `--surface-inert` / `--ink-8` / `1px --rule-section`; hint
   `1つ選ぶと講評に進めます。`
-- **Picked:** button becomes solid `--ink-1` / `#fff`; hint `緊張度 4 をこのラウンドに記録します。`
+- **Picked:** button becomes solid `--ink-1` / `#fff`; hint `緊張度4をこのラウンドに記録します。`
 - Stamp: `評価基準 v1.2・出題 v1.0・応募書類 v3`.
 
 **This screen cannot be skipped, and it cannot be answered after the feedback is seen** — the whole
 point is that the reading is taken before the result is known. The value is recorded on the round and
-surfaced on round feedback and History as `緊張度 4 を講評前に記録`.
+surfaced on round feedback and History as `緊張度4を講評前に記録`.
 
 ---
 
@@ -345,6 +469,14 @@ Header: `行動面接` 17px/600, `日本語・実戦・5問` 13px `--ink-4`; rig
 language pill (`1px --tick`, `padding: 4px 10px`, 11px `--ink-4`) reading `English` — the toggle to
 read a Japanese round's feedback in English.
 
+**What the pill changes (`06`, 2026-10-03):** the feedback, and nothing else — the seven dimension
+names (`Structure … Keigo (register)`) and the round-level findings with their two headings
+(`To fix 3`, `What worked 1`), read from the stored translation (`04` `round_feedback.body_translated`).
+The round's own chrome stays Japanese: the header, `第1問 / 5問`, the figures, the question, the pager
+and the stamps. The pill appears only when the stored translation exists. It names the language it
+switches to, in that language — `English`, then `日本語` — and the choice is the page's, not stored.
+**An English round has no pill**: its feedback is English already (PRD §4).
+
 3-column grid: per-answer scores at `span 2`, round-level findings in the last column.
 
 ### Per-answer region
@@ -355,7 +487,18 @@ read a Japanese round's feedback in English.
   長さ・配分 2 · 敬語 3`. 長さ・配分 is the attention row.
 - **Follow-up row**, sharing the row rhythm but carrying no scale: `└ 深掘り` at 12px `--ink-6`, the
   question at 12px `--ink-7`, and right-aligned at 11px `--ink-label`:
-  `7項目を採点。進捗には入れません。`
+  `7項目を採点。進捗には入れません。` The first sentence follows the follow-up's own scoring — scored,
+  not scored yet, or not scored — and the second never changes. **A missing follow-up keeps the row**:
+  the label, and one sentence in `--attention-ink` saying it was not generated and is recorded as a
+  gap, in place of the question (`06`, 2026-10-03). The follow-up's own scores are History's (§10).
+- **An answer in the wrong language** (PRD §7) carries one `--accent-mid` callout rail (`05` §5.8)
+  under its score rows, above the pager: `英語での回答です。日本語の進捗には入れません。` /
+  `This answer was given in Japanese. It is kept out of your English progress.` It names the language
+  the scorer read (`scoring_attempts.answered_language`, `04`) and the round's. **The answer is still
+  scored and its rows still render** — the line says what happens to the scores, it does not replace
+  them. An answer in the round's language carries no line, and neither does one whose latest `ok`
+  attempt has no `answered_language` (scored before the CV check existed): absence of the reading is
+  not a mismatch.
 - **Answer pager:** `第2問 第3問 第4問 第5問` at 12px `--ink-label`, a flex `--rule-section` line,
   then `以下に4問`.
 
@@ -366,16 +509,31 @@ read a Japanese round's feedback in English.
   2. `数値の裏づけがない箇所が2つ。応募書類の「請求処理を40%短縮」を使う。`
   3. `「〜っていう」が4回。「〜という」に置き換える。`
 - `良かったところ 1件` — one line, same size. **One, not three.** The asymmetry is the design.
-- `応募書類との照合` — callout rails (§5.8): `--attention-mark` for
-  `裏づけなし —「チーム全体の生産性を上げた」に対応する記述が応募書類 v3 にない。`, `--ink-9` for
-  `未使用 —「2024 決済基盤の移行リード」「英語での顧客折衝」`.
-  **裏づけなし quotes the answer by span** — sliced from the corrected text, never reworded (`04`
-  `answer_flags`). **未使用 is two or three claims the feedback call picked as relevant** from the
-  round's never-cited set, not every uncited claim (`06`, 2026-09-27); each quote is sliced from the CV
-  by span.
-- **An answer in the wrong language** carries a line saying so, and that it is kept out of this
-  language's progress (PRD §7). Copy written with the grounding slice.
-- Footer stamp: `評価基準 v1.2・出題 v1.0・応募書類 v3` / `緊張度 4 を講評前に記録`.
+- `応募書類との照合` / `Checked against your CV` — a §3.3 section label over callout rails (`05`
+  §5.8), below 良かったところ. Built with the grounding slice (#46, `06`):
+  - **裏づけなし — one `--attention-mark` rail per unsupported span**, in question order and then in
+    the order the spans stand in the answer, each naming its question:
+    `裏づけなし（第2問）—「チーム全体の生産性を上げた」に対応する記述が応募書類 v3にない。` /
+    `Unsupported (Question 2) — nothing in CV v3 backs “raised the whole team's productivity”.`
+    **The quote is the answer's own words by span** — sliced from the corrected text, never reworded
+    (`04` `answer_flags`) — and the label is the round's CV stamp. Only the flags of each answer's
+    latest `ok` attempt are drawn; a re-score's flags replace the first attempt's here without
+    deleting them.
+  - **None flagged is said**, on an `--ink-9` rail: `裏づけなし — 応募書類 v3に照らして該当なし。` /
+    `Unsupported — nothing flagged against CV v3.` A region that only appears when it has bad news is
+    a region nobody learns to read (the same rule as `spans_rejected`, §13).
+  - **未使用 — one `--ink-9` rail**: `未使用 —「2024 決済基盤の移行リード」「英語での顧客折衝」` /
+    `Unused — “Led the 2024 payments platform migration” “Customer negotiation in English”`.
+    **Two or three claims the feedback call picked as relevant** from the round's never-cited set,
+    not every uncited claim (`06`, 2026-09-27), in the order it picked them; each quote is sliced from
+    the CV by span (`round_feedback.untouched_claim_ids`, `04`). None picked:
+    `未使用 — この回で挙げる記載事項はなし。` / `Unused — nothing picked for this round.`
+  - **Drawn only for a round that went through the CV check** — one where some answer's latest `ok`
+    attempt carries `answered_language`. A round scored before the check existed has no region at
+    all: "nothing flagged" there would be a statement nobody checked.
+  - **Nothing in the region is the model's wording.** Every quoted string is a slice of stored text
+    by a validated span; the sentence around it is chrome.
+- Footer stamp: `評価基準 v1.2・出題 v1.0・応募書類 v3` / `緊張度4を講評前に記録`.
 
 ### An answer whose score failed
 
@@ -470,10 +628,11 @@ progress, and History offers to resume it rather than marking it.
 
 ### Detail — the matrix (§5.5)
 Header: `行動面接` 17px/600, `日本語・実戦・5問`, date, and
-`求人票 Mercari_SRE_2026.pdf・緊張度 4 を講評前に記録` at 12px `--ink-6`. Right: the `English`
+`求人票 Mercari_SRE_2026.pdf・緊張度4を講評前に記録` at 12px `--ink-6`. Right: the `English`
 language pill and `編集できません` at 11px `--ink-8`.
 
-**A past round is read-only.** The pill still toggles the feedback language; nothing else can change.
+**A past round is read-only.** For a Japanese round with a stored translation, the pill still toggles
+the feedback language; nothing else can change.
 
 Columns: `196px repeat(7, 1fr) 58px 34px` — question, the seven dimensions, TIME, play.
 
@@ -612,9 +771,9 @@ offers the one move that fixes it.
 | Element | Spec |
 | --- | --- |
 | Version stamp | `05` §5.9, but **top-left of the panel rather than bottom-right** — here it labels the thing being read, it is not the provenance footer of a score. `応募書類 v3` / `CV v3`, with `2026-08-30` beside it in mono. |
-| Claim count | 11px mono, `--ink-label`: `記載事項 34件` / `34 claims`. **`件`, never `点`** (`05` §6). |
+| Claim count | 11px mono, `--ink-label`, with the count of claims no answer has used (below): `記載事項 34件・未使用 12件` / `34 claims · 12 never used`. **`件`, never `点`** (`05` §6). |
 | Documents | In `position` order. Each is a §3.3 section label — `履歴書` · `職務経歴書` · the user's own title for an additional document — over its text at 13px/1.9. |
-| Claim spans | Each surviving claim's span **underlined** in its document's text: `border-bottom: 1px solid var(--accent-mid)`. Nothing else — no numbering, no margin notes, no hover card. |
+| Claim spans | Each surviving claim's span **underlined** in its document's text: `border-bottom: 1px solid var(--accent-mid)`, or the heavier coverage mark below. Nothing else — no numbering, no margin notes, no hover card. |
 
 **The underline is the whole point of this screen.** It is how extraction gets checked: the user reads
 their own CV and a wrong span is visible as a phrase underlined that is not an assertion, or an
@@ -624,6 +783,36 @@ assertion left bare. That check is the answer to `CONTEXT.md`'s open question ab
 **Every underlined range is sliced from `cv_versions.body` by span** (`04`), never from model output,
 and every span lies inside exactly one document's range. A span that crossed a document boundary was
 dropped at save time and is not here to render.
+
+### Coverage marks
+
+Specified and built with the CV-grounding slice (#46), which is when citations began to exist.
+
+**A claim an answer has used carries a heavier underline: `border-bottom: 2px solid var(--accent)`.**
+A claim no answer has used keeps the `1px --accent-mid` line. The mark is the underline's weight and
+nothing else — the same line, heavier and in the full accent — so the text still reads as the user's
+own CV and the extraction check above still works on every claim.
+
+| Element | Spec |
+| --- | --- |
+| Used | `2px --accent`. A claim is used when an answer cited it **or any claim it was carried forward from** (`cv_claims.supersedes_claim_id`, `04`), with either relation: an answer that contradicted a claim used it. |
+| Never used | `1px --accent-mid`, as before. |
+| Count | The never-used count beside the claim count, in the version stamp row (above). Zero is stated: `未使用 0件` / `0 never used`. |
+| Legend | One 12px `--ink-6` line under the stamp row, always shown: `太い下線は、これまでの回答で使った記載事項です。` / `A heavier underline marks a claim one of your answers has used.` |
+
+**Coverage is inherited down the carry-forward chain, never up it.** A claim of v3 carried from v1
+reads as used if an answer cited the v1 claim; a v1 claim does not become used because an answer
+cited its v3 descendant. So an old version's page (`/cv/versions/{id}`) shows what had been used *of
+that version and its ancestors*, by the same rule, and the count on it is that version's own.
+
+**It is read at render from `claim_citations`, never stored** (`04`): there is no coverage column to go
+stale, and a citation written a minute ago is on the page at the next load.
+
+**The history rows keep the plain claim count.** A never-used count on an old version is a figure
+about material that version no longer puts in front of a scorer.
+
+> **The two Japanese strings above have not had a native read** — `記載事項 34件・未使用 12件` and the
+> legend. They are in `docs/checklists/native-read-round.md` §7 with the grounding region's.
 
 ### New version
 
@@ -689,9 +878,14 @@ what the CV stamp on an old answer means.
 
 ### Refuses
 
-- **No coverage marks yet.** Nothing cites a claim until scoring exists, so "used" and "never used"
-  would both be false on every claim on this screen. They arrive with citations, not before — **with
-  the CV-grounding slice of the round loop**, which lifts this refusal and specifies the marks here.
+- **No coverage figure beyond the two counts.** No percentage, no "coverage score", no bar: a share
+  of the CV used is one step from a composite about the user, and a CV is not better for having every
+  line said aloud. (The earlier refusal here — no coverage marks at all — was lifted by the
+  CV-grounding slice, #46, which is when citations began to exist.)
+- **No citation count per claim, and no list of the answers that used one.** The mark is binary.
+  Which answers leaned on a claim is History's question, not this screen's.
+- **No "contradicted" mark.** A contradiction is a finding about an answer and is shown where the
+  answer is (§8); on this screen a contradicted claim reads as used.
 - **No edit and no delete** — not a document, not a claim, not a version (`04` §6, `07` §6).
 - **No version label input.** The label is derived, per language (`04`).
 - **No upload of the file itself.** The browser extracts text; the file does not leave it.
@@ -764,8 +958,17 @@ caveat of `12` §6, stated where the number is read.
 
 From the newest `digest` run: the week it covers (`2026-09-21 – 2026-09-27`) at 12px mono `--ink-6`,
 then a two-column list of label (13px `--ink-3`) and figure (13px mono, right-aligned): `Rounds
-started`, `Rounds completed`, `Tokens in`, `Tokens out`, `Spend`. With no digest run: `No weekly digest
-has run yet.` at 12px `--ink-6`. **The near-miss row joins this list with #47** (`06`, 2026-09-29).
+started`, `Rounds completed`, `Tokens in`, `Tokens out`, `Spend`, and the near-duplicate guard's week
+(#47; `06`, 2026-09-29): `Near-miss questions` — a count — `Near-miss similarity`, and `Questions
+reused as duplicates`. **Near-miss similarity is one row holding three figures**, `0.412 – 0.655 –
+0.871`, lowest, median and highest to three decimals, with `lowest – median – highest` under the
+label in 11px `--ink-6`; `—` in `--ink-9` when the week had no near-miss. With no digest run: `No
+weekly digest has run yet.` at 12px `--ink-6`.
+
+Under the list, 12px/1.7 `--ink-6`: `A near-miss is a generated question that went into the bank
+beside a similar one, below the duplicate threshold of 0.90. At or above it, the existing question is
+reused. The threshold is a guess; these figures are what it gets tuned from.` The `0.90` is read from
+the constant, not written.
 
 ### Refuses
 

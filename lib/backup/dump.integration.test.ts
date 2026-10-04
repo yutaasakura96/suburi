@@ -129,6 +129,17 @@ async function seedEverything(db: TestDb) {
     tokensIn: 1_200,
     tokensOut: 300,
   }).returning({ id: s.questions.id });
+  // The guard's record, both ways it can end: a near-miss beside the question it was kept as, and a
+  // reuse with no question of its own.
+  const [matched] = await db
+    .insert(s.questions)
+    .values({ userId: world.userId, language: "en", roundType: "behavioural", origin: "set_piece", body: "tab", generatorPromptVersion: "fixture-set" })
+    .returning({ id: s.questions.id });
+  const check = { userId: world.userId, matchedQuestionId: matched.id, threshold: 0.9, embeddingModelId: "fixture-embedding" };
+  await db.insert(s.nearDuplicateChecks).values([
+    { ...check, questionId: question.id, similarity: 0.8125 },
+    { ...check, questionId: null, similarity: 0.9375 },
+  ]);
   const [round] = await db.insert(s.rounds).values(roundValues(world, { completedAt: TAKEN_AT })).returning({ id: s.rounds.id });
   await db.insert(s.roundQuestions).values({ roundId: round.id, userId: world.userId, position: 1, questionId: question.id });
   const [first] = await db
@@ -138,9 +149,19 @@ async function seedEverything(db: TestDb) {
   // Self-references in both directions: a follow-up and a retry.
   await db.insert(s.answers).values(answerValues(world, round.id, { questionId: null, parentAnswerId: first.id, position: 2 }));
   await db.insert(s.answers).values(answerValues(world, round.id, { retryOfAnswerId: first.id, position: 3 }));
+  await db.insert(s.followUps).values({
+    parentAnswerId: first.id,
+    userId: world.userId,
+    status: "generated",
+    promptText: AWKWARD,
+    modelId: "fixture-model",
+    promptVersion: "follow-up-fixture",
+    tokensIn: 400,
+    tokensOut: 20,
+  });
   const [attempt] = await db
     .insert(s.scoringAttempts)
-    .values({ ...attemptValues(world, first.id), status: "ok", tokensIn: 3_000, tokensOut: 600 })
+    .values({ ...attemptValues(world, first.id), status: "ok", answeredLanguage: "en", tokensIn: 3_000, tokensOut: 600 })
     .returning({ id: s.scoringAttempts.id });
   const [rescore] = await db
     .insert(s.scoringAttempts)
@@ -149,11 +170,13 @@ async function seedEverything(db: TestDb) {
   await db.insert(s.heldOutRescores).values({ answerId: first.id, baselineAttemptId: attempt.id, rescoreAttemptId: rescore.id });
   await db.insert(s.scores).values({ scoringAttemptId: attempt.id, dimension: "structure", value: 3, justification: AWKWARD });
   await db.insert(s.claimCitations).values({ answerId: first.id, cvClaimId: claim.id, relation: "supported_by" });
+  await db.insert(s.answerFlags).values({ answerId: first.id, scoringAttemptId: attempt.id, userId: world.userId, kind: "unsupported", spanStart: 0, spanEnd: 3 });
   await db.insert(s.roundFeedback).values({
     roundId: round.id,
     toFix: [{ point: AWKWARD, nested: { n: 1.5, list: [null, true] } }],
     whatWorked: AWKWARD,
     language: "en",
+    untouchedClaimIds: [claim.id],
     modelId: "fixture-model",
     promptVersion: "feedback-fixture",
   });

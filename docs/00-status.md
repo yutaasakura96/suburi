@@ -29,14 +29,22 @@ re-measure.
 **The round loop is planned:** grilled 2026-09-27, its decisions written into the docs, and its
 eleven slice issues confirmed on 2026-09-28 and labeled `ready-for-agent`, #41–#51, the user's own
 steps marked in each (Next).
-**#42, the round-loop tracer, is closed (2026-10-03):** an English realistic round end to end, its
-latencies measured (`03` §4), and the owner's real English round proved on `develop`.
+**#42, the round-loop tracer, is closed:** built on `fm/suburi-42`, merged into `develop`, and proved
+by the owner's real English round there on 2026-10-03; its latencies were measured (`03` §4).
+**#46, CV grounding, is built (2026-10-03), on `fm/suburi-46`:** citations, unsupported spans, untouched
+material, the wrong-language reading and coverage marks on `/cv` (Next).
+**#43, Japanese rounds, is built; its rubric review and native read were done on 2026-10-03 as AI
+reviews at the owner's delegation** (below).
+**#44, follow-ups, is built (2026-10-03), on `fm/suburi-44-v2`:** one follow-up per bank-question
+answer in both modes and both languages, written by `submit` or recorded as missing (Next).
+**#47, generated questions and role context, is built (2026-10-03), on `fm/suburi-47`** (Next).
 **#45, the spoken question, the cap and one take, is built (2026-10-03), on `fm/suburi-45`:** the
-speech route, screen 3's speaker line, and practice's guard, stored and never drawn. Its one step of
-the user's, `11` §5's ear check (`npm run ear-check`), was done on 2026-10-03: all ten samples, four
-English and six Japanese, sounded correct. The issue stays open for speaking generated follow-ups,
-which waits on #44's `follow_ups`. The pinned model and its replacement deadline are in `03` §4.
-**Updated:** 2026-10-03 (#45 built; #42 closed; #55 and #56 on 2026-09-30)
+speech route, screen 3's speaker line in both languages, and practice's guard, stored and never
+drawn. Its one step of the user's, `11` §5's ear check (`npm run ear-check`), was done on 2026-10-03:
+all ten samples, four English and six Japanese, sounded correct. **The issue stays open for speaking
+follow-ups:** the route does not read #44's `follow_ups` yet, so a follow-up is asked as text. The
+pinned model and its replacement deadline are in `03` §4.
+**Updated:** 2026-10-04 (#43, #44, #45, #46 and #47 built; #42 closed; #55 and #56 on 2026-09-30)
 
 ## Done
 - Phase 1 — `docs/01-project-brief.md`, `docs/02-product-requirements.md`, `docs/06-decision-log.md`.
@@ -343,7 +351,7 @@ without a score that ended `failed`, which is retried alone; "today" is Asia/Tok
 confirmed the slices, and #41–#51 moved from `needs-triage` to `ready-for-agent`. Slice 0 (#41) is the user's own
 console work and takes `12` §3 steps 3–5 out of #21, whose body now points at it.
 
-**#42 is closed (2026-10-03): built on 2026-10-01 and merged to `develop`.** Built: migration
+**#42 is closed:** built on `fm/suburi-42` and merged into `develop`. Built: migration
 `0007` (`round_questions`, stamp 3 `not null` on `questions` and `scoring_attempts`, the
 General-practice index, the round routes' limiter names); rubric `en` v1.0 and the English set pieces
 in `lib/`; 17 synthetic English bank questions seeded on `develop` only; `POST /api/role-contexts`
@@ -352,12 +360,82 @@ in `lib/`; 17 synthetic English bank questions seeded on `develop` only; `POST /
 correction with the live meter, felt pressure, feedback with six rows, the fix list, what worked and
 "findings not ready" or, when no answer scored, "findings unavailable"; integration tests for every route and a Playwright round with a fake microphone
 and mock S3 and OpenAI. **Measured** (`scripts/measure-round-latency.mts`, `03` §4): scoring 7.1 s
-median and 38.1 s slowest, so `complete` waits 60 s (`07` §5.12). **The user's steps, which it closed on:** (1) review
-`lib/rubric/en-1.0.ts` — only then does production's `db:seed` gain the rubric and set pieces (`12` §3
-step 9); (2) the proof round on `develop`: `npm run db:migrate` and `npm run db:seed:develop` against
-Neon `develop`, then a real English round from a real browser, audio under `dev/`, feedback on screen
-before leaving the machine. The three new Japanese error strings are in
-`docs/checklists/native-read-round-loop.md`.
+median and 38.1 s slowest, so `complete` waits 60 s (`07` §5.12). The owner proved a real English
+round on `develop` on 2026-10-03. The three new Japanese error strings are in
+`docs/checklists/native-read-round.md` (renamed by #43, which added its own to it).
+
+**#43 is built (2026-10-03), on `fm/suburi-43`; its two reviews are done, as AI reviews.** Built: rubric
+`ja` v1.0 with 敬語 as its seventh dimension (`lib/rubric/ja-1.0.ts`); the four Japanese set pieces
+under `set-piece-ja-1.0`, no 逆質問; 17 synthetic Japanese bank questions for `develop`; `POST
+/api/rounds` in either language; pace in characters per minute of the raw transcript; `score-ja-1.0`
+and `feedback-ja-1.0`, both with #46's CV check, the second returning the English translation in the
+same call, stored in `round_feedback.body_translated`; the Japanese copy of #46's grounding region
+(`10` §8); the round screens in Japanese throughout, the artboards' Latin
+section labels replaced (`10` §0); the feedback pill, which switches the dimension names and the
+findings to English and nothing else; Setup's language option. No migration. Tests: the seeds in both
+languages, a Japanese round through every route, and a Playwright Japanese round beside the English
+one. **The two steps #43 marks as the user's were delegated on 2026-10-03** (`06`): the user does not
+read Japanese well and asked firstmate, the supervising AI, to answer for them — so, like #38's,
+**neither is a native read.** (1) Rubric `ja` v1.0: all seven dimensions and thirty-five anchors
+reviewed, one 敬語 anchor reworded, approved for seeding; nothing was seeded before it. (2)
+`docs/checklists/native-read-round.md` §1–§4: every row accepted but four — the two 緊張度 strings
+set tight, a Japanese round titled `人事面接` and `最終面接`, one fixture question reworded — and one
+rule earned for `05` §6, on numeral spacing. A later human native read can revisit both; a rubric
+change then is v1.1. **Not yet checked against the real model:** the two Japanese prompts ran only against fakes; the first Japanese round on `develop`
+is that check.
+
+**#46 is built (2026-10-03), on `fm/suburi-46`.** The scorer (`score-en-1.1`) reads the CV version's
+claims, numbered and sliced from the stored body, and returns citations by number, unsupported spans as
+verbatim quotes of the answer, and `answered_language`; the server resolves, locates and validates all
+of it before one transaction writes the scores, `claim_citations` and `answer_flags`, and what fails is
+dropped and counted in the log line (`lib/round/grounding.ts`, `07` §5.10). Round feedback
+(`feedback-en-1.1`) is sent each answer's flags and the round's never-cited claims and picks up to three
+as untouched material, validated against that set (`07` §5.12). Screen 8 gains `Checked against your
+CV` — one rail per unsupported span, one for the unused claims, both stated when empty — and the
+wrong-language line on the answer it belongs to (`10` §8). `/cv` draws a used claim with a heavier
+underline and counts the never-used ones (`10` §13, which no longer refuses coverage marks). Migration
+`0008_cv-grounding` — `answer_flags`, `scoring_attempts.answered_language`,
+`round_feedback.untouched_claim_ids` — is expand-only and **not yet applied to either Neon branch**
+(`12` §4 steps 3 and 5); **`0008` is this branch's number, and a sibling slice that merges first takes
+it, in which case this migration is regenerated on the rebase, never renumbered by hand.**
+**Measured** against OpenAI on synthetic answers and an 80-claim synthetic CV (`03` §4): scoring 9.7 s
+median and 19.5 s slowest, feedback 15.4 s, nothing dropped by the validators, so `complete`'s 60 s
+bound stands. **Not built here:** the Japanese round's copy for the region, specified in `10` §8 for
+#43; Progress excluding a wrong-language answer (#51 — `answered_language` is stored for it on every
+`ok` attempt from `1.1` on). **The user's steps:** a real round on `develop` after the merge, to see
+the region and the `/cv` marks on real material; and the read of the new Japanese strings,
+`docs/checklists/native-read-round.md` §7. Decisions in `06`, "Phase 6 — #46".
+
+**#44 is built (2026-10-03), on `fm/suburi-44-v2`.** Built: migration `0009` (`follow_ups`, expand-only);
+`follow-up-en-1.0` and `follow-up-ja-1.0` behind a port with a fake; `submit` generating the follow-up
+from the corrected text after the answer's commit and storing it as `generated` or `missing` before
+it returns; the follow-up's slot at its parent's position, never a first attempt, stamp 3 from its
+`follow_ups` row; `complete` and the slot refusing while a follow-up is owed; `feedback-en-1.2` and
+`feedback-ja-1.1`, which read follow-up answers; follow-up tokens in the week's spend; the round
+screens asking the follow-up, saying a missing one, and screen 8's follow-up row, in both languages.
+**Measured** (`03` §4): 3.2 s median, 4.7 s slowest of 15, so the call is bounded at 15 s with one
+retry (`07` §5.9). **Not done here:** `follow-up-ja-1.0` and `feedback-ja-1.1` have not run against
+the real model — #44 merged with #43 on 2026-10-04 and Japanese follow-ups are covered by the fakes
+only; their output, and the Japanese follow-up strings, are unread
+(`docs/checklists/native-read-round.md` §8). Migration `0009` is **not yet applied to either Neon
+branch** (`12` §4). Decisions in `06`, "Phase 6 — #44".
+
+**#47 is built (2026-10-03), on `fm/suburi-47`.** Built: migration `0010_generated-questions`
+(`near_duplicate_checks`, `role_contexts.source_filename`, the digest's five new signals), expand-only
+and **not yet applied to either Neon branch**; `POST /api/role-contexts` for a `posting`, capped at
+20,000 code points (`422 role_context_too_large`); Setup's two role-context cards, posting picker and
+add form with the in-browser import, and the bank-exhausted warning (`10` §2); eight generator
+prompts in `lib/prompts/`; generation and embedding behind ports with fakes; the near-duplicate guard
+at 0.90 with every comparison stored; selection per `07` §5.4, generating beside the preflight; the
+digest's near-miss figures on `/status`. Tests: `11` §3.7 and §3.13, and a Playwright spec for Setup.
+**Measured** (`scripts/measure-question-generation.mts`, `03` §4): round-start generation takes 6 to
+16 s at the median and 28 s at the slowest, against the 4 s #42's draft suggested — **kept at round
+start; the owner accepted the wait as shipped on 2026-10-03, with `reasoning.effort: low` recorded
+as the lever and a progress indicator for the wait folded into #73** (`06`). Both languages generate:
+#43 opened `ja` on `POST /api/rounds`, and Setup's warning reads the chosen language's bank. **The
+user's steps:** the native read of one string and of what the four Japanese generator prompts write
+(`docs/checklists/native-read-round.md` §9), and `npm run db:migrate` against Neon `develop` before
+the merge is verified there (`12` §4).
 
 **#54, #55 and #56 are next, then #21. #20, #29 and #38 are done.** #21 is blocked by all three
 (native `blocked_by` edges, 2026-09-29), and #56 by #55. They were triaged 2026-09-29 (`06`): #54 and
@@ -371,7 +449,7 @@ before release.
 and Home's one line (`10` §1). Migration `0005_monitoring` is expand-only and **not yet applied to
 either Neon branch** (`12` §4 steps 3 and 5). **The user's step:** `CRON_SECRET` in Vercel's
 Production scope before the first production deploy (`12` §3 step 12). Decisions in `06`, "Phase 6 —
-#55". #47 wires the digest's near-miss row if it merges second.
+#55". #47 wired the digest's near-miss rows (2026-10-03).
 
 **#56 is built (2026-09-30), on `fm/suburi-56`:** `self-check` writes the daily dump before its
 readings, in-process rather than with the `pg_dump` binary (`06`, "Phase 6 — #56"): a data-only psql

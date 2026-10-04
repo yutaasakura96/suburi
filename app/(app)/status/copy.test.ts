@@ -1,7 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { SELF_CHECK_SIGNALS } from "../../../db/schema";
-import type { Status } from "../../../lib/monitor/status";
-import { CHECK_NAMES, formatThreshold, formatValue, stalenessNotice, stateOf, statusLine, unpricedModelsText, weekRange } from "./copy";
+import { DIGEST_FIGURES, SELF_CHECK_SIGNALS } from "../../../db/schema";
+import type { DigestFigure, Status } from "../../../lib/monitor/status";
+import { NEAR_DUPLICATE_THRESHOLD } from "../../../lib/questions/near-duplicate-threshold";
+import {
+  CHECK_NAMES,
+  LAST_WEEK_ROWS,
+  NEAR_MISS_NOTE,
+  formatThreshold,
+  formatValue,
+  similarityRange,
+  stalenessNotice,
+  stateOf,
+  statusLine,
+  unpricedModelsText,
+  weekRange,
+} from "./copy";
 
 // 10 §1 and §14's copy: names and counts only, and a line only when something is wrong.
 
@@ -53,6 +66,38 @@ describe("Home's status line", () => {
 describe("the status page", () => {
   it("names every self-check signal", () => {
     expect(Object.keys(CHECK_NAMES)).toEqual([...SELF_CHECK_SIGNALS]);
+  });
+
+  const figures = (overrides: Partial<Record<DigestFigure, number | null>> = {}) =>
+    ({ ...Object.fromEntries(DIGEST_FIGURES.map((figure) => [figure, 0])), ...overrides }) as Record<DigestFigure, number | null>;
+
+  it("shows every digest figure in last week's list, the three similarities as one row", () => {
+    // Each figure gets a value no other has; every one must then appear in some row.
+    const distinct = figures(Object.fromEntries(DIGEST_FIGURES.map((figure, index) => [figure, 0.101 + index / 10])));
+    const shown = LAST_WEEK_ROWS.map((row) => row.value(distinct)).join(" | ");
+    expect(LAST_WEEK_ROWS).toHaveLength(DIGEST_FIGURES.length - 2);
+    for (const figure of DIGEST_FIGURES) {
+      const value = distinct[figure]!;
+      const forms = [value.toFixed(3), formatValue(figure, value)];
+      expect(forms.some((form) => shown.includes(form)), figure).toBe(true);
+    }
+  });
+
+  it("writes the near-miss similarities lowest, median, highest, and a dash for a week with none", () => {
+    expect(
+      similarityRange(
+        figures({ digest_near_miss_similarity_min: 0.4123, digest_near_miss_similarity_median: 0.655, digest_near_miss_similarity_max: 0.87149 }),
+      ),
+    ).toBe("0.412 – 0.655 – 0.871");
+    expect(
+      similarityRange(
+        figures({ digest_near_miss_similarity_min: null, digest_near_miss_similarity_median: null, digest_near_miss_similarity_max: null }),
+      ),
+    ).toBe("—");
+  });
+
+  it("states the duplicate threshold from the constant", () => {
+    expect(NEAR_MISS_NOTE).toContain(`threshold of ${NEAR_DUPLICATE_THRESHOLD.toFixed(2)}.`);
   });
 
   it("leads with staleness only when stale", () => {
