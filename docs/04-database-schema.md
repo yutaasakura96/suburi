@@ -341,7 +341,7 @@ similarity against non-retired questions in the same `(user_id, language, round_
 carry an embedding. **At or above** the threshold, **reuse the existing row instead of inserting.**
 Rationale in `03` §11: five rephrasings of one question fragment the first-attempt measurement into
 five points of one instead of one of five. **The threshold starts at cosine similarity 0.90** — an
-unverified guess, a constant beside the guard (`lib/questions/near-duplicate.ts`), not a column. Every
+unverified guess, `NEAR_DUPLICATE_THRESHOLD` in `lib/questions/near-duplicate-threshold.ts`, not a column. Every
 comparison is stored in `near_duplicate_checks`, below, and the threshold is tuned from those records,
 not from intuition; `12` §6's weekly digest reads them.
 

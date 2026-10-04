@@ -433,14 +433,14 @@ POST /api/role-contexts
 ```
 
 **Round one accepts `posting` and `general`** (`06`, 2026-09-27; `posting` since #47). `researched`
-is a `400` until US-16 ships, and arrives with "the file wins" (PRD US-2). A posting is pasted, or
+is a `400` until US-16 ships, when a saved posting takes precedence (PRD US-2). A posting is pasted, or
 imported with the CV screen's importer (`lib/cv/import/`): the browser extracts the text, the user
 checks it, and only the text and the filename are sent — the file never reaches the server, as in §5.2.
 
 **A posting carries `company_name`, `role_title` and `body`, all three required and non-blank**:
 the picker names a posting by the first two, and a posting with no text is General practice under
 another name. Each is trimmed; `company_name` and `role_title` are at most 200 code points.
-`source_filename` is optional, at most 255 code points, and present only when the text came from an
+`source_filename` is optional and at most 255 code points; Setup sends it when the text came from an
 import. The schema is strict: an unknown field is a `400`, as everywhere (§1).
 
 **Immutable and reusable.** There is no `PUT`, `PATCH` or `DELETE`; a changed posting is a new row, and

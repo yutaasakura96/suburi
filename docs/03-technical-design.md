@@ -731,14 +731,15 @@ validated span.
 **3. Near-duplicate questions in a growing bank.**
 Generated questions are written into the bank permanently, and first-attempt progress data is keyed
 by question id. A bank that accumulates five rephrasings of one question silently fragments the
-measurement — five questions with one first attempt each instead of one with five. *Plan:* embed
-every question on insert, store the vector in `pgvector`, and check cosine similarity against the
-same `(language, round_type)` slice before writing a new row. Above threshold, reuse the existing
+measurement — five questions with one first attempt each instead of one with five. Generated
+questions are embedded before insertion and compared with embedded, non-retired questions in the
+same `(user_id, language, round_type)` slice. At or above the threshold, reuse the existing
 question instead of inserting. **The threshold is a guess until there is real data — start strict,
 store every near-miss with its score (`04`), and tune from those records rather than from
 intuition.** It starts at
 **cosine similarity 0.90 = the same question** (`06`, 2026-09-27); no measurement stands behind that
-number. Set pieces stay out of the problem by construction: each is one row in one round type (`04`).
+number. Set pieces have no embedding and are outside the guard; the generator sees their text to
+avoid repeating them (`04`).
 
 ---
 
