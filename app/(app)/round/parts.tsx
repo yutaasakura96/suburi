@@ -87,6 +87,26 @@ export function CalloutRail({
   );
 }
 
+/** A failed call, said in the round's language, and how to make it again — null when it cannot be. */
+export interface Failure {
+  readonly text: string;
+  readonly retry: (() => void) | null;
+}
+
+export function ErrorLine({ error, retryLabel }: { error: Failure | null; retryLabel: string }) {
+  if (!error) return null;
+  return (
+    <div className="flex flex-col gap-[10px]">
+      <CalloutRail tone="attention">{error.text}</CalloutRail>
+      {error.retry ? (
+        <button type="button" onClick={error.retry} className="self-start text-[13px] text-link hover:text-link-hover hover:underline">
+          {retryLabel}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 /** A score at the low end takes the attention colour (05 §5.3): the sample's 2 does, its 3 does not. */
 export const LOW_END = 2;
 

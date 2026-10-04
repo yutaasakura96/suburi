@@ -10,7 +10,7 @@ import { pickUntouched } from "./grounding";
 import { citableClaimsOf } from "./run-scoring";
 import { authenticate, isUuid, log, notFound, parseBody, roundAbandoned, writeFailed, type Db, type RoundDeps } from "./http";
 import { startModelAnswers, type CompleteModelAnswerDeps } from "./model-answers";
-import { isAbandoned, latestAttempts, noScores, readRoundStep, roundAnswers, scoringCounts, type RoundRow } from "./state";
+import { isAbandoned, latestAttempts, noScores, readRoundStep, roundAnswers, scoringCounts, type AnswerRow, type RoundRow } from "./state";
 
 /**
  * `POST /api/rounds/{roundId}/complete` ⚡ (07 §5.12) and its retry, `POST …/feedback` (§5.16).
@@ -93,6 +93,14 @@ export async function neverCitedClaims(db: Db, round: Pick<RoundRow, "id" | "cvV
   return claims.filter((claim) => !used.has(claim.id));
 }
 
+/**
+ * The answers round feedback is written from, and the ones its scoring counts (07 §5.12): every
+ * submitted answer to a question or its follow-up, and **no answer given again**.
+ */
+export function feedsRoundFeedback(answer: Pick<AnswerRow, "transcriptCorrected" | "retryOfAnswerId">) {
+  return answer.transcriptCorrected !== null && answer.retryOfAnswerId === null;
+}
+
 type Outcome =
   | { readonly ok: true; readonly feedback: FeedbackRow; readonly counts: ReturnType<typeof scoringCounts> }
   | { readonly ok: false; readonly response: Response };
@@ -102,7 +110,9 @@ async function writeRoundFeedback(deps: FeedbackDeps, round: RoundRow): Promise<
   const sleep = deps.sleep ?? wait;
   const started = performance.now();
   const elapsed = () => Math.round(performance.now() - started);
-  const answers = (await roundAnswers(deps.db, round.id)).filter((answer) => answer.transcriptCorrected !== null);
+  // The round's own answers: a practice "answer again" was scored and shown on its own frame, and
+  // is neither waited for nor sent here (06, #49).
+  const answers = (await roundAnswers(deps.db, round.id)).filter(feedsRoundFeedback);
   const ids = answers.map((answer) => answer.id);
 
   // Step 2: poll until no latest attempt is pending, or the bound runs out.

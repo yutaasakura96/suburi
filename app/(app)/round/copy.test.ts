@@ -29,6 +29,13 @@ function strings(copy: RoundCopy): [string, string][] {
 const UNUSED = ["2024 決済基盤の移行リード", "英語での顧客折衝"];
 const jaStrings = strings({
   ...ja,
+  meta: () => ja.meta("practice", 5),
+  stepAgain: () => ja.stepAgain(ja.followUpStep(1, 3)),
+  questionAgain: () => ja.questionAgain(1, 2),
+  unsupportedHere: () => ja.unsupportedHere("チーム全体の生産性を上げた", "応募書類 v3"),
+  // A function of the round's mode: the practice wording, which no other sample reaches.
+  findingsNotReady: () => ja.findingsNotReady(false),
+  findingsUnavailable: () => ja.findingsUnavailable(false),
   stamps: () => ja.stamps([ja.rubricStamp("v1.2"), "出題 v1.0", "応募書類 v3"]),
   unused: () => ja.unused(UNUSED),
   unsupported: () => ja.unsupported(2, "チーム全体の生産性を上げた", "応募書類 v3"),
@@ -189,6 +196,62 @@ describe("the strings 10 §3–§8 quote", () => {
   // 05 §5.9: the round's stamps joined by nakaguro, the rubric as 評価基準.
   it("joins the stamps by nakaguro", () => {
     expect(ja.stamps([ja.rubricStamp("v1.0"), "set-piece-ja-1.0", "応募書類 v3"])).toBe("評価基準 v1.0・set-piece-ja-1.0・応募書類 v3");
+  });
+});
+
+// 10 §15 quotes every one of these; `練習` and `録り直し` are 05 §6's words, `再回答` is new with #49.
+describe("a practice round's chrome (10 §15)", () => {
+  it("names the mode, and a prompt answered again", () => {
+    expect(ja.meta("practice", 3)).toBe("日本語・練習・3問");
+    expect(en.meta("practice", 3)).toBe("English · Practice · 3 questions");
+    expect(ja.stepAgain(ja.step(1, 3))).toBe("第1問 / 3問・再回答");
+    expect(ja.stepAgain(ja.followUpStep(1, 3))).toBe("第1問 / 3問・深掘り・再回答");
+    expect(en.stepAgain(en.followUpStep(1, 3))).toBe("Question 1 / 3 · follow-up · again");
+    expect([ja.questionAgain(1, 1), ja.questionAgain(1, 2)]).toEqual(["第1問・再回答", "第1問・再回答2"]);
+    expect([en.questionAgain(1, 1), en.questionAgain(1, 2)]).toEqual(["Question 1 · again", "Question 1 · again 2"]);
+  });
+
+  it("writes the record frames with a re-take and no clock", () => {
+    expect(ja.practiceShown).toBe("回答ごとの採点は、済みしだい出ます。講評はラウンドの最後にまとめて出ます。");
+    expect(ja.retakeUntilTranscribed).toBe("文字起こしをするまでは、録り直せます。");
+    expect(ja.stopRecording).toBe("録音を停止");
+    expect(ja.uploading).toBe("録音をアップロードしています。");
+    expect(ja.takeHeld).toBe("録音済み — 文字起こし前");
+    expect(ja.transcribeTake).toBe("この録音を文字起こしする");
+    expect(ja.transcribeTakeCaption).toBe("文字起こしをすると、この録音で確定します。録り直しはできなくなります。");
+    expect(ja.transcribingTake).toBe("文字起こしをしています。");
+    expect(ja.recordAgain).toBe("録り直す");
+    expect(ja.recordAgainCaption).toBe("録り直すと、いまの録音は置き換わります。");
+    expect(ja.sendCaptionShown).toBe("送ると、この回答を採点します。採点が済むと、次の画面に出ます。");
+  });
+
+  it("writes the per-answer frame", () => {
+    expect(ja.next).toBe("このあと");
+    expect(ja.scoringPending).toBe("この回答を採点しています。済むとここに出ます。待たずに先へ進めます。");
+    expect(ja.scoringFailed).toBe("この回答は採点できませんでした。回答はそのまま残っています。");
+    expect(ja.unsupportedHere("チーム全体の生産性を上げた", "応募書類 v3")).toBe(
+      "裏づけなし —「チーム全体の生産性を上げた」に対応する記述が応募書類 v3にない。",
+    );
+    expect(en.unsupportedHere("raised the whole team's productivity", "CV v3")).toBe(
+      "Unsupported — nothing in CV v3 backs “raised the whole team's productivity”.",
+    );
+    expect(ja.answerFollowUp).toBe("深掘りに答える");
+    expect(ja.nextQuestion).toBe("次の質問へ進む");
+    expect(ja.finishCaption).toBe("ラウンドを終えて、講評をまとめます。練習では緊張度を聞きません。");
+    expect(ja.answerAgain).toBe("もう一度答える");
+    expect(ja.answerAgainCaption).toBe(
+      "新しい回答として、この回答の横に残します。別に採点し、深掘りはつきません。この回答はそのまま残ります。",
+    );
+    expect(ja.backToScores).toBe("採点に戻る");
+  });
+
+  // A practice round records no rating, so the sentences that stand in for findings mention none.
+  it.each([ja, en])("mentions a rating only where one was recorded", (copy) => {
+    const rating = copy === ja ? /緊張度/u : /rating/u;
+    for (const sentence of [copy.findingsNotReady, copy.findingsUnavailable]) {
+      expect(sentence(true)).toMatch(rating);
+      expect(sentence(false)).not.toMatch(rating);
+    }
   });
 });
 

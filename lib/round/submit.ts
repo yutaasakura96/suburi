@@ -41,7 +41,7 @@ const requestSchema = z.strictObject({
 });
 
 /** `next` and `progress` for where the round stands (07 §5.9): one of four shapes, from stored rows. */
-async function nextPrompt(db: RoundDeps["db"], round: RoundRow, step: Exclude<RoundStep, { kind: "follow_up_due" }>) {
+export async function nextPrompt(db: RoundDeps["db"], round: RoundRow, step: Exclude<RoundStep, { kind: "follow_up_due" }>) {
   const speak = round.mode === "realistic";
   if (step.kind !== "answer") {
     return {

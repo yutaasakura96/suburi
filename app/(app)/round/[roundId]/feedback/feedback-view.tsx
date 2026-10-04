@@ -27,6 +27,8 @@ export function FeedbackView({ screen }: { screen: FeedbackScreen }) {
   const findings = reading === language ? screen.findings : screen.translated;
   const { rubricLabel, generatorVersions, cvLabel } = screen.stamps;
   const { grounding } = screen;
+  // A practice round records no rating, so the sentences that stand in for findings mention none (10 §15).
+  const rated = screen.round.mode === "realistic";
 
   return (
     <section className="border border-rule-frame bg-surface" aria-label={copy.roundTypes[screen.round.roundType]}>
@@ -111,10 +113,10 @@ export function FeedbackView({ screen }: { screen: FeedbackScreen }) {
             </>
           ) : screen.findingsUnavailable ? (
             <p className="text-[13px] leading-[1.75] text-ink-3" data-testid="findings-unavailable">
-              {copy.findingsUnavailable}
+              {copy.findingsUnavailable(rated)}
             </p>
           ) : (
-            <FindingsRetry roundId={screen.round.id} language={language} />
+            <FindingsRetry roundId={screen.round.id} language={language} rated={rated} />
           )}
 
           <div className="mt-auto border-t border-rule-section pt-[12px] font-mono text-[10px] leading-[1.9] text-ink-8" data-testid="round-stamp">

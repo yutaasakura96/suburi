@@ -89,19 +89,20 @@ export function mockEmbedding(text: string) {
 /**
  * Answers every POST /v1/responses with `payload` as the model's structured output — or, given a
  * function, with what it returns for that request's body, so a spec can answer each extraction
- * window (#29) with that window's claims, or each round-loop call by its format. `GET /v1/models/{id}`
+ * window (#29) with that window's claims, or each round-loop call by its format — or with a promise
+ * of it, so a spec can hold a call open until it has looked at the screen. `GET /v1/models/{id}`
  * — the round's preflight — always answers, and so does `POST /v1/embeddings`, with a vector per
  * input that is unlike every other. A multipart body (a transcription) is recorded as `{}`.
  */
 export async function startMockOpenAi(
-  payload: object | ((body: Record<string, unknown>) => object | MockFailure),
+  payload: object | ((body: Record<string, unknown>) => object | MockFailure | Promise<object | MockFailure>),
   options: MockOpenAiOptions = {},
 ): Promise<MockOpenAi> {
   const requests: MockOpenAi["requests"] = [];
   const server: Server = createServer((request, response) => {
     let raw = "";
     request.on("data", (chunk) => (raw += chunk));
-    request.on("end", () => {
+    request.on("end", async () => {
       const json = request.headers["content-type"]?.startsWith("application/json") ?? false;
       const body: Record<string, unknown> = json && raw ? JSON.parse(raw) : {};
       const path = request.url ?? "";
@@ -137,7 +138,7 @@ export async function startMockOpenAi(
         response.writeHead(404).end();
         return;
       }
-      const result = typeof payload === "function" ? payload(body) : payload;
+      const result = await (typeof payload === "function" ? payload(body) : payload);
       if (failed(result)) send(result.fail, { error: { message: "mock failure", type: "server_error" } });
       else send(200, responsesApiBody(result));
     });

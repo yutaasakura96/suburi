@@ -1666,6 +1666,7 @@ describe("follow-ups: one per answer, written by submit (07 §5.9, 11 §3.1)", (
           position: 1,
           text: FOLLOW_UP_TEXT,
           followUpVersion: "follow-up-en-fake",
+          again: null,
           transcript: null,
         });
         expect(frame !== "complete" && frame.followUpVersions).toEqual(["follow-up-en-fake"]);

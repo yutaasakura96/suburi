@@ -5,10 +5,12 @@ import { useRouter } from "next/navigation";
 import { useDeferredValue, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { paceUnits, rewriteMagnitude, rewritePercent } from "@/lib/round/measures";
+import type { ScoringRead } from "@/lib/round/read-round";
 import { failureText, postJson, type FailureCode } from "../api";
 import { ROUND_COPY, clock, type RoundCopy, type RoundLanguage, type RoundMode } from "../copy";
-import type { RoundFrame } from "../load";
-import { CalloutRail, RoundFooter, RoundHeader, caption, roundSectionLabel } from "../parts";
+import type { AnsweredView, NextView, RoundFrame } from "../load";
+import { CalloutRail, ErrorLine, RoundFooter, RoundHeader, caption, roundSectionLabel, type Failure } from "../parts";
+import { AnsweredFrame, type FrameNext } from "./answered-frame";
 import { WAVEFORM_BARS, useRecorder, type Take } from "./recorder";
 import { useSpokenQuestion } from "./spoken-question";
 
@@ -25,11 +27,26 @@ interface Question {
   readonly text: string;
   /** Set for a follow-up: its prompt version, which its answer carries where a question's carries the generator's. */
   readonly followUpVersion: string | null;
+  /** Practice's "answer again" (10 §15): the answer this prompt is being answered again beside. */
+  readonly again: string | null;
+}
+
+/** Practice's per-answer frame (10 §15): the answer sent last, and where the round goes from it. */
+interface Answered {
+  readonly kind: "answered";
+  readonly answer: AnsweredView;
+  readonly next: FrameNext;
 }
 
 type Screen =
-  | { readonly kind: "asked"; readonly question: Question }
+  /** `back` is the frame an answer-again came from, offered until a take exists: nothing is written before one. */
+  | { readonly kind: "asked"; readonly question: Question; readonly back: Answered | null }
   | { readonly kind: "uploading"; readonly question: Question; readonly take: Take }
+  /**
+   * Practice only: the take is uploaded and not transcribed, so it can still be recorded again
+   * (07 §5.6). `transcribing` once the user has chosen to keep it.
+   */
+  | { readonly kind: "held"; readonly question: Question; readonly answerId: string; readonly transcribing: boolean }
   | { readonly kind: "transcript"; readonly question: Question; readonly transcript: Transcript }
   | { readonly kind: "correct"; readonly question: Question; readonly transcript: Transcript }
   /**
@@ -44,17 +61,24 @@ type Screen =
       readonly corrected: string;
       readonly reason: "missing" | "reloaded";
     }
+  | Answered
   | { readonly kind: "pressure" }
   | { readonly kind: "abandoned"; readonly answered: number };
 
 function initialScreen(start: RoundFrame["start"]): Screen {
   if (start.kind === "follow_up_due") {
-    const question = { position: start.position, text: start.text, followUpVersion: null };
+    const question = { position: start.position, text: start.text, followUpVersion: null, again: null };
     return { kind: "saved", question, answerId: start.answerId, corrected: start.corrected, reason: "reloaded" };
   }
   if (start.kind !== "question") return start;
-  const question = { position: start.position, text: start.text, followUpVersion: start.followUpVersion };
-  return start.transcript ? { kind: "transcript", question, transcript: start.transcript } : { kind: "asked", question };
+  const question = { position: start.position, text: start.text, followUpVersion: start.followUpVersion, again: start.again };
+  return start.transcript ? { kind: "transcript", question, transcript: start.transcript } : { kind: "asked", question, back: null };
+}
+
+/** The record frame for what a per-answer frame leads to: the follow-up, or the next question. */
+function asked(next: Extract<NextView, { kind: "follow_up" | "question" }>): Screen {
+  const followUpVersion = next.kind === "follow_up" ? next.promptVersion : null;
+  return { kind: "asked", question: { position: next.position, text: next.text, followUpVersion, again: null }, back: null };
 }
 
 interface OpenedAnswer {
@@ -70,16 +94,13 @@ interface Transcribed {
 }
 
 interface Submitted {
+  rewrite_magnitude: number | null;
+  scoring: ScoringRead;
   next:
     | { kind: "question"; position: number; text: string }
     | { kind: "follow_up"; position: number; text: string; prompt_version: string }
     | { kind: "pressure" }
     | { kind: "feedback" };
-}
-
-interface Failure {
-  readonly text: string;
-  readonly retry: (() => void) | null;
 }
 
 /**
@@ -96,24 +117,44 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
   const [followUpVersions, setFollowUpVersions] = useState(frame.followUpVersions);
   const { round } = frame;
 
-  const position =
+  const practice = round.mode === "practice";
+
+  // What the header names: the prompt on screen, or on the per-answer frame the answer it shows.
+  const prompt =
     "question" in screen
-      ? screen.question.position
+      ? { position: screen.question.position, followUp: screen.question.followUpVersion !== null, again: screen.question.again !== null }
+      : screen.kind === "answered"
+        ? { position: screen.answer.position, followUp: screen.answer.followUpVersion !== null, again: screen.answer.again }
+        : null;
+  const position = prompt
+    ? prompt.position
+    : screen.kind === "abandoned"
+      ? Math.min(screen.answered + 1, round.length)
+      : round.length;
+  // The stepper counts positions the round is past. The per-answer frame reads that from where the
+  // round goes next, since an answer given again leaves the round wherever it already was.
+  const done =
+    screen.kind === "pressure"
+      ? round.length
       : screen.kind === "abandoned"
-        ? Math.min(screen.answered + 1, round.length)
-        : round.length;
-  const done = screen.kind === "pressure" ? round.length : screen.kind === "abandoned" ? screen.answered : position - 1;
+        ? screen.answered
+        : screen.kind !== "answered"
+          ? position - 1
+          : screen.next.kind === "feedback"
+            ? round.length
+            : screen.next.kind === "question"
+              ? screen.next.position - 1
+              : screen.next.kind === "follow_up"
+                ? screen.next.position - 1
+                : position - 1;
+  const step = prompt?.followUp ? copy.followUpStep(position, round.length) : copy.step(position, round.length);
   const header = (
     <RoundHeader
       title={copy.roundTypes[round.roundType]}
       meta={copy.meta(round.mode, round.length)}
       done={done}
       length={round.length}
-      step={
-        "question" in screen && screen.question.followUpVersion !== null
-          ? copy.followUpStep(position, round.length)
-          : copy.step(position, round.length)
-      }
+      step={prompt?.again ? copy.stepAgain(step) : step}
     />
   );
   // 10 §3: the prompt's generator version and the CV version; the rubric joins them where scores are.
@@ -131,7 +172,11 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
     setBusy(false);
   }
 
-  /** Open the slot after the take exists (07 §5.6), PUT it to S3, transcribe it. */
+  /**
+   * Open the slot after the take exists (07 §5.6) and PUT it to S3. A realistic take is transcribed
+   * at once; a practice take is held, so it can be recorded again — which lands here once more, on
+   * the same answer and the same object.
+   */
   async function deliver(question: Question, take: Take) {
     setScreen({ kind: "uploading", question, take });
     setError(null);
@@ -140,6 +185,7 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
     const opened = await postJson<OpenedAnswer>(`/api/rounds/${round.id}/answers`, {
       content_type: take.contentType,
       expected_bytes: take.blob.size,
+      ...(question.again ? { retry_of_answer_id: question.again } : {}),
     });
     if (!opened.ok) return fail(opened.code, retry);
     try {
@@ -154,16 +200,25 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
       setBusy(false);
       return;
     }
+    if (practice) {
+      setBusy(false);
+      setScreen({ kind: "held", question, answerId: opened.json.answer_id, transcribing: false });
+      return;
+    }
     await transcribe(question, take, opened.json.answer_id);
   }
 
   /** Transcribe the uploaded take (07 §5.7). Idempotent, so it is retried on its own. */
-  async function transcribe(question: Question, take: Take, answerId: string) {
-    setScreen({ kind: "uploading", question, take });
+  async function transcribe(question: Question, take: Take | null, answerId: string) {
+    // A held take stays held if this fails: it is kept, and can still be transcribed or recorded again.
+    setScreen(take ? { kind: "uploading", question, take } : { kind: "held", question, answerId, transcribing: true });
     setError(null);
     setBusy(true);
     const transcribed = await postJson<Transcribed>(`/api/answers/${answerId}/transcribe`);
-    if (!transcribed.ok) return fail(transcribed.code, () => void transcribe(question, take, answerId));
+    if (!transcribed.ok) {
+      if (!take) setScreen({ kind: "held", question, answerId, transcribing: false });
+      return fail(transcribed.code, () => void transcribe(question, take, answerId));
+    }
     setBusy(false);
     setScreen({
       kind: "transcript",
@@ -177,39 +232,104 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
     });
   }
 
+  /** `next` as the screens hold it. A follow-up's version joins the round's stamp when it first appears. */
+  function nextOf(next: Submitted["next"]): NextView | { kind: "pressure" } {
+    if (next.kind !== "follow_up") return next;
+    setFollowUpVersions((versions) => (versions.includes(next.prompt_version) ? versions : [...versions, next.prompt_version]));
+    return { kind: "follow_up", position: next.position, text: next.text, promptVersion: next.prompt_version };
+  }
+
   /** Submit (07 §5.9). The same text sent again is a retry: it returns what the first call made. */
-  async function submit(question: Question, answerId: string, corrected: string) {
+  async function submit(question: Question, transcript: Pick<Transcript, "answerId" | "raw" | "durationMs" | "wpm">, corrected: string) {
     setError(null);
     setBusy(true);
+    const { answerId } = transcript;
     const submitted = await postJson<Submitted>(`/api/answers/${answerId}/submit`, { transcript_corrected: corrected });
+    // Not fatal: the answer is saved and the hole is recorded. The round goes on without the follow-up.
+    const missing = !submitted.ok && submitted.code === "followup_generation_failed";
+    if (!submitted.ok && !missing) return fail(submitted.code, () => void submit(question, transcript, corrected));
+    setBusy(false);
+    const next = submitted.ok ? nextOf(submitted.json.next) : null;
+
+    if (practice) {
+      // 10 §15: every commit opens the answer's own frame, with its score pending until it lands.
+      const magnitude = (submitted.ok ? submitted.json.rewrite_magnitude : null) ?? rewriteMagnitude(transcript.raw, corrected);
+      setScreen({
+        kind: "answered",
+        answer: {
+          answerId,
+          position: question.position,
+          text: question.text,
+          followUpVersion: question.followUpVersion,
+          again: question.again !== null,
+          corrected,
+          durationMs: transcript.durationMs,
+          wpm: transcript.wpm,
+          rewrite: rewritePercent(magnitude),
+          // A failed call's envelope carries no attempt; the frame reads it from the round (07 §5.5).
+          scoring: submitted.ok ? submitted.json.scoring : { attempt_id: "", status: "pending" },
+        },
+        next: next === null ? { kind: "missing" } : next.kind === "pressure" ? { kind: "feedback" } : next,
+      });
+      return;
+    }
+    if (next === null) setScreen({ kind: "saved", question, answerId, corrected, reason: "missing" });
+    else if (next.kind === "question" || next.kind === "follow_up") setScreen(asked(next));
+    else setScreen({ kind: "pressure" });
+  }
+
+  /**
+   * Past a follow-up that is missing or not stored yet, from the per-answer frame: the same text sent
+   * again returns where the round now stands (07 §5.9), and writes the follow-up if it was only owed.
+   */
+  async function goOnPast(frame: Answered) {
+    setError(null);
+    setBusy(true);
+    const { answer } = frame;
+    const submitted = await postJson<Submitted>(`/api/answers/${answer.answerId}/submit`, { transcript_corrected: answer.corrected });
     if (!submitted.ok) {
-      if (submitted.code !== "followup_generation_failed") return fail(submitted.code, () => void submit(question, answerId, corrected));
-      // Not fatal: the answer is saved and the hole is recorded. The round goes on without the follow-up.
+      if (submitted.code !== "followup_generation_failed") return fail(submitted.code, () => void goOnPast(frame));
       setBusy(false);
-      setScreen({ kind: "saved", question, answerId, corrected, reason: "missing" });
+      setScreen({ ...frame, next: { kind: "missing" } });
       return;
     }
     setBusy(false);
-    const next = submitted.json.next;
-    if (next.kind === "question") {
-      setScreen({ kind: "asked", question: { position: next.position, text: next.text, followUpVersion: null } });
-    } else if (next.kind === "follow_up") {
-      setFollowUpVersions((versions) => (versions.includes(next.prompt_version) ? versions : [...versions, next.prompt_version]));
-      setScreen({ kind: "asked", question: { position: next.position, text: next.text, followUpVersion: next.prompt_version } });
-    } else {
-      setScreen({ kind: "pressure" });
-    }
+    const next = nextOf(submitted.json.next);
+    if (next.kind === "question" || next.kind === "follow_up") setScreen(asked(next));
+    else setScreen({ ...frame, next: { kind: "feedback" } });
   }
 
-  async function complete(value: number) {
+  /** Close the round (07 §5.12): with the rating in a realistic round, and with none in practice. */
+  async function complete(value: number | null) {
     setError(null);
     setBusy(true);
-    const result = await postJson(`/api/rounds/${round.id}/complete`, { felt_pressure: value });
+    const result = await postJson(`/api/rounds/${round.id}/complete`, value === null ? {} : { felt_pressure: value });
     // The round is complete in all three: feedback written, feedback not ready, or completed already.
     const completed =
       result.ok || result.code === "feedback_generation_failed" || result.code === "round_already_complete";
     if (!completed) return fail(result.code, () => void complete(value));
     router.push(`/round/${round.id}/feedback`);
+  }
+
+  function goOn(frame: Answered) {
+    const { next } = frame;
+    if (next.kind === "feedback") return void complete(null);
+    if (next.kind === "follow_up" || next.kind === "question") {
+      setError(null);
+      return setScreen(asked(next));
+    }
+    void goOnPast(frame);
+  }
+
+  /** 10 §15: the same prompt, asked again. Nothing is written until a take exists. */
+  function answerAgain(frame: Answered) {
+    const { answer } = frame;
+    setError(null);
+    setScreen({
+      kind: "asked",
+      question: { position: answer.position, text: answer.text, followUpVersion: answer.followUpVersion, again: answer.answerId },
+      back: frame,
+    });
   }
 
   let body: React.ReactNode;
@@ -226,6 +346,7 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
       break;
     case "asked":
     case "uploading":
+    case "held":
       body = (
         <RecordFrame
           copy={copy}
@@ -241,8 +362,10 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
           }
           speechFailed={failureText("speech_failed", round.language)}
           question={screen.question}
-          uploading={screen.kind === "uploading"}
+          phase={screen.kind === "held" ? (screen.transcribing ? "transcribing" : "held") : screen.kind === "uploading" ? "uploading" : "idle"}
           onTake={(take) => void deliver(screen.question, take)}
+          onTranscribe={screen.kind === "held" ? () => void transcribe(screen.question, null, screen.answerId) : null}
+          onBack={screen.kind === "asked" && screen.back ? () => setScreen(screen.back!) : null}
           error={error}
           stamp={stamp(screen.question)}
         />
@@ -264,12 +387,13 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
         <CorrectionFrame
           copy={copy}
           language={language}
+          mode={round.mode}
           question={screen.question}
           transcript={screen.transcript}
           busy={busy}
           error={error}
           stamp={stamp(screen.question)}
-          onSubmit={(corrected) => void submit(screen.question, screen.transcript.answerId, corrected)}
+          onSubmit={(corrected) => void submit(screen.question, screen.transcript, corrected)}
         />
       );
       break;
@@ -282,7 +406,31 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
           notice={screen.reason === "missing" ? failureText("followup_generation_failed", frame.round.language) : copy.followUpNotStored}
           busy={busy}
           error={error}
-          onGoOn={() => void submit(screen.question, screen.answerId, screen.corrected)}
+          onGoOn={() =>
+            void submit(screen.question, { answerId: screen.answerId, raw: screen.corrected, durationMs: null, wpm: null }, screen.corrected)
+          }
+        />
+      );
+      break;
+    case "answered":
+      body = (
+        <AnsweredFrame
+          // A new answer is a new frame: its own score to wait for.
+          key={screen.answer.answerId}
+          roundId={round.id}
+          language={language}
+          dimensions={frame.dimensions}
+          cvLabel={frame.cvLabel}
+          step={prompt?.again ? copy.stepAgain(step) : step}
+          answer={screen.answer}
+          next={screen.next}
+          nextStep={screen.next.kind === "question" ? copy.step(screen.next.position, round.length) : null}
+          missingNotice={failureText("followup_generation_failed", language)}
+          busy={busy}
+          error={error}
+          stamp={roundStamp}
+          onGoOn={() => goOn(screen)}
+          onAnswerAgain={() => answerAgain(screen)}
         />
       );
       break;
@@ -301,20 +449,6 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
   );
 }
 
-function ErrorLine({ error, retryLabel }: { error: Failure | null; retryLabel: string }) {
-  if (!error) return null;
-  return (
-    <div className="flex flex-col gap-[10px]">
-      <CalloutRail tone="attention">{error.text}</CalloutRail>
-      {error.retry ? (
-        <button type="button" onClick={error.retry} className="self-start text-[13px] text-link hover:text-link-hover hover:underline">
-          {retryLabel}
-        </button>
-      ) : null}
-    </div>
-  );
-}
-
 /** 10 §3: a 15px speaker, 1.2 stroke, in the line's own colour. */
 function SpeakerGlyph() {
   return (
@@ -329,9 +463,11 @@ function SpeakerGlyph() {
 /**
  * 10 §3 and §4: the question at 19px, which does not move when recording starts.
  *
- * **Realistic speaks the question and times the take; practice does neither** (10 §12). A practice
- * take still ends at its cap — the runaway guard, `per_answer_cap_seconds = 900` — and is kept, but
- * the guard is never drawn: no clock, no `Up to` line, no waveform filling toward an end (03 §7).
+ * **Realistic speaks the question, times the take and transcribes it at once; practice does none of
+ * these** (10 §15). A practice take still ends at its cap — the runaway guard,
+ * `per_answer_cap_seconds = 900` — and is kept, but the guard is never drawn: no clock, no `Up to`
+ * line, no waveform filling toward an end (03 §7). Stopping holds the take, uploaded, and it can be
+ * recorded again until the user has it transcribed.
  */
 function RecordFrame({
   copy,
@@ -340,8 +476,10 @@ function RecordFrame({
   speechSrc,
   speechFailed,
   question,
-  uploading,
+  phase,
   onTake,
+  onTranscribe,
+  onBack,
   error,
   stamp,
 }: {
@@ -353,8 +491,12 @@ function RecordFrame({
   /** The catalogue's `speech_failed` sentence, in the round's language. */
   speechFailed: string;
   question: Question;
-  uploading: boolean;
+  /** `held` and `transcribing` are practice's: a take uploaded, then being transcribed. */
+  phase: "idle" | "uploading" | "held" | "transcribing";
   onTake: (take: Take) => void;
+  onTranscribe: (() => void) | null;
+  /** Back to the per-answer frame an answer-again came from, while nothing is recorded yet. */
+  onBack: (() => void) | null;
   error: Failure | null;
   stamp: string;
 }) {
@@ -362,6 +504,8 @@ function RecordFrame({
   const recorder = useRecorder(capSeconds, onTake, { timed });
   const recording = recorder.state.kind === "recording" ? recorder.state : null;
   const failed = recorder.state.kind === "failed" ? recorder.state.reason : null;
+  const uploading = phase === "uploading";
+  const held = phase === "held" || phase === "transcribing";
   const spoken = useSpokenQuestion(speechSrc);
 
   function startRecording() {
@@ -379,6 +523,10 @@ function RecordFrame({
             <span className="size-[9px] rounded-full bg-attention-mark" aria-hidden />
             <span className="text-[12px] text-attention-ink">{copy.recording}</span>
           </>
+        ) : held ? (
+          <span className="text-[12px] text-ink-label" data-testid="take-held">
+            {copy.takeHeld}
+          </span>
         ) : spoken.status === "failed" ? (
           <span className="text-[12px] text-attention-ink">{speechFailed}</span>
         ) : spoken.status === "blocked" ? (
@@ -421,37 +569,53 @@ function RecordFrame({
           <div className="flex items-center gap-[22px]">
             <Button variant="outline" onClick={recorder.stop} className="gap-[12px]">
               <span className="size-[10px] bg-ink-1" aria-hidden />
-              {copy.stop}
+              {timed ? copy.stop : copy.stopRecording}
             </Button>
             {timed ? <span className={caption}>{copy.autoStop(capSeconds)}</span> : null}
           </div>
         </>
       ) : (
         <>
+          {held ? (
+            <div className="flex flex-col gap-[10px]">
+              <Button onClick={() => onTranscribe?.()} disabled={phase === "transcribing"} className="self-start">
+                {copy.transcribeTake}
+              </Button>
+              <p className={caption} role="status">
+                {phase === "transcribing" ? copy.transcribingTake : copy.transcribeTakeCaption}
+              </p>
+            </div>
+          ) : null}
           <div className="flex items-center gap-[22px]">
-            <Button variant="outline" onClick={startRecording} disabled={uploading} className="gap-[12px]">
+            <Button variant="outline" onClick={startRecording} disabled={uploading || phase === "transcribing"} className="gap-[12px]">
               <span className="size-[11px] rounded-full bg-attention-mark" aria-hidden />
-              {copy.startRecording}
+              {held ? copy.recordAgain : copy.startRecording}
             </Button>
+            {held ? <span className={caption}>{copy.recordAgainCaption}</span> : null}
             {timed ? <span className="font-mono text-[12px] text-ink-label">{copy.cap(capSeconds)}</span> : null}
           </div>
-          {uploading && !error ? (
+          {held ? null : uploading && !error ? (
             <p className={caption} role="status">
-              {copy.transcribing}
+              {timed ? copy.transcribing : copy.uploading}
             </p>
           ) : (
             <div className="flex flex-col gap-[9px] text-[12px] leading-[1.75] text-ink-6">
-              {timed ? <span>{copy.oneTake}</span> : null}
+              <span>{timed ? copy.oneTake : copy.retakeUntilTranscribed}</span>
               <span>{copy.correctAfter}</span>
             </div>
           )}
           {failed ? <CalloutRail tone="attention">{failed === "unavailable" ? copy.micUnavailable : copy.recordingFailed}</CalloutRail> : null}
           <ErrorLine error={error} retryLabel={copy.tryAgain} />
+          {onBack && phase === "idle" ? (
+            <button type="button" onClick={onBack} className="self-start text-[13px] text-link hover:text-link-hover hover:underline">
+              {copy.backToScores}
+            </button>
+          ) : null}
         </>
       )}
 
       <div className="flex-grow" />
-      <RoundFooter sentence={copy.withheld} stamp={stamp} />
+      <RoundFooter sentence={timed ? copy.withheld : copy.practiceShown} stamp={stamp} />
     </div>
   );
 }
@@ -503,6 +667,7 @@ function TranscriptFrame({
 function CorrectionFrame({
   copy,
   language,
+  mode,
   question,
   transcript,
   busy,
@@ -512,6 +677,7 @@ function CorrectionFrame({
 }: {
   copy: RoundCopy;
   language: RoundLanguage;
+  mode: RoundMode;
   question: Question;
   transcript: Transcript;
   busy: boolean;
@@ -519,8 +685,9 @@ function CorrectionFrame({
   stamp: string;
   onSubmit: (corrected: string) => void;
 }) {
-  // A bank question's answer gets one follow-up, made from this text; a follow-up's own answer gets none.
-  const followUpNext = question.followUpVersion === null;
+  // A bank question's answer gets one follow-up, made from this text; a follow-up's own answer gets
+  // none, and neither does an answer given again (07 §5.9).
+  const followUpNext = question.followUpVersion === null && question.again === null;
   const [text, setText] = useState(transcript.raw);
   // The meter trails typing rather than blocking it; the server stores the same measure (07 §5.9).
   const deferred = useDeferredValue(text);
@@ -593,7 +760,9 @@ function CorrectionFrame({
                 ? copy.emptyAnswer
                 : followUpNext
                   ? copy.sendCaptionFollowUp
-                  : copy.sendCaption}
+                  : mode === "practice"
+                    ? copy.sendCaptionShown
+                    : copy.sendCaption}
           </p>
           <p className="font-mono text-[10px] leading-[1.9] text-ink-8">
             {transcript.durationMs !== null && transcript.wpm !== null ? copy.takeSummary(transcript.durationMs, transcript.wpm) : null}

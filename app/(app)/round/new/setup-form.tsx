@@ -18,6 +18,7 @@ import {
   ROUND_TYPES,
   SETUP_COPY as COPY,
   type RoundLanguage,
+  type RoundMode,
   type RoundType,
 } from "../copy";
 import type { PostingOption } from "../load";
@@ -25,6 +26,7 @@ import { CalloutRail, caption, sectionLabel } from "../parts";
 
 /** The realistic cap, in minutes: the estimate's multiplier (10 §2). The server holds the value. */
 const REALISTIC_CAP_MINUTES = 4;
+const MODES: readonly RoundMode[] = ["realistic", "practice"];
 
 /** §13's box, and the one-line inputs above it. */
 const field =
@@ -245,6 +247,7 @@ export function SetupForm({ facts, postings: savedPostings }: { facts: Record<Ro
   const [roundType, setRoundType] = useState<RoundType>("hr");
   const [language, setLanguage] = useState<RoundLanguage>("en");
   const [length, setLength] = useState<(typeof ROUND_LENGTHS)[number]>(3);
+  const [mode, setMode] = useState<RoundMode>("realistic");
   const [postings, setPostings] = useState(savedPostings);
   // General practice is never the silent default (10 §2): nothing is chosen until the user chooses,
   // unless a posting was saved before, in which case the newest is.
@@ -262,7 +265,7 @@ export function SetupForm({ facts, postings: savedPostings }: { facts: Record<Ro
 
   // The questions the bank gives this round without generating (07 §5.4); fewer than its length is
   // the bank-exhausted warning, on screen before the round starts.
-  const supply = bankSupply(bank[roundType], "realistic");
+  const supply = bankSupply(bank[roundType], mode);
   const generates = supply < length;
 
   async function start() {
@@ -278,7 +281,7 @@ export function SetupForm({ facts, postings: savedPostings }: { facts: Record<Ro
       ? await postJson<{ round: { id: string } }>("/api/rounds", {
           round_type: roundType,
           language,
-          mode: "realistic",
+          mode,
           length,
           role_context_id: context.id,
         })
@@ -310,8 +313,15 @@ export function SetupForm({ facts, postings: savedPostings }: { facts: Record<Ro
           <Options label={COPY.language} options={ROUND_LANGUAGES} value={language} name={(l) => LANGUAGE_NAMES[l]} onChange={setLanguage} />
           <Options label={COPY.length} options={ROUND_LENGTHS} value={length} name={COPY.lengthOption} onChange={setLength} />
           <div className="flex flex-col gap-[10px]">
-            <Options label={COPY.mode} options={["realistic"] as const} value="realistic" name={() => COPY.realistic} />
-            <p className="text-[12px] leading-[1.75] text-ink-3">{COPY.realisticExplained}</p>
+            <Options label={COPY.mode} options={MODES} value={mode} name={(m) => COPY.modes[m]} onChange={setMode} />
+            {/* 10 §2: both modes explained at once, the chosen one in the darker ink. */}
+            <p className="flex flex-col gap-[4px] text-[12px] leading-[1.75]" data-testid="setup-modes">
+              {MODES.map((option) => (
+                <span key={option} className={option === mode ? "text-ink-3" : "text-ink-6"}>
+                  {COPY.modesExplained[option]}
+                </span>
+              ))}
+            </p>
           </div>
 
           <fieldset className="flex flex-col gap-[18px]">
@@ -366,7 +376,7 @@ export function SetupForm({ facts, postings: savedPostings }: { facts: Record<Ro
           <div className="mt-auto flex flex-col gap-[10px]">
             {generates ? (
               <div data-testid="bank-exhausted">
-                <CalloutRail tone="information">{COPY.bankExhausted(ROUND_TYPE_NAMES[roundType], language, supply, length)}</CalloutRail>
+                <CalloutRail tone="information">{COPY.bankExhausted(ROUND_TYPE_NAMES[roundType], language, mode, supply, length)}</CalloutRail>
               </div>
             ) : null}
             {error ? <CalloutRail tone="attention">{failureText(error, "en")}</CalloutRail> : null}
@@ -377,10 +387,11 @@ export function SetupForm({ facts, postings: savedPostings }: { facts: Record<Ro
               {startCaption}
             </p>
             <p className="font-mono text-[11px] leading-[1.9] text-ink-label" data-testid="setup-estimate">
-              {COPY.estimate(length, REALISTIC_CAP_MINUTES)}
+              {/* Practice shows no estimate: its cap is the runaway guard, not a pace (10 §2). */}
+              {mode === "realistic" ? COPY.estimate(length, REALISTIC_CAP_MINUTES) : null}
               {rubricLabel ? (
                 <>
-                  <br />
+                  {mode === "realistic" ? <br /> : null}
                   {COPY.rubricStamp(rubricLabel)}
                 </>
               ) : null}

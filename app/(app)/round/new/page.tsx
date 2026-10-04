@@ -9,10 +9,9 @@ export const metadata: Metadata = {
 };
 
 /**
- * Round setup (10 §2): round type, language, length and role context to choose; realistic is the only
- * mode that exists yet, so it is stated, not offered (#49). Each language is scored against its own CV
- * and rubric and draws on its own bank, so the facts are read for both; postings are the user's, in
- * either language.
+ * Round setup (10 §2): round type, language, length, mode and role context to choose. Each language is
+ * scored against its own CV and rubric and draws on its own bank, so the facts are read for both;
+ * postings are the user's, in either language.
  */
 export default async function NewRoundPage() {
   const userId = await requireSession();

@@ -98,9 +98,12 @@ export function AnswerPager({
   const unscored = answer.status === "pending" ? copy.notScoredYet : copy.notScored;
 
   return (
-    <div className="flex flex-col gap-[14px]" data-testid="answer-region" data-position={answer.position}>
+    <div className="flex flex-col gap-[14px]" data-testid="answer-region" data-position={answer.position} data-again={answer.again}>
       <div className="flex items-baseline justify-between">
-        <span className="font-mono text-[11px] tracking-[0.16em] text-ink-label">{copy.questionOf(answer.position, length)}</span>
+        <span className="font-mono text-[11px] tracking-[0.16em] text-ink-label">
+          {/* 10 §15: an answer given again has its own page, headed as the same question, again. */}
+          {answer.again > 0 ? copy.stepAgain(copy.questionOf(answer.position, length)) : copy.questionOf(answer.position, length)}
+        </span>
         <span className="font-mono text-[12px] text-ink-label" data-testid="answer-figures">
           {copy.answerFigures(answer.durationMs, answer.wpm, answer.rewrite)}
         </span>
@@ -144,13 +147,13 @@ export function AnswerPager({
         <nav className="flex items-center gap-[14px] pt-[6px] text-[12px] text-ink-label" aria-label={copy.answers}>
           {answers.map((other, otherIndex) => (
             <button
-              key={other.position}
+              key={`${other.position}-${other.again}`}
               type="button"
               onClick={() => setIndex(otherIndex)}
               aria-current={otherIndex === index}
               className={otherIndex === index ? "text-ink-1" : "hover:text-ink-2"}
             >
-              {copy.question(other.position)}
+              {other.again > 0 ? copy.questionAgain(other.position, other.again) : copy.question(other.position)}
             </button>
           ))}
           <span className="h-px flex-1 bg-rule-section" />
