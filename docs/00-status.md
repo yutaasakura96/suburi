@@ -446,7 +446,7 @@ follow-ups, practice retries and the missing-follow-up hole, the recording and b
 each row, and the unscored retry — in English (`10` §10); four synthetic rounds in `db:seed:develop`
 (`12` §1); a `History` link on Home until #51. Migration `0012_history`
 (`scoring_attempts.run_started_at`, two rate-limit routes) is expand-only and **not yet applied to
-either Neon branch**. Tests: `11` §3.20 and four Playwright rows in §4. **Verified by hand** on
+either Neon branch**. Tests: `11` §3.20 and History's Playwright rows in §4. **Verified by hand** on
 `next dev` against a seeded local database: the rail, the matrix in both languages, a row's
 transcripts and missing recording, and one retry scored by the real pinned model with the round
 feedback unchanged. The owner read and accepted #50's catalogue string on 2026-10-05
