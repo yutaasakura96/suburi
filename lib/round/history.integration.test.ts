@@ -838,7 +838,6 @@ describe("History's detail (10 §10)", () => {
         generatorVersions: ["synthetic-follow-up-en-1.0", "synthetic-generated-en-1.0"],
         scoringModels: [SYNTHETIC_MODEL_ID],
       });
-      expect(detail.hasFeedback).toBe(true);
       expect(detail.translated).toBe(false);
       // Each row has one value per dimension and nothing that combines them (04 §6).
       expect(JSON.stringify(detail)).not.toMatch(/total|average|overall|composite|mean/i);

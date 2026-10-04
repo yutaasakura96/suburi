@@ -86,8 +86,6 @@ export interface HistoryDetail {
     readonly generatorVersions: readonly string[];
     readonly scoringModels: readonly string[];
   };
-  /** The round has stored feedback, read on screen 8. */
-  readonly hasFeedback: boolean;
   /** A Japanese round whose feedback was stored with its English translation: 10 §10's pill. */
   readonly translated: boolean;
 }
@@ -201,7 +199,6 @@ export async function historyDetail(db: Db, round: RoundRow, now: Date): Promise
       generatorVersions: distinct(displayed.map((attempt) => attempt.generatorPromptVersion)),
       scoringModels: distinct(displayed.map((attempt) => attempt.modelId)),
     },
-    hasFeedback: feedback !== undefined,
     translated: round.language === "ja" && feedback?.translated != null,
   };
 }
