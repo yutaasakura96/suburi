@@ -53,6 +53,11 @@ export const DIGEST_FIGURES = [
   "digest_tokens_in",
   "digest_tokens_out",
   "digest_spend_usd",
+  "digest_near_misses",
+  "digest_near_miss_similarity_min",
+  "digest_near_miss_similarity_median",
+  "digest_near_miss_similarity_max",
+  "digest_near_duplicates_reused",
 ] as const;
 export const CRON_SIGNALS = [...SELF_CHECK_SIGNALS, ...DIGEST_FIGURES] as const;
 
@@ -239,6 +244,8 @@ export const roleContexts = pgTable(
     companyName: text("company_name"),
     roleTitle: text("role_title"),
     body: text("body"),
+    // The file a posting's text was imported from, as cv_documents.source_filename. Never logged.
+    sourceFilename: text("source_filename"),
     createdAt: createdAt(),
   },
   (t) => [
@@ -293,6 +300,34 @@ export const questions = pgTable(
       .on(t.userId, t.language, t.roundType)
       .where(sql`${t.retiredAt} is null`),
     index("questions_embedding_hnsw_idx").using("hnsw", t.embedding.op("vector_cosine_ops")),
+  ],
+);
+
+// The record the near-duplicate threshold is tuned from (04, 03 §11): one row per generated
+// candidate the guard compared. Ids and numbers only — no column here can hold question text.
+export const nearDuplicateChecks = pgTable(
+  "near_duplicate_checks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    // The nearest neighbour: the existing question the candidate was most like.
+    matchedQuestionId: uuid("matched_question_id")
+      .notNull()
+      .references(() => questions.id, { onDelete: "restrict" }),
+    // The row the candidate was inserted as. Null exactly when it was reused as the matched question.
+    questionId: uuid("question_id").references(() => questions.id, { onDelete: "restrict" }),
+    similarity: doublePrecision("similarity").notNull(),
+    // The constant in force when the guard decided: it moves, and a row is read against its own.
+    threshold: doublePrecision("threshold").notNull(),
+    embeddingModelId: text("embedding_model_id").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    check("near_duplicate_checks_decision_check", sql`(${t.questionId} is null) = (${t.similarity} >= ${t.threshold})`),
+    check("near_duplicate_checks_distinct_check", sql`${t.questionId} <> ${t.matchedQuestionId}`),
+    index("near_duplicate_checks_user_created_at_idx").on(t.userId, t.createdAt),
   ],
 );
 

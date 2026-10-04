@@ -40,6 +40,7 @@ export const ERROR_STATUS = {
   round_not_complete: 409,
   round_abandoned: 409,
   feedback_generation_failed: 502,
+  role_context_too_large: 422,
   write_failed: 500,
   cv_unchanged: 422,
   cv_too_large: 422,

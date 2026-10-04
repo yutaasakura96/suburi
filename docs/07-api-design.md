@@ -158,7 +158,7 @@ that asserts the two lists match.
 | `round_not_complete` | 409 | `complete` | screen 7 |
 | `round_abandoned` | 409 | `answers`, `submit`, `complete` | the round screen — the round takes no more writes; start a new one (§5.5) |
 | `feedback_generation_failed` | 502 | `complete`, `feedback` | screen 8 — the round is complete and its scores show; the round-level note is pending and retryable, unless `detail.error_class` is `no_scores`, which no retry can fix (§5.12) |
-| `role_context_too_large` | 422 | `POST /api/role-contexts` | Setup — before anything is saved. **Its cap is measured first** (§5.3) |
+| `role_context_too_large` | 422 | `POST /api/role-contexts` | Setup's add form — before anything is saved. The cap is measured (§5.3) |
 | `speech_failed` | 502 | `speech` | screen 3 — a short notice; the question stays as text and the round goes on (§5.15) |
 | `write_failed` | 500 | every round route | the screen that made the call — nothing half-written; the round stays resumable |
 | `cv_unchanged` | 422 | `POST /api/cv-versions` | CV screen — the save is refused, nothing written |
@@ -169,8 +169,8 @@ that asserts the two lists match.
 **Four codes are added by the round loop** (`06`, 2026-09-27 and 2026-09-28).
 `feedback_generation_failed` and `write_failed` **landed with the round-loop tracer (#42)**, in
 `lib/api/errors.ts` with their `ja` and `en` copy; `speech_failed` lands with the spoken question (#45)
-and `role_context_too_large` with its measured cap (#47), each with its copy in the same change, as
-`11` §3.10 requires.
+and `role_context_too_large` **landed with its measured cap (#47)**, each with its copy in the same
+change, as `11` §3.10 requires.
 
 **`round_abandoned` landed with the tracer too** (#42 review): `answers`, `submit` and `complete` read
 the derived status (§5.5) inside their locked transaction, so a stale tab cannot write into a round a
@@ -432,11 +432,16 @@ POST /api/role-contexts
   "created_at": "2026-09-12T03:02:00Z" }
 ```
 
-**Round one accepts `posting` and `general`** (`06`, 2026-09-27). **The tracer (#42) accepts
-`general` alone**; `posting` is a `400` until #47 builds it with its measured cap. `researched` is a `400` until US-16
-ships, and arrives with "the file wins" (PRD US-2). A posting is pasted, or imported with the CV
-screen's importer (`lib/cv/import/`): the browser extracts the text, the user checks it, and only the
-text and the filename are sent — the file never reaches the server, as in §5.2.
+**Round one accepts `posting` and `general`** (`06`, 2026-09-27; `posting` since #47). `researched`
+is a `400` until US-16 ships, when a saved posting takes precedence (PRD US-2). A posting is pasted, or
+imported with the CV screen's importer (`lib/cv/import/`): the browser extracts the text, the user
+checks it, and only the text and the filename are sent — the file never reaches the server, as in §5.2.
+
+**A posting carries `company_name`, `role_title` and `body`, all three required and non-blank**:
+the picker names a posting by the first two, and a posting with no text is General practice under
+another name. Each is trimmed; `company_name` and `role_title` are at most 200 code points.
+`source_filename` is optional and at most 255 code points; Setup sends it when the text came from an
+import. The schema is strict: an unknown field is a `400`, as everywhere (§1).
 
 **Immutable and reusable.** There is no `PUT`, `PATCH` or `DELETE`; a changed posting is a new row, and
 Setup picks from the saved ones. The picker is a Server Component read (§1), so there is no `GET`.
@@ -445,8 +450,14 @@ Setup picks from the saved ones. The picker is a Server Component read (§1), so
 `400` otherwise. General practice is a real row, not a null foreign key (`04`), and there is **one per
 user**: a second `general` request returns the existing row with `200`, never a second row.
 
-**A posting's text-size cap is measured, not guessed**, the way the CV's was (§5.2, #20), in the
-slice that builds this endpoint. Over it is `422 role_context_too_large`, before anything is saved.
+**A posting's `body` is capped at 20,000 code points** — measured, not guessed, the way the CV's was
+(§5.2, #20; `06`, #47; `03` §4 has the table). Over it is `422 role_context_too_large`, before
+anything is saved, with `detail` carrying `body_chars` and `max_body_chars` and nothing else. The cap
+is one number for both languages, a constant in `lib/round/limits.ts`. It bounds what a round's
+question generation is sent at round start (§5.4), which is the only model call a posting reaches.
+
+**Not rate-limited and not ⚡**: the route calls no model. **Never logged:** `body`, `company_name`,
+`role_title`, `source_filename` — log lines carry the row id, the kind and the body's length.
 
 ### 5.4 `POST /api/rounds` ⚡
 
@@ -497,28 +508,55 @@ where retired_at is null` slice, in this order:
 3. **New questions generated** when the unseen pool cannot fill the round, with PRD §6's bank-exhausted
    warning on Setup before the round starts.
 
-**Practice rounds prefer seen questions** and fall back to unseen ones, so practice does not spend the
-unseen pool (`06`, 2026-09-27). Generation runs **in parallel with the preflight**, before the
-transaction; the round row and all its `round_questions` rows are then written in one transaction. No
-question repeats within a round (`04`).
+**Practice rounds prefer seen questions**: seen generated questions first, then unseen generated
+ones, then new ones — and **no set piece**, since a practice round that took one would spend its only
+first attempt off the record (`06`, 2026-09-27). No question repeats within a round (`04`).
 
-**The near-duplicate guard.** A generated question is embedded (`text-embedding-3-small`, `03` §4) and
-compared by cosine similarity within the same slice; **at or above the threshold the existing row is
-reused instead of inserted** (`04`, `03` §11). **The threshold starts at 0.90, an unverified guess.**
-Every near-miss is stored with its score (`04`); the weekly digest reads those records (`12` §6).
+**Generation, at round start** (#47). When the bank cannot fill the round by the order above, the
+shortfall is generated — one call, for the round's type and language, with the prompt
+`generate-<round type>-<language>-<version>` (`lib/prompts/`), given:
+
+- the round's **CV version as its claims**, each quoted from the stored body by its span;
+- the **role context**: the posting's company, role title and text, or the fact that this is General
+  practice;
+- **every question already in the slice**, set pieces included, so none is asked again in other words.
+
+The call asks for **two more than the shortfall**, so a candidate the guard maps to an existing
+question does not leave the round short. Each candidate is then embedded (`text-embedding-3-small`,
+`03` §4), all in one call. **Generation and embedding run in parallel with the preflight, before the
+transaction** — the round waits for the slower of the two, not their sum (`03` §4 has the measured
+wait).
+
+**The transaction** then takes an advisory lock on the `(user, language, round type)` slice — two
+round starts must not both insert the same new question — and, for each candidate in the model's
+order until the round is full, runs **the near-duplicate guard**: the candidate is compared by cosine
+similarity with the nearest embedded, non-retired question in the slice, **and at or above the
+threshold the existing row is reused instead of inserted** (`04`, `03` §11). **The threshold starts at
+0.90, an unverified guess.** Below it the candidate becomes a `questions` row — `origin: generated`,
+its embedding, the generator's model id and prompt version — and takes the next position. Every
+comparison is stored in `near_duplicate_checks` with its similarity (`04`); the weekly digest reads
+those records (`12` §6). Candidates left over once the round is full are discarded, unstored.
+
+**A reused candidate does not get asked twice.** The question it maps to is either already in this
+round, or one the user has answered before. If the candidates run out with the round still short, the
+remaining positions are filled from **seen generated questions** — the ones the guard mapped to first,
+then the rest, oldest first. They are repeats: scored, never first attempts (§5.6). Setup says so
+before the round starts (`10` §2). Only if the round still cannot be filled is it refused.
+
+The round row and all its `round_questions` rows are written in the same transaction as the new
+questions, so a round that fails to start leaves no question behind.
 
 **Starting a round abandons any open round** (`04` `rounds`). Nothing is written to the old round:
 abandonment is derived, and §6 still refuses an abandon endpoint.
 
-Failures: `503 model_unavailable` (preflight — the round is not created);
-`502 question_generation_failed` (nothing created).
+Failures: `503 model_unavailable` (preflight — the round is not created, and it wins over a
+generation failure in the same request); `502 question_generation_failed` (nothing created), whose
+`detail.error_class` is the generation or embedding call's error class, or `bank_too_small` when the
+candidates and the seen questions together could not fill the round.
 
-**Until generation exists (#47)** the tracer fills step 3 from the bank alone: a realistic round
-short of unseen questions takes seen generated ones, which are never first attempts (§5.6), and a bank
-that cannot fill the round at all is `502 question_generation_failed` with `error_class:
-"bank_too_small"`. **Both languages since #43**: `language` is `ja` or `en`, and each takes its own
-rubric, CV version and bank — a Japanese round is filled from Japanese questions only, its set piece
-first (`06`, 2026-10-03).
+**Both languages since #43**: `language` is `ja` or `en`, and each takes its own rubric, CV version,
+bank and generator prompt — a Japanese round is filled from Japanese questions only, its set piece
+first, and what it generates is written by `generate-{round_type}-ja-1.0` (`06`, 2026-10-03).
 
 ### 5.5 `GET /api/rounds/{roundId}`
 
@@ -1108,7 +1146,10 @@ The weekly job (`12` §6), at `0 20 * * 0` UTC — Monday between 05:00 and 05:5
 it reports has ended. Authenticated exactly as §5.17. It appends a `digest` run whose readings are the
 week's rounds started and completed, tokens in and out, and spend, over **the Asia/Tokyo week (Monday
 00:00 to Monday 00:00) that ended before the run**. The same response shape, with `red: 0`: a digest
-reports, it does not judge. **The near-miss row is #47's** (`06`, 2026-09-29).
+reports, it does not judge. **Its near-duplicate figures** (#47; `06`, 2026-09-29) read
+`near_duplicate_checks` over the same week: how many questions went into the bank beside a neighbour,
+the lowest, median and highest similarity among them, and how many candidates were reused (`04`
+`cron_readings`).
 
 ---
 
@@ -1141,7 +1182,8 @@ convert a guarantee in `04` §6 into a preference.
   The trigger is `after()` inside `submit` (§5.10); the model is `gpt-transcribe` at $0.0045/minute
   (`03` §4), and §5.7's response carries the real string.
 - **The near-duplicate threshold** used in §5.4. **Starts at cosine similarity 0.90** (`06`,
-  2026-09-27) — an unverified guess until there is real data; see §5.4 and `04`.
+  2026-09-27) — an unverified guess until there is real data; see §5.4 and `04`. Since #47 the data is
+  being collected: `near_duplicate_checks`, reported weekly.
 - **The TTS model** behind §5.15, pinned only once verified. ~~What realistic mode does when synthesis
   fails~~ — **decided 2026-09-28**: text, a notice, `speech_failed` (§5.15).
 - ~~**`complete`'s wait bound**~~ — **set 2026-10-01** at 60 s, from the round loop's latency

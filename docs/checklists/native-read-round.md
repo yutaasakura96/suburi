@@ -283,3 +283,21 @@ read is its **output**. `lib/prompts/feedback-ja-1.1.ts` names a follow-up's ans
 `develop`: a handful of generated follow-ups, for whether an interviewer would say them, and the
 findings, for whether that name reads naturally. A rule either breaks is a prompt version, not an
 edit.
+
+## 9. #47, generated questions and role context
+
+Setup is app-level and English (`10` §0), so the picker, the add form and the bank-exhausted warning
+add no Japanese. One catalogue string does.
+
+| | Japanese | Intent |
+| --- | --- | --- |
+| | 求人票が長すぎます。短くしてからもう一度保存してください。 | `role_context_too_large` — The posting is too long. Shorten it and save again. |
+
+**What cannot be read in advance.** The four Japanese generator prompts
+(`lib/prompts/generate-*-ja-1.0.ts`) are written in English and name the Japanese they ask for —
+`です・ます体`, ordinary `敬語`, and the set pieces the generator must not ask (`自己紹介`, `自己PR`,
+`転職理由`, `志望動機`). What needs a native reader is their **output**: a handful of generated
+questions per round type, read for whether an interviewer would say them. They are read on the first
+real Japanese round on `develop` whose bank runs short, and a generated question is banked
+permanently, so that round is worth starting for the read. A reworded prompt is a new version file
+and a Progress boundary (`04` `questions`), not an edit.

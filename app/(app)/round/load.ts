@@ -4,6 +4,7 @@ import type { FeedbackItem, TranslatedFeedback } from "@/lib/ai/round-feedback";
 import { sliceQuote } from "@/lib/cv/spans";
 import type { Db } from "@/lib/round/http";
 import { rewritePercent } from "@/lib/round/measures";
+import { loadBankCounts } from "@/lib/round/select-questions";
 import {
   latestAttempts,
   newerRoundExists,
@@ -23,7 +24,19 @@ import type { RoundLanguage, RoundType } from "./copy";
 
 // What the round screens read (10 §2–§8). Server-only; only what a screen shows leaves it.
 
-/** Screen 2's facts: what a round in this language would be scored against, if it can be. */
+/** A saved posting as the picker names it (10 §2). Its text stays on the server. */
+export interface PostingOption {
+  readonly id: string;
+  readonly companyName: string;
+  readonly roleTitle: string;
+  readonly sourceFilename: string | null;
+  readonly date: string;
+}
+
+/**
+ * Screen 2's facts: what a round in this language would be scored against, if it can be, and the
+ * language's bank counts per round type, which the bank-exhausted warning reads.
+ */
 export async function setupFacts(db: Db, userId: string, language: RoundLanguage) {
   const [cv] = await db
     .select({ label: s.cvVersions.versionLabel, createdAt: s.cvVersions.createdAt })
@@ -40,7 +53,30 @@ export async function setupFacts(db: Db, userId: string, language: RoundLanguage
   return {
     cv: cv ? { label: cv.label, date: tokyoDate(cv.createdAt) } : null,
     rubricLabel: rubric?.label ?? null,
+    bank: await loadBankCounts(db, { userId, language }),
   };
+}
+
+/** Every saved posting, newest first (10 §2). A posting is the user's, not a language's. */
+export async function savedPostings(db: Db, userId: string): Promise<PostingOption[]> {
+  const postings = await db
+    .select({
+      id: s.roleContexts.id,
+      companyName: s.roleContexts.companyName,
+      roleTitle: s.roleContexts.roleTitle,
+      sourceFilename: s.roleContexts.sourceFilename,
+      createdAt: s.roleContexts.createdAt,
+    })
+    .from(s.roleContexts)
+    .where(and(eq(s.roleContexts.userId, userId), eq(s.roleContexts.kind, "posting")))
+    .orderBy(desc(s.roleContexts.createdAt), desc(s.roleContexts.id));
+  return postings.map((posting) => ({
+    id: posting.id,
+    companyName: posting.companyName ?? "",
+    roleTitle: posting.roleTitle ?? "",
+    sourceFilename: posting.sourceFilename,
+    date: tokyoDate(posting.createdAt),
+  }));
 }
 
 async function stampLabels(db: Db, round: RoundRow) {
