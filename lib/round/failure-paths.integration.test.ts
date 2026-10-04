@@ -249,6 +249,12 @@ async function setUp(raw: TestDb) {
 type World = Awaited<ReturnType<typeof setUp>>;
 type Reply = Awaited<ReturnType<World["call"]>>;
 
+async function makeReadOnly(world: World, db: TestDb, roundId: string, status: "newer" | "earlier_day" | "complete") {
+  if (status === "newer") await world.startRound();
+  else if (status === "earlier_day") await db.update(s.rounds).set({ startedAt: new Date(Date.now() - 48 * 60 * 60 * 1000) }).where(eq(s.rounds.id, roundId));
+  else await db.update(s.rounds).set({ completedAt: new Date() }).where(eq(s.rounds.id, roundId));
+}
+
 async function count(db: TestDb, table: typeof s.rounds | typeof s.answers | typeof s.followUps | typeof s.roundFeedback | typeof s.scoringAttempts) {
   return (await db.select({ id: table.id }).from(table)).length;
 }
@@ -435,6 +441,67 @@ describe("GET /api/rounds/{id} — resume (07 §5.5)", () => {
     }));
 });
 
+describe("POST /api/answers/{id}/transcribe — round writability", () => {
+  it.each(["newer", "earlier_day", "complete"] as const)("refuses an unconfirmed take after the round becomes %s", (status) =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const roundId = await world.startRound();
+      const answerId = await world.upload(roundId);
+      await makeReadOnly(world, db, roundId, status);
+      const refused = await world.call(world.handlers.transcribe, answerId, {});
+      expect(refused.json.error.code).toBe(status === "complete" ? "round_already_complete" : "round_abandoned");
+      const [row] = await db.select().from(s.answers).where(eq(s.answers.id, answerId));
+      expect(row).toMatchObject({ audioUploadedAt: null, transcriptRaw: null });
+      expect(world.transcriber.calls).toBe(0);
+    }));
+
+  it.each(["newer", "complete"] as const)("refuses confirmation if the round becomes %s while reading S3", (status) =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const roundId = await world.startRound();
+      const answerId = await world.upload(roundId);
+      const get = world.store.get;
+      world.store.get = async (key) => {
+        await makeReadOnly(world, db, roundId, status);
+        return get(key);
+      };
+      const refused = await world.call(world.handlers.transcribe, answerId, {});
+      expect(refused.json.error.code).toBe(status === "complete" ? "round_already_complete" : "round_abandoned");
+      const [row] = await db.select().from(s.answers).where(eq(s.answers.id, answerId));
+      expect(row).toMatchObject({ audioUploadedAt: null, transcriptRaw: null });
+      expect(world.transcriber.calls).toBe(0);
+    }));
+
+  it.each(["newer", "complete"] as const)("refuses the transcript if the round becomes %s during transcription", (status) =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const roundId = await world.startRound();
+      const answerId = await world.upload(roundId);
+      world.transcriber.transcribe = async () => {
+        await makeReadOnly(world, db, roundId, status);
+        return { text: HEARD, durationMs: 90_000 };
+      };
+      const refused = await world.call(world.handlers.transcribe, answerId, {});
+      expect(refused.json.error.code).toBe(status === "complete" ? "round_already_complete" : "round_abandoned");
+      const [row] = await db.select().from(s.answers).where(eq(s.answers.id, answerId));
+      expect(row.audioUploadedAt).not.toBeNull();
+      expect(row.transcriptRaw).toBeNull();
+    }));
+
+  it.each(["newer", "complete"] as const)("refuses an idempotent read after the round becomes %s", (status) =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const roundId = await world.startRound();
+      const answerId = await world.upload(roundId);
+      expect((await world.call(world.handlers.transcribe, answerId, {})).status).toBe(200);
+      await makeReadOnly(world, db, roundId, status);
+      const refused = await world.call(world.handlers.transcribe, answerId, {});
+      expect(refused.json.error.code).toBe(status === "complete" ? "round_already_complete" : "round_abandoned");
+      const [row] = await db.select().from(s.answers).where(eq(s.answers.id, answerId));
+      expect(row.transcriptRaw).toBe(HEARD);
+    }));
+});
+
 describe("POST /api/answers/{id}/transcript — the typed answer (07 §5.8)", () => {
   /** A take uploaded and unreadable: transcription fails, and the take is kept. */
   async function failedTake(world: World) {
@@ -467,6 +534,20 @@ describe("POST /api/answers/{id}/transcript — the typed answer (07 §5.8)", ()
       const completed = await world.call(world.handlers.typed, nextId, { source: "typed", text: TYPED });
       expect(completed.json.error.code).toBe("round_already_complete");
       expect((await db.select().from(s.answers).where(eq(s.answers.id, nextId)))[0].transcriptRaw).toBeNull();
+    }));
+
+  it.each(["newer", "earlier_day", "complete"] as const)("refuses a repeated typed transcript after a round becomes %s", (status) =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const roundId = await world.startRound();
+      const opened = await world.call(world.handlers.open, roundId, { content_type: "audio/webm", expected_bytes: AUDIO.byteLength });
+      const answerId = opened.json.answer_id as string;
+      expect((await world.call(world.handlers.typed, answerId, { source: "typed", text: TYPED })).status).toBe(201);
+      await makeReadOnly(world, db, roundId, status);
+      const repeated = await world.call(world.handlers.typed, answerId, { source: "typed", text: TYPED });
+      expect(repeated.json.error.code).toBe(status === "complete" ? "round_already_complete" : "round_abandoned");
+      const [row] = await db.select().from(s.answers).where(eq(s.answers.id, answerId));
+      expect(row.transcriptRaw).toBe(TYPED);
     }));
 
   it("stores the typed text as the raw transcript, with no transcriber, no duration and no pace", () =>

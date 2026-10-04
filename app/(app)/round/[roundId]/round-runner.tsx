@@ -213,12 +213,12 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
     } catch {
       return hold(null);
     }
-    await transcribe(question, opened.json.answer_id);
+    await transcribe(question, opened.json.answer_id, { take, onDevice: held });
   }
 
   /** Transcribe the uploaded take (07 §5.7). Idempotent, so it is retried on its own. */
-  async function transcribe(question: Question, answerId: string) {
-    setScreen({ kind: "uploading", question, uploaded: true });
+  async function transcribe(question: Question, answerId: string, local?: { take: Take; onDevice: boolean }) {
+    setScreen({ kind: "uploading", question, uploaded: !local });
     setError(null);
     setBusy(true);
     const transcribed = await postJson<Transcribed>(`/api/answers/${answerId}/transcribe`);
@@ -231,12 +231,16 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
         return;
       }
       if (transcribed.code === "audio_missing") {
-        // No take at the slot's key, and none held here: it never left a tab that is gone. The slot
-        // stays open, so the question is recorded again into the same row (07 §5.6).
+        const take = local?.take ?? (await heldTake(slotOf(question)));
+        if (take) {
+          setBusy(false);
+          setScreen({ kind: "held", question, take, onDevice: local?.onDevice ?? true, cause: transcribed.code });
+          return;
+        }
         setScreen({ kind: "asked", question });
         return fail(transcribed.code, null);
       }
-      return fail(transcribed.code, () => void transcribe(question, answerId));
+      return fail(transcribed.code, () => void transcribe(question, answerId, local));
     }
     await releaseTake(round.id);
     setBusy(false);

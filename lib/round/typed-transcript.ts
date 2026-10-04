@@ -2,8 +2,8 @@ import { and, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 import * as s from "../../db/schema";
 import { apiError } from "../api/errors";
-import { answerIdOf, authenticate, guarded, isUuid, log, notFound, parseBody, roundAbandoned, writeFailed, type RoundDeps } from "./http";
-import { isAbandoned } from "./state";
+import { answerIdOf, authenticate, guarded, isUuid, log, notFound, parseBody, writeFailed, type RoundDeps } from "./http";
+import { roundWriteRefusal } from "./state";
 
 /**
  * `POST /api/answers/{answerId}/transcript` (07 §5.8): the typing fallback, for a take transcription
@@ -56,32 +56,27 @@ export function createTypedTranscript(deps: RoundDeps) {
       if (stored.transcriberModelId === null && stored.transcriptRaw === body.text) return Response.json(view(stored));
       return apiError("transcript_already_final", "This answer already has its raw transcript; it is final.", { answer_id: answerId });
     };
-    if (answer.transcriptRaw !== null) return final(answer);
-
     let stored;
     try {
-      // Written only while still null: a transcript that landed first is kept, never overwritten.
       const result = await deps.transaction(async (tx) => {
-        const [round] = await tx.select().from(s.rounds).where(eq(s.rounds.id, answer.roundId)).for("update");
-        if (round.completedAt !== null) return apiError("round_already_complete", "The round is already complete.", { round_id: round.id });
-        if (await isAbandoned(tx, round)) return roundAbandoned(round.id);
+        const refusal = await roundWriteRefusal(tx, answer.roundId);
+        if (refusal) return refusal;
+        const [current] = await tx.select().from(s.answers).where(eq(s.answers.id, answerId));
+        if (current.transcriptRaw !== null) return final(current);
         const [updated] = await tx
           .update(s.answers)
           .set({ transcriptRaw: body.text, transcriberModelId: null, audioDurationMs: null, wordsPerMinute: null })
           .where(and(eq(s.answers.id, answerId), isNull(s.answers.transcriptRaw)))
           .returning();
-        return updated;
+        if (updated) return updated;
+        const [winner] = await tx.select().from(s.answers).where(eq(s.answers.id, answerId));
+        return final(winner);
       });
       if (result instanceof Response) return result;
       stored = result;
     } catch (error) {
       return writeFailed("typed_transcript_write_failed", error, { answer_id: answerId });
     }
-    if (!stored) {
-      const [current] = await deps.db.select().from(s.answers).where(eq(s.answers.id, answerId));
-      return final(current);
-    }
-
     log("info", { event: "answer_typed", answer_id: answerId, transcript_chars: Array.from(body.text).length });
     return Response.json(view(stored), { status: 201 });
   }, answerIdOf);

@@ -415,7 +415,7 @@ only; their output, and the Japanese follow-up strings, are unread
 (`docs/checklists/native-read-round.md` §8). Migration `0009` is **not yet applied to either Neon
 branch** (`12` §4). Decisions in `06`, "Phase 6 — #44".
 
-**#48 is built (2026-10-04), on `fm/suburi-48`.** Built, with no migration: `GET /api/rounds/{id}`,
+**#48 is built (2026-10-04), on `fm/suburi-48`.** Built, with expand-only migration `0011` for upload confirmation, not yet applied to Neon: `GET /api/rounds/{id}`,
 the resume read (`07` §5.5); `POST /api/answers/{id}/transcript`, the typed answer (`07` §5.8), stored
 with no transcriber, pace or duration; one guard around every round route, so nothing leaves as a
 bare `500`; a take held in IndexedDB from the moment it exists, with its retry, the leave-page

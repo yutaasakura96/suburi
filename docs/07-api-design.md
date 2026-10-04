@@ -160,9 +160,9 @@ that asserts the two lists match.
 | `scoring_in_progress` | 409 | `scoring-attempts/{id}/run` | History — on the answer's row: it is being scored, wait and try again (§5.10) |
 | `pressure_not_applicable` | 422 | `complete` | — (a client bug in practice mode) |
 | `pressure_required` | 422 | `complete` | screen 7 |
-| `round_already_complete` | 409 | `complete`, `answers`, `submit` | — |
+| `round_already_complete` | 409 | `complete`, `answers`, `transcribe`, `transcript`, `submit` | — |
 | `round_not_complete` | 409 | `complete` | screen 7 |
-| `round_abandoned` | 409 | `answers`, `submit`, `complete` | the round screen — the round takes no more writes; start a new one (§5.5) |
+| `round_abandoned` | 409 | `answers`, `transcribe`, `transcript`, `submit`, `complete` | the round screen — the round takes no more writes; start a new one (§5.5) |
 | `feedback_generation_failed` | 502 | `complete`, `feedback` | screen 8 — the round is complete and its scores show; the round-level note is pending and retryable, unless `detail.error_class` is `no_scores`, which no retry can fix (§5.12) |
 | `model_answer_generation_failed` | 502 | `model-answers` | screen 8 — under the question whose model answer is not written; the round, its scores and its feedback are untouched, and the retry stays (§5.19) |
 | `role_context_too_large` | 422 | `POST /api/role-contexts` | Setup's add form — before anything is saved. The cap is measured (§5.3) |
@@ -764,12 +764,13 @@ Transcribes the object the browser PUT. Reads from S3; audio never crosses a fun
   "transcriber_model_id": "gpt-transcribe" }
 ```
 
-**Idempotent, and asymmetric on purpose.** If `transcript_raw` is already set, the stored value is
+**Idempotent while the round is writable, and asymmetric on purpose.** If `transcript_raw` is already set, the stored value is
 returned and **no model call is made**. There is no `force` and no re-transcribe: a raw transcript,
 once obtained, is final (PRD §9 — raw transcripts are never discarded, and an overwrite is a discard).
 Retry is only possible while `transcript_raw` is null, which is exactly the state a failure leaves.
 
-Failures: `404 audio_missing` (no object at the key — the take was never uploaded);
+Failures: `409 round_abandoned` or `409 round_already_complete` (the round is read-only);
+`404 audio_missing` (no object at the key — the take can be retried from the device);
 `502 transcription_failed` — **the take is kept**, and the UI offers retry or typing the answer
 (`03` §8); `422 transcript_already_final` if a client sends the typed-answer route afterwards.
 
@@ -795,7 +796,7 @@ as a spoken one.** `422 transcript_already_final` if `transcript_raw` is set.
 `audio_s3_key` is kept**: the audio is still the record of what was said. `transcriber_model_id` null
 beside a set `transcript_raw` *is* the typed mark — the one Progress excludes on (`04` `answers`),
 with no column of its own. `text` is at most 20,000 characters and not blank, or the call is a `400`.
-**The same text sent again is a `200` with the stored row**, so a retry after a lost response is not a
+**The same text sent again while the round is writable is a `200` with the stored row**, so a retry after a lost response is not a
 refusal; any other text, or a transcribed answer, is the `422`. Written only while `transcript_raw`
 is null, so it can never replace a transcript (invariant 4). Calls no model, so it is not
 rate-limited.

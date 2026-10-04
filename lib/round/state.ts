@@ -1,5 +1,7 @@
 import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import * as s from "../../db/schema";
+import { apiError } from "../api/errors";
+import { roundAbandoned } from "./http";
 import type { Db } from "./http";
 import { roundStatus } from "./status";
 
@@ -165,6 +167,12 @@ export async function newerRoundExists(db: Reader, round: Pick<RoundRow, "id" | 
  */
 export async function isAbandoned(db: Reader, round: RoundRow) {
   return roundStatus(round, { newerRoundExists: await newerRoundExists(db, round), now: new Date() }) === "abandoned";
+}
+
+export async function roundWriteRefusal(db: Reader, roundId: string): Promise<Response | null> {
+  const [round] = await db.select().from(s.rounds).where(eq(s.rounds.id, roundId)).for("update");
+  if (round.completedAt !== null) return apiError("round_already_complete", "The round is already complete.", { round_id: roundId });
+  return (await isAbandoned(db, round)) ? roundAbandoned(roundId) : null;
 }
 
 export type AttemptRow = typeof s.scoringAttempts.$inferSelect;

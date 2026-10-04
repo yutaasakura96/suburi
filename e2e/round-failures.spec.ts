@@ -292,6 +292,29 @@ test("an upload that fails is held on this device, survives a reload, and the re
   expect(await warnsBeforeUnload(page)).toBe(false);
 });
 
+test("an audio-missing response keeps the original take for upload retry", async ({ page }) => {
+  await signIn(page);
+  const roundId = await startRound(page);
+  await page.route("**/api/answers/*/transcribe", (route) =>
+    route.fulfill({
+      status: 404,
+      contentType: "application/json",
+      body: JSON.stringify({ error: { code: "audio_missing", message: "No take has been uploaded.", detail: {} } }),
+    }),
+  );
+  await page.goto(`/round/${roundId}`);
+  await record(page);
+  await expect(page.getByTestId("take-notice")).toContainText(HELD);
+  await expect(page.getByRole("button", { name: "Start recording" })).toHaveCount(0);
+  const [held] = await heldTakes(page);
+  expect(held).toMatchObject({ roundId, position: 1 });
+  await page.unroute("**/api/answers/*/transcribe");
+  await page.getByRole("button", { name: "Try again" }).click();
+  await expect(page.getByTestId("raw-transcript")).toHaveText(RAW);
+  expect(await heldTakes(page)).toEqual([]);
+  expect(await answersOf(roundId)).toHaveLength(1);
+});
+
 test("a take that cannot be transcribed is kept: retry and typing are both offered, and a typed answer is stored as typed", async ({ page }) => {
   await signIn(page);
   const roundId = await startRound(page);
@@ -384,11 +407,17 @@ test("a take no retry could ever send is not held: the question is recorded agai
   expect(await warnsBeforeUnload(page)).toBe(false);
 });
 
-test("a reload after the upload and before the transcript resumes at transcribe, and asks for no new take", async ({ page }) => {
+test("an unconfirmed upload resumes at upload, then transcription completes without a new take", async ({ page }) => {
   await signIn(page);
   const roundId = await startRound(page);
   const answerId = await uploadByApi(page, roundId);
+  expect((await resumeOf(page, roundId)).resume).toEqual({ at: "upload", answer_id: answerId });
+
+  transcriptionFails = true;
+  const failed = await page.request.post(`/api/answers/${answerId}/transcribe`, { data: {} });
+  expect((await failed.json()).error.code).toBe("transcription_failed");
   expect((await resumeOf(page, roundId)).resume).toEqual({ at: "transcribe", answer_id: answerId });
+  transcriptionFails = false;
 
   await page.goto(`/round/${roundId}`);
   await expect(page.getByTestId("raw-transcript")).toHaveText(RAW);

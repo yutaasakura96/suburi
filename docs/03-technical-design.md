@@ -587,7 +587,7 @@ stamp: replacing it needs no re-score and draws no boundary.
 | Service | Blast radius | Behaviour |
 | --- | --- | --- |
 | **OpenAI** | No questions, no transcripts, no scores | Recording and correction still work. **Preflight at round setup** — a round is never started into a broken scorer, because a round that cannot deliver feedback while the user is there is a defect, not a degraded experience. Mid-round failure: scoring retries with backoff; if it still fails, the round completes with scores pending and the feedback screen says so plainly rather than spinning. |
-| **S3** | Cannot upload a take | The blob stays in the browser (IndexedDB) and retries. The user is told the take is held locally and must not close the tab. **As built (#48):** the take is written to IndexedDB the moment it exists and removed once its PUT succeeds, one per round, so a reload returns to the held take and its retry; the browser's leave-page warning is on for as long as a take has not reached S3. The retry is the user's, not a timer's. |
+| **S3** | Cannot upload a take | The blob stays in the browser (IndexedDB) and retries. The user is told the take is held locally and must not close the tab. **As built (#48):** the take is written to IndexedDB the moment it exists and removed once the server confirms reading the object, one per round, so a reload returns to the held take and its retry; the browser's leave-page warning is on until that confirmation. The retry is the user's, not a timer's. |
 | **Neon** | App is down | No mitigation at this scale. Accepted. |
 | **Google IdP** | Cannot sign in | An existing session cookie keeps working for its lifetime. |
 | **Vercel** | App is down | Accepted. |

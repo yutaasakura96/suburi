@@ -6,6 +6,7 @@ import type { Transcriber } from "../ai/transcribe";
 import type { AudioStore } from "../audio/store";
 import { answerIdOf, authenticate, guarded, isUuid, log, notFound, writeFailed, type RoundDeps } from "./http";
 import { pace } from "./measures";
+import { roundWriteRefusal } from "./state";
 
 /**
  * `POST /api/answers/{answerId}/transcribe` ⚡ (07 §5.7): transcribes the object the browser PUT,
@@ -42,6 +43,8 @@ export function createTranscribe(deps: TranscribeDeps) {
       .from(s.answers)
       .where(and(eq(s.answers.id, answerId), eq(s.answers.userId, userId)));
     if (!answer) return notFound("answer");
+    const initialRefusal = await deps.transaction((tx) => roundWriteRefusal(tx, answer.roundId));
+    if (initialRefusal) return initialRefusal;
     if (answer.transcriptRaw !== null) return Response.json(view(answer));
 
     const started = performance.now();
@@ -60,9 +63,13 @@ export function createTranscribe(deps: TranscribeDeps) {
 
     if (answer.audioUploadedAt === null) {
       try {
-        await deps.transaction((tx) =>
-          tx.update(s.answers).set({ audioUploadedAt: new Date() }).where(and(eq(s.answers.id, answerId), isNull(s.answers.audioUploadedAt))),
-        );
+        const refusal = await deps.transaction(async (tx) => {
+          const blocked = await roundWriteRefusal(tx, answer.roundId);
+          if (blocked) return blocked;
+          await tx.update(s.answers).set({ audioUploadedAt: new Date() }).where(and(eq(s.answers.id, answerId), isNull(s.answers.audioUploadedAt)));
+          return null;
+        });
+        if (refusal) return refusal;
       } catch (error) {
         return writeFailed("upload_confirmation_write_failed", error, { answer_id: answerId });
       }
@@ -87,8 +94,10 @@ export function createTranscribe(deps: TranscribeDeps) {
     let stored;
     try {
       // Written only while still null: a concurrent call that finished first keeps its transcript.
-      [stored] = await deps.transaction((tx) =>
-        tx
+      const writeResult = await deps.transaction(async (tx) => {
+        const refusal = await roundWriteRefusal(tx, answer.roundId);
+        if (refusal) return refusal;
+        const [updated] = await tx
           .update(s.answers)
           .set({
             transcriptRaw: result.text,
@@ -97,8 +106,11 @@ export function createTranscribe(deps: TranscribeDeps) {
             transcriberModelId: deps.transcriber.modelId,
           })
           .where(and(eq(s.answers.id, answerId), isNull(s.answers.transcriptRaw)))
-          .returning(),
-      );
+          .returning();
+        return updated;
+      });
+      if (writeResult instanceof Response) return writeResult;
+      stored = writeResult;
     } catch (error) {
       return writeFailed("transcript_write_failed", error, { answer_id: answerId });
     }
