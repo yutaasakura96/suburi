@@ -195,12 +195,10 @@ Carry these; do not silently decide them in a ticket.
   answer has been scored. Decide it deliberately if a third prompt version ever ships. **#29 shipped
   one** (`cv-extract-ja-1.2`, `cv-extract-en-1.3`) before production reads any CV (#21), which is what
   keeps this moot for now; the stored versions it cannot reach are `develop`'s and the local ones.
-- **One drawn-but-unspecified screen:** practice mode's record frames differ from realistic mode's.
-  Listed in `docs/10-screen-specifications.md` §12. **Its shape is decided** (`06`, 2026-09-27): a
-  per-answer frame once scored, a re-take and an "answer again", round feedback at the end. The screens
-  are specified in `10` before the practice slice builds them. **The CV screen came off this list in #12** — it
-  still has no artboard, but it is specified in `10` §13 from `05` components, which is the whole of
-  what it needed, and `10` §12's own entry is struck through to say so.
+- ~~**One drawn-but-unspecified screen:**~~ **Closed by #49.** Practice mode's frames were never
+  drawn; they are specified in `docs/10-screen-specifications.md` §15 from `05` components — a re-take
+  on the record frames, a per-answer frame once each answer is scored, "answer again", and round
+  feedback at the end with no pressure rating — the way the CV screen was in #12 (`10` §13).
 - ~~**Japanese copy that has not had its native read.**~~ **Closed 2026-09-27 (#38) — by an AI
   review, not a native read.** The user does not read Japanese and delegated
   `docs/checklists/native-read-cv.md` to Claude: every CV-screen string and `cv_too_large` accepted,
