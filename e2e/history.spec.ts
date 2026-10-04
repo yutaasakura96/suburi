@@ -286,6 +286,27 @@ test("a recording the browser cannot play says so, and the transcripts stay", as
   await expect(page.getByTestId("history-raw")).toContainText("Because I have done this migration once already");
 });
 
+test("failed and pending attempts under another model do not appear in displayed score stamps", async ({ page }) => {
+  await withDb(async (db) => {
+    await db.update(s.scoringAttempts).set({ modelId: "unscored-model-2026-10-05" }).where(
+      inArray(s.scoringAttempts.id, [id("failed-en:q2:attempt"), id("pending-en:q3:attempt")]),
+    );
+  });
+  await signIn(page);
+
+  for (const roundName of ["failed-en", "pending-en"]) {
+    await page.goto(`/history/${id(roundName)}`);
+    await expect(page.getByTestId("history-stamp")).toContainText("synthetic-fixture");
+    await expect(page.getByTestId("history-stamp")).not.toContainText("unscored-model-2026-10-05");
+  }
+  const response = await page.request.get("/api/rounds");
+  expect(response.status()).toBe(200);
+  const listed = (await response.json()).items as { id: string; stamps: { scoring_model_ids: string[] } }[];
+  for (const roundName of ["failed-en", "pending-en"]) {
+    expect(listed.find((round) => round.id === id(roundName))?.stamps.scoring_model_ids).not.toContain("unscored-model-2026-10-05");
+  }
+});
+
 test("a retry that fails says so and leaves the answer retryable", async ({ page }) => {
   // The run spends its three retries first, 14 s of backoff apart (07 §5.10).
   test.setTimeout(90_000);

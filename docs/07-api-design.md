@@ -812,8 +812,8 @@ which is that same state.
 
 Performs a pending attempt. **Normally not called over HTTP at all** — `submit` schedules the same
 work in `after()` (see the trigger note below), while the user is already recording the next answer.
-This endpoint is the **History retry path**: the way a `pending` or `failed` attempt is driven to
-completion by hand.
+This endpoint is the **History retry path**: it drives a `pending` attempt to completion by hand.
+For a `failed` attempt, History first creates a new `pending` row (§5.11), then runs that row.
 
 **What the scorer reads** (`03` §4, `06`, 2026-09-27): the round's rubric version, the prompt as
 asked, the **corrected** transcript — never the raw one — the answer's duration and its pace, and the
@@ -826,7 +826,7 @@ has no such boundary.
 
 ```json
 200
-{ "attempt_id": "s903…", "status": "ok",
+{ "attempt_id": "s903…", "answer_id": "a312…", "status": "ok",
   "scores": [ { "dimension": "structure", "value": 4 }, { "dimension": "evidence", "value": 3 },
               { "dimension": "relevance", "value": 4 }, { "dimension": "fluency", "value": 3 },
               { "dimension": "accuracy", "value": 4 }, { "dimension": "length_pacing", "value": 3 },
@@ -842,10 +842,10 @@ view that computes one, and no response field that carries one. PRD §9, refusal
 returned a mean would make the schema's guarantee cosmetic.
 
 **Idempotent and abandon-safe.** Only `status = 'pending'` transitions. A second call while the first
-is in flight is a `409 scoring_in_progress`; a call on a finished attempt returns it unchanged. Nothing awaits the scoring
-work, so a function terminated at the 300s ceiling — or one that dies mid-flight — leaves a row
-pending with no error raised anywhere. That is why a stuck `pending` is alerted on daily
-(`12-deployment.md` §6) and retryable from History. **A pending score is a
+is in flight is a `409 scoring_in_progress`; a call on a finished attempt returns it unchanged. `submit`
+does not await its scheduled scoring work. A function terminated at the 300s ceiling — or one that dies
+mid-flight — leaves a row pending with no error raised anywhere. That is why a stuck `pending` is
+alerted on daily (`12-deployment.md` §6) and retryable from History. **A pending score is a
 first-class state, not an error** (`03` §5): History and Progress both render it, and
 **Progress excludes pending and failed attempts from trend lines rather than treating them as zero.**
 
@@ -1085,7 +1085,8 @@ GET /api/rounds?limit=20&language=ja&round_type=behavioural
 
 Every row carries its stamps, because History is where a change of stamp has to be legible per row —
 Progress draws the boundary line, History says which side a round is on (refusal #5). `status` is the
-derived `in_progress` / `abandoned` / `complete` of §5.5 — what History's `中断` line reads.
+derived `in_progress` / `abandoned` / `complete` of §5.5 — what History's `Abandoned` line reads
+(`10` §10).
 
 **As built (#50).**
 

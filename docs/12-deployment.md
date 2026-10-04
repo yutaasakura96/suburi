@@ -65,11 +65,10 @@ synthetic rounds; only the user row was ever seeded (§3 step 8). What the CV sl
   user-row-only, because production runs it (§3 step 9) and a synthetic CV in Neon `main` would be the
   version the first real rounds are scored against. Fixtures: `db/seed-cv.ts`.
 
-Synthetic questions and rounds still arrive with the slice that first needs them. **The round loop
-names them** (`06`, 2026-09-27): the tracer needs a few synthetic generated-origin bank questions per
-round type and language, so a round can be filled before generation exists; History and Progress need
-synthetic completed rounds with scores, to be verified on `develop` at all. Both are fixtures, like the
-CV's, and never call a model.
+**The round loop names the fixture needs** (`06`, 2026-09-27): generated-origin bank questions let a
+round be filled before generation exists, and scored rounds make History and Progress verifiable on
+`develop`. The #42, #43 and #50 entries below record the seeds that now supply them; the fixtures
+never call a model.
 
 **What the tracer added (#42).** `db:seed:develop` now also seeds rubric `en` v1.0 and the English set
 pieces — the same checked-in rows production will get — and **17 synthetic generated-origin English

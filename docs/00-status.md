@@ -45,7 +45,7 @@ all ten samples, four English and six Japanese, sounded correct. **The issue sta
 follow-ups:** the route does not read #44's `follow_ups` yet, so a follow-up is asked as text. The
 pinned model and its replacement deadline are in `03` §4.
 **#50, History, is built (2026-10-04), on `fm/suburi-50`** (Next).
-**Updated:** 2026-10-04 (#43, #44, #45, #46, #47 and #50 built; #42 closed; #55 and #56 on 2026-09-30)
+**Updated:** 2026-10-05 (#50's catalogue string read; #43, #44, #45, #46, #47 and #50 built; #42 closed; #55 and #56 on 2026-09-30)
 
 ## Done
 - Phase 1 — `docs/01-project-brief.md`, `docs/02-product-requirements.md`, `docs/06-decision-log.md`.
