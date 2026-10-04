@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { zodTextFormat } from "openai/helpers/zod";
 import { z } from "zod";
+import { openAiFollowUpGenerator } from "../lib/ai/follow-up.ts";
 import { SCORING_MODEL, TRANSCRIPTION_MODEL } from "../lib/ai/models.ts";
 import { openAiRoundFeedbackGenerator } from "../lib/ai/round-feedback.ts";
 import { openAiAnswerScorer } from "../lib/ai/score.ts";
@@ -19,9 +20,9 @@ import { EN_1_0 } from "../lib/rubric/en-1.0.ts";
 //
 //   OPENAI_API_KEY=… node --import ./scripts/resolve-ts.mts scripts/measure-round-latency.mts
 //
-// Scoring and round feedback run through the real ports and prompts. Follow-up and question
-// generation have no port yet (#44, #47), so they run **draft** prompts below, of the size the real
-// ones will have; a draft is not a prompt version and nothing here is stored. Transcription reads a
+// Scoring, round feedback and follow-up generation run through the real ports and prompts. Question
+// generation has no port yet (#47), so it runs a **draft** prompt below, of the size the real one
+// will have; a draft is not a prompt version and nothing here is stored. Transcription reads a
 // take synthesised by TTS and re-encoded to webm/opus by ffmpeg, the browser's format. TTS is timed
 // to the first audio byte (when playback can start) and to the last.
 //
@@ -119,27 +120,12 @@ function quantile(sorted: number[], q: number) {
   return sorted[low] + (sorted[Math.ceil(at)] - sorted[low]) * (at - low);
 }
 
-// --- Draft prompts (no port yet) -------------------------------------------------------------------
-
-const DRAFT_FOLLOW_UP = `You are the interviewer in a job-interview practice round, in English. You receive the question you
-asked and the candidate's answer. Ask exactly one follow-up question that digs into the weakest or
-vaguest part of the answer: a missing number, an unclear role, a claim without an example. One
-sentence, at most 30 words, spoken naturally. Do not evaluate the answer.`;
+// --- Draft prompt (no port yet) --------------------------------------------------------------------
 
 const DRAFT_QUESTIONS = `You write interview questions for a candidate practising job interviews in English. You receive the
 round type and how many questions are needed. Write that many distinct questions a real interviewer of
 that type would ask, each one sentence, answerable in two to four minutes, none a yes/no question, and
 none repeating another's topic. Vary them: experience, judgement, conflict, learning, motivation.`;
-
-async function followUp(answer: (typeof ANSWERS)[number]) {
-  const response = await client.responses.parse({
-    model: SCORING_MODEL,
-    instructions: DRAFT_FOLLOW_UP,
-    input: `Question: ${answer.prompt}\n\nAnswer:\n${answer.text}`,
-    text: { format: zodTextFormat(z.object({ follow_up: z.string() }), "follow_up") },
-  });
-  recordTokens("follow-up generation (draft)", response.usage?.input_tokens, response.usage?.output_tokens);
-}
 
 async function questions(count: number) {
   const response = await client.responses.parse({
@@ -156,6 +142,7 @@ async function questions(count: number) {
 
 const scorer = openAiAnswerScorer({ apiKey });
 const generator = openAiRoundFeedbackGenerator({ apiKey });
+const followUpGenerator = openAiFollowUpGenerator({ apiKey });
 const transcriber = openAiTranscriber({ apiKey });
 
 interface Scored {
@@ -212,6 +199,7 @@ async function measureFeedback(scored: Scored[]) {
           const durationMs = spokenMs(answer.text);
           return {
             position: index + 1,
+            followUp: false,
             prompt: answer.prompt,
             answer: answer.text,
             durationMs,
@@ -232,9 +220,20 @@ async function measureFeedback(scored: Scored[]) {
   }
 }
 
+/** The real port and prompt (#44): what the user waits for between an answer and its follow-up. */
+async function measureFollowUps() {
+  for (let run = 0; run < RUNS; run += 1) {
+    for (const answer of ANSWERS) {
+      const result = await timed("follow-up generation", () =>
+        followUpGenerator.generate({ language: "en", roundType: "hr", prompt: answer.prompt, answer: answer.text }),
+      );
+      recordTokens("follow-up generation", result.tokensIn, result.tokensOut);
+    }
+  }
+}
+
 async function measureGeneration() {
   for (let run = 0; run < RUNS; run += 1) {
-    for (const answer of ANSWERS) await timed("follow-up generation (draft)", () => followUp(answer));
     for (const count of [3, 7]) {
       const bodies = await timed(`question generation, ${count} (draft)`, () => questions(count));
       if (bodies.length > 0) {
@@ -298,6 +297,7 @@ async function measureTranscription() {
 console.log(`Measuring ${RUNS} run(s) of each: ${SCORING_MODEL}, ${TRANSCRIPTION_MODEL}, ${TTS_MODEL}, ${EMBEDDING_MODEL}.`);
 const scored = await measureScoring();
 await measureFeedback(scored);
+await measureFollowUps();
 await measureGeneration();
 await measureSpeech();
 await measureTranscription();

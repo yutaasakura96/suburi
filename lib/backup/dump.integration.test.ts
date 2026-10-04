@@ -138,6 +138,16 @@ async function seedEverything(db: TestDb) {
   // Self-references in both directions: a follow-up and a retry.
   await db.insert(s.answers).values(answerValues(world, round.id, { questionId: null, parentAnswerId: first.id, position: 2 }));
   await db.insert(s.answers).values(answerValues(world, round.id, { retryOfAnswerId: first.id, position: 3 }));
+  await db.insert(s.followUps).values({
+    parentAnswerId: first.id,
+    userId: world.userId,
+    status: "generated",
+    promptText: AWKWARD,
+    modelId: "fixture-model",
+    promptVersion: "follow-up-fixture",
+    tokensIn: 400,
+    tokensOut: 20,
+  });
   const [attempt] = await db
     .insert(s.scoringAttempts)
     .values({ ...attemptValues(world, first.id), status: "ok", answeredLanguage: "en", tokensIn: 3_000, tokensOut: 600 })

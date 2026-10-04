@@ -40,6 +40,28 @@ export function AnswerPager({
         {answer.scores.map((score) => (
           <ScoreRow key={score.key} label={score.labels[reading]} value={score.value} unscored={unscored} />
         ))}
+        {/* 10 §8: the follow-up shares the row rhythm and carries no scale; its scores are History's. */}
+        {answer.followUp ? (
+          <div className="flex items-baseline gap-[18px] border-t border-rule-row py-[11px] last:border-b" data-testid="follow-up-row">
+            <span className="w-[120px] shrink-0 text-[12px] text-ink-6">{copy.followUp}</span>
+            {answer.followUp.kind === "missing" ? (
+              <span className="text-[12px] text-attention-ink" data-testid="follow-up-missing">
+                {copy.followUpMissing}
+              </span>
+            ) : (
+              <>
+                <span className="flex-1 text-[12px] leading-[1.7] text-ink-7">{answer.followUp.text}</span>
+                <span className="shrink-0 text-[11px] text-ink-label">
+                  {answer.followUp.status === "ok"
+                    ? copy.followUpScored(answer.scores.length)
+                    : answer.followUp.status === "pending"
+                      ? copy.followUpNotScoredYet
+                      : copy.followUpNotScored}
+                </span>
+              </>
+            )}
+          </div>
+        ) : null}
       </div>
       {answer.answeredIn ? (
         <div data-testid="wrong-language">

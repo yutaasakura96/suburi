@@ -220,7 +220,7 @@ The definitions and anchors are what the scoring model reads; no screen shows th
 ## 6. What cannot be read in advance
 
 The feedback itself — the justifications, `直すところ` and `良かったところ` — is written by the model
-per round. `lib/prompts/score-ja-1.0.ts` and `lib/prompts/feedback-ja-1.0.ts` are written in English
+per round. `lib/prompts/score-ja-1.0.ts` and `lib/prompts/feedback-ja-1.1.ts` are written in English
 and ask for plain form (常体) throughout, counters in 件・問・分・秒・字 and quotes in 「」; whether the
 model's Japanese keeps to that is read on the first real Japanese round on `develop`, and a rule it
 breaks is a prompt version, not an edit.
@@ -250,3 +250,36 @@ app.
 | | 未使用 —「…」「…」 | The picked unused claims — Unused: “…” “…”. Already in the artboards. |
 | | 未使用 — この回で挙げる記載事項はなし。 | Nothing was picked — Unused: nothing picked for this round. |
 | | 英語での回答です。日本語の進捗には入れません。 | Under an answer given in English to a Japanese round — This answer was given in English. It is kept out of your Japanese progress. |
+
+## 8. #44, follow-ups
+
+**Unread:** these arrived from #44 after the 2026-10-03 review of §1–§5, and nobody has read them.
+`深掘り` is the word `05` §6 settled for a follow-up. ★ marks a string `10` §3–§8 or `05` §5 already
+quotes; the rest were written for #44, each as the Japanese of a string it wrote in English.
+
+**On a Japanese round's screens** (`app/(app)/round/copy.ts`):
+
+| | Japanese | Intent |
+| --- | --- | --- |
+| | 第2問 / 5問・深掘り | The header's step while a follow-up is asked — Question 2 / 5 · follow-up. It shares its question's number (`10` §3). |
+| | ★ 送ると、いま直した文から深掘りが1問つくられます。 | The send caption under a question's answer — Sending writes one follow-up question from the text you just corrected. |
+| | 送っています。深掘りの質問をつくっています。 | While that send is in flight — Sending. The follow-up question is being written. |
+| | 回答は保存されています。このページを開いた時点では、深掘りの質問がまだつくられていませんでした。 | The answer was committed and its follow-up was not stored when the page loaded (`10` §6) — Your answer is saved. Its follow-up question had not been written when this page loaded. |
+| | 先へ進む | The one button on that frame — Go on. |
+| | 上の回答はこのまま保存され、採点されます。あとから変えることはできません。 | Its caption — The answer above is saved and scored as it is. It cannot be changed. |
+| | ★ └ 深掘り | The follow-up row's label on the feedback screen (`10` §8). |
+| | ★ 7項目を採点。進捗には入れません。 | Beside a scored follow-up — Scored on 7 dimensions. Not counted in progress. |
+| | 採点中。進捗には入れません。 | Its scoring has not finished — Not scored yet. Not counted in progress. `採点中` and `未採点` are §2's words. |
+| | 未採点。進捗には入れません。 | Its scoring failed — Not scored. Not counted in progress. |
+| | ★ 深掘りが生成されませんでした。空欄として記録しています。 | The row of a follow-up that was not generated — The follow-up was not generated. It is recorded as a gap. |
+
+The catalogue's `followup_generation_failed` sentence, shown when the follow-up could not be
+generated, was read with #13.
+
+**What cannot be read in advance.** `lib/prompts/follow-up-ja-1.0.ts` asks the model for one 深掘り,
+in the です・ます register, at most 60 characters. Its instructions are in English; what needs the
+read is its **output**. `lib/prompts/feedback-ja-1.1.ts` names a follow-up's answer as
+`第2問の深掘り` in the findings. Both are read on the first real Japanese round with follow-ups on
+`develop`: a handful of generated follow-ups, for whether an interviewer would say them, and the
+findings, for whether that name reads naturally. A rule either breaks is a prompt version, not an
+edit.

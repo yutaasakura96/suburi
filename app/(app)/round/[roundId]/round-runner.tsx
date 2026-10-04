@@ -18,9 +18,12 @@ interface Transcript {
   readonly wpm: number | null;
 }
 
+/** What is being asked: a bank question, or the follow-up to its answer, at the same position. */
 interface Question {
   readonly position: number;
   readonly text: string;
+  /** Set for a follow-up: its prompt version, which its answer carries where a question's carries the generator's. */
+  readonly followUpVersion: string | null;
 }
 
 type Screen =
@@ -28,12 +31,28 @@ type Screen =
   | { readonly kind: "uploading"; readonly question: Question; readonly take: Take }
   | { readonly kind: "transcript"; readonly question: Question; readonly transcript: Transcript }
   | { readonly kind: "correct"; readonly question: Question; readonly transcript: Transcript }
+  /**
+   * The answer is submitted and the round has not moved on: its follow-up could not be generated
+   * (`missing`), or the page loaded before it was stored (`reloaded`). The same text sent again is
+   * what moves it on (07 §5.9); it can no longer be edited.
+   */
+  | {
+      readonly kind: "saved";
+      readonly question: Question;
+      readonly answerId: string;
+      readonly corrected: string;
+      readonly reason: "missing" | "reloaded";
+    }
   | { readonly kind: "pressure" }
   | { readonly kind: "abandoned"; readonly answered: number };
 
 function initialScreen(start: RoundFrame["start"]): Screen {
+  if (start.kind === "follow_up_due") {
+    const question = { position: start.position, text: start.text, followUpVersion: null };
+    return { kind: "saved", question, answerId: start.answerId, corrected: start.corrected, reason: "reloaded" };
+  }
   if (start.kind !== "question") return start;
-  const question = { position: start.position, text: start.text };
+  const question = { position: start.position, text: start.text, followUpVersion: start.followUpVersion };
   return start.transcript ? { kind: "transcript", question, transcript: start.transcript } : { kind: "asked", question };
 }
 
@@ -50,7 +69,16 @@ interface Transcribed {
 }
 
 interface Submitted {
-  next: { kind: "question"; position: number; text: string } | { kind: "pressure" } | { kind: "feedback" };
+  next:
+    | { kind: "question"; position: number; text: string }
+    | { kind: "follow_up"; position: number; text: string; prompt_version: string }
+    | { kind: "pressure" }
+    | { kind: "feedback" };
+}
+
+interface Failure {
+  readonly text: string;
+  readonly retry: (() => void) | null;
 }
 
 /**
@@ -62,8 +90,9 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
   const copy = ROUND_COPY[language];
   const router = useRouter();
   const [screen, setScreen] = useState<Screen>(() => initialScreen(frame.start));
-  const [error, setError] = useState<{ text: string; retry: (() => void) | null } | null>(null);
+  const [error, setError] = useState<Failure | null>(null);
   const [busy, setBusy] = useState(false);
+  const [followUpVersions, setFollowUpVersions] = useState(frame.followUpVersions);
   const { round } = frame;
 
   const position =
@@ -79,12 +108,22 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
       meta={copy.meta(round.length)}
       done={done}
       length={round.length}
-      step={copy.step(position, round.length)}
+      step={
+        "question" in screen && screen.question.followUpVersion !== null
+          ? copy.followUpStep(position, round.length)
+          : copy.step(position, round.length)
+      }
     />
   );
-  // 10 §3: the question's generator version and the CV version; the rubric joins them where scores are.
-  const stamp = (question: Question) => copy.stamps([frame.generatorVersions[question.position - 1], frame.cvLabel]);
-  const roundStamp = copy.stamps([copy.rubricStamp(frame.rubricLabel), ...new Set(frame.generatorVersions), frame.cvLabel]);
+  // 10 §3: the prompt's generator version and the CV version; the rubric joins them where scores are.
+  // A follow-up's is the follow-up prompt's version (04 `scoring_attempts`).
+  const stamp = (question: Question) =>
+    copy.stamps([question.followUpVersion ?? frame.generatorVersions[question.position - 1], frame.cvLabel]);
+  const roundStamp = copy.stamps([
+    copy.rubricStamp(frame.rubricLabel),
+    ...new Set([...frame.generatorVersions, ...followUpVersions]),
+    frame.cvLabel,
+  ]);
 
   function fail(code: FailureCode, retry: (() => void) | null) {
     setError({ text: failureText(code, language), retry: code === "round_abandoned" ? null : retry });
@@ -137,17 +176,25 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
     });
   }
 
-  async function submit(question: Question, transcript: Transcript, corrected: string) {
+  /** Submit (07 §5.9). The same text sent again is a retry: it returns what the first call made. */
+  async function submit(question: Question, answerId: string, corrected: string) {
     setError(null);
     setBusy(true);
-    const submitted = await postJson<Submitted>(`/api/answers/${transcript.answerId}/submit`, {
-      transcript_corrected: corrected,
-    });
-    if (!submitted.ok) return fail(submitted.code, () => void submit(question, transcript, corrected));
+    const submitted = await postJson<Submitted>(`/api/answers/${answerId}/submit`, { transcript_corrected: corrected });
+    if (!submitted.ok) {
+      if (submitted.code !== "followup_generation_failed") return fail(submitted.code, () => void submit(question, answerId, corrected));
+      // Not fatal: the answer is saved and the hole is recorded. The round goes on without the follow-up.
+      setBusy(false);
+      setScreen({ kind: "saved", question, answerId, corrected, reason: "missing" });
+      return;
+    }
     setBusy(false);
     const next = submitted.json.next;
     if (next.kind === "question") {
-      setScreen({ kind: "asked", question: { position: next.position, text: next.text } });
+      setScreen({ kind: "asked", question: { position: next.position, text: next.text, followUpVersion: null } });
+    } else if (next.kind === "follow_up") {
+      setFollowUpVersions((versions) => (versions.includes(next.prompt_version) ? versions : [...versions, next.prompt_version]));
+      setScreen({ kind: "asked", question: { position: next.position, text: next.text, followUpVersion: next.prompt_version } });
     } else {
       setScreen({ kind: "pressure" });
     }
@@ -211,7 +258,20 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
           busy={busy}
           error={error}
           stamp={stamp(screen.question)}
-          onSubmit={(corrected) => void submit(screen.question, screen.transcript, corrected)}
+          onSubmit={(corrected) => void submit(screen.question, screen.transcript.answerId, corrected)}
+        />
+      );
+      break;
+    case "saved":
+      body = (
+        <SavedFrame
+          copy={copy}
+          question={screen.question}
+          missing={screen.reason === "missing"}
+          notice={screen.reason === "missing" ? failureText("followup_generation_failed", frame.round.language) : copy.followUpNotStored}
+          busy={busy}
+          error={error}
+          onGoOn={() => void submit(screen.question, screen.answerId, screen.corrected)}
         />
       );
       break;
@@ -230,7 +290,7 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
   );
 }
 
-function ErrorLine({ error, retryLabel }: { error: { text: string; retry: (() => void) | null } | null; retryLabel: string }) {
+function ErrorLine({ error, retryLabel }: { error: Failure | null; retryLabel: string }) {
   if (!error) return null;
   return (
     <div className="flex flex-col gap-[10px]">
@@ -259,7 +319,7 @@ function RecordFrame({
   question: Question;
   uploading: boolean;
   onTake: (take: Take) => void;
-  error: { text: string; retry: (() => void) | null } | null;
+  error: Failure | null;
   stamp: string;
 }) {
   const recorder = useRecorder(capSeconds, onTake);
@@ -397,10 +457,12 @@ function CorrectionFrame({
   question: Question;
   transcript: Transcript;
   busy: boolean;
-  error: { text: string; retry: (() => void) | null } | null;
+  error: Failure | null;
   stamp: string;
   onSubmit: (corrected: string) => void;
 }) {
+  // A bank question's answer gets one follow-up, made from this text; a follow-up's own answer gets none.
+  const followUpNext = question.followUpVersion === null;
   const [text, setText] = useState(transcript.raw);
   // The meter trails typing rather than blocking it; the server stores the same measure (07 §5.9).
   const deferred = useDeferredValue(text);
@@ -464,7 +526,17 @@ function CorrectionFrame({
           <Button onClick={() => onSubmit(text)} disabled={busy || empty}>
             {copy.send}
           </Button>
-          <p className={caption}>{busy ? copy.sending : empty ? copy.emptyAnswer : copy.sendCaption}</p>
+          <p className={caption}>
+            {busy
+              ? followUpNext
+                ? copy.sendingForFollowUp
+                : copy.sending
+              : empty
+                ? copy.emptyAnswer
+                : followUpNext
+                  ? copy.sendCaptionFollowUp
+                  : copy.sendCaption}
+          </p>
           <p className="font-mono text-[10px] leading-[1.9] text-ink-8">
             {transcript.durationMs !== null && transcript.wpm !== null ? copy.takeSummary(transcript.durationMs, transcript.wpm) : null}
             <br />
@@ -472,6 +544,51 @@ function CorrectionFrame({
           </p>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * 10 §6, after the commit: the answer is saved and can no longer be edited, and the round has not
+ * moved on — its follow-up could not be generated, or was not stored before the page loaded. One
+ * control goes on; a missing follow-up is said, never skipped silently (PRD US-7).
+ */
+function SavedFrame({
+  copy,
+  question,
+  missing,
+  notice,
+  busy,
+  error,
+  onGoOn,
+}: {
+  copy: RoundCopy;
+  question: Question;
+  /** The hole takes the attention colour; a follow-up merely not stored yet does not. */
+  missing: boolean;
+  notice: string;
+  busy: boolean;
+  error: Failure | null;
+  onGoOn: () => void;
+}) {
+  return (
+    <div className="flex flex-grow flex-col gap-[22px] px-[32px] pt-[36px] pb-[32px]">
+      <p className="max-w-[880px] text-[14px] leading-[1.85] text-ink-5">{question.text}</p>
+      <div className="h-px bg-rule-row" />
+      <div data-testid="follow-up-notice">
+        <CalloutRail tone={missing ? "attention" : "information"}>{notice}</CalloutRail>
+      </div>
+      <div className="flex flex-col gap-[10px]">
+        <ErrorLine error={error} retryLabel={copy.tryAgain} />
+        <Button onClick={onGoOn} disabled={busy} className="self-start">
+          {copy.goOn}
+        </Button>
+        <p className={caption} role="status">
+          {busy ? copy.sending : copy.goOnCaption}
+        </p>
+      </div>
+      <div className="flex-grow" />
+      <div className="border-t border-rule-section pt-[14px] text-[12px] text-ink-6">{copy.withheld}</div>
     </div>
   );
 }
@@ -491,7 +608,7 @@ function PressureFrame({
   copy: RoundCopy;
   language: RoundLanguage;
   busy: boolean;
-  error: { text: string; retry: (() => void) | null } | null;
+  error: Failure | null;
   stamp: string;
   onPick: (value: number) => void;
 }) {

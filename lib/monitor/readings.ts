@@ -88,8 +88,8 @@ async function roundsWithoutFeedback(db: Db, userId: string, now: Date) {
 
 /**
  * Every stored token pair in the window, by model, each row counted in the week of its own
- * `created_at` with no round attribution (06, 2026-09-29). `follow_ups` joins this union when it is
- * built (04). Transcription, speech, embeddings and CV extraction store no tokens and are not here.
+ * `created_at` with no round attribution (06, 2026-09-29). Transcription, speech, embeddings and CV
+ * extraction store no tokens and are not here.
  */
 async function tokenTotals(db: Db, userId: string, window: Week): Promise<TokenTotals[]> {
   const result = await db.execute<{ model_id: string | null; tokens_in: string; tokens_out: string }>(sql`
@@ -103,6 +103,9 @@ async function tokenTotals(db: Db, userId: string, window: Week): Promise<TokenT
       union all
       select f.model_id, f.tokens_in, f.tokens_out, f.created_at
         from ${s.roundFeedback} f join ${s.rounds} r on r.id = f.round_id where r.user_id = ${userId}
+      union all
+      select model_id, tokens_in, tokens_out, created_at
+        from ${s.followUps} where user_id = ${userId}
     ) token_rows
     where created_at >= ${window.start} and created_at < ${window.end}
       and (tokens_in is not null or tokens_out is not null)

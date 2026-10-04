@@ -1,7 +1,7 @@
 import { zodTextFormat } from "openai/helpers/zod";
 import { z } from "zod";
-import * as en from "../prompts/feedback-en-1.1.ts";
-import * as ja from "../prompts/feedback-ja-1.0.ts";
+import * as en from "../prompts/feedback-en-1.2.ts";
+import * as ja from "../prompts/feedback-ja-1.1.ts";
 import type { Rubric, RubricLanguage } from "../rubric/types.ts";
 import { FEEDBACK_MODEL } from "./models.ts";
 import { dimensionLabel, renderClaims, type CallOptions } from "./score.ts";
@@ -9,9 +9,10 @@ import { ModelCallFailed, openAiClient, upstreamErrorClass } from "./upstream.ts
 
 /**
  * The round-feedback port (07 §5.12 step 3): what to fix and what worked, generated **outside any
- * transaction** from every scored answer. An answer whose scoring ended `failed` is never sent: the
- * feedback is written without it (06, 2026-09-28). One real implementation and a fake; no test calls
- * OpenAI (11 §2).
+ * transaction** from every scored answer — a follow-up's answer included, under its parent's
+ * position and marked as one. An answer whose scoring ended `failed` is never sent: the feedback is
+ * written without it (06, 2026-09-28). One real implementation and a fake; no test calls OpenAI
+ * (11 §2).
  *
  * **Untouched material** (US-11): the call is shown the claims no answer in the round cited, numbered,
  * and picks two or three relevant ones **by number**. The numbers come back as the model gave them;
@@ -24,6 +25,8 @@ import { ModelCallFailed, openAiClient, upstreamErrorClass } from "./upstream.ts
 
 export interface FeedbackAnswer {
   readonly position: number;
+  /** True for the answer to a follow-up, which shares its parent's position. */
+  readonly followUp: boolean;
   readonly prompt: string;
   readonly answer: string;
   readonly durationMs: number | null;
@@ -106,7 +109,7 @@ export function renderFeedbackInput({ rubric, answers, unusedClaims }: FeedbackI
     const pace = answer.pace === null ? "unknown" : `${Math.round(answer.pace)} ${paceUnit}`;
     const scores = answer.scores.map((score) => `${labels.get(score.dimension) ?? score.dimension} ${score.value}`).join(", ");
     return [
-      `=== answer ${answer.position} ===`,
+      `=== answer ${answer.position}${answer.followUp ? ", follow-up" : ""} ===`,
       `question: ${answer.prompt}`,
       `duration: ${seconds}; pace: ${pace}`,
       `scores: ${scores}`,

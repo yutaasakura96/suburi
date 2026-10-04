@@ -51,9 +51,10 @@ export const SETUP_COPY = {
   start: "Start this round",
   starting: "Fixing the questions for this round.",
   commits: "Starting fixes the questions and scores every answer against this CV version and rubric.",
-  // 10 §2: derived, never written — length × (1 + follow-ups) × the per-answer cap. No follow-up yet (#44).
+  // 10 §2: derived, never written — length × (1 + follow-ups) × the per-answer cap, one follow-up
+  // per question.
   estimate: (length: number, capMinutes: number) =>
-    `${length} questions · up to about ${length * capMinutes} min`,
+    `${length} questions + ${length} follow-ups · up to about ${length * 2 * capMinutes} min`,
   rubricStamp: (label: string) => `Rubric ${label}`,
   noCv: (language: RoundLanguage) =>
     language === "ja"
@@ -76,6 +77,8 @@ const en = {
   roundTypes: ROUND_TYPE_NAMES,
   meta: (length: number) => `English · Realistic · ${length} questions`,
   step: (position: number, of: number) => `Question ${position} / ${of}`,
+  // A follow-up shares its question's position (06, 2026-09-27): the same step, named as a follow-up.
+  followUpStep: (position: number, of: number) => `Question ${position} / ${of} · follow-up`,
   // 05 §5.9: the round's stamps, joined.
   rubricStamp: (label: string) => `Rubric ${label}`,
   stamps: (parts: readonly string[]) => parts.join(" · "),
@@ -118,8 +121,14 @@ const en = {
     "Not used in scoring or in progress. Kept to review recognition accuracy later.",
   ],
   send: "Send this answer",
+  // 10 §6: a question's answer makes one follow-up; a follow-up's own answer makes none.
+  sendCaptionFollowUp: "Sending writes one follow-up question from the text you just corrected.",
   sendCaption: "Sending scores this answer while you go on. Nothing about it is shown until the round ends.",
+  sendingForFollowUp: "Sending. The follow-up question is being written.",
   sending: "Sending.",
+  followUpNotStored: "Your answer is saved. Its follow-up question had not been written when this page loaded.",
+  goOn: "Go on",
+  goOnCaption: "The answer above is saved and scored as it is. It cannot be changed.",
   emptyAnswer: "The answer is empty. Keep what you said, corrected.",
   takeSummary: (durationMs: number, pace: number) => `${clock(durationMs)} · ~${Math.round(pace)} wpm`,
 
@@ -161,6 +170,11 @@ const en = {
   },
   notScored: "Not scored",
   notScoredYet: "Not scored yet",
+  followUp: "└ Follow-up",
+  followUpScored: (dimensions: number) => `Scored on ${dimensions} dimensions. Not counted in progress.`,
+  followUpNotScoredYet: "Not scored yet. Not counted in progress.",
+  followUpNotScored: "Not scored. Not counted in progress.",
+  followUpMissing: "The follow-up was not generated. It is recorded as a gap.",
   toFix: (n: number) => `To fix ${n}`,
   whatWorked: "What worked 1",
   findingsNotReady:
@@ -190,6 +204,7 @@ const ja: RoundCopy = {
   roundTypes: { behavioural: "行動面接", technical: "技術面接", hr: "人事面接", ceo: "最終面接" },
   meta: (length) => `日本語・実戦・${length}問`,
   step: (position, of) => `第${position}問 / ${of}問`,
+  followUpStep: (position, of) => `第${position}問 / ${of}問・深掘り`,
   rubricStamp: (label) => `評価基準 ${label}`,
   stamps: (parts) => parts.join("・"),
 
@@ -226,8 +241,13 @@ const ja: RoundCopy = {
     "評価にも進捗にも使いません。あとで認識精度を見直すために残します。",
   ],
   send: "この回答を送る",
+  sendCaptionFollowUp: "送ると、いま直した文から深掘りが1問つくられます。",
   sendCaption: "送ると、先へ進む間にこの回答を採点します。結果はラウンドが終わるまで出ません。",
+  sendingForFollowUp: "送っています。深掘りの質問をつくっています。",
   sending: "送っています。",
+  followUpNotStored: "回答は保存されています。このページを開いた時点では、深掘りの質問がまだつくられていませんでした。",
+  goOn: "先へ進む",
+  goOnCaption: "上の回答はこのまま保存され、採点されます。あとから変えることはできません。",
   emptyAnswer: "回答が空です。話した内容を、直した形で残してください。",
   takeSummary: (durationMs, pace) => `${clock(durationMs)}・約${Math.round(pace)}字/分`,
 
@@ -268,6 +288,11 @@ const ja: RoundCopy = {
   },
   notScored: "未採点",
   notScoredYet: "採点中",
+  followUp: "└ 深掘り",
+  followUpScored: (dimensions) => `${dimensions}項目を採点。進捗には入れません。`,
+  followUpNotScoredYet: "採点中。進捗には入れません。",
+  followUpNotScored: "未採点。進捗には入れません。",
+  followUpMissing: "深掘りが生成されませんでした。空欄として記録しています。",
   toFix: (n) => `直すところ ${n}件`,
   whatWorked: "良かったところ 1件",
   findingsNotReady:

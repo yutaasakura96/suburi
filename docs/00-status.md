@@ -35,7 +35,9 @@ by the owner's real English round there on 2026-10-03; its latencies were measur
 material, the wrong-language reading and coverage marks on `/cv` (Next).
 **#43, Japanese rounds, is built; its rubric review and native read were done on 2026-10-03 as AI
 reviews at the owner's delegation** (below).
-**Updated:** 2026-10-03 (#43 and #46 built; #42 closed; #55 and #56 on 2026-09-30)
+**#44, follow-ups, is built (2026-10-03), on `fm/suburi-44-v2`:** one follow-up per bank-question
+answer in both modes and both languages, written by `submit` or recorded as missing (Next).
+**Updated:** 2026-10-04 (#43, #44 and #46 built; #42 closed; #55 and #56 on 2026-09-30)
 
 ## Done
 - Phase 1 — `docs/01-project-brief.md`, `docs/02-product-requirements.md`, `docs/06-decision-log.md`.
@@ -396,6 +398,20 @@ bound stands. **Not built here:** the Japanese round's copy for the region, spec
 `ok` attempt from `1.1` on). **The user's steps:** a real round on `develop` after the merge, to see
 the region and the `/cv` marks on real material; and the read of the new Japanese strings,
 `docs/checklists/native-read-round.md` §7. Decisions in `06`, "Phase 6 — #46".
+
+**#44 is built (2026-10-03), on `fm/suburi-44-v2`.** Built: migration `0009` (`follow_ups`, expand-only);
+`follow-up-en-1.0` and `follow-up-ja-1.0` behind a port with a fake; `submit` generating the follow-up
+from the corrected text after the answer's commit and storing it as `generated` or `missing` before
+it returns; the follow-up's slot at its parent's position, never a first attempt, stamp 3 from its
+`follow_ups` row; `complete` and the slot refusing while a follow-up is owed; `feedback-en-1.2` and
+`feedback-ja-1.1`, which read follow-up answers; follow-up tokens in the week's spend; the round
+screens asking the follow-up, saying a missing one, and screen 8's follow-up row, in both languages.
+**Measured** (`03` §4): 3.2 s median, 4.7 s slowest of 15, so the call is bounded at 15 s with one
+retry (`07` §5.9). **Not done here:** `follow-up-ja-1.0` and `feedback-ja-1.1` have not run against
+the real model — #44 merged with #43 on 2026-10-04 and Japanese follow-ups are covered by the fakes
+only; their output, and the Japanese follow-up strings, are unread
+(`docs/checklists/native-read-round.md` §8). Migration `0009` is **not yet applied to either Neon
+branch** (`12` §4). Decisions in `06`, "Phase 6 — #44".
 
 **#54, #55 and #56 are next, then #21. #20, #29 and #38 are done.** #21 is blocked by all three
 (native `blocked_by` edges, 2026-09-29), and #56 by #55. They were triaged 2026-09-29 (`06`): #54 and

@@ -155,6 +155,17 @@ describe("the strings 10 §3–§8 quote", () => {
     expect(ja.wrongLanguage("en")).toBe("英語での回答です。日本語の進捗には入れません。");
   });
 
+  // 深掘り is 05 §6's word for a follow-up; 10 §3, §6 and §8 quote the caption, the row and the gap.
+  it("writes the follow-up's step, caption and feedback row (10 §3, §6, §8)", () => {
+    expect(ja.followUpStep(2, 3)).toBe("第2問 / 3問・深掘り");
+    expect(ja.sendCaptionFollowUp).toBe("送ると、いま直した文から深掘りが1問つくられます。");
+    expect(ja.followUp).toBe("└ 深掘り");
+    expect(ja.followUpScored(7)).toBe("7項目を採点。進捗には入れません。");
+    expect(ja.followUpNotScoredYet).toBe("採点中。進捗には入れません。");
+    expect(ja.followUpNotScored).toBe("未採点。進捗には入れません。");
+    expect(ja.followUpMissing).toBe("深掘りが生成されませんでした。空欄として記録しています。");
+  });
+
   // 05 §5.9: the round's stamps joined by nakaguro, the rubric as 評価基準.
   it("joins the stamps by nakaguro", () => {
     expect(ja.stamps([ja.rubricStamp("v1.0"), "set-piece-ja-1.0", "応募書類 v3"])).toBe("評価基準 v1.0・set-piece-ja-1.0・応募書類 v3");

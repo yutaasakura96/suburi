@@ -1,3 +1,4 @@
+import type { FollowUpGenerator, FollowUpInput, FollowUpResult } from "./follow-up";
 import type { ModelHealth } from "./health";
 import type { RoundFeedbackGenerator, FeedbackInput, RoundFeedbackResult } from "./round-feedback";
 import type { AnswerScorer, CallOptions, ScoringInput, ScoringResult } from "./score";
@@ -57,6 +58,29 @@ export function fakeFeedbackGenerator(
   };
   return fake;
 }
+
+export function fakeFollowUpGenerator(
+  respond: (input: FollowUpInput, options: CallOptions) => FollowUpResult | Promise<FollowUpResult>,
+): FollowUpGenerator & { calls: number; inputs: FollowUpInput[] } {
+  const fake = {
+    modelId: "fake-follow-up-2026-01-01",
+    promptVersions: { en: "follow-up-en-fake", ja: "follow-up-ja-fake" },
+    calls: 0,
+    inputs: [] as FollowUpInput[],
+    async generate(input: FollowUpInput, options: CallOptions = {}) {
+      fake.calls += 1;
+      fake.inputs.push(input);
+      return respond(input, options);
+    },
+  };
+  return fake;
+}
+
+export const FIXTURE_FOLLOW_UP: FollowUpResult = {
+  text: "How did you measure the six months?",
+  tokensIn: 400,
+  tokensOut: 20,
+};
 
 export const FIXTURE_FEEDBACK: RoundFeedbackResult = {
   toFix: [

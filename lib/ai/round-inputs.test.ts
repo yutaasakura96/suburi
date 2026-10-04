@@ -44,6 +44,7 @@ describe("renderScoringInput", () => {
 describe("renderFeedbackInput", () => {
   const answer = {
     position: 1,
+    followUp: false,
     prompt: "Tell me about a migration you led.",
     answer: "I led the migration and cut costs by a third.",
     durationMs: 90_000,

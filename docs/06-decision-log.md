@@ -3,6 +3,126 @@
 Newest first. Every entry records what was chosen, why, and what was rejected.
 
 ---
+## Phase 6 — #44, follow-ups
+
+One follow-up per answer, in both modes: generated at `submit` from the corrected text, stored in
+`follow_ups` or stored as missing, answered and scored like any answer, and never in Progress. The
+shape was settled on 2026-09-12 and 2026-09-27 (below); these are the choices the build needed.
+
+### [2026-10-04] Merged with #43: a Japanese round asks its 深掘り, and `feedback-ja-1.1` reads its answer
+
+#43 merged first, so a Japanese round exists and asks one follow-up per answer through the same
+port, with `follow-up-ja-1.0`. **`feedback-ja-1.1`** is `1.0` plus the paragraph `feedback-en-1.2`
+gained: what an `answer 2, follow-up` block is, named `第2問の深掘り` in the findings and "the
+follow-up to answer 2" in their translation. `1.0` is untouched; `round_feedback.prompt_version`
+says which wrote a row. **The round's chrome gained its follow-up strings in Japanese** — the step
+`第2問 / 3問・深掘り`, the send caption and row `10` §6 and §8 already quote, and the rest as the
+Japanese of the English ones below — and each sits in `docs/checklists/native-read-round.md` §8,
+**unread**. `docs/checklists/native-read-round-loop.md`, which #43 renamed, is gone; its #44 section
+is that §8. Screen 8's stamps are #43's structured ones, with the follow-up prompt's version among the
+generator versions. **Not run against the real model:** `follow-up-ja-1.0` and `feedback-ja-1.1`;
+the fakes cover both, and their output is read on the first real Japanese round with follow-ups.
+
+### [2026-10-03] A missing follow-up is a `502` once; the same body again is the `200`
+
+`07` §5.9 said both that a failed generation is `502 followup_generation_failed` and that `next`
+degrades — and an error envelope has a flat `detail` and no `next` (#13). So **the call that writes
+the `missing` row returns the `502`**, with `detail: { answer_id, attempt_id, error_class }`, and **the
+same body sent again returns the `200`** with `next` degraded to `question`, `pressure` or `feedback`,
+read from the stored row. Screen 6 says the follow-up was not generated and offers one control, which
+is that repeat — the hole is said, not skipped past (US-7). **Rejected:** a `200` with a `missing`
+flag on the first call (the catalogue's `502` would then be unreachable, and the failure a field a
+client can ignore), and a `next` inside the envelope (a second response shape for one code).
+
+### [2026-10-03] `submit` alone writes a follow-up, and its repeat completes one left unwritten
+
+The answer's commit and the follow-up are two transactions with a model call between them, so a
+`submit` can die after the first. **The round then stands at "follow-up due"**: the question is
+submitted and has no `follow_ups` row. Nothing else may produce it — resume reads it, the slot
+copies it — so **the same `submit` sent again generates and stores it**, and until then the slot
+refuses (`422 answer_already_submitted`, with the `answer_id`) and `complete` refuses
+(`409 round_not_complete`). The round page reloads onto the saved answer with one control, which
+sends that repeat. `follow_ups.parent_answer_id` is unique and the insert yields to a row already
+there, so two repeats at once store one follow-up and both return it. **Rejected:** generating in
+the answer's own transaction (a model call inside a transaction, `07` §1), and generating on resume
+or in the slot (three writers of one row, and a reload that costs a model call).
+
+### [2026-10-03] Where a round is, is one derivation: a position is its question, then its follow-up
+
+`roundStep` reads the round's answers and `follow_ups` rows and returns the one thing to do next.
+Per position: the bank question's answer; then its `follow_ups` row — absent is "due", `missing`
+ends the position, `generated` is asked; then the next position. **Only an original answer to a bank
+question is ever looked up for a follow-up**, so "no follow-up for a follow-up's own answer or for
+practice's answer-again" is how the derivation is built, not a rule a caller remembers. Handlers and
+the round page read the same function. A position's answers are ordered question first, then
+follow-up, then by `created_at`: they share the position, and a round's rows written in one
+transaction share a timestamp.
+
+### [2026-10-03] A follow-up call is bounded at 15 s, with one retry
+
+Measured through the real port and `follow-up-en-1.0`, 15 calls on synthetic answers (`03` §4):
+3.2 s median, 4.7 s slowest, 685 tokens in and 124 out. The user waits for this call inside a round,
+so it has its own bound, about three times the slowest seen, and **one retry after 1 s** when the
+failure is one a second call could get past — not a `4xx` other than `408`, `409` or `429`. Then the
+follow-up is missing. **Rejected:** scoring's three retries with 2, 4 and 8 s backoff (fourteen
+seconds of waiting before a call that may also fail, for one prompt), and no retry (a single `503`
+would cost the follow-up). **`follow-up-ja-1.0` is written and not measured**: no Japanese round
+exists until #43, which is also where its output gets its native read.
+
+### [2026-10-03] The follow-up prompt reads the question and the corrected answer, and nothing else
+
+The round type, the question as asked, the corrected transcript. No CV, no role context, no rubric,
+no earlier answer: a follow-up digs into what was just said, and grounding arrives with #46 as a new
+prompt version if it arrives. The output is checked before it is stored — one question, not blank,
+at most 400 code points, several times the 30 words or 60 characters the prompts ask for. English
+ends in `?`; Japanese ends in a question mark or `か。`. A second sentence or question is refused, so
+malformed output is a failed call, not a prompt put to the user; a full stop followed by a space
+ends a sentence whatever the case of the next word ("I see. how did you measure it?" is refused),
+while one inside a figure ("1.5 s", "v1.2"), or closing a known abbreviation ("vs.", "etc.",
+"approx.", "Inc.", "Ltd.", "Co.", "Corp.", "Dr.", "Mr.", "Mrs.", "Ms.", "St.") or a single-letter
+initial ("e.g.", "U.S."), is not a second sentence. The list is finite, so an unlisted abbreviation
+loses its follow-up as missing, and a single-letter initial before a second sentence still passes. **Not detected, on purpose:** one sentence
+that asks two things. A rule on a conjunction cannot tell it from a single question containing
+"and", and would turn good follow-ups into missing ones, so that is the prompt's job. The model is
+`FOLLOW_UP_MODEL`, the same pinned string as scoring, in `lib/ai/models.ts`.
+
+### [2026-10-03] Round feedback reads follow-up answers too: `feedback-en-1.2`
+
+A follow-up's answer is scored like any other, so it is sent to the feedback generator, under its
+parent's number: `=== answer 2, follow-up ===`. `feedback-en-1.2` says what that block is and how to
+point at it, and is otherwise `1.1`, the CV-grounding prompt (#46), which is untouched;
+`round_feedback.prompt_version` says which wrote a row. **It was `1.1` on this branch until the rebase
+onto #46, which had taken that number first.** A 7-question round now sends up to 14 answers. **Not
+re-measured:** the feedback call's latency was measured on three answers (2026-10-01 and, with the CV
+check, 2026-10-03) and its 120 s timeout is unchanged.
+
+### [2026-10-03] Rebased onto #46: migration `0009`, and a follow-up's answer goes through the CV check
+
+#46 merged first and took `0008`, so `follow_ups` is `0009_follow-ups`, regenerated by `drizzle-kit
+generate` against #46's snapshot; the SQL is the same statement for statement. A follow-up's answer is
+scored by the same port, so it is checked against the CV like any answer: its citations count as use
+of a claim in the round's never-cited set, and its flags are stored and sent to the feedback call
+under `answer 2, follow-up`. **Screen 8's `Checked against your CV` names the bank questions'
+unsupported spans only**, as its score rows do; a follow-up's flag is stored and not drawn. **Open:**
+whether it gets a rail of its own, which needs a label and its Japanese string (`10` §8).
+
+### [2026-10-03] Follow-up tokens count toward the week's spend
+
+`follow_ups.tokens_in`/`tokens_out` join the digest's token union (`12` §6), priced by `model_id`
+like the rest. A `missing` row stores no tokens: a failed call returns no usage.
+
+### [2026-10-03] Follow-up details the screens needed in English
+
+The round header's step reads `Question 2 / 3 · follow-up`: the follow-up shares its question's
+position, so it shares its number. Screen 6's caption names the follow-up only when one will be
+written — not under a follow-up's own answer. A committed answer whose follow-up is missing or not
+yet stored is a locked frame with one control, `Go on`. Screen 8's follow-up row reads `Scored on 6
+dimensions. Not counted in progress.`, `Not scored yet.` or `Not scored.` with the same second
+sentence; a missing one reads `The follow-up was not generated. It is recorded as a gap.` in the
+attention ink (`10` §8). Setup's estimate is `3 questions + 3 follow-ups · up to about 24 min`
+(`10` §2). An abandoned round is sent no follow-up call and gets no row.
+
+---
 ## Phase 6 — #43, Japanese rounds
 
 The round #42 built, in the other language: rubric `ja` v1.0 with 敬語, the Japanese set pieces, pace

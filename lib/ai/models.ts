@@ -12,6 +12,9 @@ export const SCORING_MODEL = "gpt-5.6-sol";
 /** Round feedback, stamped on `round_feedback`. */
 export const FEEDBACK_MODEL = "gpt-5.6-sol";
 
+/** Follow-up generation, stamped on `follow_ups` (04). */
+export const FOLLOW_UP_MODEL = "gpt-5.6-sol";
+
 /**
  * Speech-to-text (03 §4). Its only snapshot shares its name, so unlike the scoring model it cannot be
  * a dated string; `answers.transcriber_model_id` is what makes a repoint visible.

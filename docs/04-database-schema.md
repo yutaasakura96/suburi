@@ -10,7 +10,8 @@ Each change lands with the slice that first needs it. **Migrated by #42** (`0007
 `not null`; the General-practice unique index on `role_contexts`; the `answers (question_id, language)`
 index; and `rate_limit_windows.route` extended for the round routes. **Migrated by #46**
 (`0008_cv-grounding`): `answer_flags`; `scoring_attempts.answered_language`; and
-`round_feedback.untouched_claim_ids`. The rest is not migrated yet.
+`round_feedback.untouched_claim_ids`. **Migrated by #44** (`0009_follow-ups`): `follow_ups`. The
+remaining round-loop changes are not migrated yet.
 
 ---
 

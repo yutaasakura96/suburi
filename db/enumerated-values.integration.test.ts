@@ -21,6 +21,7 @@ const ENUMERATED = [
   ["answers", "language"],
   ["scoring_attempts", "status"],
   ["scoring_attempts", "answered_language"],
+  ["follow_ups", "status"],
   ["round_feedback", "language"],
   ["claim_citations", "relation"],
   ["answer_flags", "kind"],
@@ -43,6 +44,14 @@ async function insertOneOfEach(db: TestDb) {
     kind: "unsupported",
     spanStart: 0,
     spanEnd: 4,
+  });
+  // Missing, so that an unlisted status trips the value check alone and not the text check beside it.
+  await db.insert(s.followUps).values({
+    parentAnswerId: answer,
+    userId: world.userId,
+    status: "missing",
+    modelId: "fixture-model-2026-01-01",
+    promptVersion: "follow-up-fixture",
   });
   await db.insert(s.roundFeedback).values({
     roundId: round,

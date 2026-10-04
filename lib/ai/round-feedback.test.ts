@@ -68,6 +68,7 @@ describe("checkFeedback", () => {
 describe("renderFeedbackInput", () => {
   const answer = {
     position: 2,
+    followUp: false,
     prompt: "自己PRをお願いします。",
     answer: "えー、私の強みは粘り強さです。",
     durationMs: 192_000,
@@ -82,6 +83,12 @@ describe("renderFeedbackInput", () => {
     expect(input).toContain("=== answer 2 ===");
     expect(input).toContain("duration: 192 s; pace: 250 characters per minute");
     expect(input).toContain("scores: 構成 3, 根拠 3, 関連性 3, 流暢さ 3, 正確さ 3, 長さ・配分 3, 敬語 3");
+  });
+
+  it("marks a follow-up's answer under its parent's position", () => {
+    const followUp = { ...answer, followUp: true, prompt: "その強みを、どの場面で発揮しましたか。" };
+    const input = renderFeedbackInput({ rubric: ja, answers: [answer, followUp], unusedClaims: [] });
+    expect(input.match(/^=== answer .* ===$/gm)).toEqual(["=== answer 2 ===", "=== answer 2, follow-up ==="]);
   });
 
   it("names an English rubric's dimensions in English and paces in words", () => {
