@@ -4,7 +4,7 @@ import { expect, test, type Page } from "@playwright/test";
 import * as s from "../db/schema";
 import { seedSyntheticCv } from "../db/seed-cv";
 import { seedRubrics, seedSetPieces, seedSyntheticQuestions } from "../db/seed-questions";
-import { seedSyntheticRounds, syntheticId } from "../db/seed-rounds";
+import { SYNTHETIC_MODEL_ID, SYNTHETIC_PROMPT_VERSIONS, seedSyntheticRounds, syntheticId } from "../db/seed-rounds";
 import { createAuth } from "../lib/auth/auth";
 import { mintSessionCookie } from "../lib/auth/test/session";
 import { getConfig } from "../lib/config";
@@ -470,6 +470,114 @@ test("the newest open round started today is offered for resuming, with its scor
   await expect(rows(page)).toHaveCount(3);
   await expect(rows(page).nth(0)).toHaveText(/^Q1\s*Not answered\s*—$/);
   await expect(page.getByTestId("history-play")).toHaveCount(0);
+});
+
+/**
+ * A complete practice round of the abandoned round's three questions, each answered and scored, with
+ * the first answered again. The develop seed holds realistic rounds only, so this one is the spec's.
+ */
+async function insertPracticeRoundWithRetry() {
+  return withDb(async (db) => {
+    const [like] = await db.select().from(s.rounds).where(eq(s.rounds.id, id("abandoned-en")));
+    const startedAt = new Date("2026-09-20T03:00:00.000Z");
+    const [round] = await db
+      .insert(s.rounds)
+      .values({
+        userId,
+        roundType: like.roundType,
+        language: like.language,
+        mode: "practice",
+        length: 3,
+        perAnswerCapSeconds: 900,
+        cvVersionId: like.cvVersionId,
+        roleContextId: like.roleContextId,
+        rubricVersionId: like.rubricVersionId,
+        startedAt,
+        completedAt: new Date("2026-09-20T03:30:00.000Z"),
+      })
+      .returning();
+    const questions = await db
+      .select({ id: s.questions.id, body: s.questions.body, generatorPromptVersion: s.questions.generatorPromptVersion })
+      .from(s.roundQuestions)
+      .innerJoin(s.questions, eq(s.questions.id, s.roundQuestions.questionId))
+      .where(eq(s.roundQuestions.roundId, like.id))
+      .orderBy(asc(s.roundQuestions.position));
+    await db
+      .insert(s.roundQuestions)
+      .values(questions.map((question, index) => ({ roundId: round.id, userId, position: index + 1, questionId: question.id })));
+
+    async function answer(position: number, minute: number, raw: string, values: number[], retryOf?: string) {
+      const question = questions[position - 1];
+      const createdAt = new Date(startedAt.getTime() + minute * 60_000);
+      const [row] = await db
+        .insert(s.answers)
+        .values({
+          roundId: round.id,
+          userId,
+          questionId: question.id,
+          promptText: question.body,
+          position,
+          language: round.language,
+          transcriptRaw: raw,
+          transcriptCorrected: raw,
+          retryOfAnswerId: retryOf ?? null,
+          createdAt,
+        })
+        .returning({ id: s.answers.id });
+      const [attempt] = await db
+        .insert(s.scoringAttempts)
+        .values({
+          answerId: row.id,
+          userId,
+          status: "ok",
+          cvVersionId: round.cvVersionId,
+          rubricVersionId: round.rubricVersionId,
+          generatorPromptVersion: question.generatorPromptVersion,
+          modelId: SYNTHETIC_MODEL_ID,
+          scoringPromptVersion: SYNTHETIC_PROMPT_VERSIONS.score[round.language],
+          answeredLanguage: round.language,
+          createdAt,
+        })
+        .returning({ id: s.scoringAttempts.id });
+      await db.insert(s.scores).values(DIMENSIONS.map((dimension, index) => ({ scoringAttemptId: attempt.id, dimension, value: values[index] })));
+      return row.id;
+    }
+
+    const first = await answer(1, 1, "The first try at the first question.", [2, 3, 2, 3, 2, 3]);
+    await answer(1, 5, "The same question, answered again.", [4, 4, 5, 4, 4, 5], first);
+    await answer(2, 9, "The second question.", [3, 3, 3, 3, 3, 3]);
+    await answer(3, 13, "The third question.", [4, 4, 4, 4, 4, 4]);
+    return { roundId: round.id, firstQuestion: questions[0].body };
+  });
+}
+
+test("a practice answer-again sits directly under the answer it retries, each with its own scores", async ({ page }) => {
+  const { roundId, firstQuestion } = await insertPracticeRoundWithRetry();
+  await signIn(page);
+  await page.goto(`/history/${roundId}`);
+
+  await expect(rows(page)).toHaveCount(4);
+  await expect(rows(page).nth(0)).toContainText("Q1");
+  await expect(rows(page).nth(0)).toContainText(firstQuestion);
+  // The retry is the next row, before Q2, under the question it answers again.
+  await expect(rows(page).nth(1)).toContainText("└ Answered again");
+  await expect(rows(page).nth(1)).toContainText(firstQuestion);
+  await expect(rows(page).nth(1)).not.toContainText("Q1");
+  await expect(rows(page).nth(2)).toContainText("Q2");
+  await expect(rows(page).nth(3)).toContainText("Q3");
+  await expect(page.getByText("└ Answered again")).toHaveCount(1);
+
+  // The retry's scores are its own, and the first attempt's are still there beside them (refusal 3).
+  expect(await scoresOf(page, 0)).toEqual(["2", "3", "2", "3", "2", "3"]);
+  expect(await scoresOf(page, 1)).toEqual(["4", "4", "5", "4", "4", "5"]);
+  expect(await scoresOf(page, 2)).toEqual(["3", "3", "3", "3", "3", "3"]);
+  await expect(page.getByTestId("history-retry")).toHaveCount(0);
+
+  // Each row opens its own answer.
+  await page.getByRole("button", { name: "Open the recording and transcript for Q1, answered again" }).click();
+  await expect(page.getByTestId("history-raw")).toHaveText("The same question, answered again.");
+  await page.getByRole("button", { name: "Open the recording and transcript for Q1", exact: true }).click();
+  await expect(page.getByTestId("history-raw")).toHaveText("The first try at the first question.");
 });
 
 test("with no rounds, History says so and offers to start one", async ({ page }) => {
