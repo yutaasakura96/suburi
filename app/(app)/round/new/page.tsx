@@ -9,15 +9,17 @@ export const metadata: Metadata = {
 };
 
 /**
- * Round setup (10 §2), minimal for the tracer (#42): round type and length to choose; English,
- * realistic and General practice are the only options that exist yet, so they are stated, not offered.
+ * Round setup (10 §2), still minimal: round type, language and length to choose; realistic and General
+ * practice are the only options that exist yet, so they are stated, not offered. Each language is
+ * scored against its own CV and rubric, so the facts are read for both.
  */
 export default async function NewRoundPage() {
   const userId = await requireSession();
-  const facts = await setupFacts(getDb(), userId, "en");
+  const db = getDb();
+  const [ja, en] = await Promise.all([setupFacts(db, userId, "ja"), setupFacts(db, userId, "en")]);
   return (
     <main className="w-[1280px] px-[44px] py-[40px]">
-      <SetupForm cv={facts.cv} rubricLabel={facts.rubricLabel} />
+      <SetupForm facts={{ ja, en }} />
     </main>
   );
 }

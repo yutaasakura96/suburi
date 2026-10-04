@@ -8,6 +8,7 @@ import { closePool, inRolledBackTransaction, type TestDb } from "../../db/test/d
 import { feedbackScreen, roundFrame } from "../../app/(app)/round/load";
 import {
   FIXTURE_FEEDBACK,
+  FIXTURE_FEEDBACK_JA,
   FIXTURE_FOLLOW_UP,
   fakeFeedbackGenerator,
   fakeFollowUpGenerator,
@@ -29,8 +30,9 @@ import { createSubmit } from "./submit";
 import { answeredBefore, newerRoundExists, promptAt, readRoundStep } from "./state";
 import { createTranscribe } from "./transcribe";
 
-// The round loop (#42, and its follow-ups, #44) through its handlers, against the migrated test database, with a real
-// Better Auth session. Only the model ports and the bucket are faked (11 §2).
+// The round loop through its handlers, in both languages (#42, #43) and with its follow-ups (#44),
+// against the migrated test database, with a real Better Auth session. Only the model ports and the
+// bucket are faked (11 §2).
 
 vi.stubEnv("DATABASE_URL", "postgresql://suburi:suburi@localhost:5433/suburi_test");
 vi.stubEnv("DATABASE_URL_UNPOOLED", "postgresql://suburi:suburi@localhost:5433/suburi_test");
@@ -88,10 +90,15 @@ function savepointTransaction(db: TestDb, fail: { next: boolean }, depth: { open
 
 const AUDIO = new Uint8Array([0x1a, 0x45, 0xdf, 0xa3, 1, 2, 3, 4]);
 
+// What the fake transcriber hears in a Japanese round, with a filler and an ASR slip (決済期版).
+const HEARD_JA = `えー、${SENTINEL}の決済期版の移行を担当しまして、半年で完了いたしました。`;
+const HEARD_JA_CHARACTERS = Array.from(HEARD_JA).length;
+
 async function setUp(db: TestDb, { healthy = true } = {}) {
   await seedUser(db, getConfig().ALLOWED_EMAIL);
   const [user] = await db.select({ id: s.users.id }).from(s.users).where(eq(s.users.email, getConfig().ALLOWED_EMAIL));
   await seedSyntheticCv(db, user.id, "en");
+  await seedSyntheticCv(db, user.id, "ja");
   await seedRubrics(db);
   await seedSetPieces(db, user.id);
   await seedSyntheticQuestions(db, user.id);
@@ -104,8 +111,11 @@ async function setUp(db: TestDb, { healthy = true } = {}) {
   const slept: number[] = [];
   const store = fakeAudioStore();
   const scorer = fakeScorer(uniformScores(3));
-  const transcriber = fakeTranscriber(() => ({ text: `I led the migration at ${SENTINEL}, um, in six months.`, durationMs: 90_000 }));
-  const generator = fakeFeedbackGenerator(() => FIXTURE_FEEDBACK);
+  const transcriber = fakeTranscriber(({ language }) => ({
+    text: language === "ja" ? HEARD_JA : `I led the migration at ${SENTINEL}, um, in six months.`,
+    durationMs: 90_000,
+  }));
+  const generator = fakeFeedbackGenerator(({ rubric }) => (rubric.language === "ja" ? FIXTURE_FEEDBACK_JA : FIXTURE_FEEDBACK));
   const followUps = fakeFollowUpGenerator(() => ({ ...FIXTURE_FOLLOW_UP, text: FOLLOW_UP_TEXT }));
   const health = fakeModelHealth(healthy);
   const base = { auth, db, transaction: savepointTransaction(db, fail, depth) };
@@ -214,8 +224,8 @@ async function setUp(db: TestDb, { healthy = true } = {}) {
 
 type World = Awaited<ReturnType<typeof setUp>>;
 
-async function playThrough(world: World) {
-  const started = await world.startRound();
+async function playThrough(world: World, overrides: object = {}) {
+  const started = await world.startRound(overrides);
   const roundId = started.json.round.id as string;
   const answers = [];
   for (let position = 1; position <= 3; position += 1) answers.push(await world.answerPosition(roundId));
@@ -359,7 +369,7 @@ describe("POST /api/rounds — a round's questions, chosen once (11 §3.13)", ()
   it.each([
     [{ cv_version_id: "3f2a91c4-0000-4000-8000-000000000000" }, "cv_version_id"],
     [{ rubric_version_id: "3f2a91c4-0000-4000-8000-000000000000" }, "rubric_version_id"],
-    [{ language: "ja" }, "language"],
+    [{ language: "fr" }, "language"],
     [{ length: 4 }, "length"],
   ])("refuses %o with a 400 naming the field, and writes nothing", (overrides, field) =>
     inRolledBackTransaction(async (db) => {
@@ -904,6 +914,8 @@ describe("POST /api/rounds/{id}/complete (11 §3.14)", () => {
       expect(ratedWhenCalled).toBe(4);
       expect(response.json.scoring).toEqual({ ok: 6, pending: 0, failed: 0 });
       expect(response.json.feedback).toMatchObject({ what_worked: FIXTURE_FEEDBACK.whatWorked, language: "en", prompt_version: "feedback-en-fake" });
+      // An English round's feedback is English: there is nothing to toggle to (PRD §4).
+      expect(response.json.feedback.body_translated).toBeNull();
       expect(response.json.feedback.to_fix).toHaveLength(2);
       expect(await count(db, s.roundFeedback)).toBe(1);
 
@@ -1787,7 +1799,7 @@ describe("follow-ups: one per answer, written by submit (07 §5.9, 11 §3.1)", (
         { kind: "missing" },
         { kind: "asked", text: FOLLOW_UP_TEXT, status: "ok" },
       ]);
-      expect(screen.stamps).toContain("follow-up-en-fake");
+      expect(screen.stamps.generatorVersions).toContain("follow-up-en-fake");
     }));
 
   it("carries no follow-up text into a log line or an error envelope", () =>
@@ -1829,5 +1841,206 @@ describe("what leaves the handlers (11 §3.10, §3.16)", () => {
       await world.drainAfter();
       await world.call(world.handlers.complete, roundId, { felt_pressure: 3 });
       for (const text of world.responses) expect(text).not.toMatch(/total|average|overall|composite/i);
+    }));
+});
+
+describe("a Japanese round (#43)", () => {
+  const JA = { language: "ja" };
+
+  it("is scored against the Japanese CV and rubric `ja`, and asks Japanese questions only", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const { status, json } = await world.startRound(JA);
+      expect(status).toBe(201);
+      expect(json.round).toMatchObject({ round_type: "hr", language: "ja", mode: "realistic", length: 3 });
+      expect(json.round.stamps).toEqual({
+        cv_version_label: "応募書類 v1",
+        rubric_version_label: "v1.0",
+        scoring_model_id: world.scorer.modelId,
+        scoring_prompt_version: "score-ja-fake",
+      });
+      const [stored] = await db.select().from(s.rounds).where(eq(s.rounds.id, json.round.id));
+      const [rubric] = await db.select().from(s.rubricVersions).where(eq(s.rubricVersions.id, stored.rubricVersionId));
+      expect(rubric.language).toBe("ja");
+      expect((rubric.dimensions as { key: string }[]).map((dimension) => dimension.key)).toContain("keigo");
+
+      const chosen = await db
+        .select({ origin: s.questions.origin, language: s.questions.language, stamp: s.questions.generatorPromptVersion, body: s.questions.body })
+        .from(s.roundQuestions)
+        .innerJoin(s.questions, eq(s.questions.id, s.roundQuestions.questionId))
+        .where(eq(s.roundQuestions.roundId, json.round.id))
+        .orderBy(s.roundQuestions.position);
+      expect(chosen.map((row) => row.origin)).toEqual(["set_piece", "generated", "generated"]);
+      expect(chosen.every((row) => row.language === "ja")).toBe(true);
+      // The self-introduction first, under the Japanese content version (stamp 3).
+      expect(chosen[0]).toMatchObject({ stamp: "set-piece-ja-1.0", body: "まず、簡単に自己紹介をお願いします。" });
+      expect(json.prompt.text).toBe(chosen[0].body);
+    }));
+
+  it("leaves the English bank alone: an English round still asks English questions only", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const { json } = await world.startRound({ length: 7 });
+      const chosen = await db
+        .select({ language: s.questions.language })
+        .from(s.roundQuestions)
+        .innerJoin(s.questions, eq(s.questions.id, s.roundQuestions.questionId))
+        .where(eq(s.roundQuestions.roundId, json.round.id));
+      expect(chosen).toHaveLength(7);
+      expect(chosen.every((row) => row.language === "en")).toBe(true);
+    }));
+
+  // 04 `answers`, 06 2026-09-27 confirm 4: characters per minute of transcript_raw.
+  it("stores the pace in characters per minute of the raw transcript", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const { json } = await world.startRound(JA);
+      const opened = await world.call(world.handlers.open, json.round.id, { content_type: "audio/webm", expected_bytes: 10 });
+      world.store.put(world.store.presigned[0].key, AUDIO);
+      const transcribed = await world.call(world.handlers.transcribe, opened.json.answer_id, {});
+      expect(transcribed.status).toBe(200);
+      expect(transcribed.json.transcript_raw).toBe(HEARD_JA);
+      expect(transcribed.json.words_per_minute).toBeCloseTo(HEARD_JA_CHARACTERS / 1.5);
+      const [answer] = await db.select().from(s.answers).where(eq(s.answers.id, opened.json.answer_id));
+      expect(answer.language).toBe("ja");
+      expect(answer.wordsPerMinute).toBeCloseTo(HEARD_JA_CHARACTERS / 1.5);
+    }));
+
+  it("scores all seven dimensions, keigo among them, stamped with the Japanese prompt", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const { json } = await world.startRound(JA);
+      const rubrics: string[] = [];
+      world.scorer.score = async (input) => {
+        rubrics.push(`${input.rubric.language} ${input.rubric.versionLabel}`);
+        return uniformScores(4)(input);
+      };
+      const { answerId } = await world.answerCurrent(json.round.id, "決済基盤の移行を担当いたしました。");
+      await world.drainAfter();
+      expect(rubrics).toEqual(["ja v1.0"]);
+      const [attempt] = await db.select().from(s.scoringAttempts).where(eq(s.scoringAttempts.answerId, answerId));
+      expect(attempt).toMatchObject({ status: "ok", scoringPromptVersion: "score-ja-fake", generatorPromptVersion: "set-piece-ja-1.0" });
+      const scores = await db.select().from(s.scores).where(eq(s.scores.scoringAttemptId, attempt.id));
+      expect(scores.map((score) => score.dimension).sort()).toEqual(
+        ["accuracy", "evidence", "fluency", "keigo", "length_pacing", "relevance", "structure"],
+      );
+    }));
+
+  // PRD §4, US-10: Japanese feedback, with the English toggle stored beside it, written once.
+  it("writes Japanese feedback with its English translation in body_translated", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const { roundId } = await playThrough(world, JA);
+      await world.drainAfter();
+      const response = await world.call(world.handlers.complete, roundId, { felt_pressure: 4 });
+      expect(response.status).toBe(201);
+      expect(world.generator.calls).toBe(1);
+      expect(world.generator.inputs[0].rubric.language).toBe("ja");
+      expect(world.generator.inputs[0].answers.every((answer) => answer.scores.length === 7)).toBe(true);
+
+      const translated = {
+        language: "en",
+        to_fix: FIXTURE_FEEDBACK_JA.translated!.toFix,
+        what_worked: FIXTURE_FEEDBACK_JA.translated!.whatWorked,
+      };
+      expect(response.json.feedback).toMatchObject({
+        to_fix: FIXTURE_FEEDBACK_JA.toFix,
+        what_worked: FIXTURE_FEEDBACK_JA.whatWorked,
+        language: "ja",
+        prompt_version: "feedback-ja-fake",
+        body_translated: translated,
+      });
+      const [row] = await db.select().from(s.roundFeedback).where(eq(s.roundFeedback.roundId, roundId));
+      expect(row.language).toBe("ja");
+      expect(row.bodyTranslated).toEqual(translated);
+
+      // The retry returns the stored row, translation included, with no second model call.
+      const again = await world.call(world.handlers.feedback, roundId, {});
+      expect(again.status).toBe(200);
+      expect(again.json.feedback.body_translated).toEqual(translated);
+      expect(world.generator.calls).toBe(1);
+    }));
+
+  it("gives screen 8 both names of every dimension and both readings of the findings", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const { roundId } = await playThrough(world, JA);
+      await world.drainAfter();
+      await world.call(world.handlers.complete, roundId, { felt_pressure: 2 });
+      const [round] = await db.select().from(s.rounds).where(eq(s.rounds.id, roundId));
+      const screen = await feedbackScreen(db, round);
+      expect(screen.round.language).toBe("ja");
+      expect(screen.answers).toHaveLength(3);
+      expect(screen.answers[0].scores.map((score) => score.labels.ja)).toEqual(["構成", "根拠", "関連性", "流暢さ", "正確さ", "長さ・配分", "敬語"]);
+      expect(screen.answers[0].scores.map((score) => score.labels.en)).toEqual(
+        ["Structure", "Evidence", "Relevance", "Fluency", "Accuracy", "Length and pacing", "Keigo (register)"],
+      );
+      expect(screen.answers[0].scores.every((score) => score.value === 3)).toBe(true);
+      expect(screen.findings).toEqual({ toFix: FIXTURE_FEEDBACK_JA.toFix, whatWorked: FIXTURE_FEEDBACK_JA.whatWorked });
+      expect(screen.translated).toEqual(FIXTURE_FEEDBACK_JA.translated);
+      expect(screen.stamps).toMatchObject({ rubricLabel: "v1.0", cvLabel: "応募書類 v1" });
+      // A follow-up's answer is stamped with the follow-up prompt's version (04), so it is among them.
+      expect(screen.stamps.generatorVersions).toEqual(["follow-up-ja-fake", "set-piece-ja-1.0", "synthetic-generated-ja-1.0"]);
+    }));
+
+  // #44: a Japanese round asks its 深掘り through the same port, in its own language.
+  it("asks one follow-up per answer, generated and stamped with the Japanese follow-up prompt", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const { json } = await world.startRound(JA);
+      const corrected = "決済基盤の移行を担当いたしました。";
+      const { answerId, submitted } = await world.answerCurrent(json.round.id, corrected);
+      expect(submitted.json.next).toMatchObject({ kind: "follow_up", position: 1 });
+      expect(world.followUps.inputs).toEqual([expect.objectContaining({ language: "ja", answer: corrected })]);
+      const [row] = await db.select().from(s.followUps).where(eq(s.followUps.parentAnswerId, answerId));
+      expect(row).toMatchObject({ status: "generated", promptVersion: "follow-up-ja-fake" });
+
+      const followUp = await world.answerCurrent(json.round.id, "半年で完了いたしました。");
+      await world.drainAfter();
+      const [answer] = await db.select().from(s.answers).where(eq(s.answers.id, followUp.answerId));
+      expect(answer).toMatchObject({ language: "ja", parentAnswerId: answerId, questionId: null, position: 1, isFirstAttempt: false });
+      const [attempt] = await db.select().from(s.scoringAttempts).where(eq(s.scoringAttempts.answerId, followUp.answerId));
+      expect(attempt).toMatchObject({ status: "ok", scoringPromptVersion: "score-ja-fake", generatorPromptVersion: "follow-up-ja-fake" });
+      expect(await count(db, s.followUps)).toBe(1);
+    }));
+
+  it("gives an English round's screen 8 no translation", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const { roundId } = await playThrough(world);
+      await world.drainAfter();
+      await world.call(world.handlers.complete, roundId, { felt_pressure: 2 });
+      const [round] = await db.select().from(s.rounds).where(eq(s.rounds.id, roundId));
+      const screen = await feedbackScreen(db, round);
+      expect(screen.round.language).toBe("en");
+      expect(screen.answers[0].scores).toHaveLength(6);
+      expect(screen.translated).toBeNull();
+    }));
+
+  it("resumes on the same Japanese question, with the Japanese stamps", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const { json } = await world.startRound(JA);
+      const [round] = await db.select().from(s.rounds).where(eq(s.rounds.id, json.round.id));
+      const frame = await roundFrame(db, world.userId, round);
+      expect(frame).toMatchObject({
+        round: { language: "ja", length: 3 },
+        cvLabel: "応募書類 v1",
+        rubricLabel: "v1.0",
+        start: { kind: "question", position: 1, text: "まず、簡単に自己紹介をお願いします。" },
+      });
+    }));
+
+  it("carries no Japanese transcript text into any envelope or log line", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const { roundId } = await playThrough(world, JA);
+      await world.drainAfter();
+      await world.call(world.handlers.complete, roundId, { felt_pressure: 3 });
+      for (const text of [...world.responses, ...logged]) {
+        if (text.includes('"transcript_raw"')) continue;
+        expect(text).not.toContain(SENTINEL);
+        expect(text).not.toContain("決済期版");
+      }
     }));
 });

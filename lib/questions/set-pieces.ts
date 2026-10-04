@@ -5,7 +5,7 @@
 // question (逆質問): the candidate asking does not fit answer-then-score.
 //
 // The content version is stamp 3 for every answer to a set piece. A changed wording is a new content
-// version with new rows, never an edit to a stored body. The Japanese set lands with #43.
+// version with new rows, never an edit to a stored body.
 
 export type SetPieceLanguage = "ja" | "en";
 
@@ -34,4 +34,17 @@ export const SET_PIECES_EN: SetPieceContent = {
   ],
 };
 
-export const SET_PIECES: readonly SetPieceContent[] = [SET_PIECES_EN];
+// 自己紹介, 自己PR and 転職理由 (`hr`), 志望動機 (`ceo`), each as an interviewer says it. Not translations
+// of the English set: a Japanese interviewer asks for 自己PR by name.
+export const SET_PIECES_JA: SetPieceContent = {
+  language: "ja",
+  contentVersion: "set-piece-ja-1.0",
+  pieces: [
+    { roundType: "hr", body: "まず、簡単に自己紹介をお願いします。" },
+    { roundType: "hr", body: "自己PRをお願いします。" },
+    { roundType: "hr", body: "転職を考えた理由を教えてください。" },
+    { roundType: "ceo", body: "当社を志望した理由を教えてください。" },
+  ],
+};
+
+export const SET_PIECES: readonly SetPieceContent[] = [SET_PIECES_EN, SET_PIECES_JA];

@@ -1,6 +1,13 @@
 // No "use client": the round runner renders these on the client, the feedback page on the server.
 
 export const sectionLabel = "font-mono text-[11px] tracking-[0.16em] text-ink-label uppercase";
+/**
+ * 05 §3.3: `uppercase` is only ever set on Latin text. A Japanese section label is distinguished by
+ * tracking and ink alone, so a Japanese round's labels take no transform.
+ */
+export function roundSectionLabel(language: "ja" | "en") {
+  return language === "ja" ? "font-mono text-[11px] tracking-[0.16em] text-ink-label" : sectionLabel;
+}
 export const caption = "text-[12px] leading-[1.75] text-ink-6";
 export const mono = "font-mono";
 

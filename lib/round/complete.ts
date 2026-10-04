@@ -2,7 +2,7 @@ import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import { z } from "zod";
 import * as s from "../../db/schema";
 import { apiError } from "../api/errors";
-import type { RoundFeedbackGenerator } from "../ai/round-feedback";
+import { translationLanguage, type RoundFeedbackGenerator, type TranslatedFeedback } from "../ai/round-feedback";
 import { ModelCallFailed } from "../ai/upstream";
 import { sliceQuote } from "../cv/spans";
 import type { Rubric } from "../rubric/types";
@@ -56,6 +56,7 @@ export function feedbackView(row: FeedbackRow) {
     what_worked: row.whatWorked,
     untouched_claim_ids: row.untouchedClaimIds,
     language: row.language,
+    body_translated: row.bodyTranslated,
     model_id: row.modelId,
     prompt_version: row.promptVersion,
   };
@@ -175,6 +176,13 @@ async function writeRoundFeedback(deps: CompleteDeps, round: RoundRow): Promise<
   // An id is stored only if the call picked it from the never-cited set it was shown; at most three.
   const untouched = pickUntouched(neverCited, result.untouched);
 
+  // The English toggle of a Japanese round (PRD §4), from the same call: the row is written once.
+  const translatedInto = translationLanguage(round.language);
+  const bodyTranslated: TranslatedFeedback | null =
+    translatedInto && result.translated
+      ? { language: translatedInto, to_fix: result.translated.toFix, what_worked: result.translated.whatWorked }
+      : null;
+
   // Step 4: written once. A concurrent retry that wrote first keeps its row.
   let feedback: FeedbackRow | null;
   try {
@@ -186,7 +194,7 @@ async function writeRoundFeedback(deps: CompleteDeps, round: RoundRow): Promise<
           toFix: result.toFix,
           whatWorked: result.whatWorked,
           language: round.language,
-          bodyTranslated: null,
+          bodyTranslated,
           untouchedClaimIds: untouched.ids,
           modelId: deps.generator.modelId,
           promptVersion,

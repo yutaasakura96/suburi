@@ -516,8 +516,9 @@ Failures: `503 model_unavailable` (preflight — the round is not created);
 **Until generation exists (#47)** the tracer fills step 3 from the bank alone: a realistic round
 short of unseen questions takes seen generated ones, which are never first attempts (§5.6), and a bank
 that cannot fill the round at all is `502 question_generation_failed` with `error_class:
-"bank_too_small"`. **English only until #43**: `language: "ja"` is a `400`, rather than a round with no
-rubric (`06`, 2026-10-01).
+"bank_too_small"`. **Both languages since #43**: `language` is `ja` or `en`, and each takes its own
+rubric, CV version and bank — a Japanese round is filled from Japanese questions only, its set piece
+first (`06`, 2026-10-03).
 
 ### 5.5 `GET /api/rounds/{roundId}`
 
@@ -772,7 +773,9 @@ asked, the **corrected** transcript — never the raw one — the answer's durat
 CV version's claims. **What it returns**, beside the scores: the citations, the unsupported spans of
 the answer (US-11), and `answered_language`. **The scoring prompt version bumped for this** (#46):
 `score-en-1.1` is `1.0`'s scoring unchanged plus the CV check, a new file and so a new stamp (`03` §4),
-and Progress draws the boundary where an answer's `scoring_prompt_version` changes.
+and Progress draws the boundary where an answer's `scoring_prompt_version` changes. **A Japanese
+round's `score-ja-1.0` carries the same check from its first version** (#43; `06`, 2026-10-03), so it
+has no such boundary.
 
 ```json
 200
@@ -894,9 +897,18 @@ POST /api/rounds/77af0b13-…/complete
                 { "title": "結論を最初の一文に置く", "body": "…" } ],
     "what_worked": "困難だった点を具体的な場面で説明できていました。",
     "untouched_claim_ids": [ "9c57…", "9c63…" ],
+    "body_translated": {
+      "language": "en",
+      "to_fix": [ { "title": "Say where the number comes from first", "body": "…" },
+                  { "title": "Put the conclusion in the first sentence", "body": "…" } ],
+      "what_worked": "You explained the difficulty with a concrete situation." },
     "language": "ja", "model_id": "gpt-5.6-sol", "prompt_version": "feedback-ja-1.0" },
   "scoring": { "ok": 10, "pending": 0, "failed": 0 } }
 ```
+
+**`body_translated` is the English toggle of a Japanese round's feedback** (PRD §4): the same
+findings, item for item and in the same order, in English. It is `null` on an English round, whose
+feedback is already English.
 
 **Why the rating and the completion are the same call:** `04` requires `felt_pressure` to be captured
 **before any feedback**, and one endpoint makes that ordering structural rather than a rule someone
@@ -914,8 +926,11 @@ has to remember.
    already been spent.
 3. **Generate the round feedback, outside any transaction** — from every answer's scores and flags,
    and the never-cited claims of the round's CV version, from which the model picks two or three
-   relevant ones as untouched material. Their ids are validated against that set.
-4. **Write `round_feedback`**, whole, once.
+   relevant ones as untouched material. Their ids are validated against that set. **A Japanese
+   round's call returns the English translation with the feedback**, and a result whose translation is
+   missing or does not match the feedback item for item is refused as malformed, like one with four
+   things to fix (`06`, 2026-10-03).
+4. **Write `round_feedback`**, whole, once — the translation in `body_translated`, in the same row.
 
 **Step 3's CV material, as built (#46).** Each answer is sent with its unsupported spans — the quotes
 sliced from `transcript_corrected` by the stored spans of its latest `ok` attempt, not the scorer's
@@ -926,7 +941,9 @@ dropped, a repeat is ignored, and anything past the third is dropped. **What sur
 one, two or three ids** — and the feedback is written either way: a bad pick is not a reason to refuse
 findings that are otherwise whole. The `round_feedback_written` log line carries `never_cited`,
 `untouched` and `untouched_dropped`. The feedback prompt version bumped with this, to
-`feedback-en-1.1`, and again with follow-ups (#44), whose answers it reads, to `feedback-en-1.2`.
+`feedback-en-1.1`; a Japanese round's `feedback-ja-1.0` picks untouched material from its first
+version (#43). Both bumped again with follow-ups (#44), whose answers they read, to `feedback-en-1.2`
+and `feedback-ja-1.1`.
 
 **If step 2's bound runs out or step 3 fails**, no `round_feedback` is written: it is one row, never
 rewritten, and feedback from an incomplete set of scores would be permanent (`04`). The response is
@@ -1040,6 +1057,7 @@ The retry path for §5.12's step 3, and nothing else — the way §5.10's `run` 
 ```json
 201
 { "feedback": { "to_fix": [ … ], "what_worked": "…", "untouched_claim_ids": [ … ],
+                "body_translated": { "language": "en", "to_fix": [ … ], "what_worked": "…" },
                 "language": "ja", "model_id": "gpt-5.6-sol", "prompt_version": "feedback-ja-1.0" } }
 ```
 
