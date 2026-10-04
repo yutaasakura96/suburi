@@ -91,6 +91,7 @@ the go-on state it holds); a client cache library (`03` §7 names them as not ad
 
 Every Japanese string practice adds is in `docs/checklists/native-read-round.md` §10, written to
 `05` §6's rules. The owner read and accepted all 28 strings on 2026-10-05.
+A numbered follow-up retry label added afterward is listed separately for a native read.
 
 ---
 

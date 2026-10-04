@@ -96,6 +96,8 @@ export function AnswerPager({
   const answer = answers[index];
   if (!answer) return null;
   const unscored = answer.status === "pending" ? copy.notScoredYet : copy.notScored;
+  const followUpAgain = (position: number, n: number) =>
+    `${copy.stepAgain(copy.followUpStep(position, length))}${n > 1 ? `${language === "en" ? " " : ""}${n}` : ""}`;
 
   return (
     <div className="flex flex-col gap-[14px]" data-testid="answer-region" data-position={answer.position} data-again={answer.again}>
@@ -103,7 +105,9 @@ export function AnswerPager({
         <span className="font-mono text-[11px] tracking-[0.16em] text-ink-label">
           {/* 10 §15: an answer given again has its own page, headed as the same question, again. */}
           {answer.again > 0
-            ? copy.stepAgain(answer.followUpAnswer ? copy.followUpStep(answer.position, length) : copy.questionOf(answer.position, length))
+            ? answer.followUpAnswer
+              ? followUpAgain(answer.position, answer.again)
+              : copy.stepAgain(copy.questionOf(answer.position, length))
             : copy.questionOf(answer.position, length)}
         </span>
         <span className="font-mono text-[12px] text-ink-label" data-testid="answer-figures">
@@ -157,7 +161,7 @@ export function AnswerPager({
             >
               {other.again > 0
                 ? other.followUpAnswer
-                  ? copy.stepAgain(copy.followUpStep(other.position, length))
+                  ? followUpAgain(other.position, other.again)
                   : copy.questionAgain(other.position, other.again)
                 : copy.question(other.position)}
             </button>

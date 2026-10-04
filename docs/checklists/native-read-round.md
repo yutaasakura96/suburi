@@ -355,7 +355,8 @@ whether a candidate would say it in a real interview. A rule it breaks is a new 
 edit.
 ## 10. #49, practice mode — `app/(app)/round/copy.ts`
 
-Practice's frames (`10` §15). **Owner read and accepted all 28 Japanese strings on 2026-10-05.**
+Practice's frames (`10` §15). **Owner read and accepted the original 28 Japanese strings on 2026-10-05.**
+The numbered follow-up retry label was added afterward and awaits a native read.
 Written to the rules above — `練習` bare and never `練習モード`, `録り直す` never `撮り直す`, no digit
 followed by `点`, `採点` for scoring, `深掘り` for a follow-up, `講評` for the round's feedback,
 `緊張度` for felt pressure, an unspaced `・`. `—` is set as §2's `文字起こし — 未修正` sets it.
@@ -388,6 +389,7 @@ followed by `点`, `採点` for scoring, `深掘り` for a follow-up, `講評` f
 | ✓ | 採点に戻る | The link back from a question asked again, before anything is recorded — Back to the scores. |
 | ✓ | 第1問・再回答 | The feedback pager's label for an answer given again — Question 1 · again. |
 | ✓ | 第1問・再回答2 | The same for a second one — Question 1 · again 2. The numeral is set tight. |
+| | 第1問 / 3問・深掘り・再回答2 | A second retry of the same follow-up in the feedback pager — Question 1 / 3 · follow-up · again 2. |
 | ✓ | このラウンドの講評はまだできていません。ラウンドは終了し、上の採点はすべて残っています。 | A practice round whose findings are not ready. §2's sentence without the rating — The findings for this round are not ready. The round is complete, and every score above is kept. |
 | ✓ | このラウンドには採点できた回答がないため、講評はありません。ラウンドは終了しています。 | A practice round with no scored answer. §2's sentence without the rating — No answer in this round could be scored, so there are no findings for this round. The round is complete. |
 

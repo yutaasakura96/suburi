@@ -25,7 +25,11 @@ const GIVE_UP_AFTER_MS = 6 * 60_000;
  * asks again.
  */
 function useScoring(roundId: string, answerId: string, initial: ScoringRead) {
-  const [scoring, setScoring] = useState(initial);
+  const complete = (read: ScoringRead) =>
+    read.status === "ok" && (read.scores === undefined || read.flags === undefined)
+      ? { ...read, status: "pending" as const }
+      : read;
+  const [scoring, setScoring] = useState(() => complete(initial));
   const pending = scoring.status === "pending";
   useEffect(() => {
     if (!pending) return;
@@ -38,7 +42,7 @@ function useScoring(roundId: string, answerId: string, initial: ScoringRead) {
         const read = response.ok ? ((await response.json()) as { answers: { id: string; scoring?: ScoringRead }[] }) : null;
         const landed = read?.answers.find((answer) => answer.id === answerId)?.scoring;
         if (cancelled) return;
-        if (landed && landed.status !== "pending") return setScoring(landed);
+        if (landed && complete(landed).status !== "pending") return setScoring(landed);
       } catch {
         if (cancelled) return;
       }

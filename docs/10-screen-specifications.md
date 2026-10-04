@@ -1225,7 +1225,8 @@ scores, and the frame after the last answer is the one that leads to the feedbac
 - **An answer given again has its own page in the pager**, straight after the answer it follows:
   `Question 1 · again` / `第1問・再回答` — `again 2`, `再回答2` for a second one — with its own figures
   and score rows, headed `Question 1 / 3 · again`. It has no follow-up row. A scored retry of a
-  follow-up answer also has its own page, headed as a follow-up given again.
+  follow-up answer also has its own page, headed as a follow-up given again. A second retry carries
+  `again 2` / `再回答2` in its heading and pager label.
 - **The round-level findings, and `Checked against your CV`, use the first answers and their
   follow-ups when one scored.** If none scored, they use scored answers given again under the new
   feedback prompt versions (`07` §5.12, `06`).
