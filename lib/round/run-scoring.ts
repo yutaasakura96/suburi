@@ -19,6 +19,11 @@ import { log, pgErrorClass, type Db } from "./http";
  * that finds a live claim is `in_flight` and calls nothing, which is History's `409` (07 §5.10). A
  * claim older than the invocation's ceiling belongs to a function that died, and is taken over.
  *
+ * **Stamp 4 is written again when the attempt turns `ok`**, as the model and scoring prompt that
+ * produced its scores. A pending attempt can outlive the pin it was created under — History runs one
+ * days later (07 §5.10) — and a score stamped with a model that did not produce it would put it on
+ * the wrong side of Progress's boundary (invariant 5). A failed attempt keeps the stamp it was given.
+ *
  * **The CV check is stored only after validation** (07 §5.10, `grounding.ts`): a citation must name a
  * claim the scorer was shown, an unsupported span must be found verbatim in `transcript_corrected`,
  * and what fails is dropped and counted in the log line — never clamped, never stored.
@@ -138,7 +143,16 @@ export async function runScoringAttempt(
       await deps.transaction(async (tx) => {
         const [updated] = await tx
           .update(s.scoringAttempts)
-          .set({ status: "ok", answeredLanguage: result.answeredLanguage, tokensIn: result.tokensIn, tokensOut: result.tokensOut })
+          .set({
+            status: "ok",
+            answeredLanguage: result.answeredLanguage,
+            tokensIn: result.tokensIn,
+            tokensOut: result.tokensOut,
+            // Stamp 4 is the scorer that produced these scores (see above), not the one pinned when
+            // the row was written.
+            modelId: deps.scorer.modelId,
+            scoringPromptVersion: deps.scorer.promptVersions[rubric.language] ?? row.attempt.scoringPromptVersion,
+          })
           .where(and(eq(s.scoringAttempts.id, attemptId), eq(s.scoringAttempts.status, "pending")))
           .returning({ id: s.scoringAttempts.id });
         if (!updated) return;

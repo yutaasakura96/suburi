@@ -584,6 +584,12 @@ what it always has**: a `pending` row is completed once — to `ok` with its sco
 its error class — and a completed row is never touched again. This column is the only other write a
 `pending` row takes.
 
+**Completing to `ok` also writes stamp 4** (#50): `model_id` and `scoring_prompt_version` are set to
+the scorer's that produced the scores, in the same transaction. They are first written with the row,
+as the pin of that moment, and for an attempt scored by the function that created it nothing changes.
+A `pending` attempt run later from History may be scored under a newer pin, and the stamp has to name
+the model that scored it, or the answer sits on the wrong side of Progress's boundary.
+
 ---
 
 ### `scores`

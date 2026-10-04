@@ -422,7 +422,9 @@ check have unit tests of their own.
   call**, so an `ok` score is not re-rolled; spent retries are `502 scoring_failed` and the answer can
   be retried again; **a held claim is `409 scoring_in_progress` with no model call, still held one
   second short of the invocation ceiling, and taken over at it**; a realistic round in progress gets
-  the status alone; each route counts in its own rate-limit bucket.
+  the status alone; each route counts in its own rate-limit bucket. **A pending attempt run later is
+  stamped with the scorer that scored it**, its other three stamps unmoved, and a failed one keeps the
+  stamp it was given.
 - **The detail loader**: question, follow-up and missing-follow-up rows in order; a practice retry
   directly under the answer it retries; both transcripts on every answered row; **an unreached
   question's text absent from the whole serialised result**, and a held score's attempt id with it.
@@ -458,7 +460,7 @@ wiring between screens that no unit test sees.
 | Wrong language | A Japanese answer in an English round carries the wrong-language line on its own page of the pager and no other, is still scored, and its attempt stores `answered_language = 'ja'`. |
 | Coverage marks | After the round, `/cv` draws the cited claim with the heavier mark, the rest without, and the count line states how many were never used. |
 | Practice frame | After a practice submit, the per-answer frame states the score as pending, then shows it once scored; "answer again" writes a second answer at the same position with no follow-up. |
-| History's rail | Every round newest first; `Unscored — retry scoring` on the rounds with a pending or failed score, `Abandoned — not counted in progress` on the open one, no line on the scored one; the chrome English on a Japanese round; the newest open round started today offered for resuming. |
+| History's rail | Every round newest first; `Unscored — retry scoring` on the rounds with a pending or failed score, `Abandoned — not counted in progress` on the open one, no line on the scored one; the chrome English on a Japanese round; the newest open round started today offered for resuming; with no rounds, a sentence and the way to start one. |
 | History's matrix | Each question with its follow-up under it; 10 §10's sample row `4 3 4 3 4 2 3`; **the missing follow-up as a row spanning the score columns**; seven dimensions in a Japanese round and the pill renaming them without changing a score; an unreached question shown by its number alone. |
 | History's playback | Every answered row opens its raw transcript beside the correction. A stored recording loads in the `<audio>` element from a presigned URL minted on open; **a missing one and an unplayable one are each a sentence, with the transcripts still there.** |
 | History's retry | A failed score's retry scores that answer alone: one scoring call, **no feedback call, `round_feedback` unchanged**, a new attempt beside the failed one, the rail's line cleared, and no control left on an `ok` score. A retry that fails says so on the row and stays offered. A pending score is run as it is, with no new attempt. |

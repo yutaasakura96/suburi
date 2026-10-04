@@ -39,6 +39,19 @@ boundary, which is the honest reading. **Rejected:** stamping the retry with the
 model (the pinned string may no longer exist to call, and the stamp would then name a model that did
 not score it).
 
+### [2026-10-04] An attempt's model stamp is written when it is scored, not only when its row is
+
+Found by hand on a seeded database: the synthetic `pending` attempt, run from History, was scored by
+`gpt-5.6-sol` and still read `synthetic-fixture`. The same hole exists without a seed — an attempt is
+stamped with the pin of the moment its row is written, and `run` can now score a `pending` one days
+later, across a model change. **Decided:** the transaction that turns an attempt `ok` also sets
+`model_id` and `scoring_prompt_version` to the scorer's that produced the scores (`04`, `07` §5.10).
+For `submit`'s own `after()` the two are the same values, so nothing changes there. A `failed` attempt
+keeps its creation stamp: no model scored it. **Rejected:** failing a stale `pending` attempt unscored
+so that History's retry writes a new row (two calls and an error on the row, to reach the same score
+and the same stamp); leaving it (a score under the wrong model's name is the drift the stamps exist to
+make visible, hidden instead).
+
 ### [2026-10-04] `GET /api/rounds` names every scoring model behind a round: `scoring_model_ids`
 
 `07` §5.13 drew `stamps.scoring_model_id`, one string. A round's answers are scored one attempt each,

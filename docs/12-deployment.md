@@ -104,7 +104,8 @@ synthetic CV, which they need seeded first — the seed fails, writing nothing, 
 like the CV's: **no model call**, and every row that a model would have stamped says so —
 `model_id` `synthetic-fixture`, and `synthetic-score-…`, `synthetic-follow-up-…` and
 `synthetic-feedback-…` as the prompt versions — so no chart can take a seeded score for a scored one.
-A retry made on `develop` is scored by the real pinned model, and History then shows both stamps.
+A retry made on `develop` — or the seeded `pending` attempt, once run — is scored by the real pinned
+model and stamped with it (`07` §5.10), and History then shows both stamps.
 **No recording is seeded** (`audio_s3_key` null): History says the recording is missing, which is the
 state `04` §5 requires it to tolerate. The Japanese round answers with the synthetic CV's own
 sentences, so the seed adds no Japanese that has not been read.

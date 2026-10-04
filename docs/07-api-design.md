@@ -910,6 +910,11 @@ and `run` is idempotent.
   a function that is dead, and the next call takes the attempt over. `submit`'s `after()` claims the
   same way, so a History retry cannot double-score an answer whose first run is still going. There is
   still no `running` status: the attempt stays `pending` until it is `ok` or `failed`.
+- **Stamp 4 is written again when the attempt turns `ok`**: `model_id` and `scoring_prompt_version`
+  become the scorer's that produced the scores, in the transaction that writes them. An attempt is
+  stamped when its row is written, and a `pending` one can now be run days later, after the pin has
+  moved; scored then, it must not carry the old model's name (refusal #5). The other three stamps are
+  the round's and the question's and never move, and a `failed` attempt keeps what it was given.
 - **A run that spends its retries answers `502 scoring_failed`**, with `detail` carrying the attempt,
   the answer and the `error_class`. The row is `failed`, and §5.11 can retry it again.
 - **A finished attempt is returned as it stands** with `200` and no model call — `ok` with its scores,

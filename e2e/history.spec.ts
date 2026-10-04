@@ -111,11 +111,9 @@ test.beforeAll(async () => {
   });
 });
 
-test.afterAll(async () => {
-  await openAi?.close();
-  await s3?.close();
-  // round.spec.ts and status.spec.ts run next against this database, and count on its rounds being
-  // theirs and started this week. A throwaway database, emptied by hand: nothing in the app deletes.
+// round.spec.ts and status.spec.ts run next against this database, and count on its rounds being
+// theirs and started this week. A throwaway database, emptied by hand: nothing in the app deletes.
+async function emptyRounds() {
   await withDb(async (db) => {
     await db.delete(s.scores);
     await db.delete(s.answerFlags);
@@ -128,6 +126,12 @@ test.afterAll(async () => {
     await db.delete(s.roundQuestions);
     await db.delete(s.rounds);
   });
+}
+
+test.afterAll(async () => {
+  await openAi?.close();
+  await s3?.close();
+  await emptyRounds();
 });
 
 test.beforeEach(() => {
@@ -362,6 +366,8 @@ test("a score that never finished is run as it is: no new attempt", async ({ pag
   await row.getByTestId("history-retry").click();
   await expect(row.getByTestId("history-score")).toHaveText(["5", "5", "5", "5", "5", "5"]);
   await expect(rounds(page).nth(1).getByTestId("history-status-line")).toHaveCount(0);
+  // The attempt is stamped with the model that scored it, not the one it was written under.
+  await expect(page.getByTestId("history-stamp")).toContainText("gpt-5.6-sol");
 
   const attempts = await withDb((db) => db.select().from(s.scoringAttempts).where(eq(s.scoringAttempts.answerId, id("pending-en:q3"))));
   expect(attempts.map((attempt) => [attempt.id, attempt.status])).toEqual([[id("pending-en:q3:attempt"), "ok"]]);
@@ -443,4 +449,16 @@ test("the newest open round started today is offered for resuming, with its scor
   await expect(rows(page)).toHaveCount(3);
   await expect(rows(page).nth(0)).toHaveText(/^Q1\s*Not answered\s*—$/);
   await expect(page.getByTestId("history-play")).toHaveCount(0);
+});
+
+test("with no rounds, History says so and offers to start one", async ({ page }) => {
+  await emptyRounds();
+  await signIn(page);
+  await page.goto("/history");
+
+  await expect(page).toHaveURL("/history");
+  await expect(page.getByTestId("history-count")).toHaveText("0");
+  await expect(rounds(page)).toHaveCount(0);
+  await expect(page.getByTestId("history-empty")).toContainText("No rounds yet.");
+  await expect(page.getByTestId("history-empty").getByRole("link", { name: "Start a round" })).toHaveAttribute("href", "/round/new");
 });

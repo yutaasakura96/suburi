@@ -638,6 +638,37 @@ describe("POST /api/scoring-attempts/{id}/run (07 §5.10)", () => {
       expect(await db.$count(s.scoringAttempts, eq(s.scoringAttempts.answerId, world.id("pending-en:q3")))).toBe(1);
     }));
 
+  it("stamps a pending attempt with the scorer that scored it, not the one pinned when it was written", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const [before] = await db.select().from(s.scoringAttempts).where(eq(s.scoringAttempts.id, world.pendingAttemptId));
+      expect(before).toMatchObject({ modelId: SYNTHETIC_MODEL_ID, scoringPromptVersion: "synthetic-score-en-1.0" });
+
+      await world.run(world.pendingAttemptId);
+
+      const [after] = await db.select().from(s.scoringAttempts).where(eq(s.scoringAttempts.id, world.pendingAttemptId));
+      expect(after).toMatchObject({ status: "ok", modelId: "fake-scorer-2026-01-01", scoringPromptVersion: "score-en-fake" });
+      // The other three stamps are the round's and the question's, and do not move.
+      expect([after.cvVersionId, after.rubricVersionId, after.generatorPromptVersion]).toEqual([
+        before.cvVersionId,
+        before.rubricVersionId,
+        before.generatorPromptVersion,
+      ]);
+      const listed = (await world.list()).json.items.find((round: { id: string }) => round.id === world.id("pending-en"));
+      expect(listed.stamps.scoring_model_ids).toEqual(["fake-scorer-2026-01-01", SYNTHETIC_MODEL_ID]);
+    }));
+
+  it("leaves a failed attempt with the stamp it was given: no model scored it", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      world.scorer.score = async () => {
+        throw new ModelCallFailed("Scoring", "upstream_500");
+      };
+      await world.run(world.pendingAttemptId);
+      const [after] = await db.select().from(s.scoringAttempts).where(eq(s.scoringAttempts.id, world.pendingAttemptId));
+      expect(after).toMatchObject({ status: "failed", modelId: SYNTHETIC_MODEL_ID, scoringPromptVersion: "synthetic-score-en-1.0" });
+    }));
+
   it("returns a finished attempt as it stands and calls nothing: an ok score is not re-rolled", () =>
     inRolledBackTransaction(async (db) => {
       const world = await setUp(db);
