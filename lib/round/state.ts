@@ -169,7 +169,12 @@ export async function isAbandoned(db: Reader, round: RoundRow) {
   return roundStatus(round, { newerRoundExists: await newerRoundExists(db, round), now: new Date() }) === "abandoned";
 }
 
-export async function roundWriteRefusal(db: Reader, roundId: string): Promise<Response | null> {
+export async function lockRoundUser(db: Reader, userId: string) {
+  await db.select({ id: s.users.id }).from(s.users).where(eq(s.users.id, userId)).for("update");
+}
+
+export async function roundWriteRefusal(db: Reader, roundId: string, userId: string): Promise<Response | null> {
+  await lockRoundUser(db, userId);
   const [round] = await db.select().from(s.rounds).where(eq(s.rounds.id, roundId)).for("update");
   if (round.completedAt !== null) return apiError("round_already_complete", "The round is already complete.", { round_id: roundId });
   return (await isAbandoned(db, round)) ? roundAbandoned(roundId) : null;

@@ -5,7 +5,7 @@ import * as s from "../../db/schema";
 import { apiError } from "../api/errors";
 import { answerAudioKey, type AudioStore } from "../audio/store";
 import { authenticate, guarded, isUuid, log, notFound, parseBody, roundAbandoned, roundIdOf, writeFailed, type RoundDeps } from "./http";
-import { answeredBefore, isAbandoned, promptAt, readRoundStep, type AnswerRow } from "./state";
+import { answeredBefore, isAbandoned, lockRoundUser, promptAt, readRoundStep, type AnswerRow } from "./state";
 
 /**
  * `POST /api/rounds/{roundId}/answers` (07 §5.6): opens the answer slot and presigns the upload.
@@ -78,6 +78,7 @@ export function createOpenAnswer(deps: OpenAnswerDeps) {
     let opened: Opened;
     try {
       opened = await deps.transaction(async (tx): Promise<Opened> => {
+        await lockRoundUser(tx, userId);
         // Position is assigned under a row lock on the round: two concurrent opens cannot both claim it.
         const [round] = await tx
           .select()

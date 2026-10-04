@@ -623,12 +623,15 @@ moves past it.
 client which call comes next. A reserved `audio_s3_key` never proves the PUT landed. After the server
 reads the object on `transcribe`, it records `audio_uploaded_at` before invoking the model. Until then,
 `resume.at` is `upload`, and the client retains the take for a retry. If the object is absent,
-`transcribe` answers `404 audio_missing` and the question can be recorded again.
+`transcribe` answers `404 audio_missing`; a held take is offered for upload retry, and the question
+can be recorded again only when no take remains.
 
 **`round.status` is derived** — `in_progress`, `abandoned` or `complete` (`04` `rounds`). **Only the
 newest open round started today — the user's local day, Asia/Tokyo — resumes**; an abandoned round
 returns `resume: null` and `prompt: null`, as a complete one does, and the client shows it read-only.
 An open round is abandoned the moment a newer one starts, so a stale tab cannot resume into it.
+Round creation and writes to existing rounds take the same user row lock before checking abandonment;
+the new round's `started_at` is stamped after that lock is acquired.
 
 **Scores in the read, practice only** (`06`, 2026-09-27). For a `practice` round, each submitted
 answer's `scoring` also carries its `scores` (in the rubric's order, §4) and its `flags` once `ok` —

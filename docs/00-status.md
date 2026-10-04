@@ -424,8 +424,8 @@ resumed round that transcribes the uploaded take instead of asking for another; 
 named with its fix; the earlier-day abandonment's own sentence; and a spent OpenAI project classed by
 its code and never retried. **Tested:** every round route failed at each database call in turn
 (`11` §3.16), the sentinel walk over every refusal (`11` §3.10), and Playwright for each failure path
-(`11` §4). **Not done here:** the nine new Japanese strings are unread
-(`docs/checklists/native-read-round.md` §10); whether a spent project refuses the preflight's probe
+(`11` §4). **The owner read and accepted all nine new Japanese strings on 2026-10-05**
+(`docs/checklists/native-read-round.md` §10). **Not done here:** whether a spent project refuses the preflight's probe
 is unverified (`12` §6); and "excluded from Progress" for a typed answer is the mark only — the
 exclusion is #51's. Decisions in `06`, "Phase 6 — #48".
 

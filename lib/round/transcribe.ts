@@ -43,7 +43,7 @@ export function createTranscribe(deps: TranscribeDeps) {
       .from(s.answers)
       .where(and(eq(s.answers.id, answerId), eq(s.answers.userId, userId)));
     if (!answer) return notFound("answer");
-    const initialRefusal = await deps.transaction((tx) => roundWriteRefusal(tx, answer.roundId));
+    const initialRefusal = await deps.transaction((tx) => roundWriteRefusal(tx, answer.roundId, userId));
     if (initialRefusal) return initialRefusal;
     if (answer.transcriptRaw !== null) return Response.json(view(answer));
 
@@ -64,7 +64,7 @@ export function createTranscribe(deps: TranscribeDeps) {
     if (answer.audioUploadedAt === null) {
       try {
         const refusal = await deps.transaction(async (tx) => {
-          const blocked = await roundWriteRefusal(tx, answer.roundId);
+          const blocked = await roundWriteRefusal(tx, answer.roundId, userId);
           if (blocked) return blocked;
           await tx.update(s.answers).set({ audioUploadedAt: new Date() }).where(and(eq(s.answers.id, answerId), isNull(s.answers.audioUploadedAt)));
           return null;
@@ -95,7 +95,7 @@ export function createTranscribe(deps: TranscribeDeps) {
     try {
       // Written only while still null: a concurrent call that finished first keeps its transcript.
       const writeResult = await deps.transaction(async (tx) => {
-        const refusal = await roundWriteRefusal(tx, answer.roundId);
+        const refusal = await roundWriteRefusal(tx, answer.roundId, userId);
         if (refusal) return refusal;
         const [updated] = await tx
           .update(s.answers)

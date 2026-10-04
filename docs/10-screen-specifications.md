@@ -362,7 +362,8 @@ question stays unseen (PRD §7).
 ### 4–5, when it fails (#48) — no artboard
 
 Built from the record frames' own parts; nothing here was drawn. Copy is `app/(app)/round/copy.ts`,
-and its Japanese is unread until `docs/checklists/native-read-round.md` §9 is.
+and its nine Japanese strings were read and accepted by the owner on 2026-10-05
+(`docs/checklists/native-read-round.md` §10).
 
 - **The microphone is denied, or the recording fails.** Screen 3 stays as it is, with one attention
   rail under the captions. A denied microphone names the fix — allow it from the address bar, then

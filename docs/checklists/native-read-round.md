@@ -305,21 +305,21 @@ and a Progress boundary (`04` `questions`), not an edit.
 ## 10. #48, failure paths
 
 What a Japanese round's screens say when a take cannot be recorded, uploaded or transcribed, and when
-a round was left by the day ending. **Unread.** None is quoted by `10`; each is the Japanese of the
-English beside it. The catalogue's `transcription_failed` and `write_failed` sentences, shown on the
-same frames, were read with #13 and #42.
+a round was left by the day ending. **All nine read and accepted as written by the owner, Yuta Asakura
+(朝倉優太), on 2026-10-05.** Each is the Japanese of the English beside it. The catalogue's
+`transcription_failed` and `write_failed` sentences, shown on the same frames, were read with #13 and #42.
 
 | | Japanese | Intent |
 | --- | --- | --- |
-| | 録音の文字起こしをしています。 | Status while a resumed take is transcribed — Transcribing the take. |
-| | このサイトではマイクがブロックされています。アドレスバーのアイコンからマイクを許可して、もう一度録音を開始してください。何も録音されておらず、この質問は未回答のままです。 | The microphone was refused — The microphone is blocked for this site. Allow it from the icon in the address bar, then start recording again. Nothing was recorded, and the question stays unseen. |
-| | 録音をアップロードできませんでした。録音はこの端末に保存されています。このタブを閉じないでください。 | The upload failed and the take is held — The take could not be uploaded. It is held on this device. Do not close this tab. |
-| | 回答を入力する | Control, after a failed transcription — Type the answer instead |
-| | あなたの回答 — 音声ではなく入力 | Label of the typed-answer box — Your answer — typed, not spoken |
-| | 入力した回答は、入力したものとして記録します。時間と話す速さは記録せず、進捗にも入れません。録音は残ります。 | Caption under the box — A typed answer is recorded as typed. It has no duration and no pace, and it is not counted in progress. The take is kept. |
-| | 入力した回答を保存する | Control — Save the typed answer |
-| | 入力した回答を保存しています。 | Status while it saves — Saving the typed answer. |
-| | 始めた日のうちに終わらなかったため、このラウンドは中断されました。記録はそのまま残ります。 | An open round from an earlier day — This round was not finished on the day it started, so it was left. It stays as it is. |
+| ✓ | 録音の文字起こしをしています。 | Status while a resumed take is transcribed — Transcribing the take. |
+| ✓ | このサイトではマイクがブロックされています。アドレスバーのアイコンからマイクを許可して、もう一度録音を開始してください。何も録音されておらず、この質問は未回答のままです。 | The microphone was refused — The microphone is blocked for this site. Allow it from the icon in the address bar, then start recording again. Nothing was recorded, and the question stays unseen. |
+| ✓ | 録音をアップロードできませんでした。録音はこの端末に保存されています。このタブを閉じないでください。 | The upload failed and the take is held — The take could not be uploaded. It is held on this device. Do not close this tab. |
+| ✓ | 回答を入力する | Control, after a failed transcription — Type the answer instead |
+| ✓ | あなたの回答 — 音声ではなく入力 | Label of the typed-answer box — Your answer — typed, not spoken |
+| ✓ | 入力した回答は、入力したものとして記録します。時間と話す速さは記録せず、進捗にも入れません。録音は残ります。 | Caption under the box — A typed answer is recorded as typed. It has no duration and no pace, and it is not counted in progress. The take is kept. |
+| ✓ | 入力した回答を保存する | Control — Save the typed answer |
+| ✓ | 入力した回答を保存しています。 | Status while it saves — Saving the typed answer. |
+| ✓ | 始めた日のうちに終わらなかったため、このラウンドは中断されました。記録はそのまま残ります。 | An open round from an earlier day — This round was not finished on the day it started, so it was left. It stays as it is. |
 
 **One thing to weigh in the read.** The English says the question "stays unseen", the app's own word
 for a question no answer has been recorded against. The Japanese says `未回答のまま` — still

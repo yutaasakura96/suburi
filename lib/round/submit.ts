@@ -7,7 +7,7 @@ import { generateFollowUp, type FollowUpDeps } from "./follow-up";
 import { answerIdOf, authenticate, guarded, isUuid, log, notFound, parseBody, roundAbandoned, writeFailed, type RoundDeps } from "./http";
 import { rewriteMagnitude } from "./measures";
 import { runScoringAttempt, type ScoringRunDeps } from "./run-scoring";
-import { isAbandoned, promptAt, readRoundStep, type AnswerRow, type RoundRow, type RoundStep } from "./state";
+import { isAbandoned, lockRoundUser, promptAt, readRoundStep, type AnswerRow, type RoundRow, type RoundStep } from "./state";
 
 /**
  * `POST /api/answers/{answerId}/submit` ⚡ (07 §5.9): the commit point. Writes the corrected
@@ -92,6 +92,7 @@ export function createSubmit(deps: SubmitDeps) {
     let written: boolean | Response;
     try {
       written = await deps.transaction(async (tx): Promise<boolean | Response> => {
+        await lockRoundUser(tx, round.userId);
         await tx.select({ id: s.rounds.id }).from(s.rounds).where(eq(s.rounds.id, round.id)).for("update");
         if (await isAbandoned(tx, round)) return roundAbandoned(round.id);
         const [row] = await tx
@@ -193,6 +194,7 @@ export function createSubmit(deps: SubmitDeps) {
     let attemptId: string | null | Response;
     try {
       attemptId = await deps.transaction(async (tx): Promise<string | null | Response> => {
+        await lockRoundUser(tx, round.userId);
         await tx.select({ id: s.rounds.id }).from(s.rounds).where(eq(s.rounds.id, round.id)).for("update");
         if (await isAbandoned(tx, round)) return roundAbandoned(round.id);
         const [updated] = await tx

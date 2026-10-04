@@ -9,7 +9,7 @@ import type { Rubric } from "../rubric/types";
 import { pickUntouched } from "./grounding";
 import { citableClaimsOf } from "./run-scoring";
 import { authenticate, guarded, isUuid, log, notFound, parseBody, roundAbandoned, roundIdOf, writeFailed, type Db, type RoundDeps } from "./http";
-import { isAbandoned, latestAttempts, noScores, readRoundStep, roundAnswers, scoringCounts, type RoundRow } from "./state";
+import { isAbandoned, latestAttempts, lockRoundUser, noScores, readRoundStep, roundAnswers, scoringCounts, type RoundRow } from "./state";
 
 /**
  * `POST /api/rounds/{roundId}/complete` ⚡ (07 §5.12) and its retry, `POST …/feedback` (§5.16).
@@ -264,6 +264,7 @@ export function createComplete(deps: CompleteDeps) {
     try {
       // Step 1: the rating and completed_at, committed before anything else happens.
       closed = await deps.transaction(async (tx): Promise<RoundRow | Response> => {
+        await lockRoundUser(tx, userId);
         const [round] = await tx
           .select()
           .from(s.rounds)

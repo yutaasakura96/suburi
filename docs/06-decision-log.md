@@ -9,6 +9,13 @@ What a round does when a recording, an upload, a transcription, a score or a dat
 how it resumes. The behaviour was settled on 2026-09-12, 2026-09-27 and 2026-09-28 (below); these are
 the choices the build needed.
 
+### [2026-10-05] Round creation and writes serialize per user
+
+Starting a round and writing to an existing round take the same `users` row lock before checking
+whether the old round is still writable. A creation that waits for the lock stamps `started_at` at
+insertion time, so the newest round follows commit order. This closes the two-tab gap where a new
+round could commit after an old answer checked its status but before that answer wrote.
+
 ### [2026-10-04] Review correction: reserved keys do not confirm upload
 
 The uploaded state and `transcribe` resume now require `answers.audio_uploaded_at`, recorded after

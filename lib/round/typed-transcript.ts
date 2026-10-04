@@ -59,7 +59,7 @@ export function createTypedTranscript(deps: RoundDeps) {
     let stored;
     try {
       const result = await deps.transaction(async (tx) => {
-        const refusal = await roundWriteRefusal(tx, answer.roundId);
+        const refusal = await roundWriteRefusal(tx, answer.roundId, userId);
         if (refusal) return refusal;
         const [current] = await tx.select().from(s.answers).where(eq(s.answers.id, answerId));
         if (current.transcriptRaw !== null) return final(current);

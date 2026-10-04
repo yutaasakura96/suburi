@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import * as s from "../../db/schema";
 import { apiError } from "../api/errors";
@@ -6,8 +6,12 @@ import type { Embedder } from "../ai/embed";
 import type { QuestionGenerator } from "../ai/generate-questions";
 import type { ModelHealth } from "../ai/health";
 import type { AnswerScorer } from "../ai/score";
-import { authenticate, guarded, log, notFound, parseBody, writeFailed, type RoundDeps } from "./http";
-import { chooseQuestions, loadCandidates } from "./select-questions";
+import { ModelCallFailed } from "../ai/upstream";
+import { admitCandidate, lockSlice } from "../questions/near-duplicate";
+import { generateCandidates, type GeneratedCandidates } from "./generate-candidates";
+import { authenticate, guarded, log, notFound, parseBody, writeFailed, type Db, type RoundDeps } from "./http";
+import { loadCandidates, planQuestions } from "./select-questions";
+import { lockRoundUser } from "./state";
 
 /**
  * `POST /api/rounds` ⚡ (07 §5.4). Preflights the model, resolves the rubric and the CV version,
@@ -117,6 +121,11 @@ export function createPostRound(deps: PostRoundDeps) {
     try {
       // The first prompt is read inside the write: nothing after the commit can fail a round that exists.
       [round, first] = await deps.transaction(async (tx) => {
+        await lockRoundUser(tx, userId);
+        if (generated) {
+          await lockSlice(tx, slice);
+          await fillFromCandidates(tx, generated);
+        }
         const [row] = await tx
           .insert(s.rounds)
           .values({
@@ -129,6 +138,7 @@ export function createPostRound(deps: PostRoundDeps) {
             cvVersionId: cv.id,
             roleContextId: context.id,
             rubricVersionId: rubric.id,
+            startedAt: sql`clock_timestamp()`,
           })
           .returning();
         await tx
