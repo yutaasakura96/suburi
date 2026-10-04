@@ -4,7 +4,7 @@ import { apiError } from "../api/errors";
 import { ModelCallFailed } from "../ai/upstream";
 import type { Transcriber } from "../ai/transcribe";
 import type { AudioStore } from "../audio/store";
-import { authenticate, isUuid, log, notFound, writeFailed, type RoundDeps } from "./http";
+import { answerIdOf, authenticate, guarded, isUuid, log, notFound, writeFailed, type RoundDeps } from "./http";
 import { pace } from "./measures";
 
 /**
@@ -31,7 +31,7 @@ function view(answer: typeof s.answers.$inferSelect) {
 }
 
 export function createTranscribe(deps: TranscribeDeps) {
-  return async function POST(request: Request, answerId: string): Promise<Response> {
+  return guarded("transcribe_failed", async function POST(request: Request, answerId: string): Promise<Response> {
     const session = await authenticate(deps, request, "transcribe");
     if (session instanceof Response) return session;
     const { userId } = session;
@@ -105,5 +105,5 @@ export function createTranscribe(deps: TranscribeDeps) {
       duration_ms: elapsed(),
     });
     return Response.json(view(stored));
-  };
+  }, answerIdOf);
 }

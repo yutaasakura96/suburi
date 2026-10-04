@@ -6,11 +6,8 @@ import type { Embedder } from "../ai/embed";
 import type { QuestionGenerator } from "../ai/generate-questions";
 import type { ModelHealth } from "../ai/health";
 import type { AnswerScorer } from "../ai/score";
-import { ModelCallFailed } from "../ai/upstream";
-import { admitCandidate, lockSlice } from "../questions/near-duplicate";
-import { generateCandidates, type GeneratedCandidates } from "./generate-candidates";
-import { authenticate, log, notFound, parseBody, writeFailed, type Db, type RoundDeps } from "./http";
-import { loadCandidates, planQuestions } from "./select-questions";
+import { authenticate, guarded, log, notFound, parseBody, writeFailed, type RoundDeps } from "./http";
+import { chooseQuestions, loadCandidates } from "./select-questions";
 
 /**
  * `POST /api/rounds` ⚡ (07 §5.4). Preflights the model, resolves the rubric and the CV version,
@@ -49,7 +46,7 @@ export interface PostRoundDeps extends RoundDeps {
 class BankTooSmall extends Error {}
 
 export function createPostRound(deps: PostRoundDeps) {
-  return async function POST(request: Request): Promise<Response> {
+  return guarded("round_create_failed", async function POST(request: Request): Promise<Response> {
     const session = await authenticate(deps, request, "rounds");
     if (session instanceof Response) return session;
     const { userId } = session;
@@ -116,12 +113,10 @@ export function createPostRound(deps: PostRoundDeps) {
     const chosen = [...plan.chosen];
     const admitted = { inserted: 0, reused: 0 };
     let round: typeof s.rounds.$inferSelect;
+    let first: { id: string; body: string };
     try {
-      round = await deps.transaction(async (tx) => {
-        if (generated) {
-          await lockSlice(tx, slice);
-          await fillFromCandidates(tx, generated);
-        }
+      // The first prompt is read inside the write: nothing after the commit can fail a round that exists.
+      [round, first] = await deps.transaction(async (tx) => {
         const [row] = await tx
           .insert(s.rounds)
           .values({
@@ -139,7 +134,11 @@ export function createPostRound(deps: PostRoundDeps) {
         await tx
           .insert(s.roundQuestions)
           .values(chosen.map((questionId, index) => ({ roundId: row.id, userId, position: index + 1, questionId })));
-        return row;
+        const [question] = await tx
+          .select({ id: s.questions.id, body: s.questions.body })
+          .from(s.questions)
+          .where(eq(s.questions.id, chosen[0]));
+        return [row, question] as const;
       });
     } catch (error) {
       if (error instanceof BankTooSmall) {
@@ -150,44 +149,6 @@ export function createPostRound(deps: PostRoundDeps) {
       }
       return writeFailed("round_write_failed", error, {});
     }
-
-    /**
-     * Each candidate through the guard, in the model's order, until the round is full. A candidate
-     * the guard maps to an existing question is not asked twice: that question joins the reserve,
-     * ahead of the plan's, and the reserve — repeats — fills only what the candidates could not.
-     */
-    async function fillFromCandidates(tx: Db, batch: GeneratedCandidates) {
-      const matched: string[] = [];
-      for (const candidate of batch.candidates) {
-        if (chosen.length === length) break;
-        const first = admitted.inserted === 0;
-        const admission = await admitCandidate(tx, slice, candidate, {
-          generatorModelId: deps.questionGenerator.modelId,
-          generatorPromptVersion: batch.promptVersion,
-          embeddingModelId: deps.embedder.modelId,
-          // One call wrote these rows: its tokens go on the first, so a sum over rows is the spend (04).
-          tokensIn: first ? batch.tokensIn : null,
-          tokensOut: first ? batch.tokensOut : null,
-        });
-        if (admission.kind === "inserted") {
-          admitted.inserted += 1;
-          chosen.push(admission.questionId);
-        } else {
-          admitted.reused += 1;
-          matched.push(admission.questionId);
-        }
-      }
-      for (const questionId of [...matched, ...plan.reserve]) {
-        if (chosen.length === length) break;
-        if (!chosen.includes(questionId)) chosen.push(questionId);
-      }
-      if (chosen.length < length) throw new BankTooSmall();
-    }
-
-    const [first] = await deps.db
-      .select({ id: s.questions.id, body: s.questions.body })
-      .from(s.questions)
-      .where(eq(s.questions.id, chosen[0]));
 
     log("info", {
       event: "round_created",
@@ -229,5 +190,5 @@ export function createPostRound(deps: PostRoundDeps) {
       // No Location: `GET /api/rounds/{id}` is the resume slice's (#48), as #14 left the CV route.
       { status: 201 },
     );
-  };
+  });
 }

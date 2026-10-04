@@ -4,18 +4,8 @@ import { z } from "zod";
 import * as s from "../../db/schema";
 import { apiError } from "../api/errors";
 import { answerAudioKey, type AudioStore } from "../audio/store";
-import { authenticate, isUuid, log, notFound, parseBody, roundAbandoned, writeFailed, type Db, type RoundDeps } from "./http";
-import {
-  answeredBefore,
-  isAbandoned,
-  openRetry,
-  promptAt,
-  roundAnswers,
-  roundFollowUps,
-  roundStep,
-  type AnswerRow,
-  type RoundRow,
-} from "./state";
+import { authenticate, guarded, isUuid, log, notFound, parseBody, roundAbandoned, roundIdOf, writeFailed, type RoundDeps } from "./http";
+import { answeredBefore, isAbandoned, promptAt, readRoundStep, type AnswerRow } from "./state";
 
 /**
  * `POST /api/rounds/{roundId}/answers` (07 §5.6): opens the answer slot and presigns the upload.
@@ -65,50 +55,7 @@ export interface OpenAnswerDeps extends RoundDeps {
 }
 
 export function createOpenAnswer(deps: OpenAnswerDeps) {
-  /**
-   * "Answer again" (07 §5.6). The new row copies what the first was asked — the question or the
-   * follow-up it answered, the prompt as asked, the position — and **points at the original**: giving
-   * a retry again is one more retry of the same answer, never a retry of a retry (04 `answers`).
-   * Nothing about the first answer changes, and the round's step is not consulted: the round stays
-   * wherever it was.
-   */
-  async function answerAgain(tx: Db, round: RoundRow, answers: readonly AnswerRow[], answerId: string): Promise<Opened> {
-    // Realistic is one take (PRD US-5): the field is refused there, whatever it names.
-    if (round.mode !== "practice") {
-      return apiError("invalid_request", "Only an answer in a practice round can be answered again.", { fields: ["retry_of_answer_id"] });
-    }
-    const target = answers.find((answer) => answer.id === answerId);
-    if (!target) return notFound("answer", { round_id: round.id });
-    if (target.transcriptCorrected === null) {
-      return apiError("invalid_request", "Only a submitted answer can be answered again.", { fields: ["retry_of_answer_id"] });
-    }
-    const original = answers.find((answer) => answer.id === (target.retryOfAnswerId ?? target.id))!;
-    // One open retry per answer: a repeat, an expired URL or a re-take all land on it.
-    const open = openRetry(answers, original.id);
-    if (open) return reopened(open);
-
-    const id = randomUUID();
-    const [answer] = await tx
-      .insert(s.answers)
-      .values({
-        id,
-        roundId: round.id,
-        userId: round.userId,
-        position: original.position,
-        language: round.language,
-        audioS3Key: answerAudioKey(deps.prefix, round.userId, round.id, id),
-        questionId: original.questionId,
-        parentAnswerId: original.parentAnswerId,
-        promptText: original.promptText,
-        retryOfAnswerId: original.id,
-        // `is_first_attempt` stays on the original, always (PRD §9, refusal #3).
-        isFirstAttempt: false,
-      })
-      .returning();
-    return { answer, created: true };
-  }
-
-  return async function POST(request: Request, roundId: string): Promise<Response> {
+  return guarded("answer_open_failed", async function POST(request: Request, roundId: string): Promise<Response> {
     const session = await authenticate(deps, request);
     if (session instanceof Response) return session;
     const { userId } = session;
@@ -233,5 +180,5 @@ export function createOpenAnswer(deps: OpenAnswerDeps) {
       },
       { status: created ? 201 : 200 },
     );
-  };
+  }, roundIdOf);
 }

@@ -149,14 +149,23 @@ const en = {
   stop: "Stop and transcribe",
   autoStop: (seconds: number) =>
     `Stops by itself at ${Math.round(seconds / 60)} minutes. What was recorded up to then is kept.`,
-  // 10 §3–5, between the take and its transcript: the wait line's sentence for each of the two calls.
-  uploadingTake: "Uploading your recording.",
-  transcribingTake: "Transcribing your answer.",
-  // 05 §5.10: under every wait line.
-  keepWaiting: "Please wait. This screen moves on by itself.",
+  transcribing: "Uploading the take and transcribing it.",
+  transcribingTake: "Transcribing the take.",
+  // 03 §8: a denied microphone gets the browser-level fix, inline.
+  micDenied:
+    "The microphone is blocked for this site. Allow it from the icon in the address bar, then start recording again. Nothing was recorded, and the question stays unseen.",
   micUnavailable: "The microphone is not available. Nothing was recorded, and the question stays unseen.",
   recordingFailed: "The recording failed. Nothing was recorded, and the question stays unseen.",
+  // 03 §5, §8: a take that did not reach S3 is held in the browser, and says where.
+  uploadHeld: "The take could not be uploaded. It is held on this device. Do not close this tab.",
   uploadFailed: "The take could not be uploaded. It is still in this tab; try again.",
+  // 07 §5.8: the typing fallback, when transcription cannot succeed.
+  typeInstead: "Type the answer instead",
+  typedAnswer: "Your answer — typed, not spoken",
+  typedCaption:
+    "A typed answer is recorded as typed. It has no duration and no pace, and it is not counted in progress. The take is kept.",
+  saveTyped: "Save the typed answer",
+  savingTyped: "Saving the typed answer.",
   tryAgain: "Try again",
   unreachable: "The request did not reach the server, or its answer did not come back. Try again.",
 
@@ -236,6 +245,7 @@ const en = {
   scoringFinished: "Scoring is finished. Writing the feedback.",
 
   abandoned: "This round was left when a newer one started. It stays as it is.",
+  abandonedByDay: "This round was not finished on the day it started, so it was left. It stays as it is.",
   home: "Home",
 
   // 10 §8
@@ -326,12 +336,19 @@ const ja: RoundCopy = {
   recording: "録音中",
   stop: "停止して文字起こし",
   autoStop: (seconds) => `${Math.round(seconds / 60)}分で自動的に止まります。そこまでの録音は残ります。`,
-  uploadingTake: "録音をアップロードしています。",
-  transcribingTake: "回答を文字起こししています。",
-  keepWaiting: "このままお待ちください。終わると自動で次へ進みます。",
+  transcribing: "録音をアップロードして、文字起こしをしています。",
+  transcribingTake: "録音の文字起こしをしています。",
+  micDenied:
+    "このサイトではマイクがブロックされています。アドレスバーのアイコンからマイクを許可して、もう一度録音を開始してください。何も録音されておらず、この質問は未回答のままです。",
   micUnavailable: "マイクを使えません。何も録音されておらず、この質問は未回答のままです。",
   recordingFailed: "録音に失敗しました。何も録音されておらず、この質問は未回答のままです。",
+  uploadHeld: "録音をアップロードできませんでした。録音はこの端末に保存されています。このタブを閉じないでください。",
   uploadFailed: "録音をアップロードできませんでした。録音はこのタブに残っています。もう一度お試しください。",
+  typeInstead: "回答を入力する",
+  typedAnswer: "あなたの回答 — 音声ではなく入力",
+  typedCaption: "入力した回答は、入力したものとして記録します。時間と話す速さは記録せず、進捗にも入れません。録音は残ります。",
+  saveTyped: "入力した回答を保存する",
+  savingTyped: "入力した回答を保存しています。",
   tryAgain: "もう一度試す",
   unreachable: "サーバーに届かなかったか、応答が戻りませんでした。もう一度お試しください。",
 
@@ -404,6 +421,7 @@ const ja: RoundCopy = {
   scoringFinished: "採点が終わりました。講評をまとめています。",
 
   abandoned: "新しいラウンドが始まったため、このラウンドは中断されました。記録はそのまま残ります。",
+  abandonedByDay: "始めた日のうちに終わらなかったため、このラウンドは中断されました。記録はそのまま残ります。",
   home: "ホームへ",
 
   questionOf: (position, of) => `第${position}問 / ${of}問`,

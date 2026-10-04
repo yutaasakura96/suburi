@@ -1,10 +1,7 @@
 import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import * as s from "../../db/schema";
-import { apiError } from "../api/errors";
-import { characterLength } from "../cv/spans";
-import { authenticate, log, parseBody, writeFailed, type RoundDeps } from "./http";
-import { MAX_POSTING_CHARS, MAX_POSTING_NAME_CHARS, MAX_SOURCE_FILENAME_CHARS } from "./limits";
+import { authenticate, guarded, parseBody, writeFailed, type RoundDeps } from "./http";
 
 /**
  * `POST /api/role-contexts` (07 §5.3): a **posting** or **General practice**. Research arrives with
@@ -51,7 +48,7 @@ function view(row: typeof s.roleContexts.$inferSelect) {
 }
 
 export function createPostRoleContext(deps: RoundDeps) {
-  return async function POST(request: Request): Promise<Response> {
+  return guarded("role_context_failed", async function POST(request: Request): Promise<Response> {
     const session = await authenticate(deps, request);
     if (session instanceof Response) return session;
     const { userId } = session;
@@ -105,5 +102,5 @@ export function createPostRoleContext(deps: RoundDeps) {
     } catch (error) {
       return writeFailed("role_context_write_failed", error, {});
     }
-  };
+  });
 }

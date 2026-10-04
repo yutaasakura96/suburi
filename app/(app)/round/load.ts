@@ -162,6 +162,11 @@ export interface RoundFrame {
           readonly durationMs: number | null;
           readonly wpm: number | null;
         } | null;
+        /**
+         * The slot is open and its take is not transcribed: the page loaded between the two. The round
+         * resumes at `transcribe` (07 §5.5) — or at the upload, when the take never reached S3.
+         */
+        readonly openAnswerId: string | null;
       }
     /**
      * The answer at this position is submitted and its follow-up is not stored yet: the page loaded
@@ -178,8 +183,11 @@ export interface RoundFrame {
     /** Practice's per-answer frame, for the answer sent last (10 §15). */
     | { readonly kind: "answered"; readonly answer: AnsweredView; readonly next: NextView }
     | { readonly kind: "pressure" }
-    /** `answered` is how many questions were submitted before the round was abandoned, for the header. */
-    | { readonly kind: "abandoned"; readonly answered: number };
+    /**
+     * `answered` is how many questions were submitted before the round was abandoned, for the header;
+     * `byDay` when no newer round did it — the Asia/Tokyo day it started on ended (06, 2026-09-28).
+     */
+    | { readonly kind: "abandoned"; readonly answered: number; readonly byDay: boolean };
 }
 
 /** `null` for another user's round, or no round: the page is a 404. `"complete"` sends it to feedback. */
@@ -215,9 +223,10 @@ export async function roundFrame(db: Db, userId: string, round: RoundRow): Promi
     followUpVersions: [...new Set(followUps.filter((row) => row.status === "generated").map((row) => row.promptVersion))],
   };
   // Abandoned is derived (04 `rounds`): a newer round started, or this one was not started today.
-  const status = roundStatus(round, { newerRoundExists: await newerRoundExists(db, round), now: new Date() });
+  const newer = await newerRoundExists(db, round);
+  const status = roundStatus(round, { newerRoundExists: newer, now: new Date() });
   if (status === "abandoned") {
-    return { ...frame, start: { kind: "abandoned", answered: questionsSubmitted(round, step) } };
+    return { ...frame, start: { kind: "abandoned", answered: questionsSubmitted(round, step), byDay: !newer } };
   }
   // The stamp a follow-up's answer carries: the version of the `follow_ups` row it answers.
   const followUpVersionOf = (answer: AnswerRow) =>
@@ -302,8 +311,11 @@ export async function roundFrame(db: Db, userId: string, round: RoundRow): Promi
       position: step.position,
       text: step.followUp ? step.followUp.row.promptText : ((await promptAt(db, round.id, step.position))?.text ?? ""),
       followUpVersion: step.followUp?.row.promptVersion ?? null,
-      again: null,
-      transcript: transcriptOf(step.answer),
+      transcript:
+        open?.transcriptRaw != null
+          ? { answerId: open.id, raw: open.transcriptRaw, durationMs: open.audioDurationMs, wpm: open.wordsPerMinute }
+          : null,
+      openAnswerId: open && open.transcriptRaw === null ? open.id : null,
     },
   };
 }

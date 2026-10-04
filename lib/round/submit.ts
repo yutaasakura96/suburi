@@ -4,7 +4,7 @@ import * as s from "../../db/schema";
 import { apiError } from "../api/errors";
 import type { AnswerScorer } from "../ai/score";
 import { generateFollowUp, type FollowUpDeps } from "./follow-up";
-import { authenticate, isUuid, log, notFound, parseBody, roundAbandoned, writeFailed, type RoundDeps } from "./http";
+import { answerIdOf, authenticate, guarded, isUuid, log, notFound, parseBody, roundAbandoned, writeFailed, type RoundDeps } from "./http";
 import { rewriteMagnitude } from "./measures";
 import { runScoringAttempt, type ScoringRunDeps } from "./run-scoring";
 import { isAbandoned, promptAt, readRoundStep, type AnswerRow, type RoundRow, type RoundStep } from "./state";
@@ -122,7 +122,7 @@ export function createSubmit(deps: SubmitDeps) {
     return { step: settled, missing: written && outcome.status === "missing" ? { parent, errorClass: outcome.errorClass } : null };
   }
 
-  return async function POST(request: Request, answerId: string): Promise<Response> {
+  return guarded("answer_submit_failed", async function POST(request: Request, answerId: string): Promise<Response> {
     const session = await authenticate(deps, request, "submit");
     if (session instanceof Response) return session;
     const { userId } = session;
@@ -239,5 +239,5 @@ export function createSubmit(deps: SubmitDeps) {
       rewrite_magnitude: magnitude,
     });
     return respond(magnitude, { id: attemptId, status: "pending" });
-  };
+  }, answerIdOf);
 }

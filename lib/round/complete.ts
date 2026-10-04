@@ -8,9 +8,8 @@ import { sliceQuote } from "../cv/spans";
 import type { Rubric } from "../rubric/types";
 import { pickUntouched } from "./grounding";
 import { citableClaimsOf } from "./run-scoring";
-import { authenticate, isUuid, log, notFound, parseBody, roundAbandoned, writeFailed, type Db, type RoundDeps } from "./http";
-import { startModelAnswers, type CompleteModelAnswerDeps } from "./model-answers";
-import { isAbandoned, latestAttempts, noScores, readRoundStep, roundAnswers, scoringCounts, type AnswerRow, type RoundRow } from "./state";
+import { authenticate, guarded, isUuid, log, notFound, parseBody, roundAbandoned, roundIdOf, writeFailed, type Db, type RoundDeps } from "./http";
+import { isAbandoned, latestAttempts, noScores, readRoundStep, roundAnswers, scoringCounts, type RoundRow } from "./state";
 
 /**
  * `POST /api/rounds/{roundId}/complete` ⚡ (07 §5.12) and its retry, `POST …/feedback` (§5.16).
@@ -251,7 +250,7 @@ async function writeRoundFeedback(deps: FeedbackDeps, round: RoundRow): Promise<
 const completeSchema = z.strictObject({ felt_pressure: z.int().min(1).max(5).optional() });
 
 export function createComplete(deps: CompleteDeps) {
-  return async function POST(request: Request, roundId: string): Promise<Response> {
+  return guarded("round_complete_failed", async function POST(request: Request, roundId: string): Promise<Response> {
     const session = await authenticate(deps, request, "complete");
     if (session instanceof Response) return session;
     const { userId } = session;
@@ -322,12 +321,12 @@ export function createComplete(deps: CompleteDeps) {
       },
       { status: 201 },
     );
-  };
+  }, roundIdOf);
 }
 
 /** `POST /api/rounds/{roundId}/feedback` ⚡ (07 §5.16): the retry for step 3, and nothing else. */
-export function createFeedbackRetry(deps: FeedbackDeps) {
-  return async function POST(request: Request, roundId: string): Promise<Response> {
+export function createFeedbackRetry(deps: CompleteDeps) {
+  return guarded("round_feedback_failed", async function POST(request: Request, roundId: string): Promise<Response> {
     const session = await authenticate(deps, request, "feedback");
     if (session instanceof Response) return session;
     const { userId } = session;
@@ -348,5 +347,5 @@ export function createFeedbackRetry(deps: FeedbackDeps) {
     const outcome = await writeRoundFeedback(deps, round);
     if (!outcome.ok) return outcome.response;
     return Response.json({ feedback: feedbackView(outcome.feedback) }, { status: 201 });
-  };
+  }, roundIdOf);
 }
