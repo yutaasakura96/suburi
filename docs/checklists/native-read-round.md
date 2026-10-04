@@ -301,3 +301,14 @@ questions per round type, read for whether an interviewer would say them. They a
 real Japanese round on `develop` whose bank runs short, and a generated question is banked
 permanently, so that round is worth starting for the read. A reworded prompt is a new version file
 and a Progress boundary (`04` `questions`), not an edit.
+
+## 10. #50, History
+
+History is app-level and English (`10` §0), so the rail, the matrix and the retry add no Japanese
+chrome. One catalogue string does. The synthetic rounds' Japanese (`db/seed-rounds.ts`) is the
+synthetic CV's own sentences and strings already in this repository's fixtures, with `えー、` in front
+of one raw transcript; it is seeded on `develop` only.
+
+| | Japanese | Intent |
+| --- | --- | --- |
+| | この回答はいま採点中です。少し待ってからもう一度お試しください。 | `scoring_in_progress` — This answer is being scored right now. Wait a moment and try again. |

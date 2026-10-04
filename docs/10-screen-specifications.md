@@ -658,6 +658,71 @@ and the raw transcript for that row.
 `音声と未修正の文字起こしは、この行から開けます。` and right, the stamp
 `評価基準 v1.2・出題 v1.0` / `応募書類 v3`.
 
+### As built (#50)
+
+**Routes.** `/history` opens the newest round, or says there are none and offers to start one;
+`/history/{roundId}` is one round's detail, and another user's id is a 404. The rail is the layout, so
+it stays put while the detail changes. Its first page — 20 rounds — is read by the page itself; `Older
+rounds` fetches the next from `GET /api/rounds` by cursor (`07` §5.13). The count beside `ROUNDS` is
+every round, listed yet or not. Home links here until the navigation exists.
+
+**The chrome, in English (§0).** The artboard's strings are layout; these replace them. Data keeps its
+language: questions, follow-ups, transcripts and a stored `応募書類 v1` are shown as written, and a
+Japanese round's dimensions are named in Japanese until the pill is used.
+
+| Artboard | Built |
+| --- | --- |
+| `行動面接` | `Behavioural` — the round type, named as on Setup |
+| `日本語・実戦・5問` | `Japanese · Realistic · 5 questions` |
+| `未採点 — 採点をやり直す` | `Unscored — retry scoring` |
+| `中断 — 進捗から除外` | `Abandoned — not counted in progress` |
+| `求人票 …・緊張度4を講評前に記録` | `Posting: {company}, {title} · Pressure 4 recorded before the feedback`; a general round reads `General practice` |
+| `編集できません` | `Read-only` |
+| `└ 深掘り` | `└ Follow-up` |
+| `深掘りが生成されませんでした。空欄として記録しています。` | `The follow-up was not generated. It is recorded as a gap.` |
+| `深掘りは進捗に入りません。回答ごとの1〜5だけを残しています。` | `Follow-ups are not counted in progress. Only each answer's 1–5 on each dimension is kept.` |
+| `音声と未修正の文字起こしは、この行から開けます。` | `The audio and the uncorrected transcript open from each row.` |
+| `評価基準 v1.2・出題 v1.0` / `応募書類 v3` | `Rubric v1.0 · {generator versions}` / `{CV label} · {scoring models}` |
+
+**The stamp carries all four** (refusal #5), read from the attempts whose scores are shown: the rubric
+label, every generator prompt version among them (a question's and a follow-up's differ), the CV
+label, and every scoring model — more than one after a retry made under a new model.
+
+**The rail's status line is one line per round.** A complete round with any `pending` or `failed`
+score says `Unscored — retry scoring`; an abandoned one says it is abandoned, whatever its scores;
+**the newest open round started today says `In progress — resume`, a link to the round**, and its
+detail carries `Resume this round`. A complete round with every score in carries no line.
+
+**The pill** is shown for a Japanese round whose feedback was stored with its translation, as on
+screen 8. On this screen it renames the dimensions, in the rubric version's own two labels; the scores,
+the questions and the transcripts do not change. The feedback itself is read on screen 8, which a
+complete round links to as `Round feedback`.
+
+**Rows the artboard does not draw.**
+
+- **`└ Answered again`** — a practice retry, a row of its own directly under the answer it retries,
+  with its own scores and its own recording. The first answer stays above it, unchanged (refusal #3).
+- **An unscored answer** spans the score columns: `Not scored` after a failed score, `Not scored yet`
+  for one still pending, each with `Retry scoring`. A failed score gets a new attempt and then its run;
+  a pending one is run as it is (`07` §5.10–§5.11). While it runs the row says `Scoring this answer.`
+  in words — no spinner (`03` §8) — and the scores then replace the line. A failure is the catalogue's
+  sentence on the row, with the retry still offered. **Only that answer is scored**: the round feedback
+  is not regenerated (`06`, 2026-09-28), and an answer with an `ok` score has no control at all.
+- **`Not answered`** — a follow-up that was asked and never answered is shown with its text; **a
+  question the round never reached is shown as `Q3` alone, without its text.** Only an answer makes a
+  question seen (`04` `round_questions`), and History must not make it seen by another route.
+- **`Scores are held until the round ends.`** — every answered row of a realistic round still in
+  progress. Nothing a score would say reaches the page (US-8), from the loader down.
+
+**What a row opens**, under itself, one row at a time: the question as asked; the recording, as an
+`<audio>` element on a playback URL minted at that moment (`07` §5.14), with the pace and the rewrite
+figure beside it; and **`RAW TRANSCRIPT — UNCORRECTED` beside `CORRECTED ANSWER`**. A missing recording
+is `The recording could not be found.` and one the browser cannot play is `The recording could not be
+played.`, each as a callout rail (`05` §5.8) with the transcripts still shown.
+
+**Nothing on this screen deletes, shares, exports or edits.** Its controls are the play toggles, the
+pill, `Retry scoring` and `Older rounds`; `11` §4 holds that list in Playwright.
+
 ---
 
 ## 11. What every screen must refuse

@@ -38,7 +38,8 @@ reviews at the owner's delegation** (below).
 **#44, follow-ups, is built (2026-10-03), on `fm/suburi-44-v2`:** one follow-up per bank-question
 answer in both modes and both languages, written by `submit` or recorded as missing (Next).
 **#47, generated questions and role context, is built (2026-10-03), on `fm/suburi-47`** (Next).
-**Updated:** 2026-10-04 (#43, #44, #46 and #47 built; #42 closed; #55 and #56 on 2026-09-30)
+**#50, History, is built (2026-10-04), on `fm/suburi-50`** (Next).
+**Updated:** 2026-10-04 (#43, #44, #46, #47 and #50 built; #42 closed; #55 and #56 on 2026-09-30)
 
 ## Done
 - Phase 1 — `docs/01-project-brief.md`, `docs/02-product-requirements.md`, `docs/06-decision-log.md`.
@@ -430,6 +431,22 @@ as the lever and a progress indicator for the wait folded into #73** (`06`). Bot
 user's steps:** the native read of one string and of what the four Japanese generator prompts write
 (`docs/checklists/native-read-round.md` §9), and `npm run db:migrate` against Neon `develop` before
 the merge is verified there (`12` §4).
+
+**#50 is built (2026-10-04), on `fm/suburi-50`.** Built: `GET /api/rounds` with the derived status,
+keyset-paged; `GET /api/answers/{id}/audio`, which checks the object before it signs; `POST
+/api/scoring-attempts` and its `run`, for one answer alone, with a claim that makes a second run a
+`409 scoring_in_progress`; `/history` — the rail with its two status lines, the detail matrix with
+follow-ups, practice retries and the missing-follow-up hole, the recording and both transcripts behind
+each row, and the unscored retry — in English (`10` §10); four synthetic rounds in `db:seed:develop`
+(`12` §1); a `History` link on Home until #51. Migration `0011_history`
+(`scoring_attempts.run_started_at`, two rate-limit routes) is expand-only and **not yet applied to
+either Neon branch**. Tests: `11` §3.20 and four Playwright rows in §4. **Verified by hand** on
+`next dev` against a seeded local database: the rail, the matrix in both languages, a row's
+transcripts and missing recording, and one retry scored by the real pinned model with the round
+feedback unchanged. **The user's steps:** `npm run db:migrate` and `npm run db:seed:develop` against
+Neon `develop` before the merge is verified there (`12` §4); the read of one catalogue string
+(`docs/checklists/native-read-round.md` §10); and `11` §5's real-recording playback from History,
+which no fixture covers. Decisions in `06`, "Phase 6 — #50".
 
 **#54, #55 and #56 are next, then #21. #20, #29 and #38 are done.** #21 is blocked by all three
 (native `blocked_by` edges, 2026-09-29), and #56 by #55. They were triaged 2026-09-29 (`06`): #54 and

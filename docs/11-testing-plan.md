@@ -395,6 +395,42 @@ check have unit tests of their own.
 - **No follow-up text reaches a log line or an error envelope** (§3.10); `next.text` returns it to its
   owner, by design.
 
+### 3.20 History (#50)
+
+`lib/round/history.integration.test.ts`, over the synthetic rounds (`12` §1), and
+`db/seed-rounds.integration.test.ts` for the seed itself.
+
+- **`GET /api/rounds`**: newest first, with the derived status, the counts and the stamps; another
+  user's rounds never listed; `language`, `round_type` and `mode` filter and nothing else does — an
+  unknown parameter, a repeated one, a `limit` outside 1–100 and a cursor this server did not mint are
+  each a `400` naming the field. **Paged one at a time through three rounds a microsecond apart with
+  none skipped or repeated** — the case a millisecond cursor loses.
+- **Abandoned on the Asia/Tokyo day** (§3.15), through the list: the newest open round is in progress
+  at 23:59 JST and abandoned a minute later, on the same UTC date; and one started at 08:30 JST is
+  still in progress after midnight UTC.
+- **`GET /api/answers/{id}/audio`**: `404 audio_missing` for a null key **and for a key that points at
+  nothing** — no URL is minted for an absent object; a URL, its expiry and the duration for a stored
+  one; `404 not_found` for another user's answer; `502 upstream_s3` when S3 cannot be reached, with the
+  error class logged and the key in no log line or envelope.
+- **`POST /api/scoring-attempts`**: a new `pending` row beside the failed one, which is unchanged, with
+  server-derived stamps — the follow-up's prompt version for a follow-up's answer; `422
+  scoring_not_retryable` for an `ok` and for a `pending` latest attempt, and for a second retry while
+  the first is pending; a body carrying a stamp is a `400` naming it; `write_failed` leaves no row.
+- **`run`**: scores the one answer, in the rubric's order, with **no total, average or overall** in
+  the body; **`round_feedback` and every other answer's attempt are byte-for-byte what they were**;
+  the scorer is sent the corrected text; a finished attempt is returned as it stands with **no model
+  call**, so an `ok` score is not re-rolled; spent retries are `502 scoring_failed` and the answer can
+  be retried again; **a held claim is `409 scoring_in_progress` with no model call, still held one
+  second short of the invocation ceiling, and taken over at it**; a realistic round in progress gets
+  the status alone; each route counts in its own rate-limit bucket.
+- **The detail loader**: question, follow-up and missing-follow-up rows in order; a practice retry
+  directly under the answer it retries; both transcripts on every answered row; **an unreached
+  question's text absent from the whole serialised result**, and a held score's attempt id with it.
+- **No record text in any envelope or log line** these routes produce (§3.10).
+- **The seed**: four rounds in the four states, once — a second run writes nothing and changes no row;
+  every model stamp names a fixture; no recording; a first attempt claimed only where the question has
+  no earlier answer; and it refuses, writing nothing, without the CV, rubric and questions it stamps.
+
 ## 4. End-to-end, in Playwright
 
 Chromium, fake media device, S3 PUT and OpenAI intercepted. What this pass exists to catch is the
@@ -422,7 +458,11 @@ wiring between screens that no unit test sees.
 | Wrong language | A Japanese answer in an English round carries the wrong-language line on its own page of the pager and no other, is still scored, and its attempt stores `answered_language = 'ja'`. |
 | Coverage marks | After the round, `/cv` draws the cited claim with the heavier mark, the rest without, and the count line states how many were never used. |
 | Practice frame | After a practice submit, the per-answer frame states the score as pending, then shows it once scored; "answer again" writes a second answer at the same position with no follow-up. |
-| No deletion surface | No delete or share control on History, a round, an answer or a score (refusals #3, #6). |
+| History's rail | Every round newest first; `Unscored — retry scoring` on the rounds with a pending or failed score, `Abandoned — not counted in progress` on the open one, no line on the scored one; the chrome English on a Japanese round; the newest open round started today offered for resuming. |
+| History's matrix | Each question with its follow-up under it; 10 §10's sample row `4 3 4 3 4 2 3`; **the missing follow-up as a row spanning the score columns**; seven dimensions in a Japanese round and the pill renaming them without changing a score; an unreached question shown by its number alone. |
+| History's playback | Every answered row opens its raw transcript beside the correction. A stored recording loads in the `<audio>` element from a presigned URL minted on open; **a missing one and an unplayable one are each a sentence, with the transcripts still there.** |
+| History's retry | A failed score's retry scores that answer alone: one scoring call, **no feedback call, `round_feedback` unchanged**, a new attempt beside the failed one, the rail's line cleared, and no control left on an `ok` score. A retry that fails says so on the row and stays offered. A pending score is run as it is, with no new attempt. |
+| No deletion surface | No delete or share control on History, a round, an answer or a score (refusals #3, #6). **As built (#50):** on every round's page with a row open, no control's name matches a delete, share or export word, every button is one of the four History has — a play toggle, the pill, `Retry scoring`, `Older rounds` — nothing takes input, and `DELETE` on a round, an answer and an attempt finds no route. |
 
 **Not in Playwright, deliberately:** any assertion about transcript *content*. The fake device
 produces a synthetic tone, so a transcript assertion would be asserting on the stub. Real speech is
