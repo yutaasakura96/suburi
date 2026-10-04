@@ -443,29 +443,33 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
         />
       );
       break;
-    case "held":
+    case "held": {
+      const refused = rejectionOf(screen.cause);
       body = (
         <StuckTakeFrame
           copy={copy}
           language={language}
           question={screen.question.text}
           notices={[
-            ...(screen.cause === null ? [] : [failureText(screen.cause, language)]),
-            screen.onDevice ? copy.uploadHeld : copy.uploadFailed,
+            ...(refused
+              ? [copy.uploadRefused[refused]]
+              : [
+                  ...(screen.cause === null ? [] : [failureText(screen.cause, language)]),
+                  screen.onDevice ? copy.uploadHeld : copy.uploadFailed,
+                ]),
             ...(error ? [error.text] : []),
           ]}
           busy={busy}
-          working={rejectionOf(screen.cause) ? copy.savingTyped : copy.transcribing}
+          working={refused ? copy.savingTyped : copy.transcribing}
           stamp={stamp(screen.question)}
           onRetry={
-            screen.cause === "round_abandoned" || rejectionOf(screen.cause)
-              ? null
-              : () => void deliver(screen.question, screen.take, screen.onDevice)
+            screen.cause === "round_abandoned" || refused ? null : () => void deliver(screen.question, screen.take, screen.onDevice)
           }
-          onType={rejectionOf(screen.cause) ? (text) => void openTyped(screen.question, text) : null}
+          onType={refused ? (text) => void openTyped(screen.question, text) : null}
         />
       );
       break;
+    }
     case "untranscribed":
       body = (
         <StuckTakeFrame

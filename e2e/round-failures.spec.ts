@@ -386,32 +386,69 @@ test("a take that cannot be transcribed at first is transcribed by the retry, wi
   expect(s3.objects.get(slot.audioS3Key!)?.bytes).toBe(uploaded);
 });
 
-for (const [code, message] of [
-  ["upload_too_large", "The audio is too large to upload. Keep the recording to four minutes or less."],
-  ["unsupported_content_type", "That audio format is not supported."],
-] as const) test(`a take refused as ${code} is kept on the device, says why, and is answered by typing`, async ({ page }) => {
-  await signIn(page);
-  const roundId = await startRound(page);
-  await page.route("**/api/rounds/*/answers", (route) => {
+const REFUSED = {
+  upload_too_large: {
+    en: "This recording is too large to be uploaded. Type your answer instead.",
+    ja: "この録音はサイズが大きすぎるため、アップロードできません。回答を入力してください。",
+  },
+  unsupported_content_type: {
+    en: "This recording is in an audio format that cannot be uploaded. Type your answer instead.",
+    ja: "この録音は対応していない音声形式のため、アップロードできません。回答を入力してください。",
+  },
+} as const;
+const REFUSALS = ["upload_too_large", "unsupported_content_type"] as const;
+
+/** What the slot route answers a take it can never accept (07 §5.6); the typed slot still goes through. */
+const refuseTakes = (page: Page, code: (typeof REFUSALS)[number]) =>
+  page.route("**/api/rounds/*/answers", (route) => {
     if (route.request().postDataJSON()?.source === "typed") return route.continue();
     return route.fulfill({
       status: 422,
       contentType: "application/json",
-      body: JSON.stringify({ error: { code, message, detail: {} } }),
+      body: JSON.stringify({ error: { code, message: "The take was refused.", detail: {} } }),
     });
   });
+
+for (const code of REFUSALS) {
+  for (const onDevice of [true, false]) {
+    for (const language of ["en", "ja"] as const) {
+      test(`a take refused as ${code}, ${onDevice ? "held on the device" : "only in the tab"}, says once why and to type instead: ${language}`, async ({ page }) => {
+        await signIn(page);
+        const roundId = await startRound(page, language);
+        await refuseTakes(page, code);
+        // A browser that cannot store the take: it is then only in the tab.
+        if (!onDevice) await page.addInitScript(() => Object.defineProperty(window, "indexedDB", { value: undefined }));
+        await page.goto(`/round/${roundId}`);
+        await page.getByRole("button", { name: language === "ja" ? "録音を開始" : "Start recording" }).click();
+        await expect(page.getByTestId("record-timer")).toHaveText("0:01", { timeout: 5_000 });
+        await page.getByRole("button", { name: language === "ja" ? "停止して文字起こし" : "Stop and transcribe" }).click();
+
+        // The whole of what the frame says: nothing about trying again, or about the tab.
+        await expect(page.getByTestId("take-notice")).toHaveText(REFUSED[code][language]);
+        await expect(page.getByRole("button", { name: language === "ja" ? "もう一度試す" : "Try again" })).toHaveCount(0);
+        await expect(page.getByRole("button", { name: language === "ja" ? "回答を入力する" : "Type the answer instead" })).toBeVisible();
+        expect(await answersOf(roundId)).toEqual([]);
+      });
+    }
+  }
+}
+
+for (const code of REFUSALS) test(`a take refused as ${code} is kept on the device, says why, and is answered by typing`, async ({ page }) => {
+  const message = REFUSED[code].en;
+  await signIn(page);
+  const roundId = await startRound(page);
+  await refuseTakes(page, code);
   await page.goto(`/round/${roundId}`);
   await record(page);
 
-  await expect(page.getByText(message)).toBeVisible();
-  await expect(page.getByText(HELD)).toBeVisible();
+  await expect(page.getByTestId("take-notice")).toHaveText(message);
   await expect(page.getByRole("button", { name: "Type the answer instead" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Try again" })).toHaveCount(0);
   const [held] = await heldTakes(page);
   expect(held).toMatchObject({ roundId, position: 1 });
   expect(await warnsBeforeUnload(page)).toBe(true);
   await page.reload();
-  await expect(page.getByText(message)).toBeVisible();
+  await expect(page.getByTestId("take-notice")).toHaveText(message);
   await expect(page.getByRole("button", { name: "Try again" })).toHaveCount(0);
   expect(await heldTakes(page)).toEqual([held]);
   await page.getByRole("button", { name: "Type the answer instead" }).click();

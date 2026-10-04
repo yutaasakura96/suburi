@@ -13,7 +13,9 @@ the choices the build needed.
 
 The owner's ruling, superseding the build's "not held, recorded again": **a captured take is never
 deleted.** A take over the size cap, or of a type the route refuses, stays in IndexedDB marked with
-the refusal; the frame says why, offers no retry — none could succeed — and offers typing. No answer
+the refusal; the frame says why and to type instead in one sentence of its own, in place of the
+held rail — never "try again" or "do not close this tab", stored on the device or not — offers no
+retry, since none could succeed, and offers typing. No answer
 row exists at that point, so `POST …/answers` takes `{ "source": "typed" }` and opens the current
 slot with no `audio_s3_key`; `07` §5.8 then stores the text. **Held takes are keyed by prompt, not by
 round** — the 2026-10-04 entry below said one per round — so the refused take is not replaced by the

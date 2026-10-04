@@ -426,7 +426,7 @@ named with its fix; the earlier-day abandonment's own sentence; and a spent Open
 its code and never retried. **Tested:** every round route failed at each database call in turn
 (`11` §3.16), the sentinel walk over every refusal (`11` §3.10), and Playwright for each failure path
 (`11` §4). **The owner read and accepted all nine new Japanese strings on 2026-10-05**
-(`docs/checklists/native-read-round.md` §10). **Not done here:** whether a spent project refuses the preflight's probe
+(`docs/checklists/native-read-round.md` §10); **the two refused-take sentences added after it are unread.** **Not done here:** whether a spent project refuses the preflight's probe
 is unverified (`12` §6); and "excluded from Progress" for a typed answer is the mark only — the
 exclusion is #51's. Decisions in `06`, "Phase 6 — #48".
 

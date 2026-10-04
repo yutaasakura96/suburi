@@ -159,6 +159,11 @@ const en = {
   // 03 §5, §8: a take that did not reach S3 is held in the browser, and says where.
   uploadHeld: "The take could not be uploaded. It is held on this device. Do not close this tab.",
   uploadFailed: "The take could not be uploaded. It is still in this tab; try again.",
+  // 06, 2026-10-05: a take the slot route refused is said once, with why and what to do instead.
+  uploadRefused: {
+    upload_too_large: "This recording is too large to be uploaded. Type your answer instead.",
+    unsupported_content_type: "This recording is in an audio format that cannot be uploaded. Type your answer instead.",
+  },
   // 07 §5.8: the typing fallback, when transcription cannot succeed.
   typeInstead: "Type the answer instead",
   typedAnswer: "Your answer — typed, not spoken",
@@ -344,6 +349,10 @@ const ja: RoundCopy = {
   recordingFailed: "録音に失敗しました。何も録音されておらず、この質問は未回答のままです。",
   uploadHeld: "録音をアップロードできませんでした。録音はこの端末に保存されています。このタブを閉じないでください。",
   uploadFailed: "録音をアップロードできませんでした。録音はこのタブに残っています。もう一度お試しください。",
+  uploadRefused: {
+    upload_too_large: "この録音はサイズが大きすぎるため、アップロードできません。回答を入力してください。",
+    unsupported_content_type: "この録音は対応していない音声形式のため、アップロードできません。回答を入力してください。",
+  },
   typeInstead: "回答を入力する",
   typedAnswer: "あなたの回答 — 音声ではなく入力",
   typedCaption: "入力した回答は、入力したものとして記録します。時間と話す速さは記録せず、進捗にも入れません。録音は残ります。",

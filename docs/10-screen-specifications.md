@@ -363,7 +363,8 @@ question stays unseen (PRD §7).
 
 Built from the record frames' own parts; nothing here was drawn. Copy is `app/(app)/round/copy.ts`,
 and its nine Japanese strings were read and accepted by the owner on 2026-10-05
-(`docs/checklists/native-read-round.md` §10).
+(`docs/checklists/native-read-round.md` §10); the two refused-take sentences added after that read
+are unread.
 
 - **The microphone is denied, or the recording fails.** Screen 3 stays as it is, with one attention
   rail under the captions. A denied microphone names the fix — allow it from the address bar, then
@@ -374,9 +375,13 @@ and its nine Japanese strings were read and accepted by the owner on 2026-10-05
   and one outline control, `もう一度試す`. **No control records again:** the take is the answer. The
   frame comes back after a reload, from IndexedDB, and leaving the page is warned against until the
   take is in S3. If the browser could not store it, the rail says the take is only in this tab.
-  A take no retry could send — over the size cap, or of a type the route refuses — stays held. The
-  catalogue's sentence says why in a rail above the held one, `もう一度試す` is not offered, and
-  `回答を入力する` opens the typing box below. The take remains on this device until the round ends.
+  A take no retry could send — over the size cap, or of a type the route refuses — stays held, and
+  the frame says so in **one rail, in place of the held one**: why this recording cannot be uploaded,
+  and to type the answer instead — `この録音はサイズが大きすぎるため、アップロードできません。回答を入力してください。`
+  or `この録音は対応していない音声形式のため、アップロードできません。回答を入力してください。`. It is the
+  same rail whether or not the browser could store the take: nothing on the frame says to try again
+  or to keep the tab open. `もう一度試す` is not offered, and `回答を入力する` opens the typing box below.
+  The take remains on this device until the round ends.
 - **The take could not be transcribed.** The same frame, with `07` §3's sentence for
   `transcription_failed` in the rail and two outline controls: `もう一度試す` and `回答を入力する`. The
   second opens a box under them — label `あなたの回答 — 音声ではなく入力`, 200px, the transcript's own
