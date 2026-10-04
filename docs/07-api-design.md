@@ -902,7 +902,7 @@ POST /api/rounds/77af0b13-…/complete
       "to_fix": [ { "title": "Say where the number comes from first", "body": "…" },
                   { "title": "Put the conclusion in the first sentence", "body": "…" } ],
       "what_worked": "You explained the difficulty with a concrete situation." },
-    "language": "ja", "model_id": "gpt-5.6-sol", "prompt_version": "feedback-ja-1.0" },
+    "language": "ja", "model_id": "gpt-5.6-sol", "prompt_version": "feedback-ja-1.1" },
   "scoring": { "ok": 10, "pending": 0, "failed": 0 } }
 ```
 
@@ -1058,7 +1058,7 @@ The retry path for §5.12's step 3, and nothing else — the way §5.10's `run` 
 201
 { "feedback": { "to_fix": [ … ], "what_worked": "…", "untouched_claim_ids": [ … ],
                 "body_translated": { "language": "en", "to_fix": [ … ], "what_worked": "…" },
-                "language": "ja", "model_id": "gpt-5.6-sol", "prompt_version": "feedback-ja-1.0" } }
+                "language": "ja", "model_id": "gpt-5.6-sol", "prompt_version": "feedback-ja-1.1" } }
 ```
 
 A round with feedback returns it with `200` and makes no model call. An incomplete round is

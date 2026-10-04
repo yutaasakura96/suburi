@@ -204,8 +204,8 @@ and round feedback ran through the real ports and prompts (`score-en-1.0`, `feed
 **question generation ran a draft prompt**, since its port does not exist yet (#47), so its figures
 are the right order of magnitude, not the final ones. **Follow-up generation was re-measured on
 2026-10-03 (#44)** through its real port and `follow-up-en-1.0`, the same way; the Japanese prompt is
-not measured until a Japanese round exists (#43). Transcription read takes synthesised by TTS and
-re-encoded to webm/opus by ffmpeg, the browser's format.
+not measured until a real Japanese round with follow-ups runs on `develop`. Transcription read takes
+synthesised by TTS and re-encoded to webm/opus by ffmpeg, the browser's format.
 
 | Job | Model | n | median | p90 | slowest | tokens in / out |
 | --- | --- | --- | --- | --- | --- | --- |

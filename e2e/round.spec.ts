@@ -269,6 +269,35 @@ test("practice asks one follow-up, then moves to the next question", async ({ pa
   expect(followUpCalls().slice(followUpsBefore)).toHaveLength(1);
 });
 
+test("Japanese practice asks its stored 深掘り at the same position", async ({ page }) => {
+  heard = HEARD_JA;
+  await signIn(page);
+  const context = await page.request.post("/api/role-contexts", { data: { kind: "general" } });
+  expect(context.ok()).toBe(true);
+  const created = await page.request.post("/api/rounds", {
+    data: { round_type: "hr", language: "ja", mode: "practice", length: 3, role_context_id: (await context.json()).id },
+  });
+  expect(created.status()).toBe(201);
+  const roundId = (await created.json()).round.id as string;
+  const before = followUpCalls().length;
+
+  const first = await answerByApi(page, roundId, CORRECTED_JA);
+  expect(first.next.kind).toBe("follow_up");
+  await page.goto(`/round/${roundId}`);
+  await expect(page.getByTestId("round-step")).toHaveText("第1問 / 3問・深掘り");
+  await expect(page.getByTestId("round-question")).toHaveText(FOLLOW_UP_JA);
+  await page.reload();
+  await expect(page.getByTestId("round-question")).toHaveText(FOLLOW_UP_JA);
+  expect(followUpCalls().slice(before)).toHaveLength(1);
+  await page.screenshot({ path: test.info().outputPath("ja-practice-follow-up.png"), fullPage: true });
+
+  const second = await answerByApi(page, roundId, CORRECTED_JA);
+  expect(second.next.kind).toBe("question");
+  await page.reload();
+  await expect(page.getByTestId("round-step")).toHaveText("第2問 / 3問");
+  expect(followUpCalls().slice(before)).toHaveLength(1);
+});
+
 test("a realistic English round: Setup → each question and its follow-up → pressure → feedback, all six rows", async ({ page }) => {
   test.setTimeout(180_000);
   await signIn(page);
