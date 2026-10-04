@@ -303,6 +303,7 @@ test("a realistic English round: Setup → each question and its follow-up → p
   await signIn(page);
   const userId = await seededUserId();
   // The mock is shared across this file: count only the calls this round makes.
+  const requestsBefore = openAi.requests.length;
   const followUpsBefore = followUpCalls().length;
 
   await page.goto("/");
@@ -412,10 +413,10 @@ test("a realistic English round: Setup → each question and its follow-up → p
     expect(s3.objects.get(key)!.contentType).toMatch(/^audio\/webm/);
   }
   // The scorer read the corrected text, never the raw one (03 §4).
-  const scoring = openAi.requests.filter((request) => formatOf(request.body) === "answer_scores");
+  const scoring = openAi.requests.slice(requestsBefore).filter((request) => formatOf(request.body) === "answer_scores");
   expect(scoring.length).toBeGreaterThanOrEqual(6);
   // So did the follow-up generator: one call per question's answer, none for a follow-up's own.
-  const generated = followUpCalls().slice(followUpsBefore).filter((request) => JSON.stringify(request.body).includes("payments migration"));
+  const generated = followUpCalls().slice(followUpsBefore);
   expect(generated).toHaveLength(3);
   for (const request of [...scoring, ...generated]) {
     expect(JSON.stringify(request.body)).toContain("payments migration");
@@ -695,6 +696,7 @@ test("a realistic Japanese round: Japanese throughout, seven rows, and the feedb
   test.setTimeout(180_000);
   heard = HEARD_JA;
   await signIn(page);
+  const requestsBefore = openAi.requests.length;
   const shot = (name: string) => page.screenshot({ path: test.info().outputPath(`ja-${name}.png`), fullPage: true });
 
   // Setup is app-level and English (10 §0); the stored label keeps its own language.
@@ -837,7 +839,7 @@ test("a realistic Japanese round: Japanese throughout, seven rows, and the feedb
   expect(stored.promptVersion).toBe("feedback-ja-1.1");
 
   // The scorer read the Japanese rubric and the corrected text, never the raw one (03 §4).
-  const scoring = openAi.requests.filter((request) => formatOf(request.body) === "answer_scores" && japanese(request.body));
+  const scoring = openAi.requests.slice(requestsBefore).filter((request) => formatOf(request.body) === "answer_scores");
   expect(scoring.length).toBeGreaterThanOrEqual(6);
   for (const request of scoring) {
     const sent = JSON.stringify(request.body);
