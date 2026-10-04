@@ -449,10 +449,10 @@ each row, and the unscored retry — in English (`10` §10); four synthetic roun
 either Neon branch**. Tests: `11` §3.20 and four Playwright rows in §4. **Verified by hand** on
 `next dev` against a seeded local database: the rail, the matrix in both languages, a row's
 transcripts and missing recording, and one retry scored by the real pinned model with the round
-feedback unchanged. **The user's steps:** `npm run db:migrate` and `npm run db:seed:develop` against
-Neon `develop` before the merge is verified there (`12` §4); the read of one catalogue string
-(`docs/checklists/native-read-round.md` §11); and `11` §5's real-recording playback from History,
-which no fixture covers. Decisions in `06`, "Phase 6 — #50".
+feedback unchanged. The owner read and accepted #50's catalogue string on 2026-10-05
+(`docs/checklists/native-read-round.md` §11). **The user's remaining steps:** `npm run db:migrate`
+and `npm run db:seed:develop` against Neon `develop` before the merge is verified there (`12` §4);
+`11` §5's real-recording playback from History, which no fixture covers. Decisions in `06`, "Phase 6 — #50".
 
 **#54, #55 and #56 are next, then #21. #20, #29 and #38 are done.** #21 is blocked by all three
 (native `blocked_by` edges, 2026-09-29), and #56 by #55. They were triaged 2026-09-29 (`06`): #54 and

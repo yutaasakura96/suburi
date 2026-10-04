@@ -179,7 +179,7 @@ export async function historyDetail(db: Db, round: RoundRow, now: Date): Promise
     else rows.push({ kind: "follow_up_unanswered", position, prompt: followUp.promptText });
   }
 
-  const displayed = [...attempts.values()];
+  const displayed = [...attempts.values()].filter((attempt) => attempt.status === "ok");
   const distinct = (values: readonly string[]) => [...new Set(values)].sort();
   return {
     round: {

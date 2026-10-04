@@ -692,7 +692,8 @@ Japanese round's dimensions are named in Japanese until the pill is used.
 
 **The stamp carries all four** (refusal #5), read from the attempts whose scores are shown: the rubric
 label, every generator prompt version among them (a question's and a follow-up's differ), the CV
-label, and every scoring model — more than one after a retry made under a new model.
+label, and every scoring model — more than one after a retry made under a new model. Pending and
+failed attempts have no displayed score, so their generator and model stamps are excluded.
 
 **The rail's status line is one line per round.** A complete round with any `pending` or `failed`
 score says `Unscored — retry scoring`; an abandoned one says it is abandoned, whatever its scores;

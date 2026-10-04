@@ -1093,7 +1093,8 @@ derived `in_progress` / `abandoned` / `complete` of §5.5 — what History's `�
   one attempt each, and a retry made after the pinned model changed (§5.11) is scored by the new one,
   so a round can carry two. One string would have to pick, and the row would then say the round is on
   one side of a boundary it straddles. The list is every model behind the round's **displayed** scores,
-  sorted; it is empty for a round with no submitted answer.
+  sorted. Pending and failed attempts produced no displayed score, so their models are excluded; the
+  list is empty when no answer has an `ok` score.
 - **`answers` counts submitted answers**, follow-ups' and practice retries' included, and `scoring`
   counts them by their latest attempt. They are counts of answers, never anything computed from a
   score (refusal #1).

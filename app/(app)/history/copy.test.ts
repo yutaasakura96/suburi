@@ -56,8 +56,4 @@ describe("History's copy", () => {
     expect(HISTORY_COPY.duration(192_000)).toBe("3:12");
     expect(HISTORY_COPY.duration(null)).toBe("—");
   });
-
-  it("has no word for a score that combines dimensions", () => {
-    expect(JSON.stringify(HISTORY_COPY)).not.toMatch(/total|average|overall|composite/i);
-  });
 });

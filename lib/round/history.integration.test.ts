@@ -795,6 +795,26 @@ describe("History's detail (10 §10)", () => {
     return historyDetail(db, round, now);
   }
 
+  it.each([
+    ["failed", "failed-en", "failed-en:q2:attempt"],
+    ["pending", "pending-en", "pending-en:q3:attempt"],
+  ] as const)("excludes a %s attempt under a different model from list and detail stamps", (state, roundName, attemptName) =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      await db
+        .update(s.scoringAttempts)
+        .set({ modelId: "unscored-model-2026-10-05" })
+        .where(eq(s.scoringAttempts.id, world.id(attemptName)));
+
+      const listed = (await world.list()).json.items.find((round: { id: string }) => round.id === world.id(roundName));
+      expect(listed.scoring[state]).toBe(1);
+      expect(listed.stamps.scoring_model_ids).toEqual([SYNTHETIC_MODEL_ID]);
+
+      const detail = await detailOf(db, world.id(roundName));
+      expect(detail.rows.some((row) => row.kind === "answer" && row.scoring.state === state)).toBe(true);
+      expect(detail.stamps.scoringModels).toEqual([SYNTHETIC_MODEL_ID]);
+    }));
+
   it("lists each question, its follow-up under it, and the hole a missing follow-up left", () =>
     inRolledBackTransaction(async (db) => {
       const world = await setUp(db);

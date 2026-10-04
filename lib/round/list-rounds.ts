@@ -135,7 +135,7 @@ export async function listRounds(db: Db, userId: string, query: RoundListQuery, 
         stamps: {
           cv_version_label: cvLabel,
           rubric_version_label: rubricLabel,
-          scoring_model_ids: [...new Set(latest.map((attempt) => attempt.modelId))].sort(),
+          scoring_model_ids: [...new Set(latest.filter((attempt) => attempt.status === "ok").map((attempt) => attempt.modelId))].sort(),
         },
       };
     }),

@@ -319,8 +319,9 @@ a string `10` §3 or `05` §6 already gives. **Nothing in this section has been 
 History is app-level and English (`10` §0), so the rail, the matrix and the retry add no Japanese
 chrome. One catalogue string does. The synthetic rounds' Japanese (`db/seed-rounds.ts`) is the
 synthetic CV's own sentences and strings already in this repository's fixtures, with `えー、` in front
-of one raw transcript; it is seeded on `develop` only.
+of one raw transcript; it is seeded on `develop` only. The owner read and accepted the catalogue
+string below on 2026-10-05.
 
 | | Japanese | Intent |
 | --- | --- | --- |
-| | この回答はいま採点中です。少し待ってからもう一度お試しください。 | `scoring_in_progress` — This answer is being scored right now. Wait a moment and try again. |
+| ✓ | この回答はいま採点中です。少し待ってからもう一度お試しください。 | `scoring_in_progress` — This answer is being scored right now. Wait a moment and try again. |
