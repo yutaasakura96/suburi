@@ -195,7 +195,15 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
       expected_bytes: take.blob.size,
       ...(question.again ? { retry_of_answer_id: question.again } : {}),
     });
-    if (!opened.ok) return hold(opened.code);
+    if (!opened.ok) {
+      if (opened.code === "upload_too_large" || opened.code === "unsupported_content_type") {
+        // No retry can send this take, so it is not held: the question is recorded again.
+        await releaseTake(round.id);
+        setScreen({ kind: "asked", question });
+        return fail(opened.code, null);
+      }
+      return hold(opened.code);
+    }
     try {
       const put = await fetch(opened.json.upload.url, {
         method: opened.json.upload.method,

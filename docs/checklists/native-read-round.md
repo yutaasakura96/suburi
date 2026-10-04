@@ -302,120 +302,25 @@ real Japanese round on `develop` whose bank runs short, and a generated question
 permanently, so that round is worth starting for the read. A reworded prompt is a new version file
 and a Progress boundary (`04` `questions`), not an edit.
 
-## 10. #45, the spoken question
+## 10. #48, failure paths
 
-One catalogue string, and what a realistic round's screen 3 puts above the question (`10` §3). ★ marks
-a string `10` §3 or `05` §6 already gives. **Nothing in this section has been read yet.**
-
-| | Japanese | Intent |
-| --- | --- | --- |
-| | 質問を読み上げられませんでした。文字はそのまま残ります。このまま回答してください。 | `speech_failed` — The question could not be read aloud. It stays as text; answer it as usual. Shown in place of the speaker line. |
-| | ★ 読み上げました。文字は残します。 | the speaker line — Read aloud. The text stays on screen. |
-| | 質問を聞く | Hear the question — the control the speaker line becomes when the browser will not play sound unasked (a reload) |
-| | ★ 日本語・練習・3問 | English · Practice · 3 questions — the header's mode word in a practice round |
-
-## 11. #50, History
-
-History is app-level and English (`10` §0), so the rail, the matrix and the retry add no Japanese
-chrome. One catalogue string does. The synthetic rounds' Japanese (`db/seed-rounds.ts`) is the
-synthetic CV's own sentences and strings already in this repository's fixtures, with `えー、` in front
-of one raw transcript; it is seeded on `develop` only. The owner read and accepted the catalogue
-string below on 2026-10-05.
+What a Japanese round's screens say when a take cannot be recorded, uploaded or transcribed, and when
+a round was left by the day ending. **Unread.** None is quoted by `10`; each is the Japanese of the
+English beside it. The catalogue's `transcription_failed` and `write_failed` sentences, shown on the
+same frames, were read with #13 and #42.
 
 | | Japanese | Intent |
 | --- | --- | --- |
-| ✓ | この回答はいま採点中です。少し待ってからもう一度お試しください。 | `scoring_in_progress` — This answer is being scored right now. Wait a moment and try again. |
+| | 録音の文字起こしをしています。 | Status while a resumed take is transcribed — Transcribing the take. |
+| | このサイトではマイクがブロックされています。アドレスバーのアイコンからマイクを許可して、もう一度録音を開始してください。何も録音されておらず、この質問は未回答のままです。 | The microphone was refused — The microphone is blocked for this site. Allow it from the icon in the address bar, then start recording again. Nothing was recorded, and the question stays unseen. |
+| | 録音をアップロードできませんでした。録音はこの端末に保存されています。このタブを閉じないでください。 | The upload failed and the take is held — The take could not be uploaded. It is held on this device. Do not close this tab. |
+| | 回答を入力する | Control, after a failed transcription — Type the answer instead |
+| | あなたの回答 — 音声ではなく入力 | Label of the typed-answer box — Your answer — typed, not spoken |
+| | 入力した回答は、入力したものとして記録します。時間と話す速さは記録せず、進捗にも入れません。録音は残ります。 | Caption under the box — A typed answer is recorded as typed. It has no duration and no pace, and it is not counted in progress. The take is kept. |
+| | 入力した回答を保存する | Control — Save the typed answer |
+| | 入力した回答を保存しています。 | Status while it saves — Saving the typed answer. |
+| | 始めた日のうちに終わらなかったため、このラウンドは中断されました。記録はそのまま残ります。 | An open round from an earlier day — This round was not finished on the day it started, so it was left. It stays as it is. |
 
-## 12. #74, model answers
-
-**Read and accepted by the owner on 2026-10-05.** Ten new strings: nine on screen 8 (`app/(app)/round/copy.ts`) and one in the catalogue
-(`lib/copy/errors.ts`). `模範回答` is the word chosen for a model answer (`CONTEXT.md`); `{応募書類 v3}`
-stands for the round's stored CV label.
-
-| | Japanese | Intent |
-| --- | --- | --- |
-| | あなたの回答 | Section label over what the user said — Your answer |
-| | 模範回答 | Section label over the model answer — Model answer |
-| | 深掘りへの回答 | The same, for the follow-up — Your answer to the follow-up |
-| | 深掘りへの模範回答 | Model answer to the follow-up |
-| | {応募書類 v3}とあなたの回答をもとに作成しています。下線は、{応募書類 v3}に裏づけのない内容です。 | Caption under a model answer with underlined parts — Written from CV v3 and what you said. An underline marks what CV v3 does not back. |
-| | {応募書類 v3}とあなたの回答をもとに作成しています。{応募書類 v3}に裏づけのない内容として下線を付けた箇所はありません。 | The same, with nothing underlined — Nothing in it is underlined as going beyond CV v3. |
-| | この質問の模範回答はまだ作成されていません。 | An answer with no model answer stored — No model answer is written for this question yet. |
-| | 模範回答を作成する | The button that writes the missing ones — Write the model answers |
-| | 模範回答を作成しています。 | Caption while it runs — Writing the model answers. |
-| | 模範回答を作成できませんでした。ラウンドの記録と採点はそのまま残っています。もう一度お試しください。 | `model_answer_generation_failed` — The model answers could not be written. The round and its scores are kept as they are. Try again. |
-
-**What cannot be read in advance.** `lib/prompts/model-answer-ja-1.0.ts` is written in English and
-names the Japanese it asks for: です・ます体 throughout, 謙譲語 for the candidate's own actions, `御社`
-for the interviewer's company and `前職`・`現職` for the candidate's own, 450 to 600 字 for a question
-and 200 to 350 for a 深掘り. What needs a native reader is its **output**: a model answer is something
-the user will learn from and repeat aloud, so an unnatural phrase in it is taught, not just shown.
-Read on the first real Japanese round completed with model answers on `develop`: each one, for
-whether a candidate would say it in a real interview. A rule it breaks is a new prompt version, not an
-edit.
-
-## 13. #49, practice mode — `app/(app)/round/copy.ts`
-
-Practice's frames (`10` §15). **Owner read and accepted the original 28 Japanese strings and the
-numbered follow-up retry label on 2026-10-05, and the numbered bank-question retry heading and the
-two names `feedback-ja-1.2` gives an answer given again on 2026-10-06.**
-Written to the rules above — `練習` bare and never `練習モード`, `録り直す` never `撮り直す`, no digit
-followed by `点`, `採点` for scoring, `深掘り` for a follow-up, `講評` for the round's feedback,
-`緊張度` for felt pressure, an unspaced `・`. `—` is set as §2's `文字起こし — 未修正` sets it.
-
-| | Japanese | Intent |
-| --- | --- | --- |
-| ✓ | 日本語・練習・3問 | The header's line for a practice round — Japanese · Practice · 3 questions. `実戦` is realistic's word. |
-| ✓ | 第1問 / 3問・再回答 | The header's step while a question is answered again — Question 1 / 3 · again. |
-| ✓ | 第1問 / 3問・深掘り・再回答 | The same for a follow-up answered again — Question 1 / 3 · follow-up · again. |
-| ✓ | 回答ごとの採点は、済みしだい出ます。講評はラウンドの最後にまとめて出ます。 | The record frames' footer, where realistic promises silence — Each answer's scores appear once it is scored. The round's feedback comes at the end. |
-| ✓ | 文字起こしをするまでは、録り直せます。 | Under the record button, where realistic says one take — You can record again until the take is transcribed. |
-| ✓ | 録音を停止 | The stop button. Stopping keeps the take and does not transcribe it — Stop recording. |
-| ✓ | ~~録音をアップロードしています。~~ | While the stopped take uploads — Uploading the take. — **retired by #73**: practice's upload shows the wait line's own sentence (§14). |
-| ✓ | 録音済み — 文字起こし前 | The status line over a held take — Take recorded — not transcribed yet. |
-| ✓ | この録音を文字起こしする | The primary button on a held take — Transcribe this take. |
-| ✓ | 文字起こしをすると、この録音で確定します。録り直しはできなくなります。 | Its caption — Once it is transcribed, the take is final and cannot be recorded again. |
-| ✓ | ~~文字起こしをしています。~~ | While the held take is transcribed — Transcribing the take. — **retired by #73**: practice's transcription shows the wait line's own sentence (§14). |
-| ✓ | 録り直す | The record button once a take is held — Record again. |
-| ✓ | 録り直すと、いまの録音は置き換わります。 | Its caption — Recording again replaces this take. |
-| ✓ | 送ると、この回答を採点します。採点が済むと、次の画面に出ます。 | The send caption under a follow-up's answer or an answer given again — Sending scores this answer. Its scores appear on the next screen once it is scored. |
-| ✓ | このあと | The section label over what the round asks next — Next. |
-| ✓ | この回答を採点しています。済むとここに出ます。待たずに先へ進めます。 | Under the score rows while the score is pending — This answer is being scored. Its scores appear here once it is scored; you can go on without waiting. |
-| ✓ | この回答は採点できませんでした。回答はそのまま残っています。 | When the answer's scoring failed — This answer could not be scored. It is kept as it is. |
-| ✓ | 裏づけなし —「チーム全体の生産性を上げた」に対応する記述が応募書類 v3にない。 | An unsupported span on the per-answer frame — §7's sentence without the question number. Plain form, as §7's is. |
-| ✓ | 深掘りに答える | The primary button when the follow-up is next — Answer the follow-up. |
-| ✓ | 次の質問へ進む | When the next question is next — Go to the next question. |
-| ✓ | ラウンドを終えて、講評をまとめます。練習では緊張度を聞きません。 | The caption under `講評に進む` on the last answer's frame — Closes the round and writes its feedback. Practice asks for no pressure rating. |
-| ✓ | もう一度答える | The outline button — Answer again. |
-| ✓ | 新しい回答として、この回答の横に残します。別に採点し、深掘りはつきません。この回答はそのまま残ります。 | Its caption — A new answer beside this one, scored on its own, with no follow-up. This one stays as it is. |
-| ✓ | 採点に戻る | The link back from a question asked again, before anything is recorded — Back to the scores. |
-| ✓ | 第1問・再回答 | The feedback pager's label for an answer given again — Question 1 · again. |
-| ✓ | 第1問・再回答2 | The same for a second one — Question 1 · again 2. The numeral is set tight. |
-| ✓ | 第1問 / 3問・深掘り・再回答2 | A second retry of the same follow-up in the feedback pager — Question 1 / 3 · follow-up · again 2. Owner accepted 2026-10-05. |
-| ✓ | 第1問 / 3問・再回答2 | The feedback page heading for a second retry of a bank question — Question 1 / 3 · again 2. Owner accepted 2026-10-06. |
-| ✓ | このラウンドの講評はまだできていません。ラウンドは終了し、上の採点はすべて残っています。 | A practice round whose findings are not ready. §2's sentence without the rating — The findings for this round are not ready. The round is complete, and every score above is kept. |
-| ✓ | このラウンドには採点できた回答がないため、講評はありません。ラウンドは終了しています。 | A practice round with no scored answer. §2's sentence without the rating — No answer in this round could be scored, so there are no findings for this round. The round is complete. |
-
-`採点中`, `未採点`, `講評に進む`, `先へ進む`, `└ 深掘り` and `講評をまとめています。` are reused from §2
-and §8 as they stand.
-
-**The names the feedback prompt uses — read.** `lib/prompts/feedback-ja-1.2.ts`, used only when
-no original answer scored and the findings are written from answers given again, names them
-`第2問の再回答` and `第2問の深掘りの再回答` in the findings. The owner read both names on 2026-10-06
-and accepted them as written. A rule the prompt's output breaks is a prompt version, not an edit.
-
-## 14. #73, the round's two waits
-
-**Not read yet.** Five new strings, all on the wait line (`05` §5.10) in `app/(app)/round/copy.ts`:
-two for the take on its way (`10` §3–5), two for the round closing (`10` §7), and the line under all
-of them. `緊張度を記録して、講評をまとめています。` (§2) is unchanged and still the closing wait's first
-sentence. `{6}` and `{4}` stand for the round's own counts, set tight (`05` §6); the counter is `件`
-because the count is of answers, follow-ups included, not of questions.
-
-| | Japanese | Intent |
-| --- | --- | --- |
-| | 録音をアップロードしています。 | While the take is uploaded — Uploading your recording. |
-| | 回答を文字起こししています。 | While the take is transcribed — Transcribing your answer. |
-| | 回答を採点しています。{6}件中{4}件が終わりました。 | While a score is still pending at round end — Scoring your answers: 4 of 6 done. |
-| | 採点が終わりました。講評をまとめています。 | Once no score is pending — Scoring is finished. Writing the feedback. |
-| | このままお待ちください。終わると自動で次へ進みます。 | Under every wait line — Please wait. This screen moves on by itself. |
+**One thing to weigh in the read.** The English says the question "stays unseen", the app's own word
+for a question no answer has been recorded against. The Japanese says `未回答のまま` — still
+unanswered — because `未出題` would claim it was never asked, and it is on the screen.

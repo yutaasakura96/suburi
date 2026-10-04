@@ -4,7 +4,8 @@
 **Status:** Phase 4b. Tier 2, triggered: `01-project-brief.md` sets a **six-month** horizon, and the
 success criterion is a trustworthy instrument — which is a claim about the code still being correct in
 March, not about it working today. **Amended 2026-09-27 for the round loop** (`06`, "Phase 6 — the
-round loop"): §3.1, §3.4–§3.7, §3.9, §3.12–§3.15, §4, §5.
+round loop"): §3.1, §3.4–§3.7, §3.9, §3.12–§3.15, §4, §5. **Amended 2026-10-04 for the failure paths
+(#48):** §3.5, §3.16, §4.
 
 ---
 
@@ -183,6 +184,7 @@ an exclusion is "no measurement". Fixtures: a first-attempt set where one attemp
 - A dimension present in the `ja` rubric and absent in `en` (`keigo`) does not produce a null point in an English trend — it produces no point.
 - **An answer whose `answered_language` is not its round's language contributes nothing** to that language's trend (PRD §7).
 - **An abandoned round contributes nothing**, though its answers keep their rows and their first-attempt flags.
+- **A typed answer contributes nothing** (PRD §7): `transcript_raw` set with `transcriber_model_id` null (`07` §5.8). #48 writes the mark and asserts it is stored with no pace and no duration; the exclusion itself is Progress's test (#51).
 
 ### 3.6 Boundary lines on Progress
 
@@ -319,6 +321,19 @@ With a stubbed generator and embedder.
   never a bare `500`, with only ids and `pg_<SQLSTATE>` in `detail` — no sentinel text (§3.10).
 - Nothing the call would have written exists afterwards, and `GET /api/rounds/{id}` resumes at the
   same call.
+- **As built (#48), `lib/round/failure-paths.integration.test.ts`:** each route is run with its first
+  database call failing, then its second, and so on until a run gets through — so every call a handler
+  makes has been the one that failed, the limiter's upsert and the reads between two writes included.
+  The injected error carries sentinel text in its message, and the envelope and every log line are
+  scanned for it. A session read that throws is asserted separately: it is the envelope too, with
+  `error_class: unexpected`.
+- **§3.10's sentinel test on every round route:** one test forces the refusals the round routes give
+  a signed-in caller — invalid bodies, missing rows, an abandoned and a completed round, each `422`,
+  the upstream failures and a failed preflight — with sentinels in the transcripts, the typed answer
+  and the follow-up, and scans every envelope and log line for them and for every claim of the CV. A
+  posting's text is #47's own test (`generated-questions.integration.test.ts`).
+- **A spent OpenAI project:** `429 project_spend_limit_exceeded` classes as itself, is not retryable,
+  refuses the round as `503 model_unavailable`, and fails a mid-round score after one call, not three.
 
 ### 3.17 The monitoring jobs (#55)
 
@@ -518,13 +533,14 @@ wiring between screens that no unit test sees.
 | Round setup | The four stamps are displayed before 開始; a failing model preflight disables 開始 and says why, with **no option to start anyway**. |
 | The cap fires | Fake device, realistic mode: recording stops at 240s and **the take is retained** — screen 4 promises `4分で自動的に止まります。そこまでの録音は残ります。` |
 | The runaway guard fires | Practice mode: at 15 minutes it behaves exactly like the cap, take kept, **and it is not rendered as a timer** (`03` §7 — not shown as pressure, not part of practice's rhythm). |
-| Upload failure | Intercepted S3 PUT fails → "held on this device", retry offered, tab-close warning present, blob still in IndexedDB after a reload. |
-| Transcription failure | Take kept; both retry **and** the typing fallback are reachable. |
+| Upload failure | Intercepted S3 PUT fails → "held on this device", retry offered, tab-close warning present, blob still in IndexedDB after a reload. The retry then delivers the held bytes to the same answer row, and nothing is left held. |
+| Transcription failure | Take kept; both retry **and** the typing fallback are reachable, and a reload returns to them. A typed answer is stored with no transcriber, no pace and no duration, and its take is kept; a retry that succeeds transcribes the same take. |
+| Mic denied | With the microphone refused, screen 3 names the fix, no request is made, no answer row exists, and the round's read still asks the same question. |
+| Spent project | With the mock answering the preflight `429 project_spend_limit_exceeded`, Setup shows the `model_unavailable` sentence, no round is created, and the preflight is asked once. |
 | Transcript editor | The rewrite-magnitude meter moves with edits and its submitted value matches what the server stores. |
 | Screen 7 is not skippable | Realistic mode offers no way past the felt-pressure rating to feedback. **This screen is load-bearing for latency** (`03` §3) as well as for the brief's falsification test — a future "skip" link is a regression in two places at once. |
-| Pending score renders | The feedback screen states a pending score plainly and **does not spin** (`03` §5, §8). |
-| The round's two waits | With each of the take's calls held open in the browser: the take on its way names the upload, then the transcription, on a two-segment track whose clock keeps counting across both; a failed transcription ends the wait, and trying again starts it and its clock again. The round closing says `N of M done` with a segment per answer and one for the feedback, then that scoring is finished, **against the round's real read**, with two scoring calls and then the feedback's held open in the mock (`06`, 2026-10-06). Both in Japanese in a Japanese round. |
-| Resume | Reload mid-round returns to **the same** question, with earlier answers intact. Starting another round, then opening the first, shows it read-only as abandoned. |
+| Pending score renders | The feedback screen states a pending score plainly and **does not spin** (`03` §5, §8). A failed one reads `Not scored` / `未採点`, and neither holds the round-level findings back. |
+| Resume | Reload mid-round returns to **the same** question, with earlier answers intact. Starting another round, then opening the first, shows it read-only as abandoned; so does the newest round once its Asia/Tokyo day has passed, with its own sentence. A reload after the upload and before the transcript resumes at `transcribe`, with no new take. |
 | Follow-up | Each question is followed by its one follow-up at the same position, named in the header; a reload on it shows the same text and makes no generator call; screen 8 shows it as a row under its answer's scores. |
 | Missing follow-up | With the fake generator failing, screen 6 says the follow-up was not generated, the answer is locked, and one control goes on to the next question; screen 8 shows the gap on that answer. |
 | Follow-up not stored | A reload onto an answer committed without its follow-up shows the saved answer and one control, which writes the follow-up and asks it. |

@@ -3,567 +3,76 @@
 Newest first. Every entry records what was chosen, why, and what was rejected.
 
 ---
-## Phase 6 — #73, the round's two waits
-
-Raised by the owner after the first real English round on `develop` (2026-10-03): after stopping a
-recording nothing shows how long the transcription is taking, how far along it is, or what is
-happening. The issue's suggestions — a clear state with a progress bar or a time estimate, the same
-at round end while the answers are scored, specified in `10` first — were firstmate's; the owner
-approved starting on 2026-10-05. **The choices below are the build's, still the owner's to confirm.**
-
-### [2026-10-06] A wait is said as what is running, a segment per thing waited for, and the time so far
-
-One component, the wait line (`05` §5.10), on both waits: a sentence naming the call in flight, a
-track cut into one segment per thing being waited for, the elapsed time beside it, and a line saying
-to wait and that the screen moves on by itself. The take on its way has two segments because it is
-two calls, upload then transcription (`10` §3–5); the round closing has one per submitted answer and
-one for the feedback (`10` §7). **A segment fills only when its own thing has finished.**
-
-*Rejected:* a percentage or a bar that creeps — the app knows which call is running and never how far
-through it is, so any position would be invented; a time estimate — scoring's slowest measured call
-took five times its median (`03` §4), so an estimate is wrong on exactly the wait the user notices; a
-spinner — it says only that something is happening, which was the complaint, and
-`10` §11 already calls one that outlives the sitting a defect. The elapsed clock is the one figure
-shown because it is the one figure measured.
-
-### [2026-10-06] The round-end counts are read from the round, beside `complete`, not returned by it
-
-`complete` is one call that waits for the last scores and then writes the feedback (`07` §5.12), so
-it can report nothing until it is over. Screen 7 re-reads the round every two seconds while that call
-is in flight (`07` §5.5) and counts the submitted answers and those whose latest attempt is no longer
-`pending`. **A failed score counts as done**, as it does for `complete`. Status only: no score is
-read or shown.
-
-*Rejected:* streaming progress out of `complete` — it would change the one endpoint whose ordering
-`06`, 2026-09-27 fixed, for a caption; a counts-only endpoint — §5.5 already is that read. *The limit:*
-a read that fails leaves the line as it was, and until the first read lands the wait is on its first
-sentence and one running segment. `GET /api/rounds/{roundId}` is #49's, merged before this: a real
-round shows the counts, and `e2e/waits.spec.ts` proves them against that route, with two scoring
-calls and the feedback's held open in the mock.
-
-### [2026-10-06] Practice's round end stays on its caption
-
-A practice round ends on the same `complete` call, from the per-answer frame, and still says
-`Writing the findings.` in a caption alone (`10` §15): no wait line, no clock, no counts. Left out of
-#73 on purpose. The read of a practice round also carries the answers given again, so "N of M
-scored" has no settled meaning there; it stays a caption until the owner decides what the count
-means (`10` §12).
-
-### [2026-10-06] Practice's held take waits on the same line
-
-#49 landed while this was open, with a sentence of its own for each of practice's two waits
-(`Uploading the take.`, `Transcribing the take.`). They are the same two calls, so practice shows the
-wait line too (`10` §15) and those two strings are retired (`native-read-round.md` §13). The clock
-starts again for the transcription, because the held take stands between the two calls.
-
----
-## Phase 6 — #49, practice mode
-
-The round with the pressure taken out: a re-take, each answer's scores as they land, a second go at
-the same question, and feedback with no rating asked first. The shape is 2026-09-27's (below); the
-server already completed a practice round and preferred seen questions. These are the choices the
-screens and the two remaining calls needed. The owner confirmed the feedback rule on 2026-10-05.
-
-### [2026-10-04, owner-confirmed 2026-10-05] Round feedback uses scored retries when no original answer scored
-
-**Owner-confirmed.** `complete` waits for,
-counts and sends to the feedback call the answers the round asked for: each question's first answer
-and its follow-up's. An answer given again is scored on its own, shown on its own per-answer frame
-and on its own page of screen 8, and is left out of the findings and of `Checked against your CV`
-when an original answer scored. When none scored, `complete` uses scored retries instead, including
-their CV check, under `feedback-en-1.3` and `feedback-ja-1.2`.
-**Why:** `feedback-en-1.2` and `feedback-ja-1.1` read one answer per prompt, labelled by position; a
-second answer to the same question is something neither prompt has a word for, and findings written
-over both would say which was better — the comparison `10` §15 refuses. It also keeps `complete`'s
-60 s wait off a retry sent a moment before the round ended when an original scored. **Rejected:** sending retries as extra `answer N` blocks (the model would read two
-answers to one question as two questions); replacing the first answer with the latest retry in the
-input (findings about an answer the Progress chart will never plot, and the first answer's flags
-disappear from the round). The fallback labels retries explicitly and uses new prompt versions.
-
-### [2026-10-06] Known limitation: a later re-score moves the CV regions off the retries the findings describe
-
-Screen 8 decides which answers its round-level regions read from the scores as they are now, not
-from what the stored `round_feedback` row was written from. So when a practice round's feedback was
-written from retries, because no original scored, and a failed original is later re-scored from
-History and lands `ok`, the round-level CV regions follow the originals while the stored findings
-beside them still describe the answers given again. Nothing is lost or mis-stored. **Why it stays:**
-it needs every original to fail, a retry to score, and a History re-score afterward; the owner chose
-to record it rather than change code for it. **The known fix:** pin the regions to the set the
-stored row used, by its `prompt_version` (`feedback-en-1.3` and `feedback-ja-1.2` are the retry
-versions). Tracked with the region's scope in
-[#85](https://github.com/yutaasakura96/suburi/issues/85).
-
-### [2026-10-04] Practice's screens are `10` §15: a per-answer frame after every commit
-
-Specified from `05` components before any was built, as §13 was; there is no artboard. **The scores
-get a frame of their own** — the answer's rows, its flags, what the round asks next ready beside
-them, and `Answer again` — rather than a strip on the next question's record frame. **Why:** the
-score lands about seven seconds after the commit (`03` §4), which on the next record frame is while
-the user is reading or already answering the next question; and "answer again" needs somewhere to
-stand that is about the answer just given. The frame states `Not scored yet` in words and nothing on
-it waits, so going on is never held behind a score (invariant 2's spirit, in a mode it does not bind).
-It also absorbs §6's "after the commit" frame: a missing or not-yet-stored follow-up is said there.
-Setup now offers the mode, and shows no time estimate for practice — its cap is the runaway guard,
-not a pace. **Rejected:** scores inline on the next record frame (above); a dialog over the round (a
-second layer for something that is the round's main content in this mode).
-
-### [2026-10-04] A practice take is uploaded when it stops, and transcribed when the user says so
-
-Realistic's `Stop and transcribe` is one control because the take is final. In practice stopping
-opens the slot and uploads the take, and the frame holds it: `Transcribe this take`, or `Record
-again`. **Why:** `07` §5.6 makes the re-take a property of the server — the same row and the same
-object key until `transcript_raw` is set — and a take held only in the tab would make that rule
-something no request ever exercised. Transcribing is the commit, and the frame says so before it is
-pressed. **A reload on a held take asks for the question again**: the upload is in the bucket, but the
-page cannot play it back, and offering to transcribe a take the user cannot check is worse than a
-re-take. **Rejected:** transcribing at stop as realistic does (nothing left to re-take: §5.7's
-transcript is final); playback of the held take (a new surface the issue does not ask for).
-
-### [2026-10-04] Answer again: a retry of the original, one open at a time, refused with the codes that exist
-
-`retry_of_answer_id` on the slot call (`07` §5.6). **A retry always points at the original** — a
-retry of a retry is one more retry of the same answer — so "the answers to this prompt" is one
-`where`, not a chain to walk. **One retry is open per original**: a repeat is its re-take. **The
-round's step is neither read nor moved**, so `submit` on a retry returns the `next` the round already
-had and generates no follow-up (2026-10-03, #44). **Refusals use `invalid_request` and `not_found`**:
-a realistic round, an unsubmitted answer and a foreign id are requests the client never makes, the
-catalogue is closed (`07` §3), and a new code would be a Japanese and an English sentence written for
-a reader who does not exist.
-
-### [2026-10-04] A practice round reloads onto the answer sent last; this is what ends the rating it never owed
-
-#44's review found a practice round's last `submit` returning `next.kind = feedback` and the page
-then showing screen 7, whose rating the API refuses. The page had one "the round is past its last
-answer" frame, and it was the rating. **Now a practice round opens, in order, on an open
-answer-again, on the open answer to the current prompt, and otherwise on the per-answer frame of the
-answer sent last** (`10` §15), whose `Next` is read from where the round stands — so the frame after
-the last answer is the one that leads to the feedback, and `complete` is sent with no rating. A
-realistic round is unchanged. **Rejected:** skipping straight to `complete` when the page loads on a
-finished practice round (a reload would close the round without being asked, and the last answer's
-scores would never be shown).
-
-### [2026-10-04] The per-answer frame polls the round's read; nothing is cached
-
-`GET /api/rounds/{id}` is built as `07` §5.5 specified it, and the frame asks it every 2 s while the
-attempt on screen is pending, every 10 s after a minute, and stops after six (`03` §7). **Why a
-poll:** the wait is seven seconds at the median, there is one user and one frame, and the read is
-three small queries. **`state` follows the columns as §5.5 defines them, so an open slot reads
-`uploaded`** — the key is written when the slot opens — and `open` is a state no row is in; §5.5 now
-says so rather than the code inventing a fifth column to tell them apart. **Rejected:** a streamed
-response or server-sent events (a function held open per frame for a seven-second wait);
-`router.refresh()` on a timer (it re-renders the frame from the server and drops the error line and
-the go-on state it holds); a client cache library (`03` §7 names them as not added).
-
-### [2026-10-04, owner-accepted 2026-10-05] The new Japanese strings passed the native read
-
-Every Japanese string practice adds is in `docs/checklists/native-read-round.md` §13, written to
-`05` §6's rules. The owner read and accepted all 28 strings on 2026-10-05.
-The owner also accepted the numbered follow-up retry label on 2026-10-05, and on 2026-10-06 the
-numbered bank-retry heading added afterward and the two names `feedback-ja-1.2` gives an answer
-given again (`第2問の再回答`, `第2問の深掘りの再回答`).
-
----
-
-## Deploying — `develop` migrates itself
-
-### [2026-10-06] A `develop` deploy applies its pending migrations in Vercel's build; `main` stays by hand
-
-Merging into `develop` deployed the code and nothing migrated Neon `develop`: `12` §4 made that a
-hand-run step, and on 2026-10-06 the database was found five migrations behind (`0008`–`0012`), with
-merged features erroring on the test site. **Decided:** `vercel.json`'s `buildCommand` runs
-`npm run db:migrate:deploy` before `npm run build`. The script migrates only when `VERCEL_ENV` is
-`preview` and `VERCEL_GIT_COMMIT_REF` is `develop`, with drizzle's own migrator and journal, and a
-failure fails the build, so the previous deployment keeps serving. `12` §4 has the detail. **`main` is
-unchanged:** its build runs the script, which reads no database variable there and exits `0`, and Neon
-`main` is still migrated by hand before the merge — the 2026-09-12 reason, unattended DDL on the
-measurement record, is about `main`'s rows and does not reach a synthetic seed.
-**Why the build step:** the migration and the code are then one deploy. A migration that fails stops
-the code that needs it, in the place a failed deploy is already looked for, and it needs no new secret —
-`DATABASE_URL_UNPOOLED` is already in `develop`'s Preview scope. **Rejected:** a GitHub Actions job on
-push to `develop` (it races Vercel's build, a failed migration would not stop the deploy, and it puts a
-second copy of the connection string in GitHub); spawning `drizzle-kit migrate` from the build
-(`drizzle.config.ts` validates the whole environment, and the step should need the one variable it
-reads); a Neon branch per deploy (`12` §10); migrating at boot in `instrumentation.ts` (every cold
-start would hold the direct connection, and a failure would be a running deployment that errors, not a
-deploy that never happened).
-**Two guards the build needed.** The URL's role must be `suburi_develop`, which Neon `main` refuses
-(`12` §3 step 8): a Preview variable pointed at `main` by mistake would otherwise be exactly the
-unattended migration this entry leaves out. And a Postgres advisory lock serialises two builds at once
-— drizzle reads its journal before it opens its transaction, so both would run the same migration and
-the second would fail on the first's tables.
-**And a third, for the migration drizzle skips.** Its migrator applies only the entries whose journal
-`when` is later than the newest applied one. A migration generated on a branch that merges second,
-renumbered at the merge, keeps its earlier timestamp, and the build would pass with it unapplied — the
-drift this entry exists to end. So after migrating, the step compares the rows in
-`drizzle.__drizzle_migrations` with the entries in the folder's `meta/_journal.json` and fails the
-build when the database has fewer, naming the cause and the fix: regenerate the migration so its
-timestamp is the newest. A plain `<`, so redeploying an older commit, where the database has more,
-still passes.
-
----
-## Phase 6 — #74, a model answer for each question
-
-Raised by the owner after the first real English round on `develop` (2026-10-03): the feedback says
-what to fix, and shows the question, but never how it could have been answered. Each question a round
-asks now has a model answer, stored with the round. The issue's three suggestions — show it on each
-question's tab beside the user's own answer, ground it in the user's real record, generate it once at
-`complete` — were firstmate's, marked "to confirm"; **they are built as suggested, and the choices
-below are the build's, still the owner's to confirm.**
-
-### [2026-10-06] A pending call and its retry may race
-
-If a round-end call outlives the 45 s wait and the user presses retry before its row lands, a second
-call runs and whichever commits first is kept. Both use the same question, CV version and answer;
-the row is written once, and the worst case is one extra call. The owner accepted this limit without
-coordination of in-flight calls.
-
-### [2026-10-05] Model-answer figures accept パーセント and a range's shared marker
-
-The owner widened the figure rule below twice, and closed the list for #74. パーセント is a percent
-marker beside %, ％ and percent, in the model answer and in what supports it. A range joined by 〜,
-~, -, – or "to" lends its trailing magnitude or marker to its first end, read the same way on both
-sides. In the CV or the candidate's own answer, 20〜30% also supports 20% and 3〜5万件 also supports
-3万. In the model answer and its English translation, 20〜30% is the two figures 20% and 30%, so a CV
-that says only 20名 backs neither end; the underline on the first end covers its digits only. The
-owner added the model-answer side after the first reading left that 20 unmarked.
-
-### [2026-10-05] Model-answer figures use digit values and three kinds
-
-The owner narrowed the deterministic check to ASCII or full-width digit figures. A figure starts at
-a word boundary and may carry a magnitude (k, K, thousand, million, billion, 千, 万, 億), percent
-(%, ％, percent), or multiplier (x, ×, 倍). Its identity is the normalized value and one of three
-kinds: plain number, percent, or multiplier. Surrounding words are ignored, and the underline covers
-only the figure. Dot-separated components of a CV or own-answer figure also support that value; comma
-groups have exactly three digits; adjacent magnitude groups form one value. Digits joined by a slash
-(24/7, 2021/04) are never marked, but in the CV or own answer each side supports its value. English number words,
-kanji numerals, and written fractions or multipliers are outside this check; spelled-out numbers are
-tracked in [#84](https://github.com/yutaasakura96/suburi/issues/84). This supersedes the earlier
-figure identity decision below.
-
-### [2026-10-05] Figure identity includes magnitude and unit
-
-The deterministic model-answer check distinguishes counts from percentages, multipliers, fractions,
-money and other units, and expands written magnitudes such as million, k, 万 and 億. The owner also
-required written forms including twice, double, triple, half, halved, 倍, 半減 and 半分 to be marked when
-absent from the CV and the candidate's own answer. The same check runs on the Japanese answer and its
-English translation. Unit tests cover each form and the case where three engineers do not support
-three million.
-
-### [2026-10-05] Model-answer figures are checked after writing; spend baseline is $0.70
-
-The owner chose a deterministic second check for figures in the Japanese answer and its English
-translation as well as English-round answers. The server compares numbers, percentages and multipliers
-with the round's stored CV text and the candidate's own answer, including the earlier answer for a
-follow-up. Missing figures become unsupported spans beside the writing call's marks. This supersedes
-the 2026-10-04 decision that the writing call was the only marker; nonnumeric truthfulness still needs
-the real-round read. The owner also raised the per-round spend baseline from $0.40 to $0.70 and read
-and accepted all ten #74 Japanese strings on 2026-10-05.
-
-### [2026-10-04] A model answer is the user's own answer at its best, from the record they really have
-
-One per question asked, written from the round's CV version — the same citable claims a scorer is
-shown — the role context, the rubric's best anchors, the question as asked and the corrected
-transcript. **It may use nothing else**: every employer, number, result, team size and date in it comes
-from a CV claim or from the user's own words, never sharpened (`速くなった` does not become `40%`), and
-two pieces of work are never joined into one. **It keeps the example the user chose** whenever that
-example answers the question, even when the CV holds a similar one with better numbers: the story
-the user can tell in a real interview is the one they lived. **Rejected:** a generic "ideal answer"
-to the question (useless in an interview — it is not the user's record, and it would teach them to
-say things they cannot back up); an answer free to pick the CV's strongest example (the first draft
-did this, and dropped what the user had actually said); and reading the scores, so that the model
-answer "fixes" the low dimensions (it aims at the best anchor of every dimension anyway, and reading
-no score means it waits for none and exists even when scoring failed).
-
-### [2026-10-04] What the CV does not back is marked, by the call that wrote it, and the server only locates
-
-The issue asks that anything beyond the CV be marked as such. A model answer built on the user's own
-example will often carry details only the user said — a team of five, three months, a result with a
-number. Those are returned as verbatim quotes of the answer with a start hint, and **stored as spans
-of the stored body** (`model_answers.unsupported_spans`), found by the same locator as an answer's
-flags (`lib/round/grounding.ts`): a quote that is not in the text is dropped and counted, never
-clamped. The screen underlines the spans and its caption names the CV stamp. **The limit, stated:**
-the marking is the writing call's own. The server guarantees a mark is real text; nothing checks
-that every unbacked part is marked, or that nothing was invented. **Rejected for now:** a second
-call that scores the model answer against the CV as an answer is scored — twice the calls and
-latency for a check whose need no real round has shown; it is the named next step if one does (`07`
-§7, `11` §9). **Rejected outright:** marking by string-matching the CV (a claim is paraphrased, not
-quoted, so it would mark everything), and storing the model's quote instead of a span (`04` §6 #12's
-rule: no quote from model output).
-
-### [2026-10-04] Follow-ups get one too, and a practice retry does not
-
-"For each question asked": a follow-up is a question the round asked, and it is where the first live
-round went thinnest. Its call also reads the question it followed and that answer, and the screen
-shows it as a second pair under the first. A practice "answer again" is the same question, which
-already has its model answer, so it gets none. **Cost accepted:** twice the calls.
-
-### [2026-10-04] Its own table, its own call and prompt — not a field of the round feedback
-
-`model_answers`, one row per answer, unique on `answer_id`, never updated. `round_feedback` is one
-row written whole, and a model answer per question inside it would have made six to fourteen long
-generations part of the one call the user is waiting on, failing together. Separate calls run side by
-side, fail one at a time, and can be written for a round that was completed before they existed. The
-prompts are `model-answer-en-1.0` and `model-answer-ja-1.0`, and the model is the pinned one. **It is
-not measurement**: no score, none of the four stamps, no Progress boundary when its prompt or model
-changes (`04` §6 #14).
-
-### [2026-10-04] Written at `complete`, beside the feedback, and never a reason to fail it or hold it
-
-The calls start when the round closes and run under the wait for the last score and the feedback
-call. The rows are stored after the feedback, and stored even when the feedback was not.
-**`complete` waits for them at most 45 s from the round's close**: an English round's calls finish
-about when its feedback does, a Japanese round's about 10 s after, and every round measured inside
-32 s. Past 45 s the feedback goes out and a call still running is stored in `after()` — invariant 2
-is about the feedback screen, and a model answer is not allowed to be what it waits on. The first
-build waited for every call up to its 90 s limit; that made one slow call the whole screen's wait,
-and was changed before it shipped. **A failed call is a count in the response and a
-gap on the screen**, with a control that writes what is missing through `POST
-/api/rounds/{id}/model-answers` (`07` §5.19) — which also writes them for the rounds completed before
-this existed, the owner's first real round among them. **Rejected:** generating wholly in `after()`
-(the feedback screen would always render without them and need to poll or spin; `after()` is only
-where the slow tail lands); generating lazily when a
-tab is opened (a wait on the screen that must never wait, and the stored text would depend on when
-it was first looked at); and **any way to regenerate one** (`07` §6): the issue asks for something
-stable to review later, and a re-roll is how a reference becomes whatever read best.
-
-### [2026-10-04] A Japanese round's model answer is translated by the same call, like its feedback
-
-The English pill reads the feedback from a stored translation (2026-10-03, below). The model answer
-follows it: `body_translated` holds the English and its own spans, written by the same call and
-refused whole if the translation is missing. The Japanese is written in です・ます体 at the register
-the 敬語 dimension scores. What the user said is never translated.
-
-### [2026-10-04] Measured: 16 s for an English round's calls, 25 s for a Japanese one, bounded at 90 s
-
-`scripts/measure-model-answers.mts`, five rounds per language through the real port, synthetic
-input (`03` §4 has the table). A round's calls take as long as the slowest: **15.9 s at the median
-in English, 25.0 s in Japanese**, and the slowest single call of 50 was 31.6 s. The bound is 90 s
-with no retry inside `complete`. Nothing the server located was dropped: 74 marks over 30 English
-answers, 26 over 20 Japanese. **The first draft marked narration** — 22 marks over six answers,
-whole sentences among them, the mistake `score-en-1.1`'s first draft made — and was tightened before
-the measurement to results, standing, sizes, figures and work the CV does not name. **Cost: about $0.22 for an
-English round of three questions and their follow-ups, about $0.35 for a Japanese one**, which is
-most of what a round was estimated at ($0.40, 2026-09-29). **The spend baseline is left as the owner
-set it, and that leaves a known false alarm**: the week's threshold is $1.20 a round started, a
-three-question round stays well under it, but a seven-question Japanese round's model answers alone
-are about $0.80, and with its fourteen scoring calls (about $0.03 each, `03` §4) it comes to about
-$1.30. A week of only such rounds would read red with nothing wrong. Raising the constant is the
-owner's call (it was theirs, 2026-09-29), and it is due to be replaced by the measured cost of the
-first eight real rounds anyway. **Not measured:** a
-real CV and a real answer — every reading here is synthetic, and the read of a real round is `11` §5's
-checklist item.
-
-### [2026-10-04] On the screen: under the pager, what was said beside the model answer
-
-Screen 8 had no artboard for this. The per-answer region gains two columns under the pager: the
-corrected transcript on the left — the screen never showed what the user said, only its scores — and
-the model answer on the right, with a second pair for an answered follow-up. Unbacked spans carry a
-`--attention-mark` underline and a caption that says so in words (`05`: never colour alone); a
-question with none says that nothing is underlined — **what was marked, not that the answer was
-checked**, since the marks are the writing call's own. **Nothing is drawn between the two columns** — no diff, no score
-for the model answer, no "you missed" list: comparison is the round-level findings' job, and a second
-judgement beside the score rows would be prose beside a dimension by another route. The nine new
-Japanese strings and the catalogue's one (`docs/checklists/native-read-round.md` §12) were read and
-accepted by the owner on 2026-10-05.
-
----
-## Phase 6 — #50, History
-
-The one screen that reads a past round: the rail, the matrix, the recording and the raw transcript
-behind each row, and the retry of a score that never landed. The plan is 2026-09-27's and
-2026-09-28's (below); these are the choices the build needed.
-
-### [2026-10-04] A run in flight is a claim on the attempt, and its `409` is `scoring_in_progress`
-
-`07` §5.10 said a second `run` while the first is in flight is a `409`, and nothing recorded "in
-flight": an attempt is `pending` until it is `ok` or `failed`. **Decided:** a nullable
-`scoring_attempts.run_started_at`. A run begins with one conditional update — the row is `pending`
-and the column is null or more than 300 s old — and a run that loses it while the row is still
-`pending` answers `409 scoring_in_progress`, a new catalogued code with its copy in both languages.
-300 s is the invocation ceiling, so an older claim belongs to a dead function and the next run takes
-the attempt over; a test pins the constant to the routes' `maxDuration`. `submit`'s `after()` claims
-the same way, so a retry from History cannot score an answer twice while its first run is going.
-**Why it matters:** two runs of one attempt would both call the model, and the second would then fail
-its write, having spent the call. **Rejected:** a `running` status (a function that dies leaves the row
-`running` for ever, which is the stuck state `pending` exists to make visible and alertable); a
-Postgres advisory lock held across the call (the pooled connection is not the function's to hold for
-a minute, and a transaction must never span a model call, `11` §3.14); reusing `round_not_complete`
-or another existing `409` (each is about a round, and its copy would be wrong on this row).
-
-### [2026-10-04] History creates an attempt only beside a failed score; a pending one is run as it is
-
-`POST /api/scoring-attempts` writes a row only when the answer's latest attempt is `failed`. `ok` and
-`pending` are both `422 scoring_not_retryable`, as `07` §5.11 said; what the build adds is the other
-half — **a `pending` attempt is driven by `run` itself**, so an answer whose function died gets its one
-attempt finished rather than a second row beside a row that never failed. History's control reads the
-row's state and makes one call or two. The check and the insert are under a lock on the answer's row.
-The stamps are the round's CV and rubric, the question's or follow-up's generator version, and
-**today's** model and scoring prompt: a retry after a model change is scored by the new model and is a
-boundary, which is the honest reading. **Rejected:** stamping the retry with the failed attempt's
-model (the pinned string may no longer exist to call, and the stamp would then name a model that did
-not score it).
-
-### [2026-10-04] An attempt's model stamp is written when it is scored, not only when its row is
-
-Found by hand on a seeded database: the synthetic `pending` attempt, run from History, was scored by
-`gpt-5.6-sol` and still read `synthetic-fixture`. The same hole exists without a seed — an attempt is
-stamped with the pin of the moment its row is written, and `run` can now score a `pending` one days
-later, across a model change. **Decided:** the transaction that turns an attempt `ok` also sets
-`model_id` and `scoring_prompt_version` to the scorer's that produced the scores (`04`, `07` §5.10).
-For `submit`'s own `after()` the two are the same values, so nothing changes there. A `failed` attempt
-keeps its creation stamp: no model scored it. **Rejected:** failing a stale `pending` attempt unscored
-so that History's retry writes a new row (two calls and an error on the row, to reach the same score
-and the same stamp); leaving it (a score under the wrong model's name is the drift the stamps exist to
-make visible, hidden instead).
-
-### [2026-10-04] `GET /api/rounds` names every scoring model behind a round: `scoring_model_ids`
-
-`07` §5.13 drew `stamps.scoring_model_id`, one string. A round's answers are scored one attempt each,
-and a retry under a new pin gives a round two models. **Decided:** a sorted list of the models behind
-the round's displayed scores, empty when none is scored; `07` is amended. The detail's stamp reads the
-same way, and lists every generator version too, since a follow-up's differs from its question's.
-**Rejected:** the newest attempt's model (the row would claim one side of a boundary it straddles,
-on the screen whose job is to say which side a round is on).
-
-### [2026-10-04] A recording is checked before its URL is signed, and a `403` on `HEAD` is a missing one
-
-A presigned URL is arithmetic: S3 is not asked, so a dangling key would get a URL that fails in the
-player. `GET /api/answers/{id}/audio` therefore sends a `HEAD` first and answers `404 audio_missing`
-when nothing is there. The environment's IAM user has `s3:GetObject` and not `s3:ListBucket` (`12` §3
-step 5), and S3 documents that a `HEAD` for an absent key then returns `403`, not `404`; **both are
-read as missing**, on a key the server derived under its own prefix. Anything else is `502
-upstream_s3`. The player handles what the server cannot see — an expired URL, an upload cut short —
-by saying the recording could not be played. **Rejected:** granting `s3:ListBucket` to tell the two
-apart (a wider credential, for a distinction History does not show); signing without checking and
-leaving the failure to the `<audio>` element (a missing recording and a network fault would read the
-same). **Noted, not changed here:** `transcribe` reads the object with `GET` and treats only
-`NoSuchKey` as missing, so on the real bucket a take that was never uploaded surfaces as `upstream_s3`
-rather than `audio_missing`. That is #48's ground (failure paths).
-
-### [2026-10-04] History shows no question a round never reached, and no score a realistic round is holding
-
-The matrix lists a round's positions, and two of its rows would leak if it listed them plainly. **A
-question fixed for a round and never answered is shown as `Q3` and nothing else**: only an answer makes
-a question seen (`04` `round_questions`), and its text on History would make it seen without one —
-after which the next round would ask something the user has already read. **A realistic round still
-in progress shows `Scores are held until the round ends.`** on every answered row, and `run`'s
-response for such a round carries the status alone: US-8's rule is enforced where the data is read,
-not by the screen choosing not to draw it. A follow-up that was asked and not answered does show its
-text; it was asked. **Rejected:** hiding an in-progress round from History (10 §10 says History offers
-to resume it, and it is where a user looks for it).
-
-### [2026-10-04] The synthetic rounds are four fixtures, stamped as fixtures, with no recording
-
-`12` §1 is amended with the table. One round per state — scored, pending, failed, abandoned — over the
-synthetic bank questions and CV, written directly: no model call, every model stamp
-`synthetic-fixture` and every prompt version `synthetic-…`, so a seeded score cannot be mistaken for a
-scored one on any chart. Ids are derived from the user and the round's name, which makes the seed
-idempotent per round without a marker column, and dates are fixed in the past so the open round is
-abandoned on any day. No object is put in S3, so History shows the missing-recording state on
-`develop` by default. The Japanese round's answers are sentences of the synthetic CV, already in the
-repository, so the seed adds no unread Japanese. **Rejected:** seeding through the handlers with fake
-ports (it would need a session and would stamp rows with fake model strings the app could plausibly
-have written); a recording fixture in S3 (a seed that needs bucket credentials is one that cannot run
-in CI or locally).
-
-### [2026-10-04] History's routes, its English, and the way to it
-
-`/history` opens the newest round and `/history/{roundId}` is a round; the rail is the layout. The
-chrome is English (`10` §0) and `10` §10 now carries the table of what replaced each artboard string,
-with the rows the artboard does not draw: a practice retry, an unscored answer with its control, an
-unanswered follow-up, an unreached question, and a held score. The pill renames the dimensions on
-this screen; the feedback it toggles on screen 8 is reached by a link. **Home gains one link,
-`History`**, because no navigation exists yet and a screen with no way to it is not verifiable on
-`develop`; #51 rebuilds Home. **No delete, share or export control exists**, and `11` §4's Playwright
-row now holds the whole list of controls the screen may have.
-
-### [2026-10-04] Merged onto #47 and #45: migration `0012_history`
-
-#47 landed `0010_generated-questions` and #45 `0011_speech-route` first. This slice's migration was
-regenerated by `drizzle-kit` after each merge of `develop`, and is `0012_history`:
-`scoring_attempts.run_started_at`, and `rate_limit_windows.route`'s check extended with
-`scoring-attempts` and `scoring-run` (30 per 10 minutes each, `07` §1 rule 5) beside #45's `speech`.
-Expand-only, and **not yet applied to either Neon branch** (`12` §4).
-
----
-## Phase 6 — #45, the spoken question, the cap and one take
-
-What makes a realistic round realistic. The route and the failure were decided on 2026-09-27 and
-2026-09-28 (below); these are the choices the build needed.
-
-### [2026-10-03] The speech model is `gpt-4o-mini-tts-2025-12-15`, voice `marin` — and OpenAI removes it on 2027-01-06
-
-**Checked, against OpenAI's docs on 2026-10-03:** the text-to-speech guide, the `gpt-4o-mini-tts`
-model page and the deprecations page. The speech endpoint takes `tts-1`, `tts-1-hd` and
-`gpt-4o-mini-tts`, whose snapshots are `2025-03-20` and `2025-12-15`; the guide calls
-`gpt-4o-mini-tts` the newest, and no newer speech-endpoint model exists. **Pinned:** the current
-snapshot, `gpt-4o-mini-tts-2025-12-15`, as `TTS_MODEL` in `lib/ai/models.ts` — the string #42 measured
-(`03` §4) — and the voice `marin` beside it, one of the two the guide recommends and the one that
-measurement used. The model is steerable, so the port tells it to read the question exactly as
-written, in the round's language, and not to answer it. **Then run:** ten synthetic questions, four
-English and six Japanese with 役職 and company names, through the real port; each came back as MP3 in
-1.0–2.5 s, and a transcription of each read back word for word. That is a machine check, not `11` §5's
-ear check, which is the user's.
-
-**The deprecation.** The same check found that on 2026-10-01 OpenAI deprecated every model the speech
-endpoint takes, both `gpt-4o-mini-tts` snapshots included, with removal on **2027-01-06**. Its named
-replacement is `gpt-realtime-2.1-mini`: a speech-to-speech model, reached only over the Realtime API
-(WebRTC, WebSocket or SIP), with no dated snapshot. **Decided:** build the route the plan settled, on
-the model that works and was measured, and treat the move as a slice of its own before that date.
-`lib/ai/tts.ts` is a port with one implementation so the move stays behind it, and TTS is not a stamp,
-so it needs no re-score and no boundary.
-**Rejected:** building on the Realtime model now. It is a conversational model asked to recite, not a
-synthesizer, so "reads the question as written" is unverified; it changes `07` §5.15 from one streamed
-response to a session; and nothing about it was measured. **Rejected:** the alias `gpt-4o-mini-tts`,
-which survives the removal only by being repointed (`03` §4, "never point at an alias").
-
-### [2026-10-03] The speech route: 30 per 10 minutes, 10 s to the first byte, and what it logs
-
-Its own bucket, `speech`, in `rate_limit_windows` (migration `0011`, widening the route check). One
-request per prompt asked — 14 in a 7-question round with follow-ups — and a reload asks again, so 30
-is two such rounds with reloads to spare, the same reasoning as `transcribe` and `submit`. Synthesis
-has **10 s to its first byte**; the measured slowest was 1.5 s, and the user is reading the question
-meanwhile. A failure logs `speech_failed` with the round id, the position and the error class, and
-nothing else; a success logs the same ids and the time to the first byte. The query is validated like
-a body: a `text` parameter is a `400`, not an ignored field. **Until follow-ups exist (#44), a
-`follow_up` request is the `404` a `missing` one gets** — whichever of #44 and #45 merges second reads
-`follow_ups` there.
-
-### [2026-10-03] Screen 3's speaker line, and the practice frame without a timer
-
-- **The browser may refuse to play sound unasked.** A round opened or reloaded with no gesture in the
-  tab cannot start audio. The speaker line then becomes a control, `Hear the question`, and pressing
-  it plays the question. **Rejected:** waiting for the first click anywhere, which would be the click
-  on `Start recording` and would speak over the take; and reporting it as `speech_failed`, which it is
-  not.
-- **Starting the recording silences the question** if it is still being spoken, so the microphone
-  never records it. The button is not held back until the audio ends: a stalled stream must not be able
-  to stop a round.
-- **A failed synthesis replaces the line in place**, in the attention ink (`05`, the colour of a
-  missing-follow-up note), at the line's own height, so the question does not move (`10` §4).
-- **Practice's guard is never drawn** (`03` §7). The practice record frames show no clock, no `Up to`
-  line and no one-take line, and the waveform scrolls at one bar a second with no remainder — a
-  waveform filling toward 15 minutes would be the guard drawn as the timer it is not. The rest of
-  practice's frames are #49's.
-- **`npm run ear-check`** makes `11` §5's check listenable before any Japanese round exists: synthetic
-  questions in both languages through the real port, written to the gitignored `private/ear-check/`
-  with a page to play them from.
-
-### [2026-10-04] Merged after #46, #43, #44 and #47: migration `0011`, both languages, and a follow-up is asked as text
-
-#45 merged last of the five slices. #46, #44 and #47 took `0008`, `0009` and `0010`, so the route
-check's widening is `0011_speech-route`, regenerated by `drizzle-kit generate` against #47's snapshot;
-the SQL is the same statement. #43 put the round's chrome in its language, so the speaker line and
-its control are in both: `読み上げました。文字は残します。` is `10` §3's own, `質問を聞く` is new and in
-`docs/checklists/native-read-round.md` §10, unread, and the header's mode word is `実戦` or `練習`
-(`05` §6).
-
-**A follow-up is asked as text, in realistic mode too.** #44's `follow_ups` exists now, and the route
-still answers every `kind=follow_up` with a 404 (`07` §5.15): speaking it is its own change, and #45
-stays open for it. A follow-up shares its question's position, so screen 3 asks the route for nothing
-while one is on screen. **Rejected:** requesting `kind=question` for the position, which would read
-the question aloud over its follow-up; and requesting `kind=follow_up`, whose 404 would put the
-`speech_failed` notice on every follow-up though nothing failed.
+## Phase 6 — #48, failure paths
+
+What a round does when a recording, an upload, a transcription, a score or a database call fails, and
+how it resumes. The behaviour was settled on 2026-09-12, 2026-09-27 and 2026-09-28 (below); these are
+the choices the build needed.
+
+### [2026-10-04] Every round route is wrapped: whatever throws leaves as `write_failed`
+
+2026-09-28 made `write_failed` the answer to a failed write. Failing each route at every database
+call it makes, one at a time, found the calls that were not writes: the session read, the limiter's
+upsert, the reads before and between transactions, and the whole read route. Each left as a bare
+`500`. **One guard in `lib/round/http.ts` now wraps every round handler** and answers the same
+envelope, with `pg_<SQLSTATE>` when the driver gave one and `unexpected` when it did not. Two things
+the same test found and fixed: `POST /api/rounds` read its first question after committing, so a
+failure there refused a round that existed — the read is inside the transaction now; and a failed
+read while preparing question generation was reported as `502 question_generation_failed`, which
+names the model for the database's failure — it reaches the guard now. **Rejected:** a second code
+for a failed read. The user's recourse is the same sentence and the same retry, and the catalogue
+would gain a distinction no screen draws.
+
+### [2026-10-04] A typed answer is marked by its missing transcriber, and the same text twice is not a refusal
+
+`07` §5.8 already stored a typed answer with `transcriber_model_id` null. **That null beside a set
+`transcript_raw` is the mark** Progress excludes on, with `words_per_minute` and `audio_duration_ms`
+null beside it: no column, no migration, and nothing that could disagree with the transcriber column.
+The take's key is kept. The route writes only while `transcript_raw` is null, so it cannot replace a
+transcript (invariant 4). **The same text sent again is a `200` with the stored row**, as `submit` and
+`transcribe` already answer a repeat, so a response lost on the way back is not an error on the
+retry; different text is `422 transcript_already_final`. Capped at 20,000 characters — a bound on the
+body, not a measured one: a four-minute answer is a few thousand.
+
+### [2026-10-04] A held take is one per round, in IndexedDB from the moment it exists
+
+`03` §5 said the blob stays in the browser and retries. **It is stored before the upload is tried,
+not after it fails**, so a tab closed mid-upload loses nothing, and removed once the PUT succeeds.
+Keyed by round, one take each, since a round asks one prompt at a time; a take held for another
+round is left for that round's own page, and dropped after two days, by when no round could take it
+(a round resumes only on its Asia/Tokyo day). **The retry is the user's**, a button, not a timer: an
+automatic retry is a spinner with a reason, and the sentence already says what to do. The browser's
+leave-page warning is on while a take has not reached S3. `03` §8 listed "key, size, attempt count"
+as logged for a failed upload: **nothing is logged from the browser** — it would have to post to a
+logging route, and Sentry's console breadcrumbs are off — so the record is the server's
+`answer_reopened` line each retry writes, with the answer id and the size.
+
+### [2026-10-04] Resume calls `transcribe` itself, and `open` is a state no row is read in
+
+A reload after the upload and before the transcript finds a slot with no transcript. **The page
+calls `transcribe` rather than asking for a new take**: the route is idempotent, so it returns the
+stored transcript, transcribes the uploaded take, or answers `404 audio_missing` — the one case in
+which the question is asked again. `07` §5.5 lists `open` (row, no audio) as an answer's first state;
+the slot is opened only after a take exists and its key is written with the row, so **every row
+reads `uploaded` from the start**. The state stays in the type for what it means; nothing depends on
+reading it.
+
+### [2026-10-04] A spent project is classed by its code, and the organization's limit with it
+
+`lib/ai/upstream.ts` classes a `429` whose code is `project_spend_limit_exceeded` as that code
+instead of `upstream_429`, marks it not retryable, and the scoring loop stops on it after one call.
+**`organization_spend_limit_exceeded` is mapped the same way**: OpenAI documents both as the same
+hard limit at two levels, and waiting out either is the mistake confirm 5 named. **Not verified:**
+whether the preflight's `GET /v1/models/{id}` is itself refused for a spent project — the guide does
+not say, and finding out means spending a project to its limit. If it is not, the limit is first met
+mid-round, where every call already fails once and says so (`12` §6).
+
+### [2026-10-04] An abandoned round says which of the two reasons left it
+
+Screen copy had one sentence, for a newer round. A round left by the day ending has **its own
+sentence**: telling the user a newer round started when none did is a wrong statement on a
+read-only screen. When both are true the newer round is named — it is the one that happened first
+from the user's side.
 
 ---
 ## Phase 6 — #47, generated questions and role context

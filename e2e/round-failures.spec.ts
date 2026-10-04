@@ -137,7 +137,10 @@ async function startRound(page: Page, language: "ja" | "en" = "en") {
     data: { round_type: "behavioural", language, mode: "realistic", length: 3, role_context_id: (await context.json()).id },
   });
   expect(round.status()).toBe(201);
-  return (await round.json()).round.id as string;
+  const roundId = (await round.json()).round.id as string;
+  // 07 §2: a created row names where it is read back from, which is the resume read.
+  expect(round.headers().location).toBe(`/api/rounds/${roundId}`);
+  return roundId;
 }
 
 /** A slot and its upload through the API, for the round's current prompt: the take is in S3 and not transcribed. */
@@ -358,6 +361,27 @@ test("a take that cannot be transcribed at first is transcribed by the retry, wi
   expect(stored).toMatchObject({ id: slot.id, transcriptRaw: RAW });
   expect(stored.transcriberModelId).not.toBeNull();
   expect(s3.objects.get(slot.audioS3Key!)?.bytes).toBe(uploaded);
+});
+
+test("a take no retry could ever send is not held: the question is recorded again", async ({ page }) => {
+  await signIn(page);
+  const roundId = await startRound(page);
+  // What the slot route answers a take over the size cap (07 §5.6), before any upload.
+  await page.route("**/api/rounds/*/answers", (route) =>
+    route.fulfill({
+      status: 422,
+      contentType: "application/json",
+      body: JSON.stringify({ error: { code: "upload_too_large", message: "The take is larger than the cap.", detail: {} } }),
+    }),
+  );
+  await page.goto(`/round/${roundId}`);
+  await record(page);
+
+  await expect(page.getByText("The audio is too large to upload. Keep the recording to four minutes or less.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Start recording" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Try again" })).toHaveCount(0);
+  expect(await heldTakes(page)).toEqual([]);
+  expect(await warnsBeforeUnload(page)).toBe(false);
 });
 
 test("a reload after the upload and before the transcript resumes at transcribe, and asks for no new take", async ({ page }) => {

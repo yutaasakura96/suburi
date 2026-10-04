@@ -359,30 +359,32 @@ countdown, no grace period, and no prompt asking whether to continue.
 answer slot and uploads; a recording that fails or a microphone that is denied writes nothing, and the
 question stays unseen (PRD §7).
 
-### Between 4 and 5 — the take is on its way (#73, `06`, 2026-10-06; no artboard)
+### 4–5, when it fails (#48) — no artboard
 
-Stopping starts two calls, one after the other, and **the screen says which one is running**. The
-question stays at 19px and does not move. Below the divider, the record button and its two lines are
-replaced by one **wait line** (`05` §5.10):
+Built from the record frames' own parts; nothing here was drawn. Copy is `app/(app)/round/copy.ts`,
+and its Japanese is unread until `docs/checklists/native-read-round.md` §9 is.
 
-| While | Sentence | Track |
-| --- | --- | --- |
-| the slot is opened and the take is PUT to storage | `録音をアップロードしています。` / `Uploading your recording.` | two segments: the first running, the second not started |
-| the take is transcribed (`07` §5.7) | `回答を文字起こししています。` / `Transcribing your answer.` | the first done, the second running |
-
-Under the track, in both: `このままお待ちください。終わると自動で次へ進みます。` /
-`Please wait. This screen moves on by itself.` Beside the track, the time since the take was stopped,
-`0:07`, counting up across both steps.
-
-- **The two segments are the two calls.** One fills when its call has returned, never before and
-  never partly: the app knows which call is running and not how far through it is.
-- **No percentage, no bar that creeps, no estimate of the time left.** The elapsed clock is the only
-  figure, and it is a measurement.
-- **A failure ends the wait**: the wait line goes, the record button comes back disabled, and the
-  failure's sentence and `もう一度試す` stand where they did. Trying again starts the wait line, and
-  its clock, again.
-- **Both modes.** Practice has no clock while recording (§15); this one is not the take's, and is
-  drawn in practice too.
+- **The microphone is denied, or the recording fails.** Screen 3 stays as it is, with one attention
+  rail under the captions. A denied microphone names the fix — allow it from the address bar, then
+  record again — and says nothing was recorded and the question stays unseen. The round is paused,
+  not ended: `録音を開始` is still there.
+- **The take could not be uploaded.** The question stays at 19px where the record frames set it, so
+  nothing moves. One attention rail — `録音をアップロードできませんでした。録音はこの端末に保存されています。このタブを閉じないでください。` —
+  and one outline control, `もう一度試す`. **No control records again:** the take is the answer. The
+  frame comes back after a reload, from IndexedDB, and leaving the page is warned against until the
+  take is in S3. If the browser could not store it, the rail says the take is only in this tab.
+  A take no retry could send — over the size cap, or of a type the route refuses — is not held: the
+  catalogue's sentence says why, on screen 3, and the question is recorded again.
+- **The take could not be transcribed.** The same frame, with `07` §3's sentence for
+  `transcription_failed` in the rail and two outline controls: `もう一度試す` and `回答を入力する`. The
+  second opens a box under them — label `あなたの回答 — 音声ではなく入力`, 200px, the transcript's own
+  type — with a solid `入力した回答を保存する`, disabled while the box is blank, and a caption saying a
+  typed answer is recorded as typed, has no duration or pace, is not counted in progress, and that the
+  take is kept. Saving goes on to screen 5 with the typed text as the raw transcript and **no figures**:
+  there was no delivery to measure. A reload returns to this frame, not to a new take.
+- **The round is abandoned.** In place of the frames: one sentence and the way Home. Which sentence
+  depends on why — a newer round started, or the round was not finished on the Asia/Tokyo day it
+  began. No control writes anything.
 
 ### 5. Transcript back — `RecordTranscript.dc.html`
 - The question is **demoted to 14px/1.85 `--ink-5`** — it has been answered; it is now context.

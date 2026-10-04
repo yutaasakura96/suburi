@@ -187,8 +187,8 @@ export function createPostRound(deps: PostRoundDeps) {
         prompt: { kind: "question", position: 1, question_id: first.id, text: first.body, speak: mode === "realistic" },
         progress: { position: 1, of: length },
       },
-      // No Location: `GET /api/rounds/{id}` is the resume slice's (#48), as #14 left the CV route.
-      { status: 201 },
+      // Where the round is read back from, and resumed (07 §5.5).
+      { status: 201, headers: { Location: `/api/rounds/${round.id}` } },
     );
   });
 }

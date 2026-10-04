@@ -587,7 +587,7 @@ stamp: replacing it needs no re-score and draws no boundary.
 | Service | Blast radius | Behaviour |
 | --- | --- | --- |
 | **OpenAI** | No questions, no transcripts, no scores | Recording and correction still work. **Preflight at round setup** — a round is never started into a broken scorer, because a round that cannot deliver feedback while the user is there is a defect, not a degraded experience. Mid-round failure: scoring retries with backoff; if it still fails, the round completes with scores pending and the feedback screen says so plainly rather than spinning. |
-| **S3** | Cannot upload a take | The blob stays in the browser (IndexedDB) and retries. The user is told the take is held locally and must not close the tab. |
+| **S3** | Cannot upload a take | The blob stays in the browser (IndexedDB) and retries. The user is told the take is held locally and must not close the tab. **As built (#48):** the take is written to IndexedDB the moment it exists and removed once its PUT succeeds, one per round, so a reload returns to the held take and its retry; the browser's leave-page warning is on for as long as a take has not reached S3. The retry is the user's, not a timer's. |
 | **Neon** | App is down | No mitigation at this scale. Accepted. |
 | **Google IdP** | Cannot sign in | An existing session cookie keeps working for its lifetime. |
 | **Vercel** | App is down | Accepted. |
@@ -662,16 +662,15 @@ limit, and their waveform scrolls instead of filling toward the cap (`10` §15).
 
 | Failure | User sees | Logged |
 | --- | --- | --- |
-| Mic permission denied | The browser-level fix, inline on screen 3 | event only |
-| Upload failed | "Held on this device. Do not close this tab." + retry | key, size, attempt count |
-| Transcription failed | The take is kept; offers retry or typing the answer | answer id, duration |
+| Mic permission denied | The browser-level fix, inline on screen 3: allow the microphone from the address bar, then record again. Nothing is written and the question stays unseen | nothing — it never reaches the server |
+| Upload failed | "Held on this device. Do not close this tab." + retry | the retry, server-side: `answer_reopened` with the answer id and the size. **Nothing is logged from the browser** — the key is the server's, and a count of attempts is the count of those lines (`06`, 2026-10-04) |
+| Transcription failed | The take is kept; offers retry or typing the answer (`07` §5.7–§5.8). A typed answer is stored as typed: no pace, no duration, not in Progress | answer id, size, error class, duration |
 | Scoring failed | Answer saved, score pending, stated on the feedback screen | answer id, model, error class |
 | A database write failed on a round route | The call's own screen says it could not be saved; nothing was half-written, and the round resumes where it was (`write_failed`, `07` §3) | route, ids, `pg_<SQLSTATE>` |
 | Text-to-speech failed | The question stays as text, with a short notice; the round goes on (`speech_failed`, `07` §5.15) | round id, position, error class |
 | Round feedback failed, or the last score did not land in time | The round is complete; every landed score renders; the round-level note is pending, with a retry (`07` §5.12) | round id, model, error class, pending count |
 | Follow-up generation failed | The round continues; the hole is recorded (`follow_ups`, `missing`) | answer id, model, error class |
-| A model answer failed | The round is complete and its feedback renders; that question says no model answer is written yet, with a retry (`07` §5.19) | round id, answer id, error class |
-| OpenAI project spend limit | Preflight refuses the round — `503 model_unavailable`. Upstream it is `429 project_spend_limit_exceeded`, mapped, never retried as a rate limit | event only |
+| OpenAI project spend limit | Preflight refuses the round — `503 model_unavailable`. Upstream it is `429 project_spend_limit_exceeded`, mapped, never retried as a rate limit — by the SDK or by the scoring loop, mid-round included (`lib/ai/upstream.ts`) | event, with the upstream code as its error class |
 | Model refusal / malformed output | Same as scoring failed | answer id, **not the content** |
 | Auth rejected | "This account cannot sign in." No enumeration of why | email hash only |
 

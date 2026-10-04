@@ -125,7 +125,7 @@ for the same reason: an error payload is a third home for sensitive material.
 | `429` | Per-session rate limit on a model route | envelope, `Retry-After` |
 | `500` | A database write failed on a round route | envelope, `code: "write_failed"` — never a bare `500` (`06`, 2026-09-28) |
 | `502` | Upstream failed — OpenAI or S3 | envelope, `code` names which |
-| `503` | Preflight says the scorer is unavailable | envelope, `code: "model_unavailable"`. **Includes a spent OpenAI project** — upstream that is `429 project_spend_limit_exceeded`, and it is mapped here, never retried as a rate limit (`06`, 2026-09-27, confirm 5) |
+| `503` | Preflight says the scorer is unavailable | envelope, `code: "model_unavailable"`. **Includes a spent OpenAI project** — upstream that is `429 project_spend_limit_exceeded` (or `organization_spend_limit_exceeded`, the same limit one level up), and it is mapped here, never retried as a rate limit (`06`, 2026-09-27, confirm 5). `detail.error_class` carries the upstream code |
 
 **`422` is the interesting one.** It is the code for *"this is refused by design"* — submitting a
 felt-pressure rating for a practice round, retrying a score that succeeded, a second first attempt.
@@ -196,6 +196,14 @@ returns the envelope with `detail` carrying only `pg_<SQLSTATE>` and ids — the
 CV route, whose drizzle error carried query parameters. **The round stays resumable**: nothing the
 failed call would have written exists, so `GET /api/rounds/{id}` (§5.5) points the client back at the
 same call.
+
+**Every round route is wrapped, so nothing leaves as a bare `500`** (#48; `06`, 2026-10-04). A handler
+answers `write_failed` where its transaction is; whatever else throws — the session read, the
+limiter's upsert, a read between two writes, the read route itself — reaches one guard
+(`lib/round/http.ts`) and leaves as the same envelope. `detail.error_class` is `pg_<SQLSTATE>` when
+the driver gave one and `unexpected` when it did not. One exception, stated in §5.9: a `submit` whose
+answer committed and whose follow-up write then failed leaves the answer in place, and the same body
+again completes it.
 
 ---
 
@@ -589,8 +597,16 @@ database facts.
       "scoring": { "attempt_id": "s901…", "status": "pending" } },
     { "id": "c003…", "position": 2, "kind": "question", "state": "uploaded" } ],
   "prompt": { "kind": "question", "position": 2, "question_id": "a22b…", "text": "…", "speak": true },
+  "progress": { "position": 2, "of": 5 },
   "resume": { "at": "transcribe", "answer_id": "c003…" } }
 ```
+
+**As built (#48).** `round` carries what `POST /api/rounds` returned, less its `stamps`, plus the
+derived `status`. `prompt` and `progress` are the ones `submit` returns as `next` (§5.9). `resume.at`
+is one of `answers` (open the slot for `prompt`), `transcribe` or `submit` (each with the
+`answer_id` it is waiting on), or `complete` (every answer is in; the round is waiting for §5.12).
+The route takes no query parameters: one it does not know is a `400` naming it. `POST /api/rounds`
+names this route in its `Location` (§2), now that it exists.
 
 `prompt` is read from `round_questions` at the current position, or from the parent's `follow_ups` row
 when a follow-up is next — never selected or generated again. A follow-up shares its parent's
@@ -604,12 +620,15 @@ moves past it.
 
 `state` is derived, not stored: `open` (row exists, no audio) → `uploaded` (`audio_s3_key` set) →
 `transcribed` (`transcript_raw` set) → `submitted` (`transcript_corrected` set). `resume.at` tells the
-client which of the four calls to make next.
+client which of the four calls to make next. **`open` is never read in practice** (`06`, 2026-10-04):
+the slot is opened only once a take exists and its key is written with the row (§5.6), so a row reads
+`uploaded` from the start — whether or not the PUT has landed. A resume at `transcribe` whose object
+is not there answers `404 audio_missing`, and the client holds the take, or asks the question again.
 
 **`round.status` is derived** — `in_progress`, `abandoned` or `complete` (`04` `rounds`). **Only the
-newest open round started today — the user's local day, Asia/Tokyo — resumes**; an abandoned round returns `resume: null`, and the client
-shows it read-only. An open round is abandoned the moment a newer one starts, so a stale tab cannot
-resume into it.
+newest open round started today — the user's local day, Asia/Tokyo — resumes**; an abandoned round
+returns `resume: null` and `prompt: null`, as a complete one does, and the client shows it read-only.
+An open round is abandoned the moment a newer one starts, so a stale tab cannot resume into it.
 
 **Scores in the read, practice only** (`06`, 2026-09-27). For a `practice` round, each submitted
 answer's `scoring` also carries its `scores` (in the rubric's order, §4) and its `flags` once `ok` —
@@ -771,6 +790,15 @@ POST /api/answers/c003e8a2-…/transcript
 
 `words_per_minute` is null: there is no delivery to measure. **A typed answer is not silently treated
 as a spoken one.** `422 transcript_already_final` if `transcript_raw` is set.
+
+**As built (#48; `06`, 2026-10-04).** `audio_duration_ms` is null with it, and **the take's
+`audio_s3_key` is kept**: the audio is still the record of what was said. `transcriber_model_id` null
+beside a set `transcript_raw` *is* the typed mark — the one Progress excludes on (`04` `answers`),
+with no column of its own. `text` is at most 20,000 characters and not blank, or the call is a `400`.
+**The same text sent again is a `200` with the stored row**, so a retry after a lost response is not a
+refusal; any other text, or a transcribed answer, is the `422`. Written only while `transcript_raw`
+is null, so it can never replace a transcript (invariant 4). Calls no model, so it is not
+rate-limited.
 
 ### 5.9 `POST /api/answers/{answerId}/submit` ⚡
 
