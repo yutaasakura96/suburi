@@ -29,6 +29,10 @@ export const RATE_LIMITS: Record<RateLimitedRoute, { limit: number; windowSecond
   submit: { limit: 30, windowSeconds: 600 },
   complete: { limit: 6, windowSeconds: 600 },
   feedback: { limit: 6, windowSeconds: 600 },
+  // History's retry (07 §5.10–§5.11), one answer at a time: a 7-question round has 14 answers, so
+  // retrying every one of them takes 14 of each call. The same bound as `submit`, for the same shape.
+  "scoring-attempts": { limit: 30, windowSeconds: 600 },
+  "scoring-run": { limit: 30, windowSeconds: 600 },
 };
 
 export interface RateLimitKey {

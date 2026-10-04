@@ -6,8 +6,8 @@ import { loadStatus } from "@/lib/monitor/status";
 import { statusLine } from "./status/copy";
 import { StatusLine } from "./status/status-line";
 
-// Home, until the Due list and first attempts arrive (#51): its status line and the way into a round
-// (10 §1). Protected here as well as in the proxy (08 §5).
+// Home, until the Due list and first attempts arrive (#51): its status line, the way into a round
+// (10 §1), and the way to History (10 §10) until the navigation exists. Protected here as well as in the proxy (08 §5).
 export default async function HomePage() {
   const userId = await requireSession();
   const line = statusLine(await loadStatus(getDb(), userId, new Date()));
@@ -19,6 +19,9 @@ export default async function HomePage() {
           Start a round
         </Link>
         <p className="text-[12px] leading-[1.6] text-ink-6">Defaults to HR · English · realistic · 3. Type and length can be changed.</p>
+        <Link href="/history" className="text-[12px] text-link hover:text-link-hover hover:underline">
+          History
+        </Link>
       </section>
     </main>
   );

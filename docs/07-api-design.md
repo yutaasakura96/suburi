@@ -67,6 +67,9 @@ by round end the scores are already rows.
    `submit` **30 per 10 minutes** each, two of the longest rounds with retries to spare; `complete` and
    `feedback` **6 per 10 minutes** each. Every one its own bucket. A later slice's ⚡ route sets its
    own here the same way.
+   **History's retry (#50):** `POST /api/scoring-attempts` and `scoring-attempts/{id}/run` **30 per 10
+   minutes** each, in two buckets (`scoring-attempts`, `scoring-run`) — the longest round has 14
+   answers, and retrying every one of them is 14 of each call.
 6. **The client never chooses an S3 key, an object prefix, a `user_id`, a `position`, an
    `is_first_attempt`, a question, a CV version, text to be spoken, or any version stamp.** All are
    server-derived. This is not defensive coding; it is what makes the four stamps and first-attempt
@@ -150,8 +153,9 @@ that asserts the two lists match.
 | `transcript_already_final` | 422 | `transcribe`, `transcript`, `POST …/answers` | screen 5 |
 | `answer_already_submitted` | 422 | `submit`, `POST …/answers` | screen 6 |
 | `followup_generation_failed` | 502 | `submit` | screen 6 — answer is saved |
-| `scoring_failed` | 502 | `scoring-attempts/{id}/run` | screen 8 — stated as pending |
+| `scoring_failed` | 502 | `scoring-attempts/{id}/run` | screen 8 — stated as pending; History — on the answer's row, with the retry still offered |
 | `scoring_not_retryable` | 422 | `POST /api/scoring-attempts` | History |
+| `scoring_in_progress` | 409 | `scoring-attempts/{id}/run` | History — on the answer's row: it is being scored, wait and try again (§5.10) |
 | `pressure_not_applicable` | 422 | `complete` | — (a client bug in practice mode) |
 | `pressure_required` | 422 | `complete` | screen 7 |
 | `round_already_complete` | 409 | `complete`, `answers`, `submit` | — |
@@ -171,6 +175,10 @@ that asserts the two lists match.
 `lib/api/errors.ts` with their `ja` and `en` copy; `speech_failed` lands with the spoken question (#45)
 and `role_context_too_large` with its measured cap (#47), each with its copy in the same change, as
 `11` §3.10 requires.
+
+**`scoring_in_progress` landed with History (#50)**, with its copy: §5.10 always said a second `run`
+while the first is in flight is a `409`, and no catalogued `409` meant that — the three there are about
+a round's state, not an attempt's.
 
 **`round_abandoned` landed with the tracer too** (#42 review): `answers`, `submit` and `complete` read
 the derived status (§5.5) inside their locked transaction, so a stale tab cannot write into a round a
@@ -795,7 +803,7 @@ view that computes one, and no response field that carries one. PRD §9, refusal
 returned a mean would make the schema's guarantee cosmetic.
 
 **Idempotent and abandon-safe.** Only `status = 'pending'` transitions. A second call while the first
-is in flight is a `409`; a call on a finished attempt returns it unchanged. Nothing awaits the scoring
+is in flight is a `409 scoring_in_progress`; a call on a finished attempt returns it unchanged. Nothing awaits the scoring
 work, so a function terminated at the 300s ceiling — or one that dies mid-flight — leaves a row
 pending with no error raised anywhere. That is why a stuck `pending` is alerted on daily
 (`12-deployment.md` §6) and retryable from History. **A pending score is a
@@ -855,6 +863,25 @@ Two consequences a ticket would otherwise get wrong:
 after the row was written, which is the behaviour this design wants: the attempt row already exists,
 and `run` is idempotent.
 
+**As built (#50).**
+
+- **"In flight" is a claim on the row, not a status.** A run starts by setting
+  `scoring_attempts.run_started_at = now()` in one conditional update — the attempt is `pending`, and
+  the column is null or older than **300 s** (`04`). Losing that update while the row is still `pending`
+  is the `409`. 300 s is the invocation ceiling above: no run outlives it, so an older claim belongs to
+  a function that is dead, and the next call takes the attempt over. `submit`'s `after()` claims the
+  same way, so a History retry cannot double-score an answer whose first run is still going. There is
+  still no `running` status: the attempt stays `pending` until it is `ok` or `failed`.
+- **A run that spends its retries answers `502 scoring_failed`**, with `detail` carrying the attempt,
+  the answer and the `error_class`. The row is `failed`, and §5.11 can retry it again.
+- **A finished attempt is returned as it stands** with `200` and no model call — `ok` with its scores,
+  `failed` with its status alone. The response carries `answer_id` beside `attempt_id`.
+- **While a realistic round is still in progress the response is `attempt_id`, `answer_id` and
+  `status` only.** The scores are written; they are not returned, because that round shows no score,
+  flag or hint until it ends (US-8, §5.5), and this route is no way around that.
+- **Another user's attempt is `404`**, and so is an id that is not a uuid.
+- **It never touches `round_feedback`** (§5.12): no code path from here reaches the generator.
+
 ### 5.11 `POST /api/scoring-attempts` ⚡
 
 Retry a failed score from History. **A new attempt row, never an overwrite** (PRD §9, `04`).
@@ -879,6 +906,16 @@ re-score. Then `POST /api/scoring-attempts/{id}/run`.
 score is not re-rollable from the UI** — that is the per-session model picker rejected in the
 decision log arriving by a different door. Re-scoring an `ok` answer happens only through the
 held-out harness, which writes `is_superseding: false` and never changes a displayed score (`04`).
+
+**As built (#50).** The body is `answer_id` and nothing else — any other key is a `400` naming it, a
+stamp most of all (§1 rule 6). The stamps are the server's: the CV and rubric versions are **the
+round's**, stamp 3 is the question's — or, for a follow-up's answer, the follow-up's `prompt_version`
+— exactly as on the first attempt, and the model and scoring prompt are **the ones pinned today**. A
+retry made after either changed is therefore scored by the new one and lands on the new side of
+Progress's boundary; it is not a way to re-score under the old model. The latest attempt is read and
+the new row written under a lock on the answer's row, so two retries of one answer cannot both see
+`failed` and both insert. A `pending` attempt is not replaced: `run` (§5.10) drives it as it is.
+`detail` on the `422` carries the latest attempt's id and status.
 
 ### 5.12 `POST /api/rounds/{roundId}/complete` ⚡
 
@@ -998,13 +1035,35 @@ GET /api/rounds?limit=20&language=ja&round_type=behavioural
       "status": "complete",
       "answers": 10, "scoring": { "ok": 9, "pending": 1, "failed": 0 },
       "stamps": { "cv_version_label": "応募書類 v3", "rubric_version_label": "v1.2",
-                  "scoring_model_id": "gpt-5.6-sol" } } ],
+                  "scoring_model_ids": ["gpt-5.6-sol"] } } ],
   "next_cursor": "eyJzIjoiMjAyNi0wOS0xMlQwMzowNDo1MVoiLCJpIjoiNzdhZiJ9" }
 ```
 
 Every row carries its stamps, because History is where a change of stamp has to be legible per row —
 Progress draws the boundary line, History says which side a round is on (refusal #5). `status` is the
 derived `in_progress` / `abandoned` / `complete` of §5.5 — what History's `中断` line reads.
+
+**As built (#50).**
+
+- **`scoring_model_ids` is a list** — *amended from `scoring_model_id`.* A round's answers are scored
+  one attempt each, and a retry made after the pinned model changed (§5.11) is scored by the new one,
+  so a round can carry two. One string would have to pick, and the row would then say the round is on
+  one side of a boundary it straddles. The list is every model behind the round's **displayed** scores,
+  sorted; it is empty for a round with no submitted answer.
+- **`answers` counts submitted answers**, follow-ups' and practice retries' included, and `scoring`
+  counts them by their latest attempt. They are counts of answers, never anything computed from a
+  score (refusal #1).
+- **`status` is judged at request time on the Asia/Tokyo day** (§5.5; `06`, 2026-09-28), with the
+  newer-round test made in SQL so Postgres's microseconds are compared, not a JavaScript `Date`'s
+  milliseconds.
+- **The cursor keeps `started_at` to the microsecond** for the same reason: two rounds inside one
+  millisecond would otherwise be skipped or repeated. It is base64url, so it needs no escaping in a
+  query string. Anything this server did not mint — wrong shape, wrong timestamp form, an id that is
+  not a uuid — is `400` naming `cursor`.
+- **A parameter sent twice is a `400`** naming it, like an unknown one (§4): there is no single value
+  to honour. `limit` outside 1–100, or not an integer, is a `400` too, never clamped.
+- **History's first page is read by the page itself**, as a Server Component, through the same
+  function this handler calls (§1); the client calls this route for the older pages only.
 
 ### 5.14 `GET /api/answers/{answerId}/audio`
 
@@ -1019,6 +1078,16 @@ short-lived presigned GETs only).
 
 `404 audio_missing` when `audio_s3_key` is null or the object is gone. **The play control must
 tolerate a missing object** (`04` §5) — a dangling key is a missing recording, not a broken page.
+
+**As built (#50).** The URL lives **300 s** — a four-minute take and a minute over — and is minted when
+the row is opened, never stored. **The object is checked with a `HEAD` before the URL is signed**, since
+a presigned URL is only arithmetic and would be handed out for a key that points at nothing. The
+environment's IAM user has `s3:GetObject` and no `s3:ListBucket` (`12` §3 step 5), and S3 answers a
+`HEAD` for an absent key with `403` in that case, not `404`: **both are read as missing.** The key is
+the server's own, under its own prefix, so a `403` there cannot mean another caller's object. Any other
+failure is `502 upstream_s3`, logged by its error class and never with the key. Another user's answer is
+`404 not_found`. The browser's own failure to play what it was given — an expired URL, a truncated
+upload — is handled by the control, which says the recording could not be played.
 
 ### 5.15 `GET /api/rounds/{roundId}/speech` ⚡
 
@@ -1151,7 +1220,7 @@ convert a guarantee in `04` §6 into a preference.
 - ~~**A database failure mid-write**~~ — **decided 2026-09-28**: `write_failed`, `500`, on every round
   route, and the round stays resumable (§3).
 - ~~**Each round route's rate limit**~~ — **set by #42** for the routes it built (§1 rule 5); a later
-  slice's ⚡ route adds its own there.
+  slice's ⚡ route adds its own there. **#50 set History's two** (`scoring-attempts`, `scoring-run`).
 - ~~**User-facing copy for every code in §3.**~~ **Closed in #13:** `lib/copy/errors.ts` owns the
   bilingual catalogue. `11-testing-plan.md` checks it against §3, and its Japanese strings passed a
   native read on 2026-09-21 (`05-design-system.md` §6).

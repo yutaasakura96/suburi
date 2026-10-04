@@ -4,7 +4,8 @@ import { MOCK_S3_PORT } from "./database";
 // The e2e server's bucket (playwright.config.ts points S3_ENDPOINT here). Path-style, as the SDK
 // addresses a custom endpoint: `/{bucket}/{key}`. The browser's presigned PUT lands here directly,
 // so it answers CORS for the server's origin, as the real bucket does (12 §3, step 4): PUT and GET,
-// the one header content-type. Signatures are not checked — the unit tests own the presign.
+// the one header content-type. HEAD is the server's own check that a recording exists before it
+// presigns a playback URL (07 §5.14). Signatures are not checked — the unit tests own the presign.
 
 export interface MockS3 {
   /** Every object, by key without the bucket. */
@@ -39,6 +40,13 @@ export async function startMockS3(): Promise<MockS3> {
         bodies.set(key, body);
         objects.set(key, { contentType: request.headers["content-type"], bytes: body.byteLength });
         response.writeHead(200, { ...cors, etag: '"e2e"' }).end();
+        return;
+      }
+      if (request.method === "HEAD") {
+        const body = bodies.get(key);
+        // A HEAD carries no body, so no error document either: the status is the whole answer.
+        if (!body) response.writeHead(404, cors).end();
+        else response.writeHead(200, { ...cors, "content-type": objects.get(key)?.contentType ?? "application/octet-stream", "content-length": body.byteLength }).end();
         return;
       }
       if (request.method === "GET") {

@@ -1,17 +1,20 @@
 import type { AudioStore } from "./store";
 
 // Tests only: an in-memory bucket. `presigned` records every key presigned, and `objects` holds what a
-// test has "uploaded" with `put`, so transcription can read it back.
+// test has "uploaded" with `put`, so transcription can read it back. `failRead` refuses every read, as
+// S3 does when it is unreachable.
 export function fakeAudioStore(): AudioStore & {
   presigned: { key: string; contentType: string; bytes: number }[];
   objects: Map<string, Uint8Array>;
   put(key: string, audio: Uint8Array): void;
   failPresign: boolean;
+  failRead: boolean;
 } {
   const fake = {
     presigned: [] as { key: string; contentType: string; bytes: number }[],
     objects: new Map<string, Uint8Array>(),
     failPresign: false,
+    failRead: false,
     put(key: string, audio: Uint8Array) {
       fake.objects.set(key, audio);
     },
@@ -26,6 +29,13 @@ export function fakeAudioStore(): AudioStore & {
     },
     async get(key: string) {
       return fake.objects.get(key) ?? null;
+    },
+    async exists(key: string) {
+      if (fake.failRead) throw Object.assign(new Error("s3 unreachable"), { name: "TimeoutError" });
+      return fake.objects.has(key);
+    },
+    async presignGet(key: string) {
+      return { url: `https://bucket.example.test/${key}?signature=playback`, expiresAt: new Date(Date.now() + 300_000) };
     },
   };
   return fake;

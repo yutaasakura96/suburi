@@ -87,6 +87,10 @@ const CATALOGUE = {
     ja: "この採点はやり直せません。",
     en: "This score cannot be retried.",
   },
+  scoring_in_progress: {
+    ja: "この回答はいま採点中です。少し待ってからもう一度お試しください。",
+    en: "This answer is being scored right now. Wait a moment and try again.",
+  },
   pressure_not_applicable: {
     ja: "練習ラウンドでは緊張度を記録しません。",
     en: "Felt pressure is not recorded in practice mode.",
