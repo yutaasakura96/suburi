@@ -38,6 +38,7 @@ export const RATE_LIMITED_ROUTES = [
   "submit",
   "complete",
   "feedback",
+  "speech",
   "scoring-attempts",
   "scoring-run",
 ] as const;

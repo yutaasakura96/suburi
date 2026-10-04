@@ -194,7 +194,7 @@ Five text jobs on one pinned model, and three more on models of their own:
 | Round feedback | `gpt-5.6-sol` | at `complete`, after the last score (`07` §5.12) | High — one row, never rewritten |
 | CV claim extraction | `gpt-5.6-sol` | **measured: 43–46 s on real documents, windowed** (#20/#29, 2026-09-27) | High — every citation and every coverage count rests on it |
 | Transcription | `gpt-transcribe` | user is waiting, after each take | Medium — the raw transcript is final |
-| Text-to-speech | **not yet pinned** — verified at implementation | user is waiting, at ask time | Low — not retained |
+| Text-to-speech | `gpt-4o-mini-tts-2025-12-15`, voice `marin` (#45) | user is waiting, at ask time | Low — not retained |
 | Embeddings | `text-embedding-3-small`, 1536 dimensions | at question generation | High — the near-duplicate guard (§11) |
 
 **The round's latencies, measured 2026-10-01 (#42)** with `scripts/measure-round-latency.mts`
@@ -227,7 +227,7 @@ What they settle:
 - **Generating every question at round start is tolerable, and slower than the draft said**: see
   the next table. The draft's 4 s was a tenth of the real prompt's input.
 - **The user's waits inside a round are short**: a near-cap take transcribes in about 6 s, a follow-up
-  about 3 s. TTS starts playing in about a second; #45 pins the speech model and may re-measure.
+  about 3 s. TTS starts playing in about a second, on the model #45 then pinned.
 - **A follow-up call is bounded at 15 s with one retry** (`07` §5.9): about three times the slowest
   call seen. Past that the follow-up is recorded as missing and the round goes on.
 - **Scoring's slowest call is the one to watch.** One in fifteen took five times the median, with no
@@ -517,12 +517,20 @@ when the question is asked and the audio is not retained — questions are stabl
 re-synthesis is cheap and caching adds a store to invalidate for no benefit.
 
 **Through a ⚡ route that streams an OpenAI TTS model's audio** (`07` §5.15, `06`, 2026-09-27). The
-route takes a position, not text, and reads the prompt from `round_questions` or `follow_ups`.
-**The model is pinned only after it is verified at implementation.** The planning report found
-`tts-1` and `tts-1-hd` in OpenAI's docs on 2026-09-27 and could not rule out a newer one; whichever is
-chosen is an exact string in `lib/ai/models.ts`. The browser's `speechSynthesis` was rejected: its
-voice depends on the OS, it cannot be stamped, and its reading of 役職 is unverified. Pronunciation
-itself is `11` §5's ear check.
+route takes a position and kind, never text; `07` §5.15 specifies which prompts it currently serves.
+**The model is `gpt-4o-mini-tts-2025-12-15`, voice `marin`**, both constants in `lib/ai/models.ts`,
+pinned on 2026-10-03 after a check of OpenAI's docs (`06`, #45). It is the newest snapshot the speech
+endpoint takes and the one #42 measured above; the alias `gpt-4o-mini-tts` is never used. The model is
+steerable, so it is told to read the question exactly as written, in the round's language, and not to
+answer it. The browser's `speechSynthesis` was rejected: its voice depends on the OS, it cannot be
+stamped, and its reading of 役職 is unverified. Pronunciation itself is `11` §5's ear check.
+
+**OpenAI removes this model on 2027-01-06.** On 2026-10-01 it deprecated every model the speech
+endpoint takes — `tts-1`, `tts-1-hd` and both `gpt-4o-mini-tts` snapshots — and named
+`gpt-realtime-2.1-mini` as the replacement, a speech-to-speech model reached only through the Realtime
+API. That is a different route design, not a different string, so it is a slice of its own before that
+date. `lib/ai/tts.ts` is a port with one implementation, so the change stays behind it. TTS is not a
+stamp: replacing it needs no re-score and draws no boundary.
 
 ---
 
@@ -586,7 +594,8 @@ no timer by design, so it gets a **hard 15-minute runaway guard** instead: not a
 pressure, not part of the practice UI's rhythm. It exists so a forgotten open tab cannot produce an
 unbounded upload. When it fires it behaves exactly like the realistic cap: the take is kept. **It is
 stored as the round's `per_answer_cap_seconds = 900`** (`04`, `06` 2026-09-27 confirm 2), since the
-column is `not null`.
+column is `not null`. **It is never drawn** (#45): practice's record frames show no clock and no
+limit, and their waveform scrolls instead of filling toward the cap (`10` §12).
 
 ---
 

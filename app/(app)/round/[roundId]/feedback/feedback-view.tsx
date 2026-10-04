@@ -33,7 +33,7 @@ export function FeedbackView({ screen }: { screen: FeedbackScreen }) {
       <header className="flex items-baseline justify-between border-b border-rule-frame px-[32px] py-[20px]">
         <div className="flex items-baseline gap-[14px]">
           <h1 className="text-[17px] font-semibold">{copy.roundTypes[screen.round.roundType]}</h1>
-          <span className="text-[13px] text-ink-4">{copy.meta(screen.round.length)}</span>
+          <span className="text-[13px] text-ink-4">{copy.meta(screen.round.mode, screen.round.length)}</span>
         </div>
         <div className="flex items-baseline gap-[14px]">
           <span className="font-mono text-[11px] text-ink-label">{screen.round.date}</span>

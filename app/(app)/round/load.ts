@@ -20,7 +20,7 @@ import {
 import { roundStatus } from "@/lib/round/status";
 import type { Rubric } from "@/lib/rubric/types";
 import { tokyoDate } from "../cv/load";
-import type { RoundLanguage, RoundType } from "./copy";
+import type { RoundLanguage, RoundMode, RoundType } from "./copy";
 
 // What the round screens read (10 §2–§8). Server-only; only what a screen shows leaves it.
 
@@ -95,6 +95,7 @@ export interface RoundFrame {
     readonly id: string;
     readonly roundType: RoundType;
     readonly language: RoundLanguage;
+    readonly mode: RoundMode;
     readonly length: number;
     readonly capSeconds: number;
   };
@@ -159,6 +160,7 @@ export async function roundFrame(db: Db, userId: string, round: RoundRow): Promi
       id: round.id,
       roundType: round.roundType as RoundType,
       language: round.language as RoundLanguage,
+      mode: round.mode,
       length: round.length,
       capSeconds: round.perAnswerCapSeconds,
     },
@@ -247,6 +249,7 @@ export interface FeedbackScreen {
   readonly round: {
     readonly id: string;
     readonly roundType: RoundType;
+    readonly mode: RoundMode;
     readonly language: RoundLanguage;
     readonly length: number;
     readonly date: string;
@@ -319,6 +322,7 @@ export async function feedbackScreen(db: Db, round: RoundRow): Promise<FeedbackS
     round: {
       id: round.id,
       roundType: round.roundType as RoundType,
+      mode: round.mode,
       language: round.language as RoundLanguage,
       length: round.length,
       date: tokyoDate(round.startedAt),

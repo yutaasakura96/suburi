@@ -11,7 +11,7 @@ Each change lands with the slice that first needs it. **Migrated by #42** (`0007
 index; and `rate_limit_windows.route` extended for the round routes. **Migrated by #46**
 (`0008_cv-grounding`): `answer_flags`; `scoring_attempts.answered_language`; and
 `round_feedback.untouched_claim_ids`. **Migrated by #44** (`0009_follow-ups`): `follow_ups`.
-**Migrated by #50** (`0011_history`): `scoring_attempts.run_started_at`, and `rate_limit_windows.route`
+**Migrated by #50** (`0012_history`): `scoring_attempts.run_started_at`, and `rate_limit_windows.route`
 extended for History's two retry routes. The remaining round-loop changes are not migrated yet.
 
 ---
@@ -729,7 +729,7 @@ so concurrent requests on different serverless instances cannot both slip under 
 | `id` | `uuid` | no | `gen_random_uuid()` | PK |
 | `user_id` | `text` | no | — | → `users.id` **restrict** |
 | `session_id` | `text` | no | — | `sessions.id`, **deliberately not a foreign key** — see below |
-| `route` | `text` | no | — | Checked: `cv-versions`, since #42 `rounds`, `transcribe`, `submit`, `complete`, `feedback`, and since #50 `scoring-attempts`, `scoring-run`. Each later ⚡ route in `07` extends the list in the migration of the slice that builds it — the speech route among them (`06`, 2026-09-27) |
+| `route` | `text` | no | — | Checked: `cv-versions`, since #42 `rounds`, `transcribe`, `submit`, `complete`, `feedback`, since #45 `speech`, and since #50 `scoring-attempts`, `scoring-run`. Each later ⚡ route in `07` extends the list in the migration of the slice that builds it |
 | `window_started_at` | `timestamptz` | no | — | Database clock, never the function's |
 | `count` | `integer` | no | — | Requests counted in this window, **refused ones included** |
 | `created_at` | `timestamptz` | no | `now()` | |

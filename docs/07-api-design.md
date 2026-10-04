@@ -65,8 +65,9 @@ by round end the scores are already rows.
    **The round routes' limits (#42), from the round's own shape** — a 7-question round makes 14
    `transcribe` and 14 `submit` calls: `POST /api/rounds` **6 per 10 minutes**; `transcribe` and
    `submit` **30 per 10 minutes** each, two of the longest rounds with retries to spare; `complete` and
-   `feedback` **6 per 10 minutes** each. Every one its own bucket. A later slice's ⚡ route sets its
-   own here the same way.
+   `feedback` **6 per 10 minutes** each. Every one its own bucket. **The speech route (#45): 30 per 10
+   minutes** — one request per prompt asked, 14 in the longest round, and a reload asks again. A later
+   slice's ⚡ route sets its own here the same way.
    **History's retry (#50):** `POST /api/scoring-attempts` and `scoring-attempts/{id}/run` **30 per 10
    minutes** each, in two buckets (`scoring-attempts`, `scoring-run`) — the longest round has 14
    answers, and retrying every one of them is 14 of each call.
@@ -172,9 +173,9 @@ that asserts the two lists match.
 
 **Four codes are added by the round loop** (`06`, 2026-09-27 and 2026-09-28).
 `feedback_generation_failed` and `write_failed` **landed with the round-loop tracer (#42)**, in
-`lib/api/errors.ts` with their `ja` and `en` copy; `speech_failed` lands with the spoken question (#45)
-and `role_context_too_large` **landed with its measured cap (#47)**, each with its copy in the same
-change, as `11` §3.10 requires.
+`lib/api/errors.ts` with their `ja` and `en` copy; `speech_failed` **landed with the spoken question
+(#45)** and `role_context_too_large` **landed with its measured cap (#47)**, each with its copy in the
+same change, as `11` §3.10 requires.
 
 **`scoring_in_progress` landed with History (#50)**, with its copy: §5.10 always said a second `run`
 while the first is in flight is a `409`, and no catalogued `409` meant that — the three there are about
@@ -1138,7 +1139,7 @@ Realistic mode's spoken question (`06`, 2026-09-27). Streams audio synthesised b
 for **one prompt of this round**, named by position and kind — never by text.
 
 ```
-GET /api/rounds/77af0b13-…/speech?position=2&kind=follow_up
+GET /api/rounds/77af0b13-…/speech?position=2&kind=question
 ```
 ```
 200
@@ -1146,19 +1147,26 @@ Content-Type: audio/mpeg
 <streamed audio>
 ```
 
-**The server reads the text** from `round_questions` at that position, or from the parent's
-`follow_ups` row; the client sends none, so the route cannot be used to synthesise anything else on
-the user's key (§1 rule 6). A `practice` round is `404` — practice is text only. A position with no
-prompt yet, or a `missing` follow-up, is `404`. Question audio is well under the 4.5 MB body cap, so it
-crosses the function; it is **not retained** (`03` §4).
+**The server reads question text** from `round_questions` at that position; the client sends none, so
+the route cannot be used to synthesise anything else on the user's key (§1 rule 6). A `practice` round
+or a position with no prompt is `404`. **Every `follow_up` request is still `404`:** #44's
+`follow_ups` exists, and the route does not read it yet (`06`, 2026-10-04), so screen 3 asks for no
+audio while a follow-up is on screen. When it does, it reads the text from the parent's `follow_ups`
+row, with a `missing` one still `404`. Question audio is well under the 4.5 MB body cap, so it crosses the function; it is **not
+retained** (`03` §4), and the response is `Cache-Control: no-store` so the browser keeps none either.
 
-**The model is not named yet.** It is a constant in `lib/ai/models.ts`, pinned only once verified at
-implementation (`03` §4).
+**The query is validated like a body** (§1 rule 3). `position` is 1–7 and `kind` is `question` or
+`follow_up`; anything else, a `text` parameter included, is `400 invalid_request` naming the field.
+
+**The model is `TTS_MODEL` in `lib/ai/models.ts`**, with its voice beside it (`03` §4, `06`, #45).
+Synthesis has 10 s to reach its first byte.
 
 **When synthesis fails, the round goes on** (`06`, 2026-09-28). The route returns `502
 speech_failed`; screen 3 shows that code's copy as a short notice, and the question, already on screen
 as text, is answered as usual. The failure is logged with the round id, position and error class. A
-realistic round is never stopped for want of a voice.
+realistic round is never stopped for want of a voice. The route reads the first audio byte before it
+answers, so a stream that fails or stalls before that byte is still the `502`; one that breaks after
+it can no longer be, and is only logged, the same way.
 
 ### 5.16 `POST /api/rounds/{roundId}/feedback` ⚡
 
@@ -1242,7 +1250,7 @@ convert a guarantee in `04` §6 into a preference.
 | Any endpoint returning a composite score | Refusal #1. No column, no view, no field. |
 | `POST /api/rounds/{id}/abandon` | `completed_at is null` is the record. Abandonment is data, and derived (`04` `rounds`). |
 | Anything that changes a round's questions after it starts | `round_questions` is fixed with the round (`04` §6). A re-roll is how a question the user has already heard gets swapped for an easier one. |
-| A speech route that takes text | §5.15 reads the text from stored rows. One that took text would be a general TTS proxy on the user's key. |
+| A speech route that takes text | §5.15 defines the server-side prompt source. One that took text would be a general TTS proxy on the user's key. |
 | A model or rubric selector on any request | The stamps would become user-chosen, making drift voluntary and biased (decision log). Both are config and resolved server-side. |
 | Anything with a `share`, `visibility`, `export` or `public` in it | Refusal #6. Multi-tenancy is not permission to build a sharing surface (`03` §2, `08` §7). |
 | `POST /api/questions` | The bank is written by generation with the near-duplicate guard, or by seed. A hand-inserted question skips the embedding check and fragments the measurement (`03` §11). |
@@ -1258,8 +1266,8 @@ convert a guarantee in `04` §6 into a preference.
 - **The near-duplicate threshold** used in §5.4. **Starts at cosine similarity 0.90** (`06`,
   2026-09-27) — an unverified guess until there is real data; see §5.4 and `04`. Since #47 the data is
   being collected: `near_duplicate_checks`, reported weekly.
-- **The TTS model** behind §5.15, pinned only once verified. ~~What realistic mode does when synthesis
-  fails~~ — **decided 2026-09-28**: text, a notice, `speech_failed` (§5.15).
+- ~~**The TTS model and synthesis failure.**~~ **Resolved:** the pinned model and voice are in `03`
+  §4; §5.15 specifies the text fallback and `speech_failed` response.
 - ~~**`complete`'s wait bound**~~ — **set 2026-10-01** at 60 s, from the round loop's latency
   measurement (§5.12 step 2, `03` §4).
 - ~~**Round feedback when a score ended `failed`**~~ — **decided 2026-09-28**: generated without that

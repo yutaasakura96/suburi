@@ -6,6 +6,7 @@ import { openAiModelHealth } from "../ai/health";
 import { openAiRoundFeedbackGenerator } from "../ai/round-feedback";
 import { openAiAnswerScorer } from "../ai/score";
 import { openAiTranscriber } from "../ai/transcribe";
+import { openAiSpeechSynthesizer } from "../ai/tts";
 import { s3AudioStore } from "../audio/store";
 import { getAuth } from "../auth";
 import { getConfig } from "../config";
@@ -34,6 +35,7 @@ export function roundDeps() {
     scorer: openAiAnswerScorer(openAi),
     transcriber: openAiTranscriber(openAi),
     generator: openAiRoundFeedbackGenerator(openAi),
+    speech: openAiSpeechSynthesizer(openAi),
     questionGenerator: openAiQuestionGenerator(openAi),
     embedder: openAiEmbedder(openAi),
     followUpGenerator: openAiFollowUpGenerator(openAi),

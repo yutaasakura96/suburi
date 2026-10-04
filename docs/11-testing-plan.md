@@ -454,7 +454,7 @@ wiring between screens that no unit test sees.
 | Follow-up | Each question is followed by its one follow-up at the same position, named in the header; a reload on it shows the same text and makes no generator call; screen 8 shows it as a row under its answer's scores. |
 | Missing follow-up | With the fake generator failing, screen 6 says the follow-up was not generated, the answer is locked, and one control goes on to the next question; screen 8 shows the gap on that answer. |
 | Follow-up not stored | A reload onto an answer committed without its follow-up shows the saved answer and one control, which writes the follow-up and asks it. |
-| Spoken question | Realistic mode requests the speech route for the prompt on screen, by position; practice mode never requests it. |
+| Spoken question | Realistic mode requests the speech route for the prompt on screen, by position; practice mode never requests it. A round opened with no gesture offers the control that plays it. A failed request puts the `speech_failed` notice where the speaker line was, and the take is recorded as usual. |
 | Feedback not ready | With the fake feedback generator failing, screen 8 renders every score, a plain pending sentence and a retry — **no spinner** — and the retry fills the round-level region. |
 | CV grounding | The mock scorer and feedback call each return one thing the server can verify and one it cannot. Screen 8 shows one `Unsupported` rail per answer quoting the corrected text and one `Unused` rail quoting the CV; **the invented quote and the invented claim number appear nowhere.** |
 | Wrong language | A Japanese answer in an English round carries the wrong-language line on its own page of the pager and no other, is still scored, and its attempt stores `answered_language = 'ja'`. |
@@ -481,7 +481,7 @@ either irreducibly human or need a real human ear.
 
 - [ ] Real mic, real Chrome, real 4-minute take: audio uploads, transcribes, and plays back from History.
 - [ ] Japanese transcription is good enough to correct rather than retype — on **spoken keigo**, which is the hardest case and the one the rubric scores.
-- [ ] Realistic mode's TTS pronounces the question correctly, including company names and 役職 — in both languages, with the model pinned in `lib/ai/models.ts`.
+- [ ] Realistic mode's TTS pronounces the question correctly, including company names and 役職 — in both languages, with the model pinned in `lib/ai/models.ts`. `npm run ear-check` speaks synthetic questions in both languages through the real port and writes them, with a page to play them from, to `private/ear-check/` (#45).
 - [ ] **The round loop's latencies are measured and recorded in `03` §4** — scoring, follow-up generation, round feedback, question generation, transcription and TTS — before release. Re-measure changed models or prompts; the Japanese follow-up awaits a real round with follow-ups on `develop`, and `feedback-en-1.2` has not been re-measured (`06`, #44).
 - [ ] **The rubric v1.0 read**: the user has reviewed every dimension's per-level anchors in both languages, and the Japanese has had its native read, before it is seeded anywhere real.
 - [ ] The felt-pressure screen still feels unhurried. It is instrumentation and it is where the last score lands; if it starts feeling like a loading screen, both purposes are damaged.

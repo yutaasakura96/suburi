@@ -1,6 +1,6 @@
 {
-  "id": "23d0d49f-3d4e-4222-b910-2e316069647f",
-  "prevId": "8cca974e-2c22-45b9-a9d0-5cb5f805cd0c",
+  "id": "613a51fa-a06c-403b-9ec6-2af1d2ccad17",
+  "prevId": "23d0d49f-3d4e-4222-b910-2e316069647f",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1892,7 +1892,7 @@
       "checkConstraints": {
         "rate_limit_windows_route_check": {
           "name": "rate_limit_windows_route_check",
-          "value": "\"rate_limit_windows\".\"route\" in ('cv-versions', 'rounds', 'transcribe', 'submit', 'complete', 'feedback', 'speech')"
+          "value": "\"rate_limit_windows\".\"route\" in ('cv-versions', 'rounds', 'transcribe', 'submit', 'complete', 'feedback', 'speech', 'scoring-attempts', 'scoring-run')"
         }
       },
       "isRLSEnabled": false
@@ -2683,6 +2683,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": false
+        },
+        "run_started_at": {
+          "name": "run_started_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
         },
         "created_at": {
           "name": "created_at",
