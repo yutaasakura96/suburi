@@ -2,8 +2,6 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { zodTextFormat } from "openai/helpers/zod";
-import { z } from "zod";
 import { openAiFollowUpGenerator } from "../lib/ai/follow-up.ts";
 import { SCORING_MODEL, TRANSCRIPTION_MODEL } from "../lib/ai/models.ts";
 import { openAiRoundFeedbackGenerator } from "../lib/ai/round-feedback.ts";
@@ -21,10 +19,10 @@ import { EN_1_0 } from "../lib/rubric/en-1.0.ts";
 //   OPENAI_API_KEY=… node --import ./scripts/resolve-ts.mts scripts/measure-round-latency.mts
 //
 // Scoring, round feedback and follow-up generation run through the real ports and prompts. Question
-// generation has no port yet (#47), so it runs a **draft** prompt below, of the size the real one
-// will have; a draft is not a prompt version and nothing here is stored. Transcription reads a
-// take synthesised by TTS and re-encoded to webm/opus by ffmpeg, the browser's format. TTS is timed
-// to the first audio byte (when playback can start) and to the last.
+// generation and its embeddings are measured through their own ports by
+// `scripts/measure-question-generation.mts` (#47). Transcription reads a take synthesised by TTS and
+// re-encoded to webm/opus by ffmpeg, the browser's format. TTS is timed to the first audio byte (when
+// playback can start) and to the last.
 //
 // Since #46 the scorer and the feedback call also read the CV's claims. A synthetic CV of 80 claims
 // stands in — the size of the real ones (03 §4) — and what comes back is run through
@@ -34,7 +32,6 @@ import { EN_1_0 } from "../lib/rubric/en-1.0.ts";
 
 const RUNS = Number(process.env.RUNS ?? 5);
 const TTS_MODEL = "gpt-4o-mini-tts-2025-12-15"; // measured, not pinned: #45 pins the speech model
-const EMBEDDING_MODEL = "text-embedding-3-small";
 
 const apiKey = process.env.OPENAI_API_KEY;
 if (!apiKey) throw new Error("OPENAI_API_KEY is not set");
@@ -118,24 +115,6 @@ function quantile(sorted: number[], q: number) {
   const at = (sorted.length - 1) * q;
   const low = Math.floor(at);
   return sorted[low] + (sorted[Math.ceil(at)] - sorted[low]) * (at - low);
-}
-
-// --- Draft prompt (no port yet) --------------------------------------------------------------------
-
-const DRAFT_QUESTIONS = `You write interview questions for a candidate practising job interviews in English. You receive the
-round type and how many questions are needed. Write that many distinct questions a real interviewer of
-that type would ask, each one sentence, answerable in two to four minutes, none a yes/no question, and
-none repeating another's topic. Vary them: experience, judgement, conflict, learning, motivation.`;
-
-async function questions(count: number) {
-  const response = await client.responses.parse({
-    model: SCORING_MODEL,
-    instructions: DRAFT_QUESTIONS,
-    input: `Round type: HR (culture fit, motivation, how the candidate works with others).\nQuestions needed: ${count}.`,
-    text: { format: zodTextFormat(z.object({ questions: z.array(z.object({ body: z.string() })) }), "questions") },
-  });
-  recordTokens(`question generation, ${count} (draft)`, response.usage?.input_tokens, response.usage?.output_tokens);
-  return response.output_parsed?.questions.map((question) => question.body) ?? [];
 }
 
 // --- The measured jobs ------------------------------------------------------------------------------
@@ -232,17 +211,6 @@ async function measureFollowUps() {
   }
 }
 
-async function measureGeneration() {
-  for (let run = 0; run < RUNS; run += 1) {
-    for (const count of [3, 7]) {
-      const bodies = await timed(`question generation, ${count} (draft)`, () => questions(count));
-      if (bodies.length > 0) {
-        await timed(`embeddings, ${count} questions`, () => client.embeddings.create({ model: EMBEDDING_MODEL, input: bodies }));
-      }
-    }
-  }
-}
-
 /** TTS: first byte (when playback could start) and the whole of it, for a question-length text. */
 async function measureSpeech() {
   for (let run = 0; run < RUNS; run += 1) {
@@ -294,11 +262,10 @@ async function measureTranscription() {
   }
 }
 
-console.log(`Measuring ${RUNS} run(s) of each: ${SCORING_MODEL}, ${TRANSCRIPTION_MODEL}, ${TTS_MODEL}, ${EMBEDDING_MODEL}.`);
+console.log(`Measuring ${RUNS} run(s) of each: ${SCORING_MODEL}, ${TRANSCRIPTION_MODEL}, ${TTS_MODEL}.`);
 const scored = await measureScoring();
 await measureFeedback(scored);
 await measureFollowUps();
-await measureGeneration();
 await measureSpeech();
 await measureTranscription();
 

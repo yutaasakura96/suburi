@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { requireSession } from "@/lib/auth/session";
 import { getDb } from "@/lib/db";
-import { setupFacts } from "../load";
+import { savedPostings, setupFacts } from "../load";
 import { SetupForm } from "./setup-form";
 
 export const metadata: Metadata = {
@@ -9,17 +9,18 @@ export const metadata: Metadata = {
 };
 
 /**
- * Round setup (10 §2), still minimal: round type, language and length to choose; realistic and General
- * practice are the only options that exist yet, so they are stated, not offered. Each language is
- * scored against its own CV and rubric, so the facts are read for both.
+ * Round setup (10 §2): round type, language, length and role context to choose; realistic is the only
+ * mode that exists yet, so it is stated, not offered (#49). Each language is scored against its own CV
+ * and rubric and draws on its own bank, so the facts are read for both; postings are the user's, in
+ * either language.
  */
 export default async function NewRoundPage() {
   const userId = await requireSession();
   const db = getDb();
-  const [ja, en] = await Promise.all([setupFacts(db, userId, "ja"), setupFacts(db, userId, "en")]);
+  const [ja, en, postings] = await Promise.all([setupFacts(db, userId, "ja"), setupFacts(db, userId, "en"), savedPostings(db, userId)]);
   return (
     <main className="w-[1280px] px-[44px] py-[40px]">
-      <SetupForm facts={{ ja, en }} />
+      <SetupForm facts={{ ja, en }} postings={postings} />
     </main>
   );
 }

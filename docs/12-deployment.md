@@ -282,7 +282,7 @@ retry loop or a prompt that doubled in size shows up on a bill, not on a screen.
 | `quotes_outside_window > 0` on the current CV | any | status page — an extraction call quoted outside the window it was given (`07` §5.2, #29) |
 | A completed round with no `round_feedback` | for over **24 hours** | status page — feedback failed and was never retried (`07` §5.12) |
 | The daily dump (§8) failed | any | status page — a missing dump is the staleness line: no `self-check` run, no dump (#56) |
-| Near-duplicate near-misses | weekly count and score distribution | the weekly digest — this is the log the threshold gets tuned from (`03` §11). The threshold starts at **0.90, unverified**. Stored and reported by #47, not #55 |
+| Near-duplicate near-misses | weekly count and score distribution | the weekly digest — this is the record the threshold gets tuned from (`03` §11). The threshold starts at **0.90, unverified**. Stored in `near_duplicate_checks` (`04`) and reported by #47: the week's near-misses, their lowest, median and highest similarity, and the candidates reused as duplicates |
 | Unhandled exception | any | Sentry, scrubbed per §7 (#54) |
 | App down | — | **not alerted.** You will know. |
 
@@ -316,10 +316,9 @@ guards the windowing itself and is strict, because it measured 0 across every wi
 **Implementation** (#55): two Vercel Cron routes under `/api/cron/` (`07` §5.17, §5.18), authenticated
 with `CRON_SECRET`, returning `401` without it. `self-check` (daily, `0 19 * * *` UTC) **writes the
 daily dump first** (§8, #56) and then covers the first ten rows; `digest` (weekly, `0 20 * * 0` UTC,
-Monday morning in Tokyo) reports the Asia/Tokyo week's rounds, tokens and spend. Each run is
-**appended** to `cron_runs` with its `cron_readings` (`04`) and the status page reads the newest.
-Still to come: #47 (the near-miss log and its digest row; whichever of #47 and #55 merges second wires
-it).
+Monday morning in Tokyo) reports the Asia/Tokyo week's rounds, tokens and spend, and — since #47 —
+the near-duplicate guard's week. Each run is **appended** to `cron_runs` with its `cron_readings`
+(`04`) and the status page reads the newest.
 
 How the rows are read, decided in #55 (`06`):
 

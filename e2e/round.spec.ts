@@ -8,7 +8,7 @@ import { createAuth } from "../lib/auth/auth";
 import { mintSessionCookie } from "../lib/auth/test/session";
 import { getConfig } from "../lib/config";
 import { E2E_URL } from "./database";
-import { startMockOpenAi, type MockOpenAi } from "./mock-openai";
+import { generatedQuestions, startMockOpenAi, type MockOpenAi } from "./mock-openai";
 import { startMockS3, type MockS3 } from "./mock-s3";
 
 // The round loop, end to end against the production build: a realistic round from Setup to feedback,
@@ -167,6 +167,8 @@ test.beforeAll(async () => {
         if (followUpMalformed) return { follow_up: "What changed? Who approved it?" };
         return { follow_up: japaneseFollowUp(body) ? FOLLOW_UP_JA : FOLLOW_UP };
       }
+      // Once these specs have answered the seeded questions, a round's are generated (07 §5.4).
+      if (formatOf(body) === "generated_questions") return generatedQuestions(body);
       return { fail: 400 };
     },
     { transcription: () => heard },
@@ -312,6 +314,9 @@ test("a realistic English round: Setup → each question and its follow-up → p
   // v1 seeded here, or a later version cv.spec.ts saved: whichever is current.
   await expect(page.getByTestId("setup-cv")).toContainText(/^CV v\d+/);
   await expect(page.getByTestId("setup-estimate")).toContainText("3 questions + 3 follow-ups · up to about 24 min");
+  // A role context is required, and neither card is chosen for the user (10 §2).
+  await expect(page.getByRole("button", { name: "Start this round" })).toBeDisabled();
+  await page.getByRole("radio", { name: "General practice" }).click();
   await page.getByRole("button", { name: "Start this round" }).click();
   await expect(page).toHaveURL(/\/round\/[0-9a-f-]{36}$/);
   const roundId = page.url().split("/").at(-1)!;
@@ -704,6 +709,7 @@ test("a realistic Japanese round: Japanese throughout, seven rows, and the feedb
   await page.getByRole("radio", { name: "Japanese" }).click();
   await expect(page.getByTestId("setup-cv")).toContainText(/^応募書類 v\d+/);
   await expect(page.getByTestId("setup-estimate")).toContainText("Rubric v1.0");
+  await page.getByRole("radio", { name: "General practice" }).click();
   await shot("2-setup");
   await page.getByRole("button", { name: "Start this round" }).click();
   await expect(page).toHaveURL(/\/round\/[0-9a-f-]{36}$/);

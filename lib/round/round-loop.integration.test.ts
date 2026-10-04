@@ -8,14 +8,18 @@ import { closePool, inRolledBackTransaction, type TestDb } from "../../db/test/d
 import { feedbackScreen, roundFrame } from "../../app/(app)/round/load";
 import {
   FIXTURE_FEEDBACK,
+  fakeEmbedder,
   FIXTURE_FEEDBACK_JA,
   FIXTURE_FOLLOW_UP,
   fakeFeedbackGenerator,
   fakeFollowUpGenerator,
   fakeModelHealth,
+  fakeQuestionGenerator,
   fakeScorer,
   fakeTranscriber,
+  numberedQuestions,
   uniformScores,
+  vectorNear,
 } from "../ai/fake-round-ports";
 import { ModelCallFailed } from "../ai/upstream";
 import { fakeAudioStore } from "../audio/fake-store";
@@ -94,7 +98,7 @@ const AUDIO = new Uint8Array([0x1a, 0x45, 0xdf, 0xa3, 1, 2, 3, 4]);
 const HEARD_JA = `えー、${SENTINEL}の決済期版の移行を担当しまして、半年で完了いたしました。`;
 const HEARD_JA_CHARACTERS = Array.from(HEARD_JA).length;
 
-async function setUp(db: TestDb, { healthy = true } = {}) {
+async function setUp(db: TestDb, { healthy = true, vectorOf }: { healthy?: boolean; vectorOf?: (text: string) => readonly number[] } = {}) {
   await seedUser(db, getConfig().ALLOWED_EMAIL);
   const [user] = await db.select({ id: s.users.id }).from(s.users).where(eq(s.users.email, getConfig().ALLOWED_EMAIL));
   await seedSyntheticCv(db, user.id, "en");
@@ -118,12 +122,14 @@ async function setUp(db: TestDb, { healthy = true } = {}) {
   const generator = fakeFeedbackGenerator(({ rubric }) => (rubric.language === "ja" ? FIXTURE_FEEDBACK_JA : FIXTURE_FEEDBACK));
   const followUps = fakeFollowUpGenerator(() => ({ ...FIXTURE_FOLLOW_UP, text: FOLLOW_UP_TEXT }));
   const health = fakeModelHealth(healthy);
+  const questionGenerator = fakeQuestionGenerator(numberedQuestions());
+  const embedder = fakeEmbedder(vectorOf);
   const base = { auth, db, transaction: savepointTransaction(db, fail, depth) };
   const timing = { waitBoundMs: 50, sleep: async () => {} };
 
   const handlers = {
     roleContext: createPostRoleContext(base),
-    round: createPostRound({ ...base, health, scorer }),
+    round: createPostRound({ ...base, health, scorer, questionGenerator, embedder }),
     open: createOpenAnswer({ ...base, store, prefix: "dev/" }),
     transcribe: createTranscribe({ ...base, store, transcriber }),
     submit: createSubmit({
@@ -210,6 +216,7 @@ async function setUp(db: TestDb, { healthy = true } = {}) {
     generator,
     followUps,
     health,
+    questionGenerator,
     handlers,
     call,
     post,
@@ -269,7 +276,7 @@ describe("POST /api/role-contexts", () => {
     }));
 
   it.each([{ kind: "posting", body: "A posting." }, { kind: "researched" }, { kind: "general", company_name: "Invented" }])(
-    "refuses %o in this slice",
+    "refuses %o with a 400",
     (body) =>
       inRolledBackTransaction(async (db) => {
         const { post, handlers } = await setUp(db);
@@ -390,14 +397,11 @@ describe("POST /api/rounds — a round's questions, chosen once (11 §3.13)", ()
       expect(await count(db, s.roundQuestions)).toBe(0);
     }));
 
-  it("is 502 question_generation_failed when the bank cannot fill the round, and creates nothing", () =>
+  it("generates nothing while the unseen pool can fill the round", () =>
     inRolledBackTransaction(async (db) => {
       const world = await setUp(db);
-      await db.update(s.questions).set({ retiredAt: new Date() }).where(eq(s.questions.origin, "generated"));
-      const { status, json } = await world.startRound();
-      expect(status).toBe(502);
-      expect(json.error.code).toBe("question_generation_failed");
-      expect(await count(db, s.rounds)).toBe(0);
+      expect((await world.startRound()).status).toBe(201);
+      expect(world.questionGenerator.calls).toBe(0);
     }));
 
   it("is 500 write_failed on a failed write, with nothing half-written", () =>
@@ -554,6 +558,15 @@ describe("first attempts, computed at slot-open (11 §3.4)", () => {
       );
   }
 
+  /**
+   * With every new candidate embedded as `vectorNear(1)`, giving the answered question that vector
+   * makes each candidate its duplicate: the guard maps them to it, and it is asked again as a repeat.
+   */
+  const duplicatingAnswered = { vectorOf: () => vectorNear(1) };
+  async function embedAsDuplicated(db: TestDb, questionId: string) {
+    await db.update(s.questions).set({ embedding: vectorNear(1) }).where(eq(s.questions.id, questionId));
+  }
+
   async function roundQuestionIds(db: TestDb, roundId: string) {
     const rows = await db
       .select({ questionId: s.roundQuestions.questionId })
@@ -565,15 +578,16 @@ describe("first attempts, computed at slot-open (11 §3.4)", () => {
 
   it("is false in a realistic round for a question answered in practice first", () =>
     inRolledBackTransaction(async (db) => {
-      const world = await setUp(db);
+      const world = await setUp(db, duplicatingAnswered);
       const practice = await world.startRound({ mode: "practice" });
       const { answerId: practised } = await world.answerCurrent(practice.json.round.id);
       expect(await firstAttemptOf(db, practised)).toBe(false);
       const practisedQuestion = await questionOf(db, practised);
       const [, other] = await roundQuestionIds(db, practice.json.round.id);
 
-      // A set piece, then the unseen generated question, then the practised one.
+      // A set piece, then the unseen generated question, then the practised one: the repeat.
       await keepGenerated(db, [practisedQuestion, other]);
+      await embedAsDuplicated(db, practisedQuestion);
       const realistic = await world.startRound();
       expect((await roundQuestionIds(db, realistic.json.round.id)).slice(1)).toEqual([other, practisedQuestion]);
       const flags = [];
@@ -585,7 +599,7 @@ describe("first attempts, computed at slot-open (11 §3.4)", () => {
 
   it("counts an answer in an abandoned round, but not a question that round only fixed", () =>
     inRolledBackTransaction(async (db) => {
-      const world = await setUp(db);
+      const world = await setUp(db, duplicatingAnswered);
       const abandoned = await world.startRound();
       const [, answeredQuestion, fixedOnly] = await roundQuestionIds(db, abandoned.json.round.id);
       await world.answerPosition(abandoned.json.round.id);
@@ -594,6 +608,7 @@ describe("first attempts, computed at slot-open (11 §3.4)", () => {
 
       // The next round: the next set piece, the question only fixed (unseen), the one answered (seen).
       await keepGenerated(db, [answeredQuestion, fixedOnly]);
+      await embedAsDuplicated(db, answeredQuestion);
       const next = await world.startRound();
       expect((await roundQuestionIds(db, next.json.round.id)).slice(1)).toEqual([fixedOnly, answeredQuestion]);
       const flags = [];
