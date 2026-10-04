@@ -632,6 +632,14 @@ facts. Reloading mid-round resumes at the same prompt, or at the saved answer if
 not been stored yet (`07` §5.5). An in-flight recording is the one thing that does not survive, and
 the UI says so before recording.
 
+**Practice's per-answer frame polls the round's read** (#49, `10` §15). The score for the answer on
+screen is written by `after()` a few seconds after the frame renders, so the frame asks
+`GET /api/rounds/{id}` every 2 s while that attempt is `pending` — every 10 s after the first minute —
+and stops when it is `ok` or `failed`, or after six minutes, past the invocation that scores it
+(`07` §5.10). **This is a timer in one component, not a cache**: the response is `no-store`, the frame
+keeps the one attempt it is waiting on, and nothing else on any screen polls. A practice round
+reloads onto the frame of the answer sent last, so a reload loses neither the scores nor the place.
+
 **Only the newest open round resumes, and only on the day it started** (`06`, 2026-09-27). Starting a
 new round abandons any open one, and an open round from an earlier day is abandoned too — the day
 being the user's local day in Asia/Tokyo (`06`, 2026-09-28); both are derived from timestamps (`04` `rounds`), with no abandon endpoint.

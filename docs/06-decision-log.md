@@ -3,6 +3,101 @@
 Newest first. Every entry records what was chosen, why, and what was rejected.
 
 ---
+## Phase 6 — #49, practice mode
+
+The round with the pressure taken out: a re-take, each answer's scores as they land, a second go at
+the same question, and feedback with no rating asked first. The shape is 2026-09-27's (below); the
+server already completed a practice round and preferred seen questions. These are the choices the
+screens and the two remaining calls needed. **One of them is a product choice this slice made and the
+owner has not confirmed** — the feedback entry — and it says so.
+
+### [2026-10-04] Round feedback is written from the first answers; an answer given again is not sent to the feedback call
+
+**Decided by this slice, not by the owner — flagged for confirmation.** `complete` waits for,
+counts and sends to the feedback call the answers the round asked for: each question's first answer
+and its follow-up's. An answer given again is scored on its own, shown on its own per-answer frame
+and on its own page of screen 8, and is left out of the findings and of `Checked against your CV`.
+**Why:** `feedback-en-1.2` and `feedback-ja-1.1` read one answer per prompt, labelled by position; a
+second answer to the same question is something neither prompt has a word for, and findings written
+over both would say which was better — the comparison `10` §15 refuses. It also keeps `complete`'s
+60 s wait off a retry sent a moment before the round ended. **The cost, accepted:** the findings do
+not mention the retry, and a round whose first answers all failed scoring has no findings even if a
+retry scored. **Rejected:** sending retries as extra `answer N` blocks (the model would read two
+answers to one question as two questions); replacing the first answer with the latest retry in the
+input (findings about an answer the Progress chart will never plot, and the first answer's flags
+disappear from the round). **Revisit if** the owner wants the findings to speak about a retry: that is
+a `feedback-*` prompt-version bump whose input labels the retry as one, not a change to what is sent
+under the current versions.
+
+### [2026-10-04] Practice's screens are `10` §15: a per-answer frame after every commit
+
+Specified from `05` components before any was built, as §13 was; there is no artboard. **The scores
+get a frame of their own** — the answer's rows, its flags, what the round asks next ready beside
+them, and `Answer again` — rather than a strip on the next question's record frame. **Why:** the
+score lands about seven seconds after the commit (`03` §4), which on the next record frame is while
+the user is reading or already answering the next question; and "answer again" needs somewhere to
+stand that is about the answer just given. The frame states `Not scored yet` in words and nothing on
+it waits, so going on is never held behind a score (invariant 2's spirit, in a mode it does not bind).
+It also absorbs §6's "after the commit" frame: a missing or not-yet-stored follow-up is said there.
+Setup now offers the mode, and shows no time estimate for practice — its cap is the runaway guard,
+not a pace. **Rejected:** scores inline on the next record frame (above); a dialog over the round (a
+second layer for something that is the round's main content in this mode).
+
+### [2026-10-04] A practice take is uploaded when it stops, and transcribed when the user says so
+
+Realistic's `Stop and transcribe` is one control because the take is final. In practice stopping
+opens the slot and uploads the take, and the frame holds it: `Transcribe this take`, or `Record
+again`. **Why:** `07` §5.6 makes the re-take a property of the server — the same row and the same
+object key until `transcript_raw` is set — and a take held only in the tab would make that rule
+something no request ever exercised. Transcribing is the commit, and the frame says so before it is
+pressed. **A reload on a held take asks for the question again**: the upload is in the bucket, but the
+page cannot play it back, and offering to transcribe a take the user cannot check is worse than a
+re-take. **Rejected:** transcribing at stop as realistic does (nothing left to re-take: §5.7's
+transcript is final); playback of the held take (a new surface the issue does not ask for).
+
+### [2026-10-04] Answer again: a retry of the original, one open at a time, refused with the codes that exist
+
+`retry_of_answer_id` on the slot call (`07` §5.6). **A retry always points at the original** — a
+retry of a retry is one more retry of the same answer — so "the answers to this prompt" is one
+`where`, not a chain to walk. **One retry is open per original**: a repeat is its re-take. **The
+round's step is neither read nor moved**, so `submit` on a retry returns the `next` the round already
+had and generates no follow-up (2026-10-03, #44). **Refusals use `invalid_request` and `not_found`**:
+a realistic round, an unsubmitted answer and a foreign id are requests the client never makes, the
+catalogue is closed (`07` §3), and a new code would be a Japanese and an English sentence written for
+a reader who does not exist.
+
+### [2026-10-04] A practice round reloads onto the answer sent last; this is what ends the rating it never owed
+
+#44's review found a practice round's last `submit` returning `next.kind = feedback` and the page
+then showing screen 7, whose rating the API refuses. The page had one "the round is past its last
+answer" frame, and it was the rating. **Now a practice round opens, in order, on an open
+answer-again, on the open answer to the current prompt, and otherwise on the per-answer frame of the
+answer sent last** (`10` §15), whose `Next` is read from where the round stands — so the frame after
+the last answer is the one that leads to the feedback, and `complete` is sent with no rating. A
+realistic round is unchanged. **Rejected:** skipping straight to `complete` when the page loads on a
+finished practice round (a reload would close the round without being asked, and the last answer's
+scores would never be shown).
+
+### [2026-10-04] The per-answer frame polls the round's read; nothing is cached
+
+`GET /api/rounds/{id}` is built as `07` §5.5 specified it, and the frame asks it every 2 s while the
+attempt on screen is pending, every 10 s after a minute, and stops after six (`03` §7). **Why a
+poll:** the wait is seven seconds at the median, there is one user and one frame, and the read is
+three small queries. **`state` follows the columns as §5.5 defines them, so an open slot reads
+`uploaded`** — the key is written when the slot opens — and `open` is a state no row is in; §5.5 now
+says so rather than the code inventing a fifth column to tell them apart. **Rejected:** a streamed
+response or server-sent events (a function held open per frame for a seven-second wait);
+`router.refresh()` on a timer (it re-renders the frame from the server and drops the error line and
+the go-on state it holds); a client cache library (`03` §7 names them as not added).
+
+### [2026-10-04] The new Japanese strings are listed, unread
+
+Every Japanese string practice adds is in `docs/checklists/native-read-round.md` §10, each row
+unread, written to `05` §6's rules. **None was read by a native reader before this merged**; the
+owner's read is the open item, and a string it changes is a copy edit, not a version of anything.
+
+---
+
 ## Phase 6 — #74, a model answer for each question
 
 Raised by the owner after the first real English round on `develop` (2026-10-03): the feedback says

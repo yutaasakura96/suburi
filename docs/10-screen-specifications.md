@@ -1224,7 +1224,8 @@ scores, and the frame after the last answer is the one that leads to the feedbac
   and the footer carries no `緊張度` line.
 - **An answer given again has its own page in the pager**, straight after the answer it follows:
   `Question 1 · again` / `第1問・再回答` — `again 2`, `再回答2` for a second one — with its own figures
-  and score rows, headed `Question 1 / 3 · again`. It has no follow-up row.
+  and score rows, headed `Question 1 / 3 · again`. It has no follow-up row. A follow-up's answer
+  given again has no page, as the follow-up's own answer has none (§8).
 - **The round-level findings, and `Checked against your CV`, are written from the first answers and
   their follow-ups.** An answer given again was scored and shown on its own frame, and is not sent to
   the feedback call (`07` §5.12, `06`).
