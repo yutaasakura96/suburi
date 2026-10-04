@@ -4,6 +4,7 @@
 
 export type RoundType = "behavioural" | "technical" | "hr" | "ceo";
 export type RoundLanguage = "ja" | "en";
+export type RoundMode = "realistic" | "practice";
 
 /** Data, not chrome: a round type is named in English on the app-level screens (10 §0). */
 export const ROUND_TYPE_NAMES: Record<RoundType, string> = {
@@ -96,12 +97,16 @@ export interface PressureOption {
   readonly label: string;
 }
 
+const EN_MODES: Record<RoundMode, string> = { realistic: "Realistic", practice: "Practice" };
+// 05 §6: the mode words are bare, never `練習モード`.
+const JA_MODES: Record<RoundMode, string> = { realistic: "実戦", practice: "練習" };
+
 const en = {
   /** The browser tab, while the round runs and on its feedback. */
   title: "Round — Suburi",
   feedbackTitle: "Round feedback — Suburi",
   roundTypes: ROUND_TYPE_NAMES,
-  meta: (length: number) => `English · Realistic · ${length} questions`,
+  meta: (mode: RoundMode, length: number) => `English · ${EN_MODES[mode]} · ${length} questions`,
   step: (position: number, of: number) => `Question ${position} / ${of}`,
   // A follow-up shares its question's position (06, 2026-09-27): the same step, named as a follow-up.
   followUpStep: (position: number, of: number) => `Question ${position} / ${of} · follow-up`,
@@ -113,6 +118,11 @@ const en = {
   withheld: "The feedback comes together when the round ends. Nothing is shown along the way.",
   goesOn:
     "The round goes on. You can correct the full text on the next screen. Neither the audio nor the uncorrected transcript is ever discarded.",
+
+  // 10 §3, realistic only: the speaker line, and what it becomes when the browser will not play
+  // sound unasked (a reload). A failed synthesis shows the catalogue's `speech_failed` instead.
+  spoken: "Read aloud. The text stays on screen.",
+  playQuestion: "Hear the question",
 
   startRecording: "Start recording",
   cap: (seconds: number) => `Up to ${Math.round(seconds / 60)} min`,
@@ -228,7 +238,7 @@ const ja: RoundCopy = {
   title: "ラウンド — Suburi",
   feedbackTitle: "講評 — Suburi",
   roundTypes: { behavioural: "行動面接", technical: "技術面接", hr: "人事面接", ceo: "最終面接" },
-  meta: (length) => `日本語・実戦・${length}問`,
+  meta: (mode, length) => `日本語・${JA_MODES[mode]}・${length}問`,
   step: (position, of) => `第${position}問 / ${of}問`,
   followUpStep: (position, of) => `第${position}問 / ${of}問・深掘り`,
   rubricStamp: (label) => `評価基準 ${label}`,
@@ -236,6 +246,9 @@ const ja: RoundCopy = {
 
   withheld: "講評はラウンドが終わってからまとめて出ます。途中では何も出ません。",
   goesOn: "この先も続きます。全文は次の画面で直せます。音声も未修正の文字起こしも消えません。",
+
+  spoken: "読み上げました。文字は残します。",
+  playQuestion: "質問を聞く",
 
   startRecording: "録音を開始",
   cap: (seconds) => `最長 ${Math.round(seconds / 60)}分`,

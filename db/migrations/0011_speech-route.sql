@@ -1,0 +1,2 @@
+ALTER TABLE "rate_limit_windows" DROP CONSTRAINT "rate_limit_windows_route_check";--> statement-breakpoint
+ALTER TABLE "rate_limit_windows" ADD CONSTRAINT "rate_limit_windows_route_check" CHECK ("rate_limit_windows"."route" in ('cv-versions', 'rounds', 'transcribe', 'submit', 'complete', 'feedback', 'speech'));

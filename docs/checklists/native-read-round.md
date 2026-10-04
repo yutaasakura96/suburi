@@ -301,3 +301,15 @@ questions per round type, read for whether an interviewer would say them. They a
 real Japanese round on `develop` whose bank runs short, and a generated question is banked
 permanently, so that round is worth starting for the read. A reworded prompt is a new version file
 and a Progress boundary (`04` `questions`), not an edit.
+
+## 10. #45, the spoken question
+
+One catalogue string, and what a realistic round's screen 3 puts above the question (`10` §3). ★ marks
+a string `10` §3 or `05` §6 already gives. **Nothing in this section has been read yet.**
+
+| | Japanese | Intent |
+| --- | --- | --- |
+| | 質問を読み上げられませんでした。文字はそのまま残ります。このまま回答してください。 | `speech_failed` — The question could not be read aloud. It stays as text; answer it as usual. Shown in place of the speaker line. |
+| | ★ 読み上げました。文字は残します。 | the speaker line — Read aloud. The text stays on screen. |
+| | 質問を聞く | Hear the question — the control the speaker line becomes when the browser will not play sound unasked (a reload) |
+| | ★ 日本語・練習・3問 | English · Practice · 3 questions — the header's mode word in a practice round |

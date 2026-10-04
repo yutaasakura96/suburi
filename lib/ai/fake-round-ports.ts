@@ -11,6 +11,7 @@ import { EMBEDDING_DIMENSIONS } from "./models";
 import type { RoundFeedbackGenerator, FeedbackInput, RoundFeedbackResult } from "./round-feedback";
 import type { AnswerScorer, CallOptions, ScoringInput, ScoringResult } from "./score";
 import type { Transcriber, TranscriptionInput, TranscriptionResult } from "./transcribe";
+import type { SpeechInput, SpeechSynthesizer } from "./tts";
 
 // The round loop's fakes, for tests only (11 §2: no test calls OpenAI). Each answers through a
 // function the test supplies — returning a result or throwing — and counts its calls.
@@ -130,6 +131,29 @@ export function fakeTranscriber(
     async transcribe(input: TranscriptionInput) {
       fake.calls += 1;
       return respond(input);
+    },
+  };
+  return fake;
+}
+
+/** Speaks `respond`'s bytes as one chunk, or fails as it throws; `inputs` is what it was asked to say. */
+export function fakeSpeechSynthesizer(
+  respond: (input: SpeechInput) => Uint8Array | Promise<Uint8Array> = () => new Uint8Array([0xff, 0xfb, 0x90, 0x00]),
+): SpeechSynthesizer & { calls: number; inputs: SpeechInput[] } {
+  const fake = {
+    modelId: "fake-tts",
+    calls: 0,
+    inputs: [] as SpeechInput[],
+    async synthesize(input: SpeechInput) {
+      fake.calls += 1;
+      fake.inputs.push(input);
+      const audio = await respond(input);
+      return new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(audio);
+          controller.close();
+        },
+      });
     },
   };
   return fake;

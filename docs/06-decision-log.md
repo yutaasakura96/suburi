@@ -3,6 +3,86 @@
 Newest first. Every entry records what was chosen, why, and what was rejected.
 
 ---
+## Phase 6 — #45, the spoken question, the cap and one take
+
+What makes a realistic round realistic. The route and the failure were decided on 2026-09-27 and
+2026-09-28 (below); these are the choices the build needed.
+
+### [2026-10-03] The speech model is `gpt-4o-mini-tts-2025-12-15`, voice `marin` — and OpenAI removes it on 2027-01-06
+
+**Checked, against OpenAI's docs on 2026-10-03:** the text-to-speech guide, the `gpt-4o-mini-tts`
+model page and the deprecations page. The speech endpoint takes `tts-1`, `tts-1-hd` and
+`gpt-4o-mini-tts`, whose snapshots are `2025-03-20` and `2025-12-15`; the guide calls
+`gpt-4o-mini-tts` the newest, and no newer speech-endpoint model exists. **Pinned:** the current
+snapshot, `gpt-4o-mini-tts-2025-12-15`, as `TTS_MODEL` in `lib/ai/models.ts` — the string #42 measured
+(`03` §4) — and the voice `marin` beside it, one of the two the guide recommends and the one that
+measurement used. The model is steerable, so the port tells it to read the question exactly as
+written, in the round's language, and not to answer it. **Then run:** ten synthetic questions, four
+English and six Japanese with 役職 and company names, through the real port; each came back as MP3 in
+1.0–2.5 s, and a transcription of each read back word for word. That is a machine check, not `11` §5's
+ear check, which is the user's.
+
+**The deprecation.** The same check found that on 2026-10-01 OpenAI deprecated every model the speech
+endpoint takes, both `gpt-4o-mini-tts` snapshots included, with removal on **2027-01-06**. Its named
+replacement is `gpt-realtime-2.1-mini`: a speech-to-speech model, reached only over the Realtime API
+(WebRTC, WebSocket or SIP), with no dated snapshot. **Decided:** build the route the plan settled, on
+the model that works and was measured, and treat the move as a slice of its own before that date.
+`lib/ai/tts.ts` is a port with one implementation so the move stays behind it, and TTS is not a stamp,
+so it needs no re-score and no boundary.
+**Rejected:** building on the Realtime model now. It is a conversational model asked to recite, not a
+synthesizer, so "reads the question as written" is unverified; it changes `07` §5.15 from one streamed
+response to a session; and nothing about it was measured. **Rejected:** the alias `gpt-4o-mini-tts`,
+which survives the removal only by being repointed (`03` §4, "never point at an alias").
+
+### [2026-10-03] The speech route: 30 per 10 minutes, 10 s to the first byte, and what it logs
+
+Its own bucket, `speech`, in `rate_limit_windows` (migration `0011`, widening the route check). One
+request per prompt asked — 14 in a 7-question round with follow-ups — and a reload asks again, so 30
+is two such rounds with reloads to spare, the same reasoning as `transcribe` and `submit`. Synthesis
+has **10 s to its first byte**; the measured slowest was 1.5 s, and the user is reading the question
+meanwhile. A failure logs `speech_failed` with the round id, the position and the error class, and
+nothing else; a success logs the same ids and the time to the first byte. The query is validated like
+a body: a `text` parameter is a `400`, not an ignored field. **Until follow-ups exist (#44), a
+`follow_up` request is the `404` a `missing` one gets** — whichever of #44 and #45 merges second reads
+`follow_ups` there.
+
+### [2026-10-03] Screen 3's speaker line, and the practice frame without a timer
+
+- **The browser may refuse to play sound unasked.** A round opened or reloaded with no gesture in the
+  tab cannot start audio. The speaker line then becomes a control, `Hear the question`, and pressing
+  it plays the question. **Rejected:** waiting for the first click anywhere, which would be the click
+  on `Start recording` and would speak over the take; and reporting it as `speech_failed`, which it is
+  not.
+- **Starting the recording silences the question** if it is still being spoken, so the microphone
+  never records it. The button is not held back until the audio ends: a stalled stream must not be able
+  to stop a round.
+- **A failed synthesis replaces the line in place**, in the attention ink (`05`, the colour of a
+  missing-follow-up note), at the line's own height, so the question does not move (`10` §4).
+- **Practice's guard is never drawn** (`03` §7). The practice record frames show no clock, no `Up to`
+  line and no one-take line, and the waveform scrolls at one bar a second with no remainder — a
+  waveform filling toward 15 minutes would be the guard drawn as the timer it is not. The rest of
+  practice's frames are #49's.
+- **`npm run ear-check`** makes `11` §5's check listenable before any Japanese round exists: synthetic
+  questions in both languages through the real port, written to the gitignored `private/ear-check/`
+  with a page to play them from.
+
+### [2026-10-04] Merged after #46, #43, #44 and #47: migration `0011`, both languages, and a follow-up is asked as text
+
+#45 merged last of the five slices. #46, #44 and #47 took `0008`, `0009` and `0010`, so the route
+check's widening is `0011_speech-route`, regenerated by `drizzle-kit generate` against #47's snapshot;
+the SQL is the same statement. #43 put the round's chrome in its language, so the speaker line and
+its control are in both: `読み上げました。文字は残します。` is `10` §3's own, `質問を聞く` is new and in
+`docs/checklists/native-read-round.md` §10, unread, and the header's mode word is `実戦` or `練習`
+(`05` §6).
+
+**A follow-up is asked as text, in realistic mode too.** #44's `follow_ups` exists now, and the route
+still answers every `kind=follow_up` with a 404 (`07` §5.15): speaking it is its own change, and #45
+stays open for it. A follow-up shares its question's position, so screen 3 asks the route for nothing
+while one is on screen. **Rejected:** requesting `kind=question` for the position, which would read
+the question aloud over its follow-up; and requesting `kind=follow_up`, whose 404 would put the
+`speech_failed` notice on every follow-up though nothing failed.
+
+---
 ## Phase 6 — #47, generated questions and role context
 
 The bank stops being a fixed list: a round that the unseen pool cannot fill has its questions written

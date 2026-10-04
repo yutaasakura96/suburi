@@ -40,6 +40,21 @@ export interface MockFailure {
 export interface MockOpenAiOptions {
   /** `POST /v1/audio/transcriptions`, answered as gpt-transcribe does, duration included. */
   readonly transcription?: () => { text: string; seconds: number } | MockFailure;
+  /** `POST /v1/audio/speech`, answered with MP3 as the speech endpoint does. Its JSON body is recorded. */
+  readonly speech?: () => Uint8Array | MockFailure;
+}
+
+/**
+ * Half a second of silence a browser will really play: twenty MPEG-1 Layer III frames at 128 kbps and
+ * 44.1 kHz, each a header and an all-zero body. The spoken question's audio is never asserted on
+ * (11 §9) — only that it was asked for and played without an error.
+ */
+export function silentMp3() {
+  const frame = new Uint8Array(417);
+  frame.set([0xff, 0xfb, 0x90, 0x00]);
+  const audio = new Uint8Array(frame.length * 20);
+  for (let index = 0; index < 20; index += 1) audio.set(frame, index * frame.length);
+  return audio;
 }
 
 /**
@@ -105,6 +120,12 @@ export async function startMockOpenAi(
         const result = options.transcription();
         if (failed(result)) send(result.fail, { error: { message: "mock failure", type: "server_error" } });
         else send(200, { text: result.text, usage: { type: "duration", seconds: result.seconds } });
+        return;
+      }
+      if (request.method === "POST" && path === "/v1/audio/speech" && options.speech) {
+        const result = options.speech();
+        if (failed(result)) send(result.fail, { error: { message: "mock failure", type: "server_error" } });
+        else response.writeHead(200, { "content-type": "audio/mpeg" }).end(Buffer.from(result));
         return;
       }
       if (request.method === "POST" && path === "/v1/embeddings") {

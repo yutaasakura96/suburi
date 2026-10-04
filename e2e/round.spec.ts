@@ -8,7 +8,8 @@ import { createAuth } from "../lib/auth/auth";
 import { mintSessionCookie } from "../lib/auth/test/session";
 import { getConfig } from "../lib/config";
 import { E2E_URL } from "./database";
-import { generatedQuestions, startMockOpenAi, type MockOpenAi } from "./mock-openai";
+import { TTS_MODEL, TTS_VOICE } from "../lib/ai/models";
+import { generatedQuestions, silentMp3, startMockOpenAi, type MockOpenAi } from "./mock-openai";
 import { startMockS3, type MockS3 } from "./mock-s3";
 
 // The round loop, end to end against the production build: a realistic round from Setup to feedback,
@@ -171,7 +172,7 @@ test.beforeAll(async () => {
       if (formatOf(body) === "generated_questions") return generatedQuestions(body);
       return { fail: 400 };
     },
-    { transcription: () => heard },
+    { transcription: () => heard, speech: silentMp3 },
   );
 });
 
@@ -304,6 +305,11 @@ test("a realistic English round: Setup → each question and its follow-up → p
   test.setTimeout(180_000);
   await signIn(page);
   const userId = await seededUserId();
+  const speechRequests: string[] = [];
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (url.pathname.endsWith("/speech")) speechRequests.push(url.pathname + url.search);
+  });
   // The mock is shared across this file: count only the calls this round makes.
   const requestsBefore = openAi.requests.length;
   const followUpsBefore = followUpCalls().length;
@@ -320,17 +326,24 @@ test("a realistic English round: Setup → each question and its follow-up → p
   await page.getByRole("button", { name: "Start this round" }).click();
   await expect(page).toHaveURL(/\/round\/[0-9a-f-]{36}$/);
   const roundId = page.url().split("/").at(-1)!;
+  const questions: string[] = [];
 
   for (let position = 1; position <= 3; position += 1) {
     await expect(page.getByTestId("round-step")).toHaveText(`Question ${position} / 3`);
     // Realistic asks one unseen set piece first (07 §5.4).
     if (position === 1) await expect(page.getByTestId("round-question")).toHaveText("Could you start by introducing yourself?");
+    // …and speaks it (10 §3): the speaker line stands, which a failed or refused playback would replace.
+    await expect(page.getByTestId("speaker-line")).toHaveText("Read aloud. The text stays on screen.");
+    questions.push((await page.getByTestId("round-question").textContent())!);
     await expect(page.getByText("The feedback comes together when the round ends. Nothing is shown along the way.")).toBeVisible();
     await answerInBrowser(page);
 
     // The one follow-up, generated from what was just sent, at the same position (07 §5.9).
     await expect(page.getByTestId("round-step")).toHaveText(`Question ${position} / 3 · follow-up`);
     await expect(page.getByTestId("round-question")).toHaveText(FOLLOW_UP);
+    // A follow-up is asked as text: the route does not speak `follow_ups` yet, and its question's
+    // audio, which shares the position, must not play over it.
+    await expect(page.getByTestId("speaker-line")).toBeEmpty();
     if (position === 2) {
       // A reload asks the stored follow-up again; nothing generates it a second time (07 §5.5).
       const generated = followUpCalls().length;
@@ -417,6 +430,13 @@ test("a realistic English round: Setup → each question and its follow-up → p
     expect(s3.objects.get(key)!.bytes).toBeGreaterThan(0);
     expect(s3.objects.get(key)!.contentType).toMatch(/^audio\/webm/);
   }
+  // Each prompt was spoken once, by the pinned model and voice, from the text the server holds for
+  // that position — the browser named a position and sent no text (07 §5.15).
+  const speech = openAi.requests.slice(requestsBefore).filter((request) => request.path === "/v1/audio/speech");
+  expect(speech.map((request) => request.body.input)).toEqual(questions);
+  for (const request of speech) expect(request.body).toMatchObject({ model: TTS_MODEL, voice: TTS_VOICE, response_format: "mp3" });
+  expect(speechRequests).toEqual([1, 2, 3].map((position) => `/api/rounds/${roundId}/speech?position=${position}&kind=question`));
+
   // The scorer read the corrected text, never the raw one (03 §4).
   const scoring = openAi.requests.slice(requestsBefore).filter((request) => formatOf(request.body) === "answer_scores");
   expect(scoring.length).toBeGreaterThanOrEqual(6);
@@ -724,6 +744,8 @@ test("a realistic Japanese round: Japanese throughout, seven rows, and the feedb
     await expect(page.getByRole("heading", { name: "人事面接" })).toBeVisible();
     await expect(page.getByText("日本語・実戦・3問")).toBeVisible();
     if (position === 1) await expect(page.getByTestId("round-question")).toHaveText("まず、簡単に自己紹介をお願いします。");
+    // The question is spoken, and the speaker line is in the round's language (10 §3).
+    await expect(page.getByTestId("speaker-line")).toHaveText("読み上げました。文字は残します。");
     await expect(page.getByText("講評はラウンドが終わってからまとめて出ます。途中では何も出ません。")).toBeVisible();
     await expect(page.getByText("一発勝負です。録り直しはできません。")).toBeVisible();
     await expect(page.getByText("最長 4分")).toBeVisible();

@@ -78,7 +78,8 @@ describe("a Japanese round's chrome (10 §0)", () => {
 describe("the strings 10 §3–§8 quote", () => {
   it("names the round and its step (05 §5.2)", () => {
     expect(ja.roundTypes).toEqual({ behavioural: "行動面接", technical: "技術面接", hr: "人事面接", ceo: "最終面接" });
-    expect(ja.meta(5)).toBe("日本語・実戦・5問");
+    expect(ja.meta("realistic", 5)).toBe("日本語・実戦・5問");
+    expect(ja.meta("practice", 3)).toBe("日本語・練習・3問");
     expect(ja.step(1, 5)).toBe("第1問 / 5問");
   });
 

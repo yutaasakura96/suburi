@@ -5,7 +5,7 @@ import type { FeedbackScreen } from "../../load";
 import { FeedbackView } from "./feedback-view";
 
 const screen: FeedbackScreen = {
-  round: { id: "round-1", roundType: "hr", language: "ja", length: 1, date: "2026-10-03" },
+  round: { id: "round-1", roundType: "hr", mode: "realistic", language: "ja", length: 1, date: "2026-10-03" },
   feltPressure: null,
   stamps: { rubricLabel: "v1.0", generatorVersions: [], cvLabel: "応募書類 v1" },
   answers: [],

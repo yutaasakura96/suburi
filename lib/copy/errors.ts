@@ -111,6 +111,10 @@ const CATALOGUE = {
     ja: "講評をまとめられませんでした。ラウンドは終了し、採点は残っています。もう一度お試しください。",
     en: "The round feedback could not be written. The round is complete and its scores are kept. Try again.",
   },
+  speech_failed: {
+    ja: "質問を読み上げられませんでした。文字はそのまま残ります。このまま回答してください。",
+    en: "The question could not be read aloud. It stays as text; answer it as usual.",
+  },
   role_context_too_large: {
     ja: "求人票が長すぎます。短くしてからもう一度保存してください。",
     en: "The posting is too long. Shorten it and save again.",

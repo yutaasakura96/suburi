@@ -38,7 +38,13 @@ reviews at the owner's delegation** (below).
 **#44, follow-ups, is built (2026-10-03), on `fm/suburi-44-v2`:** one follow-up per bank-question
 answer in both modes and both languages, written by `submit` or recorded as missing (Next).
 **#47, generated questions and role context, is built (2026-10-03), on `fm/suburi-47`** (Next).
-**Updated:** 2026-10-04 (#43, #44, #46 and #47 built; #42 closed; #55 and #56 on 2026-09-30)
+**#45, the spoken question, the cap and one take, is built (2026-10-03), on `fm/suburi-45`:** the
+speech route, screen 3's speaker line in both languages, and practice's guard, stored and never
+drawn. Its one step of the user's, `11` §5's ear check (`npm run ear-check`), was done on 2026-10-03:
+all ten samples, four English and six Japanese, sounded correct. **The issue stays open for speaking
+follow-ups:** the route does not read #44's `follow_ups` yet, so a follow-up is asked as text. The
+pinned model and its replacement deadline are in `03` §4.
+**Updated:** 2026-10-04 (#43, #44, #45, #46 and #47 built; #42 closed; #55 and #56 on 2026-09-30)
 
 ## Done
 - Phase 1 — `docs/01-project-brief.md`, `docs/02-product-requirements.md`, `docs/06-decision-log.md`.

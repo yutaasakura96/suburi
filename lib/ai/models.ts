@@ -36,6 +36,18 @@ export const EMBEDDING_DIMENSIONS = 1536;
 export const TRANSCRIPTION_MODEL = "gpt-transcribe";
 
 /**
+ * Text-to-speech, realistic mode's spoken question (03 §4). The newest snapshot the speech endpoint
+ * takes, verified against OpenAI's docs on 2026-10-03 (06) — never the `gpt-4o-mini-tts` alias. Not a
+ * stamp: the audio is not retained and nothing scored depends on it. **OpenAI removes it on
+ * 2027-01-06** (deprecated 2026-10-01, with every other speech-endpoint model); the port in
+ * `lib/ai/tts.ts` is where its replacement lands.
+ */
+export const TTS_MODEL = "gpt-4o-mini-tts-2025-12-15";
+
+/** The voice is part of what the ear check heard (11 §5), so it is pinned beside the model. */
+export const TTS_VOICE = "marin";
+
+/**
  * US dollars per million tokens, beside the strings they price, for 12 §6's spend signal. Standard
  * tier, short context (up to 272K input tokens), verified against OpenAI's API pricing page on
  * 2026-09-30 (06). Every stored input token is priced as uncached, since only the total is stored, so

@@ -36,6 +36,7 @@ describe("the error code table", () => {
       "round_not_complete",
       "round_abandoned",
       "feedback_generation_failed",
+      "speech_failed",
       "role_context_too_large",
       "write_failed",
       "cv_unchanged",
