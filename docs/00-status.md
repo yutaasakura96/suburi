@@ -611,8 +611,9 @@ OpenAI `gpt-5.6-sol` pinned for all three model jobs.
   annoyance.
 - **`422` is the "an invariant refused this" code**, and its `code` names which. `403` is used nowhere;
   another user's row is `404`.
-- **Migrations are manual, expand-only, and run before the deploying push.** That is exactly what makes
-  Vercel's instant rollback a complete rollback story.
+- **Migrations are expand-only, and on `main` manual, run before the deploying push.** That is exactly
+  what makes Vercel's instant rollback a complete rollback story. **`develop`'s deploy applies its own**
+  since 2026-10-06 (`12` §4, `06`): Neon `develop` had drifted five migrations behind the test site.
 
 **The branch model, decided after 4b was written:** `main` → Vercel production → Neon `main`; `develop`
 → a stable Vercel URL → Neon `develop`, seeded synthetic. Feature branches come off `develop` and share
@@ -673,7 +674,7 @@ the only irreplaceable thing here.
   its key is gone from this file.
 - **No hooks, by decision.** Nothing blocks an edit or a push on `main`, so `12` §4's "nothing is
   committed straight to `main`" is a convention, not a mechanism. What still guards the
-  measurement record: manual expand-only migrations, and `drizzle-kit migrate`/`push`/`drop`, `psql`,
+  measurement record: manual expand-only migrations on `main`, and `drizzle-kit migrate`/`push`/`drop`, `psql`,
   `pg_dump`, all `aws` and every writing Neon MCP tool sitting in `permissions.ask`.
 
 ## Skipped

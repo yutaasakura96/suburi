@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ConfigError, parseConfig, parseSentryConfig } from "./config";
+import { ConfigError, parseConfig, parseDeployMigrationConfig, parseSentryConfig } from "./config";
 
 const valid = {
   DATABASE_URL: "postgresql://suburi:pw@localhost:5432/suburi",
@@ -282,5 +282,56 @@ describe("parseSentryConfig", () => {
 
   it("leaves parseConfig unchanged: the rest of the environment never needs Sentry", () => {
     expect(() => parseConfig({ ...valid, SENTRY_DSN: undefined })).not.toThrow();
+  });
+});
+
+// A Vercel build migrates the database it deploys onto, and only develop's (12 §4).
+describe("parseDeployMigrationConfig", () => {
+  const url = "postgresql://suburi_develop:pw@ep-x.aws.neon.tech/suburi?sslmode=verify-full";
+  const develop = { VERCEL_ENV: "preview", VERCEL_GIT_COMMIT_REF: "develop", DATABASE_URL_UNPOOLED: url };
+
+  function migrationErrorFrom(env: Record<string, string | undefined>): ConfigError {
+    try {
+      parseDeployMigrationConfig(env);
+    } catch (error) {
+      if (error instanceof ConfigError) return error;
+      throw error;
+    }
+    throw new Error("expected parseDeployMigrationConfig to throw");
+  }
+
+  it("migrates the develop deployment, needing no other variable", () => {
+    expect(parseDeployMigrationConfig(develop)).toEqual({ deployment: "develop", url });
+  });
+
+  it.each([
+    ["in production", { ...develop, VERCEL_ENV: "production", VERCEL_GIT_COMMIT_REF: "main" }],
+    ["in a production build of develop", { ...develop, VERCEL_ENV: "production" }],
+    ["on another branch's preview", { ...develop, VERCEL_GIT_COMMIT_REF: "feature/x" }],
+    ["in Vercel development", { ...develop, VERCEL_ENV: "development" }],
+    ["locally and in CI", { DATABASE_URL_UNPOOLED: url }],
+  ])("migrates nothing %s", (_, env) => {
+    expect(parseDeployMigrationConfig(env)).toBeUndefined();
+  });
+
+  it("reads no URL where it migrates nothing", () => {
+    expect(parseDeployMigrationConfig({ VERCEL_ENV: "production", DATABASE_URL_UNPOOLED: "not a url" })).toBeUndefined();
+  });
+
+  it("refuses a develop deploy without the URL, naming it", () => {
+    const error = migrationErrorFrom({ ...develop, DATABASE_URL_UNPOOLED: undefined });
+    expect(error.problems).toEqual([{ name: "DATABASE_URL_UNPOOLED", problem: "missing" }]);
+  });
+
+  it.each([
+    ["one that is not a URL", "not a url"],
+    ["sslmode=require", url.replace("verify-full", "require")],
+    ["no sslmode", url.replace("?sslmode=verify-full", "")],
+    // Neon main refuses suburi_develop (12 §3 step 8), so any other role may be main's.
+    ["another role", url.replace("suburi_develop", "neondb_owner")],
+  ])("refuses %s without echoing it", (_, value) => {
+    const error = migrationErrorFrom({ ...develop, DATABASE_URL_UNPOOLED: value });
+    expect(error.problems).toEqual([{ name: "DATABASE_URL_UNPOOLED", problem: "malformed" }]);
+    expect(error.message).not.toContain(value);
   });
 });

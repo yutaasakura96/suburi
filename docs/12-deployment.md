@@ -158,7 +158,7 @@ environment tag at build because the browser SDK needs both to report. A DSN onl
 | Name | Purpose | Where the secret lives |
 | --- | --- | --- |
 | `DATABASE_URL` | Postgres connection, pooled | Vercel encrypted env. **Production scope → Neon `main`; Preview scope → Neon `develop`.** `.env.local` locally |
-| `DATABASE_URL_UNPOOLED` | Direct connection for migrations | Same. Drizzle migrations do not run through a pooler |
+| `DATABASE_URL_UNPOOLED` | Direct connection for migrations | Same. Drizzle migrations do not run through a pooler. **Read by `develop`'s build** (§4), so it is in the Preview scope before the deploy, and it carries the `suburi_develop` role there |
 
 **Both database URLs carry `sslmode=verify-full`** when the host is not local. Neon's console hands out `sslmode=require`, which pg v8 treats as `verify-full` but pg v9 will give libpq's meaning — encrypted, certificate unchecked. `lib/config.ts` refuses a remote URL without `verify-full` (and refuses `uselibpqcompat`), so the swap happens at setup, not after a Dependabot major. `localhost` and `127.0.0.1` are exempt: Docker has no TLS.
 | `BETTER_AUTH_SECRET` | Session signing | Vercel encrypted env. **Distinct value per environment** — a `develop` session must not be valid in production |
@@ -177,7 +177,7 @@ environment tag at build because the browser SDK needs both to report. A DSN onl
 | `SENTRY_DSN` | Exception reporting | Vercel encrypted env. **Production and the `develop` branch's Preview scope** (§1); one Sentry project, events tagged by environment. **Optional:** absent means Sentry is off, never a failed boot (`06`, 2026-09-30). Unset locally, in CI and under Playwright |
 | `SENTRY_AUTH_TOKEN` | Source-map upload at build | Same scopes as `SENTRY_DSN`: both builds upload their maps. An **organization** token (`sntrys_…`) for `personal-projects-ge`, the organization `next.config.ts` names beside the project; the upload does not take the organization from the token (`06`, 2026-10-01). Required whenever `SENTRY_DSN` is set in those two deployments; `lib/config.ts` refuses a DSN without it |
 | `CRON_SECRET` | Authenticates the cron routes against forgery: Vercel sends it as `Authorization: Bearer <CRON_SECRET>` (`07` §5.17) | Vercel encrypted env, **Production only**: cron is off on `develop` (§1). At least 16 characters (`openssl rand -base64 32`). **`lib/config.ts` requires it when `VERCEL_ENV` is `production`** and accepts its absence anywhere else, where the cron routes then refuse every call. Locally, in `.env.local` only to run a job by hand |
-| `VERCEL_ENV` | Which Vercel environment is running: `production`, `preview` or `development` | **Set by Vercel, not by us** — a system variable available at build and runtime (verified 2026-09-30). Read to decide whether `CRON_SECRET` is required and whether Sentry is on (§1). Unset locally |
+| `VERCEL_ENV` | Which Vercel environment is running: `production`, `preview` or `development` | **Set by Vercel, not by us** — a system variable available at build and runtime (verified 2026-09-30). Read to decide whether `CRON_SECRET` is required, whether Sentry is on (§1), and, with `VERCEL_GIT_COMMIT_REF`, whether the build migrates (§4). Unset locally |
 | `BACKUP_AWS_ACCESS_KEY_ID` | The daily `pg_dump`'s write to `backups/` (§8) | Vercel encrypted env, **Production only**. The dedicated backup-writer IAM user (§3 step 5), never the app's own. **`lib/config.ts` requires both when `VERCEL_ENV` is `production`**, refuses one without the other anywhere, and refuses the app's own `AWS_ACCESS_KEY_ID`. Absent elsewhere, where `self-check` writes no dump (#56) |
 | `BACKUP_AWS_SECRET_ACCESS_KEY` | Same | Same |
 
@@ -216,7 +216,9 @@ In this order. Steps 3 and 4 are the ones that fail silently if skipped.
 
 ## 4. Deploying
 
-**Migrations are run by hand, before the deploy, and only ever additively.**
+**Migrations are only ever additive. `main`'s are run by hand, before the deploy; `develop`'s are run
+by its own deploy.** *Amended 2026-10-06:* `develop`'s were by hand too, until Neon `develop` was found
+five migrations behind the code Vercel was serving (`06`).
 
 **Branch flow:** feature branch → PR into `develop` → `develop` accumulates → release is a PR from
 `develop` into `main`. Nothing is committed straight to `main`, and `main` is never ahead of `develop`.
@@ -224,7 +226,7 @@ In this order. Steps 3 and 4 are the ones that fail silently if skipped.
 ```
 1. Review the SQL diff.            drizzle-kit generate; read the file
 2. Merge the feature into develop. CI green (11 §7)
-3. Migrate Neon develop.           drizzle-kit migrate, develop DATABASE_URL_UNPOOLED
+3. Vercel migrates Neon develop.   the develop build's first step; nothing to run
 4. Verify on the develop URL.      the real browser→S3 path, real presigned URLs
 5. Migrate Neon main.              drizzle-kit migrate, production DATABASE_URL_UNPOOLED
 6. Merge develop into main.        Vercel builds and promotes production
@@ -236,10 +238,42 @@ needs it reaches production. Expand-only (below) is what makes that ordering saf
 the currently-deployed build can still read the new schema, and the new build finds the columns it
 expects.
 
-**Why by hand.** These migrations touch the table that holds the six-month measurement. An automated
-migration on deploy means a destructive statement can reach the measurement record unattended, and
-`04` §5 makes nothing recoverable by deletion — only by restore. The cost is remembering a step; the
-`.github` PR template and §9's checklist carry the reminder.
+**Why `main` is by hand.** These migrations touch the table that holds the six-month measurement. An
+automated migration on deploy means a destructive statement can reach the measurement record
+unattended, and `04` §5 makes nothing recoverable by deletion — only by restore. The cost is
+remembering a step; the `.github` PR template and §9's checklist carry the reminder.
+
+**Why `develop` is not.** Neon `develop` holds a synthetic seed (§1), so the argument above does not
+reach it, and a forgotten step there is not a reminder missed but a test site that errors on features
+already merged. So step 3 is the build's:
+
+- **`vercel.json`'s `buildCommand` is `npm run db:migrate:deploy && npm run build`.** The first half is
+  `scripts/migrate-on-deploy.mts`, and it migrates only when Vercel's own variables say the build is
+  `develop`'s: `VERCEL_ENV` = `preview` and `VERCEL_GIT_COMMIT_REF` = `develop`, the test Sentry's tag
+  already uses (§1). On `main`'s build, in CI and locally it prints that it migrates nothing and exits
+  `0`, having read no database variable.
+- **Migration first, build second, promotion last.** A migration that fails exits non-zero, the build
+  fails, and Vercel keeps serving the previous deployment — red in the Vercel dashboard and on the
+  commit's status in GitHub. Pending migrations apply in one transaction, so a failure applies none of
+  them. A build that fails *after* a migration leaves the schema ahead of the code, which expand-only
+  (below) makes safe.
+- **It needs one variable, `DATABASE_URL_UNPOOLED`,** in the Preview scope (§2), and reads no other:
+  `lib/config.ts` parses it apart from the rest, as it does Sentry's, under the same `verify-full`
+  rule. A missing or malformed one fails the build, naming the variable.
+- **The URL's role must be `suburi_develop`.** Neon `main` refuses that role (§3 step 8), so a Preview
+  variable pointed at `main` by mistake fails the build before it connects. It is reported as
+  malformed.
+- **It is `drizzle-kit migrate`'s migrator and journal** (`db/migrate.ts`), so `npm run db:migrate` by
+  hand and a deploy agree on what is applied. Two builds at once are serialised by a Postgres advisory
+  lock, which is one more reason the URL is the direct one.
+- **The log line is counts only:** `Migrated the develop database: 2 applied, 15 in its journal.` A
+  failure prints the database's error and the statement that raised it — migration SQL, which is in
+  the repository — with the URL, its host and its password scrubbed.
+- **Seeding is not part of it.** `npm run db:seed:develop` stays a hand-run step (§3 step 8).
+
+**Extending it to `main` is a decision, not an edit** — it reverses the paragraph above. The mechanism
+is shaped for it: `deployMigrationRoles` in `lib/config.ts` lists each deployment that migrates with the
+role its URL must carry, and `production` is absent.
 
 **Expand-only, always.** Adding a column, adding a nullable column then backfilling then switching
 reads, adding an index. A rename is *add, dual-write, backfill, switch, drop in a later release* —
@@ -251,8 +285,8 @@ enough that rolling back to it is not a plan.
 - **Never a migration that rewrites `cv_versions.body`** (`04`): every span in the database indexes into it.
 - **Never `delete` or `truncate` in a migration** on `answers`, `scoring_attempts`, `scores`, `questions`, `cv_versions` or `cv_claims`.
 
-**Green CI is required** (`11` §7). Because migrations run before the deploying push, CI runs against
-the schema production is about to have.
+**Green CI is required** (`11` §7). Because `main`'s migrations run before the deploying push, CI runs
+against the schema production is about to have.
 
 ---
 
@@ -540,7 +574,7 @@ Not a substitute for `11`; these are the things only production can answer.
 | A Neon branch per preview | §1 — bookkeeping without a payoff at this scale; feature work integrates against Neon `develop`. |
 | Blue/green or canary | One user. Vercel's instant rollback is the entire deployment-risk story. |
 | Infrastructure as code | One Next.js app, one managed database, one bucket. This is the same reason `13-infrastructure-and-security.md` is not written (`00-status.md`); revisit together. |
-| Automated migrations on deploy | §4 — the measurement record does not get unattended DDL. |
+| Automated migrations on `main`'s deploy | §4 — the measurement record does not get unattended DDL. `develop`'s deploy does migrate, since 2026-10-06. |
 | An uptime monitor | §6 — the one user is the uptime monitor. |
 | Log drains / a second observability vendor | §7 — every extra destination is another place the never-log rule can be broken. |
 | A deploy-time smoke test suite | §9 is a checklist on purpose: half of it is a judgement about whether feedback arrived fast enough to feel immediate, which is not assertable. |
