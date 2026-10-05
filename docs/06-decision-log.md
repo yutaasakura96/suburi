@@ -26,6 +26,19 @@ answers to one question as two questions); replacing the first answer with the l
 input (findings about an answer the Progress chart will never plot, and the first answer's flags
 disappear from the round). The fallback labels retries explicitly and uses new prompt versions.
 
+### [2026-10-06] Known limitation: a later re-score moves the CV regions off the retries the findings describe
+
+Screen 8 decides which answers its round-level regions read from the scores as they are now, not
+from what the stored `round_feedback` row was written from. So when a practice round's feedback was
+written from retries, because no original scored, and a failed original is later re-scored from
+History and lands `ok`, the round-level CV regions follow the originals while the stored findings
+beside them still describe the answers given again. Nothing is lost or mis-stored. **Why it stays:**
+it needs every original to fail, a retry to score, and a History re-score afterward; the owner chose
+to record it rather than change code for it. **The known fix:** pin the regions to the set the
+stored row used, by its `prompt_version` (`feedback-en-1.3` and `feedback-ja-1.2` are the retry
+versions). Tracked with the region's scope in
+[#85](https://github.com/yutaasakura96/suburi/issues/85).
+
 ### [2026-10-04] Practice's screens are `10` §15: a per-answer frame after every commit
 
 Specified from `05` components before any was built, as §13 was; there is no artboard. **The scores
@@ -91,8 +104,9 @@ the go-on state it holds); a client cache library (`03` §7 names them as not ad
 
 Every Japanese string practice adds is in `docs/checklists/native-read-round.md` §13, written to
 `05` §6's rules. The owner read and accepted all 28 strings on 2026-10-05.
-The owner also accepted the numbered follow-up retry label on 2026-10-05. A numbered bank-retry
-heading added afterward is listed separately for a native read.
+The owner also accepted the numbered follow-up retry label on 2026-10-05, and on 2026-10-06 the
+numbered bank-retry heading added afterward and the two names `feedback-ja-1.2` gives an answer
+given again (`第2問の再回答`, `第2問の深掘りの再回答`).
 
 ---
 

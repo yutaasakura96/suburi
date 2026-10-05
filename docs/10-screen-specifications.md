@@ -1104,7 +1104,7 @@ Only realistic mode was drawn. **Practice's shape was decided on 2026-09-27 (`06
 here from `05` components, before it was built (#49)** — the way §13 was. Everything §3–§8 says holds
 in a practice round unless this section says otherwise, and every string is in the round's language
 (§0); the Japanese ones are in `docs/checklists/native-read-round.md` §13. The owner accepted the
-original 28 and the numbered follow-up label on 2026-10-05; the new bank-retry heading awaits a read.
+original 28 and the numbered follow-up label on 2026-10-05, and the bank-retry heading on 2026-10-06.
 
 The round header (`05` §5.2) names the mode: `English · Practice · 3 questions`, `日本語・練習・3問`.
 A practice round is chosen on Setup (§2), where the mode's line already says what it is.
