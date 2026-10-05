@@ -10,21 +10,9 @@ import { HISTORY_COPY, statusLine } from "./copy";
 
 type OlderRounds = { items: readonly RoundListItem[]; next: string | null };
 
-function mergeItems(current: readonly RoundListItem[], incoming: readonly RoundListItem[]) {
-  const byId = new Map(current.map((item) => [item.id, item]));
-  for (const item of incoming) byId.set(item.id, item);
-  return [...byId.values()].sort((a, b) => b.started_at.localeCompare(a.started_at) || b.id.localeCompare(a.id));
-}
-
-function mergePages(current: OlderRounds | null, incoming: OlderRounds): OlderRounds {
-  if (!current) return incoming;
-  const items = mergeItems(current.items, incoming.items);
-  const currentLast = current.items.at(-1);
-  const incomingLast = incoming.items.at(-1);
-  const currentIsOlder = currentLast && incomingLast &&
-    (currentLast.started_at < incomingLast.started_at ||
-      (currentLast.started_at === incomingLast.started_at && currentLast.id < incomingLast.id));
-  return { items, next: currentIsOlder || !incomingLast ? current.next : incoming.next };
+function mergeItems(first: readonly RoundListItem[], second: readonly RoundListItem[]) {
+  const seen = new Set(first.map((item) => item.id));
+  return [...first, ...second.filter((item) => !seen.has(item.id))];
 }
 
 /**
@@ -51,7 +39,7 @@ export function HistoryRail({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<FailureCode | null>(null);
   const olderRef = useRef(older);
-  const items = mergeItems(older?.items ?? [], initial.items);
+  const items = mergeItems(initial.items, older?.items ?? []);
   const next = older ? older.next : initial.next_cursor;
 
   useEffect(() => {
@@ -75,7 +63,11 @@ export function HistoryRail({
         cursor = result.json.next_cursor;
       }
       if (stale) return;
-      setOlder((current) => mergePages(current, { items: refreshed, next: cursor }));
+      setOlder((current) => {
+        const refreshedIds = new Set(refreshed.map((item) => item.id));
+        const next = current && current.items.some((item) => !refreshedIds.has(item.id)) ? current.next : cursor;
+        return { items: mergeItems(refreshed, current?.items ?? []), next };
+      });
     })();
     return () => {
       stale = true;
@@ -92,7 +84,10 @@ export function HistoryRail({
       setError(result.code);
       return;
     }
-    setOlder((current) => mergePages(current, { items: result.json.items, next: result.json.next_cursor }));
+    setOlder((current) => ({
+      items: mergeItems(current?.items ?? [], result.json.items),
+      next: result.json.next_cursor,
+    }));
   }
 
   return (

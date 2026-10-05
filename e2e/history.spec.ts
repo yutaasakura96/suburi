@@ -1,4 +1,4 @@
-import { asc, eq, inArray, isNotNull, or } from "drizzle-orm";
+import { asc, eq, inArray, isNotNull, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { expect, test, type Page } from "@playwright/test";
 import * as s from "../db/schema";
@@ -323,6 +323,10 @@ async function insertOlderRounds() {
 
 test("refresh keeps every older round already loaded", async ({ page }) => {
   const older = await insertOlderRounds();
+  await withDb(async (db) => {
+    await db.execute(sql`update rounds set started_at = '2026-08-16 00:00:00.000200+00'::timestamptz where id = ${older[15].id}`);
+    await db.execute(sql`update rounds set started_at = '2026-08-16 00:00:00.000100+00'::timestamptz where id = ${older[16].id}`);
+  });
   const limits: number[] = [];
   page.on("request", (request) => {
     if (request.url().includes("/api/rounds?")) limits.push(Number(new URL(request.url()).searchParams.get("limit") ?? 20));
@@ -336,11 +340,15 @@ test("refresh keeps every older round already loaded", async ({ page }) => {
     await page.getByRole("button", { name: "Older rounds" }).click();
     await expect(rounds(page)).toHaveCount(Math.min(40 + pageNumber * 20, 124));
   }
+  await expect(rounds(page).nth(19).getByRole("link")).toHaveAttribute("href", `/history/${older[15].id}`);
+  await expect(rounds(page).nth(20).getByRole("link")).toHaveAttribute("href", `/history/${older[16].id}`);
   await rows(page).nth(2).getByTestId("history-retry").click();
   await expect(rows(page).nth(2).getByRole("alert")).toBeVisible();
   await expect.poll(() => limits.includes(100)).toBe(true);
   await expect.poll(() => limits.includes(4)).toBe(true);
   await expect(rounds(page)).toHaveCount(124);
+  await expect(rounds(page).nth(19).getByRole("link")).toHaveAttribute("href", `/history/${older[15].id}`);
+  await expect(rounds(page).nth(20).getByRole("link")).toHaveAttribute("href", `/history/${older[16].id}`);
   await expect(rounds(page).last().getByRole("link")).toHaveAttribute("href", `/history/${older[119].id}`);
   await withDb((db) => db.delete(s.rounds).where(inArray(s.rounds.id, older.map((round) => round.id))));
 });
