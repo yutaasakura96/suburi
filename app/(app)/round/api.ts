@@ -9,7 +9,7 @@ export type FailureCode = ErrorCode | "unreachable";
 
 export type Result<T> =
   | { readonly ok: true; readonly status: number; readonly json: T }
-  | { readonly ok: false; readonly status: number; readonly code: FailureCode };
+  | { readonly ok: false; readonly status: number; readonly code: FailureCode; readonly answerId: string | null };
 
 export function postJson<T>(path: string, body: object = {}): Promise<Result<T>> {
   return call<T>(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
@@ -25,12 +25,18 @@ async function call<T>(path: string, init: RequestInit): Promise<Result<T>> {
   try {
     response = await fetch(path, init);
   } catch {
-    return { ok: false, status: 0, code: "unreachable" };
+    return { ok: false, status: 0, code: "unreachable", answerId: null };
   }
   const json = await response.json().catch(() => null);
   if (response.ok && json !== null) return { ok: true, status: response.status, json: json as T };
   const code = json?.error?.code;
-  return { ok: false, status: response.status, code: typeof code === "string" && code in ERROR_COPY ? (code as ErrorCode) : "unreachable" };
+  const answerId = json?.error?.detail?.answer_id;
+  return {
+    ok: false,
+    status: response.status,
+    code: typeof code === "string" && code in ERROR_COPY ? (code as ErrorCode) : "unreachable",
+    answerId: typeof answerId === "string" ? answerId : null,
+  };
 }
 
 /** The sentence for a failure, in the screen's language (10 §0). */

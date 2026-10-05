@@ -204,6 +204,7 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
       ...(question.again ? { retry_of_answer_id: question.again } : {}),
     });
     if (!opened.ok) {
+      if (opened.code === "transcript_already_final" && opened.answerId) return transcribe(question, opened.answerId);
       const rejection = rejectionOf(opened.code);
       if (held && rejection) await holdTake(slotOf(question), take, rejection);
       return hold(opened.code);
@@ -284,15 +285,17 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
     await saveTyped(question, opened.json.answer_id, text);
   }
 
-  // Once, when the page loads onto a question with no transcript: a take held on this device goes
-  // back on screen; failing that, a confirmed slot resumes at `transcribe` (07 §5.5).
+  // Once, when the page loads onto a question with no transcript: a confirmed slot resumes at
+  // `transcribe` (07 §5.5), with the take still held behind it; otherwise a take held on this device
+  // goes back on screen.
   const resumeTake = useEffectEvent(async () => {
     const { start } = frame;
     if (start.kind !== "question" || start.transcript) return;
     const question = { position: start.position, text: start.text, followUpVersion: start.followUpVersion };
     const take = await heldTake(slotOf(question));
-    if (take) setScreen({ kind: "held", question, take, onDevice: true, cause: take.rejection ?? null });
-    else if (start.openAnswerId && start.uploadConfirmed) await transcribe(question, start.openAnswerId);
+    if (start.openAnswerId && start.uploadConfirmed && !take?.rejection) {
+      await transcribe(question, start.openAnswerId, take ? { take, onDevice: true } : undefined);
+    } else if (take) setScreen({ kind: "held", question, take, onDevice: true, cause: take.rejection ?? null });
   });
   const resumed = useRef(false);
   useEffect(() => {

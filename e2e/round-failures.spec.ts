@@ -386,6 +386,65 @@ test("a take that cannot be transcribed at first is transcribed by the retry, wi
   expect(s3.objects.get(slot.audioS3Key!)?.bytes).toBe(uploaded);
 });
 
+test("a held take whose upload the server confirmed resumes at transcribe, not as a failed upload", async ({ page }) => {
+  await signIn(page);
+  const roundId = await startRound(page);
+  // The server reads the object and confirms the upload; the response the page gets is a failure that keeps the take held.
+  transcriptionFails = true;
+  await page.route("**/api/answers/*/transcribe", async (route) => {
+    await route.fetch();
+    await route.fulfill({
+      status: 500,
+      contentType: "application/json",
+      body: JSON.stringify({ error: { code: "write_failed", message: "The write failed.", detail: {} } }),
+    });
+  });
+  page.on("dialog", (dialog) => void dialog.accept());
+  await page.goto(`/round/${roundId}`);
+  await record(page);
+  await expect(page.getByText("Try again")).toBeVisible();
+  const [held] = await heldTakes(page);
+  expect(held).toMatchObject({ roundId, position: 1 });
+  const [slot] = await answersOf(roundId);
+  expect(slot.audioUploadedAt).not.toBeNull();
+  expect(slot.transcriptRaw).toBeNull();
+  const uploaded = s3.objects.get(slot.audioS3Key!)?.bytes;
+
+  transcriptionFails = false;
+  await page.unroute("**/api/answers/*/transcribe");
+  let slotCalls = 0;
+  await page.route("**/api/rounds/*/answers", (route) => {
+    slotCalls += 1;
+    return route.continue();
+  });
+  await page.reload();
+  await expect(page.getByTestId("raw-transcript")).toHaveText(RAW);
+  expect(slotCalls).toBe(0);
+  expect(await heldTakes(page)).toEqual([]);
+  const answers = await answersOf(roundId);
+  expect(answers).toHaveLength(1);
+  expect(answers[0]).toMatchObject({ id: slot.id, transcriptRaw: RAW });
+  expect(s3.objects.get(slot.audioS3Key!)?.bytes).toBe(uploaded);
+});
+
+test("a retry of a held take whose answer was transcribed meanwhile shows that transcript", async ({ page }) => {
+  await signIn(page);
+  const roundId = await startRound(page);
+  await page.route(`${MOCK_S3_ENDPOINT}/**`, (route) => route.abort("failed"));
+  await page.goto(`/round/${roundId}`);
+  await record(page);
+  await expect(page.getByTestId("take-notice")).toHaveText(HELD);
+
+  // The same slot, uploaded and transcribed from elsewhere while this page still holds its take.
+  const answerId = await uploadByApi(page, roundId);
+  expect((await page.request.post(`/api/answers/${answerId}/transcribe`, { data: {} })).ok()).toBe(true);
+
+  await page.getByRole("button", { name: "Try again" }).click();
+  await expect(page.getByTestId("raw-transcript")).toHaveText(RAW);
+  expect(await heldTakes(page)).toEqual([]);
+  expect(await answersOf(roundId)).toHaveLength(1);
+});
+
 const REFUSED = {
   upload_too_large: {
     en: "This recording is too large to be uploaded. Type your answer instead.",

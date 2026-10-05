@@ -170,7 +170,7 @@ export async function isAbandoned(db: Reader, round: RoundRow) {
 }
 
 export async function lockRoundUser(db: Reader, userId: string) {
-  await db.select({ id: s.users.id }).from(s.users).where(eq(s.users.id, userId)).for("update");
+  await db.select({ id: s.users.id }).from(s.users).where(eq(s.users.id, userId)).for("no key update");
 }
 
 export async function roundWriteRefusal(db: Reader, roundId: string, userId: string): Promise<Response | null> {

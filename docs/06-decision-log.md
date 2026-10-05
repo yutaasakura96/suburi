@@ -24,7 +24,8 @@ removed with it: the fallback was specified with no limit.
 
 ### [2026-10-05] Round creation and writes serialize per user
 
-Starting a round and writing to an existing round take the same `users` row lock before checking
+Starting a round and writing to an existing round take the same `users` row lock — `for no key
+update`, so an insert carrying the user's foreign key is not made to wait behind it — before checking
 whether the old round is still writable. A creation that waits for the lock stamps `started_at` at
 insertion time, so the newest round follows commit order. This closes the two-tab gap where a new
 round could commit after an old answer checked its status but before that answer wrote.
