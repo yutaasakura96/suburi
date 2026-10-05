@@ -3,7 +3,7 @@ import * as s from "@/db/schema";
 import type { FeedbackItem, TranslatedFeedback } from "@/lib/ai/round-feedback";
 import { underlineSegments } from "@/lib/cv/segments";
 import { characterLength, sliceQuote, type Span } from "@/lib/cv/spans";
-import { feedbackAnswers, feedsRoundFeedback } from "@/lib/round/complete";
+import { feedbackAnswers } from "@/lib/round/complete";
 import type { Db } from "@/lib/round/http";
 import { rewritePercent } from "@/lib/round/measures";
 import type { TranslatedModelAnswer } from "@/lib/round/model-answers";
