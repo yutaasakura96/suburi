@@ -655,7 +655,7 @@ what is reviewed months later is what was written when the round ended.
 | `answer_id` | `uuid` | no | — | → `answers.id` **restrict**, **unique** — the answer whose question this answers. Never a practice retry: a retry is the same question, which has its model answer already |
 | `user_id` | `text` | no | — | → `users.id` **restrict** |
 | `body` | `text` | no | — | the model answer, in the round's language |
-| `unsupported_spans` | `jsonb` | no | `'[]'` | `[{ start, end }]`, code-point spans into `body`, half-open and in order: **the parts the round's CV version does not back** — they came from what the user said alone. Each was quoted by the model and **found in `body` by the server** before it was stored; a quote it could not find is dropped and counted, never clamped (`03` §11) |
+| `unsupported_spans` | `jsonb` | no | `'[]'` | `[{ start, end }]`, code-point spans into `body`, half-open and in order: **the parts the round's CV version does not back** — they came from what the user said alone. A span the model quoted was **found in `body` by the server** before it was stored; a quote it could not find is dropped and counted, never clamped (`03` §11). The server's own figure spans are merged in beside them (below) |
 | `body_translated` | `jsonb` | yes | — | the other-language toggle (PRD §4): `{ language, body, unsupported_spans }`, the same answer in the other language with its own spans into that text. `en` on a Japanese round; null on an English one |
 | `model_id`, `prompt_version` | `text` | no | — | the pinned model and the versioned prompt that wrote it (`model-answer-{en,ja}-…`) |
 | `tokens_in` / `tokens_out` | `integer` | yes | — | counted in the week's spend (`cron_readings`, below) |

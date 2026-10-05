@@ -441,7 +441,7 @@ block have unit tests of their own, and §3.1 holds `model_answers` to one row p
 
 - **`complete` writes one `model_answers` row per submitted answer** — each bank question and each
   follow-up — with the body, the model, the prompt version and the tokens, and reports
-  `model_answers: { written, failed }`.
+  `model_answers: { written, failed, pending }`.
 - The generator is sent the question as asked and the **corrected** text, never the raw one; a
   follow-up's call carries the question it followed and that answer. **It is sent no score.**
 - **A mark is a span the server found**: a quote that stands in the answer is stored as its span, in
