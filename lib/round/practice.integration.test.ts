@@ -707,7 +707,7 @@ describe("a practice round ends without a rating (07 §5.12)", () => {
       // The answer given again has no follow-up of its own; the first keeps its one.
       expect(screen.answers.map((answer) => answer.followUp?.kind ?? null)).toEqual(["asked", null, null, "asked", "asked"]);
       expect(screen.answers.map((answer) => answer.followUpAnswer)).toEqual([false, false, true, false, false]);
-      // The CV region lists the first answers' spans alone: one per question, none from the answer given again.
+      // The CV region lists original bank-question spans only; follow-up spans are tracked in #85.
       expect(screen.grounding?.unsupported.map((span) => span.position)).toEqual([1, 2, 3]);
     }));
 

@@ -1228,9 +1228,11 @@ scores, and the frame after the last answer is the one that leads to the feedbac
   and score rows, headed `Question 1 / 3 · again`, then `Question 1 / 3 · again 2`. It has no follow-up row. A scored retry of a
   follow-up answer also has its own page, headed as a follow-up given again. A second retry carries
   `again 2` / `再回答2` in its heading and pager label.
-- **The round-level findings, and `Checked against your CV`, use the first answers and their
-  follow-ups when one scored.** If none scored, they use scored answers given again under the new
-  feedback prompt versions (`07` §5.12, `06`).
+- **When an original answer scored, round-level findings use the first answers and their
+  follow-ups; `Checked against your CV` lists unsupported spans from bank-question answers only.**
+  If none scored, both use scored answers given again, including follow-up retries, under the new
+  feedback prompt versions (`07` §5.12, `06`). Extending the ordinary CV region to original
+  follow-up answers is tracked in [#85](https://github.com/yutaasakura96/suburi/issues/85).
 - The two sentences that stand in for missing findings do not mention a rating:
   `The findings for this round are not ready. The round is complete, and every score above is kept.` /
   `このラウンドの講評はまだできていません。ラウンドは終了し、上の採点はすべて残っています。` and
