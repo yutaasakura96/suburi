@@ -49,6 +49,8 @@ type Screen =
   | { readonly kind: "held"; readonly question: Question; readonly take: Take; readonly onDevice: boolean; readonly cause: FailureCode | null }
   /** The take is uploaded and could not be transcribed: it is kept, and the answer is retried or typed (07 §5.7–§5.8). */
   | { readonly kind: "untranscribed"; readonly question: Question; readonly answerId: string }
+  /** The slot was opened as typed (07 §5.6) and its text is not saved yet: the answer is typed, never recorded. */
+  | { readonly kind: "typed"; readonly question: Question; readonly answerId: string }
   | { readonly kind: "transcript"; readonly question: Question; readonly transcript: Transcript }
   | { readonly kind: "correct"; readonly question: Question; readonly transcript: Transcript }
   /**
@@ -75,6 +77,7 @@ function initialScreen(start: RoundFrame["start"]): Screen {
   if (start.kind !== "question") return start;
   const question = { position: start.position, text: start.text, followUpVersion: start.followUpVersion };
   if (start.transcript) return { kind: "transcript", question, transcript: start.transcript };
+  if (start.openAnswerId && start.typedSlot) return { kind: "typed", question, answerId: start.openAnswerId };
   return start.openAnswerId && start.uploadConfirmed ? { kind: "uploading", question, uploaded: true } : { kind: "asked", question };
 }
 
@@ -281,7 +284,11 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
     setError(null);
     setBusy(true);
     const opened = await postJson<{ answer_id: string }>(`/api/rounds/${round.id}/answers`, { source: "typed" });
-    if (!opened.ok) return fail(opened.code, () => void openTyped(question, text));
+    if (!opened.ok) {
+      // The typed text landed and its response did not: the same text again returns the stored row.
+      if (opened.code === "transcript_already_final" && opened.answerId) return saveTyped(question, opened.answerId, text);
+      return fail(opened.code, () => void openTyped(question, text));
+    }
     await saveTyped(question, opened.json.answer_id, text);
   }
 
@@ -290,7 +297,7 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
   // goes back on screen.
   const resumeTake = useEffectEvent(async () => {
     const { start } = frame;
-    if (start.kind !== "question" || start.transcript) return;
+    if (start.kind !== "question" || start.transcript || start.typedSlot) return;
     const question = { position: start.position, text: start.text, followUpVersion: start.followUpVersion };
     const take = await heldTake(slotOf(question));
     if (start.openAnswerId && start.uploadConfirmed && !take?.rejection) {
@@ -484,6 +491,22 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
           stamp={stamp(screen.question)}
           onRetry={() => void transcribe(screen.question, screen.answerId)}
           onType={(text) => void saveTyped(screen.question, screen.answerId, text)}
+        />
+      );
+      break;
+    case "typed":
+      body = (
+        <StuckTakeFrame
+          copy={copy}
+          language={language}
+          question={screen.question.text}
+          notices={error ? [error.text] : []}
+          busy={busy}
+          working={copy.savingTyped}
+          stamp={stamp(screen.question)}
+          onRetry={null}
+          onType={(text) => void saveTyped(screen.question, screen.answerId, text)}
+          typingOpen
         />
       );
       break;

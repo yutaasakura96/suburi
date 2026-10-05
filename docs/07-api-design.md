@@ -603,8 +603,11 @@ database facts.
 
 **As built (#48).** `round` carries what `POST /api/rounds` returned, less its `stamps`, plus the
 derived `status`. `prompt` and `progress` are the ones `submit` returns as `next` (§5.9). `resume.at`
-is one of `answers` (open the slot for `prompt`), `upload`, `transcribe` or `submit` (each with the
-`answer_id` it is waiting on), or `complete` (every answer is in; the round is waiting for §5.12).
+is one of `answers` (open the slot for `prompt`), `upload`, `transcribe`, `transcript` or `submit`
+(each with the `answer_id` it is waiting on), or `complete` (every answer is in; the round is waiting
+for §5.12). **`transcript` is a slot opened as typed** (§5.6) whose text is not saved yet: it has no
+key and takes no upload, so the call it waits for is §5.8, and the page opens on the typing box,
+never the record frame (`06`, 2026-10-05).
 The route takes no query parameters: one it does not know is a `400` naming it. `POST /api/rounds`
 names this route in its `Location` (§2), now that it exists.
 
@@ -1169,7 +1172,9 @@ shows every score that landed and a pending round-level note, and generation is 
 - **Once step 1 has committed, this route never answers `write_failed`.** A database failure in
   steps 2–4 leaves the round complete with its rating, and the response is the normal `201` with
   `feedback: null` — pending — and `scoring` null if the counts could not be read. §5.16 writes the
-  feedback on retry. `write_failed` is only the answer while the round is still open.
+  feedback on retry. `write_failed` is only the answer while the round is still open. The same holds
+  for the repeat: once it has read the round as complete, a failed read of the feedback or the counts
+  answers `200` with `feedback: null` and `scoring: null`.
 - Not all answers submitted → `409 round_not_complete`. A position counts once its question is
   submitted and its follow-up is either answered or `missing`; a follow-up unanswered, or not stored
   yet, keeps the round open.

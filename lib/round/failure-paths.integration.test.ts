@@ -678,7 +678,10 @@ describe("POST /api/answers/{id}/transcript — the typed answer (07 §5.8)", ()
       const again = await world.call(world.handlers.open, roundId, { source: "typed" });
       expect(again.status).toBe(200);
       expect(again.json.answer_id).toBe(answerId);
-      expect((await world.read(roundId)).json.resume).toEqual({ at: "upload", answer_id: answerId });
+      // A typed slot takes no upload: the call it is waiting for is the typed transcript (07 §5.5).
+      const resumed = await world.read(roundId);
+      expect(resumed.json.resume).toEqual({ at: "transcript", answer_id: answerId });
+      expect(resumed.json.answers).toMatchObject([{ id: answerId, state: "open" }]);
 
       const typed = await world.call(world.handlers.typed, answerId, { source: "typed", text: TYPED });
       expect(typed.status).toBe(201);
@@ -988,6 +991,50 @@ describe("write_failed on every round route (11 §3.16)", () => {
         expect(await count(db, s.roundFeedback)).toBe(1);
       });
       expect(calls).toBeGreaterThan(0);
+    }));
+});
+
+describe("POST …/complete on a round already complete (07 §5.12)", () => {
+  it("answers the completed result whichever read fails: write_failed only before the round is known to be complete", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const roundId = await world.startRound();
+      await world.answerAll(roundId);
+      await world.drainAfter();
+      const act = () => world.call(world.handlers.complete, roundId, { felt_pressure: 4 });
+      const first = await act();
+      expect(first.status).toBe(201);
+      const clean = await act();
+      expect(clean.status).toBe(200);
+      expect(clean.json).toEqual(first.json);
+
+      let soft = 0;
+      for (let n = 1; ; n += 1) {
+        expect(n).toBeLessThan(80);
+        await world.raw.execute(sql`savepoint failure_point`);
+        world.faults.arm(n);
+        const reply = await act();
+        const failed = world.faults.disarm();
+        await world.raw.execute(sql`rollback to savepoint failure_point`);
+        if (!failed) {
+          expect(reply.json).toEqual(first.json);
+          break;
+        }
+        expect(reply.text).not.toContain(FAILURE_SENTINEL);
+        if (reply.status === 200) {
+          soft += 1;
+          // The round is complete and says so; what could not be read is left for the feedback route.
+          expect(reply.json).toEqual({ round: first.json.round, feedback: null, scoring: null });
+        } else {
+          // Once a failed read has been answered softly, no later one is `write_failed`.
+          expect(soft, `call ${n}`).toBe(0);
+          expect(reply.status).toBe(500);
+          expect(reply.json.error.code).toBe("write_failed");
+        }
+      }
+      expect(soft).toBeGreaterThan(0);
+      expect((await world.call(world.handlers.feedback, roundId, {})).json.feedback).toEqual(first.json.feedback);
+      expect(await count(db, s.roundFeedback)).toBe(1);
     }));
 });
 

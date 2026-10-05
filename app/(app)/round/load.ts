@@ -168,6 +168,8 @@ export interface RoundFrame {
          */
         readonly openAnswerId: string | null;
         readonly uploadConfirmed: boolean;
+        /** The open slot was opened as typed (07 §5.6): it has no key, and its answer is typed, never recorded. */
+        readonly typedSlot: boolean;
       }
     /**
      * The answer at this position is submitted and its follow-up is not stored yet: the page loaded
@@ -318,6 +320,7 @@ export async function roundFrame(db: Db, userId: string, round: RoundRow): Promi
           : null,
       openAnswerId: open && open.transcriptRaw === null ? open.id : null,
       uploadConfirmed: open?.audioUploadedAt !== null && open?.audioUploadedAt !== undefined,
+      typedSlot: open !== null && open.transcriptRaw === null && open.audioS3Key === null,
     },
   };
 }

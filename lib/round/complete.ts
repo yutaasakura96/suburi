@@ -312,7 +312,12 @@ export function createComplete(deps: CompleteDeps) {
     const { round } = closed;
     // The same call again is the same answer: the round as it was completed, and its feedback if written.
     if (closed.already) {
-      return Response.json(completedView(round, await existingFeedback(deps.db, roundId), await roundScoringCounts(deps.db, roundId)));
+      try {
+        return Response.json(completedView(round, await existingFeedback(deps.db, roundId), await roundScoringCounts(deps.db, roundId)));
+      } catch (error) {
+        log("error", { event: "round_completed_read_failed", round_id: roundId, error_class: pgErrorClass(error) });
+        return Response.json(completedView(round, null, null));
+      }
     }
     log("info", { event: "round_completed", round_id: roundId, felt_pressure: pressure });
 

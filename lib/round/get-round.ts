@@ -31,19 +31,22 @@ export function answerState(answer: Pick<AnswerRow, "audioUploadedAt" | "transcr
 
 export type Resume =
   | { readonly at: "answers" }
-  | { readonly at: "upload" | "transcribe" | "submit"; readonly answer_id: string }
+  | { readonly at: "upload" | "transcribe" | "transcript" | "submit"; readonly answer_id: string }
   | { readonly at: "complete" };
 
-/** Which call the round is waiting for. A submitted answer whose follow-up is not stored resumes at `submit`. */
+/**
+ * Which call the round is waiting for. A submitted answer whose follow-up is not stored resumes at
+ * `submit`; a slot opened as typed has no key and takes no upload, so it resumes at `transcript`.
+ */
 export function resumeAt(step: RoundStep): Resume | null {
   if (step.kind === "complete") return null;
   if (step.kind === "follow_up_due") return { at: "submit", answer_id: step.parent.id };
   if (step.kind !== "answer") return { at: "complete" };
   if (!step.answer) return { at: "answers" };
-  return {
-    at: step.answer.transcriptRaw !== null ? "submit" : step.answer.audioUploadedAt === null ? "upload" : "transcribe",
-    answer_id: step.answer.id,
-  };
+  const { answer } = step;
+  if (answer.transcriptRaw !== null) return { at: "submit", answer_id: answer.id };
+  if (answer.audioS3Key === null) return { at: "transcript", answer_id: answer.id };
+  return { at: answer.audioUploadedAt === null ? "upload" : "transcribe", answer_id: answer.id };
 }
 
 export function createGetRound(deps: RoundDeps) {

@@ -35,7 +35,9 @@ row exists at that point, so `POST …/answers` takes `{ "source": "typed" }` an
 slot with no `audio_s3_key`; `07` §5.8 then stores the text. **Held takes are keyed by prompt, not by
 round** — the 2026-10-04 entry below said one per round — so the refused take is not replaced by the
 next question's and stays until the round completes. A slot opened as typed stays typed: a take sent
-to it afterwards is refused (`422 unsupported_content_type`), never given a key. The 20,000-character cap on typed text is
+to it afterwards is refused (`422 unsupported_content_type`), never given a key. **Resume names
+that slot's next call as `transcript`** (`07` §5.5), and a page loaded onto it opens the typing box
+rather than the record frame — the owner's ruling, since the upload it used to name can never succeed. The 20,000-character cap on typed text is
 removed with it: the fallback was specified with no limit.
 
 ### [2026-10-05] Round creation and writes serialize per user

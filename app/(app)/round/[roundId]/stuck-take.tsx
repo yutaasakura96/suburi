@@ -23,6 +23,7 @@ export function StuckTakeFrame({
   stamp,
   onRetry,
   onType,
+  typingOpen = false,
 }: {
   copy: RoundCopy;
   language: RoundLanguage;
@@ -37,8 +38,10 @@ export function StuckTakeFrame({
   onRetry: (() => void) | null;
   /** Set when typing is offered: transcription failed, or the take can never be uploaded. */
   onType: ((text: string) => void) | null;
+  /** The slot is typed already: the box is open from the start, with nothing to press first. */
+  typingOpen?: boolean;
 }) {
-  const [typing, setTyping] = useState(false);
+  const [typing, setTyping] = useState(typingOpen);
   const [text, setText] = useState("");
   const empty = text.trim() === "";
 

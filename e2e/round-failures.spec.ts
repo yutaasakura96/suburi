@@ -534,6 +534,55 @@ for (const code of REFUSALS) test(`a take refused as ${code} is kept on the devi
   expect(await heldTakes(page)).toEqual([held]);
 });
 
+test("a typed answer whose response was lost is shown by saving it again, not refused as already final", async ({ page }) => {
+  await signIn(page);
+  const roundId = await startRound(page);
+  await refuseTakes(page, "upload_too_large");
+  await page.goto(`/round/${roundId}`);
+  await record(page);
+  await page.getByRole("button", { name: "Type the answer instead" }).click();
+  await page.getByLabel("Your answer — typed, not spoken").fill(TYPED);
+
+  // The text is stored and the response never arrives.
+  let lost = 0;
+  await page.route("**/api/answers/*/transcript", async (route) => {
+    if (lost > 0) return route.fallback();
+    lost += 1;
+    await route.fetch();
+    await route.abort();
+  });
+  await page.getByRole("button", { name: "Save the typed answer" }).click();
+  await expect.poll(async () => (await answersOf(roundId))[0]?.transcriptRaw).toBe(TYPED);
+  await expect(page.getByTestId("raw-transcript")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Save the typed answer" }).click();
+  await expect(page.getByTestId("raw-transcript")).toHaveText(TYPED);
+  expect(await answersOf(roundId)).toHaveLength(1);
+});
+
+test("a reload onto a slot opened as typed opens the typing box, never the record frame, and saves onto that slot", async ({ page }) => {
+  await signIn(page);
+  const roundId = await startRound(page);
+  const opened = await page.request.post(`/api/rounds/${roundId}/answers`, { data: { source: "typed" } });
+  expect(opened.status()).toBe(201);
+  const { answer_id: answerId } = (await opened.json()) as { answer_id: string };
+  expect((await resumeOf(page, roundId)).resume).toEqual({ at: "transcript", answer_id: answerId });
+
+  await page.goto(`/round/${roundId}`);
+  await expect(page.getByLabel("Your answer — typed, not spoken")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Start recording" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Try again" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Type the answer instead" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Save the typed answer" })).toBeDisabled();
+
+  await page.getByLabel("Your answer — typed, not spoken").fill(TYPED);
+  await page.getByRole("button", { name: "Save the typed answer" }).click();
+  await expect(page.getByTestId("raw-transcript")).toHaveText(TYPED);
+  const answers = await answersOf(roundId);
+  expect(answers).toHaveLength(1);
+  expect(answers[0]).toMatchObject({ id: answerId, transcriptRaw: TYPED, transcriberModelId: null, audioS3Key: null });
+});
+
 test("an unconfirmed upload resumes at upload, then transcription completes without a new take", async ({ page }) => {
   await signIn(page);
   const roundId = await startRound(page);
