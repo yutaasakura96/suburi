@@ -47,9 +47,9 @@ pinned model and its replacement deadline are in `03` §4.
 **#50, History, is built (2026-10-04), on `fm/suburi-50`** (Next).
 **#74, a model answer for each question, is built (2026-10-04), on `fm/suburi-74`** (Next).
 **#49, practice mode, is built (2026-10-04), on `fm/suburi-49`:** Setup's mode, the re-take, the
-per-answer frame, answer again, and a round that ends with no rating; its original 28 strings passed
-the native read, and one later numbered follow-up label awaits it (Next).
-**Updated:** 2026-10-05 (#49 original native read accepted; one new label pending; #43, #44, #46,
+per-answer frame, answer again, and a round that ends with no rating; its original 28 strings and
+numbered follow-up label passed the native read, and one new bank-retry heading awaits it (Next).
+**Updated:** 2026-10-05 (#49 original strings and follow-up label accepted; one new heading pending; #43, #44, #46,
 #47 and #49 built; #42 closed; #55 and #56 on 2026-09-30)
 
 ## Done
@@ -493,8 +493,8 @@ last and completes without a rating — the defect #44's review left for this sl
 `answers.retry_of_answer_id` was already there. Tests: `11` §3.20, and `e2e/practice.spec.ts` for §4's
 practice rows. **Owner-confirmed 2026-10-05:** feedback uses scored retries when no original answer
 scored, with new prompt versions; scored follow-up retries have their own page on screen 8. The
-owner read and accepted the original 28 Japanese strings in `docs/checklists/native-read-round.md`
-§10. One numbered follow-up retry label added afterward awaits a native read.
+owner read and accepted the original 28 Japanese strings and the numbered follow-up retry label in
+`docs/checklists/native-read-round.md` §10. The new numbered bank-retry heading awaits a native read.
 
 **#54, #55 and #56 are next, then #21. #20, #29 and #38 are done.** #21 is blocked by all three
 (native `blocked_by` edges, 2026-09-29), and #56 by #55. They were triaged 2026-09-29 (`06`): #54 and

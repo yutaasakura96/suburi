@@ -86,4 +86,20 @@ describe("practice feedback frames", () => {
     expect(markup).toContain(`>${first}</button>`);
     expect(markup.match(new RegExp(second, "g"))).toHaveLength(2);
   });
+
+  it.each([
+    ["en", "Question 1 / 3 · again 2", "Question 1 · again 2"],
+    ["ja", "第1問 / 3問・再回答2", "第1問・再回答2"],
+  ] as const)("numbers the bank retry heading in %s", (language, heading, label) => {
+    const markup = renderToStaticMarkup(
+      createElement(AnswerPager, {
+        answers: [{ ...followUpRetry, followUpAnswer: false, again: 2 }, { ...followUpRetry, followUpAnswer: false }],
+        length: 3,
+        language,
+        reading: language,
+      }),
+    );
+    expect(markup).toContain(`>${heading}</span>`);
+    expect(markup).toContain(`>${label}</button>`);
+  });
 });
