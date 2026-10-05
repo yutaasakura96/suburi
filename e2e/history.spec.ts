@@ -307,17 +307,22 @@ test("failed and pending attempts under another model do not appear in displayed
   }
 });
 
-test("refresh keeps every older round already loaded", async ({ page }) => {
-  const exemplar = await withDb(async (db) => {
-    const [round] = await db.select().from(s.rounds).where(eq(s.rounds.id, id("complete-ja")));
-    return round;
+/** 120 rounds older than every seeded one: six pages of the rail, and more than one request may ask for. */
+async function insertOlderRounds() {
+  return withDb(async (db) => {
+    const [exemplar] = await db.select().from(s.rounds).where(eq(s.rounds.id, id("complete-ja")));
+    const older = Array.from({ length: 120 }, (_, index) => ({
+      ...exemplar,
+      id: `00000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`,
+      startedAt: new Date(Date.UTC(2026, 7, 31 - index)),
+    }));
+    await db.insert(s.rounds).values(older);
+    return older;
   });
-  const older = Array.from({ length: 120 }, (_, index) => ({
-    ...exemplar,
-    id: `00000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`,
-    startedAt: new Date(Date.UTC(2026, 7, 31 - index)),
-  }));
-  await withDb((db) => db.insert(s.rounds).values(older));
+}
+
+test("refresh keeps every older round already loaded", async ({ page }) => {
+  const older = await insertOlderRounds();
   const limits: number[] = [];
   page.on("request", (request) => {
     if (request.url().includes("/api/rounds?")) limits.push(Number(new URL(request.url()).searchParams.get("limit") ?? 20));
@@ -335,6 +340,39 @@ test("refresh keeps every older round already loaded", async ({ page }) => {
   await expect(rows(page).nth(2).getByRole("alert")).toBeVisible();
   await expect.poll(() => limits.includes(100)).toBe(true);
   await expect.poll(() => limits.includes(4)).toBe(true);
+  await expect(rounds(page)).toHaveCount(124);
+  await expect(rounds(page).last().getByRole("link")).toHaveAttribute("href", `/history/${older[119].id}`);
+  await withDb((db) => db.delete(s.rounds).where(inArray(s.rounds.id, older.map((round) => round.id))));
+});
+
+test("refresh keeps a page Older rounds adds while it is in flight", async ({ page }) => {
+  const older = await insertOlderRounds();
+  let release = () => {};
+  const held = new Promise<void>((resolve) => (release = resolve));
+  let refreshing = () => {};
+  const refreshStarted = new Promise<void>((resolve) => (refreshing = resolve));
+  await page.route("**/api/rounds?limit=*", async (route) => {
+    refreshing();
+    await held;
+    await route.continue();
+  });
+  await page.route("**/api/scoring-attempts", (route) =>
+    route.fulfill({ status: 503, json: { error: { code: "invalid_request" } } }),
+  );
+  await signIn(page);
+  await page.goto(`/history/${id("failed-en")}`);
+  for (let pageNumber = 0; pageNumber < 5; pageNumber++) {
+    await page.getByRole("button", { name: "Older rounds" }).click();
+    await expect(rounds(page)).toHaveCount(40 + pageNumber * 20);
+  }
+  await rows(page).nth(2).getByTestId("history-retry").click();
+  await refreshStarted;
+  await page.getByRole("button", { name: "Older rounds" }).click();
+  await expect(rounds(page)).toHaveCount(124);
+  // The refresh's own read is told apart from what the rail already showed by a change made under it.
+  await withDb((db) => db.update(s.rounds).set({ language: "en" }).where(eq(s.rounds.id, older[60].id)));
+  release();
+  await expect(rounds(page).filter({ has: page.locator(`a[href="/history/${older[60].id}"]`) })).toContainText("English");
   await expect(rounds(page)).toHaveCount(124);
   await expect(rounds(page).last().getByRole("link")).toHaveAttribute("href", `/history/${older[119].id}`);
   await withDb((db) => db.delete(s.rounds).where(inArray(s.rounds.id, older.map((round) => round.id))));

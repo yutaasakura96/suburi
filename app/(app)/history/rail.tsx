@@ -36,7 +36,8 @@ export function HistoryRail({
   const next = older ? older.next : initial.next_cursor;
 
   // A retry in the detail refreshes the layout's first page. The older pages are read again with it,
-  // so a round listed further down does not go on saying it is unscored.
+  // so a round listed further down does not go on saying it is unscored. A page `Older rounds` adds
+  // while they are being read is kept after them.
   useEffect(() => {
     if (olderCount.current === 0 || initial.next_cursor === null) return;
     let stale = false;
@@ -53,8 +54,11 @@ export function HistoryRail({
         cursor = result.json.next_cursor;
       }
       if (stale) return;
-      olderCount.current = items.length;
-      setOlder({ items, next: cursor });
+      olderCount.current += items.length - count;
+      setOlder((current) => {
+        if (!current || current.items.length <= count) return { items, next: cursor };
+        return { items: [...items, ...current.items.slice(count)], next: current.next };
+      });
     })();
     return () => {
       stale = true;
@@ -71,9 +75,8 @@ export function HistoryRail({
       setError(result.code);
       return;
     }
-    const merged = [...(older?.items ?? []), ...result.json.items];
-    olderCount.current = merged.length;
-    setOlder({ items: merged, next: result.json.next_cursor });
+    olderCount.current += result.json.items.length;
+    setOlder((current) => ({ items: [...(current?.items ?? []), ...result.json.items], next: result.json.next_cursor }));
   }
 
   return (
