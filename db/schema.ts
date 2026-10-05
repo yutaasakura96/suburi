@@ -31,7 +31,17 @@ export const CITATION_RELATIONS = ["supported_by", "contradicted_by"] as const;
 export const ANSWER_FLAG_KINDS = ["unsupported"] as const;
 export const CV_DOCUMENT_KINDS = ["rirekisho", "shokumu_keirekisho", "cv", "additional"] as const;
 // Every ⚡ route (07 §1 rule 5). A new one extends this list in its own migration.
-export const RATE_LIMITED_ROUTES = ["cv-versions", "rounds", "transcribe", "submit", "complete", "feedback", "speech"] as const;
+export const RATE_LIMITED_ROUTES = [
+  "cv-versions",
+  "rounds",
+  "transcribe",
+  "submit",
+  "complete",
+  "feedback",
+  "speech",
+  "scoring-attempts",
+  "scoring-run",
+] as const;
 // 12 §6's monitoring jobs and what they read (04 cron_readings). #47 adds the near-miss row; #56
 // added the daily dump's.
 export const CRON_JOBS = ["self-check", "digest"] as const;
@@ -521,6 +531,8 @@ export const scoringAttempts = pgTable(
     // Class only, never the model's output.
     errorClass: text("error_class"),
     isSuperseding: boolean("is_superseding").notNull().default(false),
+    // When a run last claimed this pending attempt: what makes a second run "in flight" (07 §5.10).
+    runStartedAt: timestamp("run_started_at", { withTimezone: true }),
     createdAt: createdAt(),
   },
   (t) => [

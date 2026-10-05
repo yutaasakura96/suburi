@@ -30,6 +30,7 @@ describe("the error code table", () => {
       "followup_generation_failed",
       "scoring_failed",
       "scoring_not_retryable",
+      "scoring_in_progress",
       "pressure_not_applicable",
       "pressure_required",
       "round_already_complete",

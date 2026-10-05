@@ -1,4 +1,4 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import * as s from "../../db/schema";
 import { ModelCallFailed } from "../ai/upstream";
 import type { AnswerScorer } from "../ai/score";
@@ -14,6 +14,15 @@ import { log, pgErrorClass, type Db } from "./http";
  * **Only `pending` transitions.** A finished attempt is left as it is. The scores, the CV check and
  * the `ok` land in one transaction, so an attempt is never `ok` with half its dimensions or without
  * its flags.
+ *
+ * **One run at a time.** A run first claims the attempt by stamping `run_started_at`; a second run
+ * that finds a live claim is `in_flight` and calls nothing, which is History's `409` (07 §5.10). A
+ * claim older than the invocation's ceiling belongs to a function that died, and is taken over.
+ *
+ * **Stamp 4 is written again when the attempt turns `ok`**, as the model and scoring prompt that
+ * produced its scores. A pending attempt can outlive the pin it was created under — History runs one
+ * days later (07 §5.10) — and a score stamped with a model that did not produce it would put it on
+ * the wrong side of Progress's boundary (invariant 5). A failed attempt keeps the stamp it was given.
  *
  * **The CV check is stored only after validation** (07 §5.10, `grounding.ts`): a citation must name a
  * claim the scorer was shown, an unsupported span must be found verbatim in `transcript_corrected`,
@@ -35,6 +44,12 @@ const BACKOFF_MS = [2_000, 4_000, 8_000];
 /** A call gets at most this long, and is not started with less than `MIN_CALL_MS` of the budget left. */
 const CALL_TIMEOUT_MS = 120_000;
 const MIN_CALL_MS = 20_000;
+
+/**
+ * How long a claim holds: the whole invocation (07 §5.10). No run outlives Hobby's 300 s, so a claim
+ * older than that was left by a function that died mid-flight.
+ */
+export const RUN_CLAIM_SECONDS = 300;
 
 const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
@@ -60,8 +75,26 @@ export async function runScoringAttempt(
   deps: ScoringRunDeps,
   attemptId: string,
   { deadline }: { deadline: number },
-): Promise<"ok" | "failed" | "skipped"> {
+): Promise<"ok" | "failed" | "skipped" | "in_flight"> {
   const sleep = deps.sleep ?? wait;
+  const [claimed] = await deps.db
+    .update(s.scoringAttempts)
+    .set({ runStartedAt: sql`now()` })
+    .where(
+      and(
+        eq(s.scoringAttempts.id, attemptId),
+        eq(s.scoringAttempts.status, "pending"),
+        sql`(${s.scoringAttempts.runStartedAt} is null or ${s.scoringAttempts.runStartedAt} <= now() - make_interval(secs => ${RUN_CLAIM_SECONDS}))`,
+      ),
+    )
+    .returning({ id: s.scoringAttempts.id });
+  if (!claimed) {
+    const [current] = await deps.db
+      .select({ status: s.scoringAttempts.status })
+      .from(s.scoringAttempts)
+      .where(eq(s.scoringAttempts.id, attemptId));
+    return current?.status === "pending" ? "in_flight" : "skipped";
+  }
   const [row] = await deps.db
     .select({
       attempt: s.scoringAttempts,
@@ -110,7 +143,16 @@ export async function runScoringAttempt(
       await deps.transaction(async (tx) => {
         const [updated] = await tx
           .update(s.scoringAttempts)
-          .set({ status: "ok", answeredLanguage: result.answeredLanguage, tokensIn: result.tokensIn, tokensOut: result.tokensOut })
+          .set({
+            status: "ok",
+            answeredLanguage: result.answeredLanguage,
+            tokensIn: result.tokensIn,
+            tokensOut: result.tokensOut,
+            // Stamp 4 is the scorer that produced these scores (see above), not the one pinned when
+            // the row was written.
+            modelId: deps.scorer.modelId,
+            scoringPromptVersion: deps.scorer.promptVersions[rubric.language] ?? row.attempt.scoringPromptVersion,
+          })
           .where(and(eq(s.scoringAttempts.id, attemptId), eq(s.scoringAttempts.status, "pending")))
           .returning({ id: s.scoringAttempts.id });
         if (!updated) return;

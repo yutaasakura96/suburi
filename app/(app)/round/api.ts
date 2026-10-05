@@ -11,14 +11,19 @@ export type Result<T> =
   | { readonly ok: true; readonly status: number; readonly json: T }
   | { readonly ok: false; readonly status: number; readonly code: FailureCode };
 
-export async function postJson<T>(path: string, body: object = {}): Promise<Result<T>> {
+export function postJson<T>(path: string, body: object = {}): Promise<Result<T>> {
+  return call<T>(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+}
+
+/** The reads that are Route Handlers (07 §1): History's list, and an answer's playback URL. */
+export function getJson<T>(path: string): Promise<Result<T>> {
+  return call<T>(path, { method: "GET" });
+}
+
+async function call<T>(path: string, init: RequestInit): Promise<Result<T>> {
   let response: Response;
   try {
-    response = await fetch(path, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
-    });
+    response = await fetch(path, init);
   } catch {
     return { ok: false, status: 0, code: "unreachable" };
   }

@@ -3,6 +3,125 @@
 Newest first. Every entry records what was chosen, why, and what was rejected.
 
 ---
+## Phase 6 — #50, History
+
+The one screen that reads a past round: the rail, the matrix, the recording and the raw transcript
+behind each row, and the retry of a score that never landed. The plan is 2026-09-27's and
+2026-09-28's (below); these are the choices the build needed.
+
+### [2026-10-04] A run in flight is a claim on the attempt, and its `409` is `scoring_in_progress`
+
+`07` §5.10 said a second `run` while the first is in flight is a `409`, and nothing recorded "in
+flight": an attempt is `pending` until it is `ok` or `failed`. **Decided:** a nullable
+`scoring_attempts.run_started_at`. A run begins with one conditional update — the row is `pending`
+and the column is null or more than 300 s old — and a run that loses it while the row is still
+`pending` answers `409 scoring_in_progress`, a new catalogued code with its copy in both languages.
+300 s is the invocation ceiling, so an older claim belongs to a dead function and the next run takes
+the attempt over; a test pins the constant to the routes' `maxDuration`. `submit`'s `after()` claims
+the same way, so a retry from History cannot score an answer twice while its first run is going.
+**Why it matters:** two runs of one attempt would both call the model, and the second would then fail
+its write, having spent the call. **Rejected:** a `running` status (a function that dies leaves the row
+`running` for ever, which is the stuck state `pending` exists to make visible and alertable); a
+Postgres advisory lock held across the call (the pooled connection is not the function's to hold for
+a minute, and a transaction must never span a model call, `11` §3.14); reusing `round_not_complete`
+or another existing `409` (each is about a round, and its copy would be wrong on this row).
+
+### [2026-10-04] History creates an attempt only beside a failed score; a pending one is run as it is
+
+`POST /api/scoring-attempts` writes a row only when the answer's latest attempt is `failed`. `ok` and
+`pending` are both `422 scoring_not_retryable`, as `07` §5.11 said; what the build adds is the other
+half — **a `pending` attempt is driven by `run` itself**, so an answer whose function died gets its one
+attempt finished rather than a second row beside a row that never failed. History's control reads the
+row's state and makes one call or two. The check and the insert are under a lock on the answer's row.
+The stamps are the round's CV and rubric, the question's or follow-up's generator version, and
+**today's** model and scoring prompt: a retry after a model change is scored by the new model and is a
+boundary, which is the honest reading. **Rejected:** stamping the retry with the failed attempt's
+model (the pinned string may no longer exist to call, and the stamp would then name a model that did
+not score it).
+
+### [2026-10-04] An attempt's model stamp is written when it is scored, not only when its row is
+
+Found by hand on a seeded database: the synthetic `pending` attempt, run from History, was scored by
+`gpt-5.6-sol` and still read `synthetic-fixture`. The same hole exists without a seed — an attempt is
+stamped with the pin of the moment its row is written, and `run` can now score a `pending` one days
+later, across a model change. **Decided:** the transaction that turns an attempt `ok` also sets
+`model_id` and `scoring_prompt_version` to the scorer's that produced the scores (`04`, `07` §5.10).
+For `submit`'s own `after()` the two are the same values, so nothing changes there. A `failed` attempt
+keeps its creation stamp: no model scored it. **Rejected:** failing a stale `pending` attempt unscored
+so that History's retry writes a new row (two calls and an error on the row, to reach the same score
+and the same stamp); leaving it (a score under the wrong model's name is the drift the stamps exist to
+make visible, hidden instead).
+
+### [2026-10-04] `GET /api/rounds` names every scoring model behind a round: `scoring_model_ids`
+
+`07` §5.13 drew `stamps.scoring_model_id`, one string. A round's answers are scored one attempt each,
+and a retry under a new pin gives a round two models. **Decided:** a sorted list of the models behind
+the round's displayed scores, empty when none is scored; `07` is amended. The detail's stamp reads the
+same way, and lists every generator version too, since a follow-up's differs from its question's.
+**Rejected:** the newest attempt's model (the row would claim one side of a boundary it straddles,
+on the screen whose job is to say which side a round is on).
+
+### [2026-10-04] A recording is checked before its URL is signed, and a `403` on `HEAD` is a missing one
+
+A presigned URL is arithmetic: S3 is not asked, so a dangling key would get a URL that fails in the
+player. `GET /api/answers/{id}/audio` therefore sends a `HEAD` first and answers `404 audio_missing`
+when nothing is there. The environment's IAM user has `s3:GetObject` and not `s3:ListBucket` (`12` §3
+step 5), and S3 documents that a `HEAD` for an absent key then returns `403`, not `404`; **both are
+read as missing**, on a key the server derived under its own prefix. Anything else is `502
+upstream_s3`. The player handles what the server cannot see — an expired URL, an upload cut short —
+by saying the recording could not be played. **Rejected:** granting `s3:ListBucket` to tell the two
+apart (a wider credential, for a distinction History does not show); signing without checking and
+leaving the failure to the `<audio>` element (a missing recording and a network fault would read the
+same). **Noted, not changed here:** `transcribe` reads the object with `GET` and treats only
+`NoSuchKey` as missing, so on the real bucket a take that was never uploaded surfaces as `upstream_s3`
+rather than `audio_missing`. That is #48's ground (failure paths).
+
+### [2026-10-04] History shows no question a round never reached, and no score a realistic round is holding
+
+The matrix lists a round's positions, and two of its rows would leak if it listed them plainly. **A
+question fixed for a round and never answered is shown as `Q3` and nothing else**: only an answer makes
+a question seen (`04` `round_questions`), and its text on History would make it seen without one —
+after which the next round would ask something the user has already read. **A realistic round still
+in progress shows `Scores are held until the round ends.`** on every answered row, and `run`'s
+response for such a round carries the status alone: US-8's rule is enforced where the data is read,
+not by the screen choosing not to draw it. A follow-up that was asked and not answered does show its
+text; it was asked. **Rejected:** hiding an in-progress round from History (10 §10 says History offers
+to resume it, and it is where a user looks for it).
+
+### [2026-10-04] The synthetic rounds are four fixtures, stamped as fixtures, with no recording
+
+`12` §1 is amended with the table. One round per state — scored, pending, failed, abandoned — over the
+synthetic bank questions and CV, written directly: no model call, every model stamp
+`synthetic-fixture` and every prompt version `synthetic-…`, so a seeded score cannot be mistaken for a
+scored one on any chart. Ids are derived from the user and the round's name, which makes the seed
+idempotent per round without a marker column, and dates are fixed in the past so the open round is
+abandoned on any day. No object is put in S3, so History shows the missing-recording state on
+`develop` by default. The Japanese round's answers are sentences of the synthetic CV, already in the
+repository, so the seed adds no unread Japanese. **Rejected:** seeding through the handlers with fake
+ports (it would need a session and would stamp rows with fake model strings the app could plausibly
+have written); a recording fixture in S3 (a seed that needs bucket credentials is one that cannot run
+in CI or locally).
+
+### [2026-10-04] History's routes, its English, and the way to it
+
+`/history` opens the newest round and `/history/{roundId}` is a round; the rail is the layout. The
+chrome is English (`10` §0) and `10` §10 now carries the table of what replaced each artboard string,
+with the rows the artboard does not draw: a practice retry, an unscored answer with its control, an
+unanswered follow-up, an unreached question, and a held score. The pill renames the dimensions on
+this screen; the feedback it toggles on screen 8 is reached by a link. **Home gains one link,
+`History`**, because no navigation exists yet and a screen with no way to it is not verifiable on
+`develop`; #51 rebuilds Home. **No delete, share or export control exists**, and `11` §4's Playwright
+row now holds the whole list of controls the screen may have.
+
+### [2026-10-04] Merged onto #47 and #45: migration `0012_history`
+
+#47 landed `0010_generated-questions` and #45 `0011_speech-route` first. This slice's migration was
+regenerated by `drizzle-kit` after each merge of `develop`, and is `0012_history`:
+`scoring_attempts.run_started_at`, and `rate_limit_windows.route`'s check extended with
+`scoring-attempts` and `scoring-run` (30 per 10 minutes each, `07` §1 rule 5) beside #45's `speech`.
+Expand-only, and **not yet applied to either Neon branch** (`12` §4).
+
+---
 ## Phase 6 — #45, the spoken question, the cap and one take
 
 What makes a realistic round realistic. The route and the failure were decided on 2026-09-27 and

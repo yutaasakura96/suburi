@@ -34,6 +34,7 @@ export const ERROR_STATUS = {
   followup_generation_failed: 502,
   scoring_failed: 502,
   scoring_not_retryable: 422,
+  scoring_in_progress: 409,
   pressure_not_applicable: 422,
   pressure_required: 422,
   round_already_complete: 409,

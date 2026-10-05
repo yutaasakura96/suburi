@@ -313,3 +313,15 @@ a string `10` §3 or `05` §6 already gives. **Nothing in this section has been 
 | | ★ 読み上げました。文字は残します。 | the speaker line — Read aloud. The text stays on screen. |
 | | 質問を聞く | Hear the question — the control the speaker line becomes when the browser will not play sound unasked (a reload) |
 | | ★ 日本語・練習・3問 | English · Practice · 3 questions — the header's mode word in a practice round |
+
+## 11. #50, History
+
+History is app-level and English (`10` §0), so the rail, the matrix and the retry add no Japanese
+chrome. One catalogue string does. The synthetic rounds' Japanese (`db/seed-rounds.ts`) is the
+synthetic CV's own sentences and strings already in this repository's fixtures, with `えー、` in front
+of one raw transcript; it is seeded on `develop` only. The owner read and accepted the catalogue
+string below on 2026-10-05.
+
+| | Japanese | Intent |
+| --- | --- | --- |
+| ✓ | この回答はいま採点中です。少し待ってからもう一度お試しください。 | `scoring_in_progress` — This answer is being scored right now. Wait a moment and try again. |

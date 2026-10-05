@@ -74,18 +74,23 @@ export async function parseBody<T extends z.ZodType>(request: Request, schema: T
   }
   const parsed = schema.safeParse(json);
   if (parsed.success) return parsed.data;
-  // An unknown key (a strict schema) is named by the key itself: `cv_version_id` sent to `POST /api/rounds`
-  // is the answer the caller needs, not `body`.
-  const fields = [
+  return apiError("invalid_request", "The request failed validation.", { fields: failedFields(parsed.error, "body") });
+}
+
+/**
+ * The fields a failed parse names. An unknown key (a strict schema) is named by the key itself:
+ * `cv_version_id` sent to `POST /api/rounds` is the answer the caller needs, not `body`.
+ */
+export function failedFields(error: z.ZodError, root: string) {
+  return [
     ...new Set(
-      parsed.error.issues.flatMap((issue) => {
+      error.issues.flatMap((issue) => {
         const at = issue.path.join(".");
         if (issue.code === "unrecognized_keys") return issue.keys.map((key) => (at ? `${at}.${key}` : key));
-        return [at || "body"];
+        return [at || root];
       }),
     ),
   ];
-  return apiError("invalid_request", "The request failed validation.", { fields });
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
