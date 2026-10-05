@@ -517,7 +517,8 @@ export async function feedbackScreen(db: Db, round: RoundRow): Promise<FeedbackS
         again: againOf(answer),
         prompt: answer.promptText,
         own: answer.transcriptCorrected ?? "",
-        modelAnswer: modelAnswerOf(answer.id),
+        // An answer given again is the same question, and reads the model answer its original has.
+        modelAnswer: modelAnswerOf(answer.retryOfAnswerId ?? answer.id),
         durationMs: answer.audioDurationMs,
         wpm: answer.wordsPerMinute,
         rewrite: answer.rewriteMagnitude === null ? null : rewritePercent(answer.rewriteMagnitude),

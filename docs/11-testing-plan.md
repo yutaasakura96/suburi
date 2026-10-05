@@ -492,7 +492,8 @@ tested with it. Through the handlers, against Postgres.
   rating is still `422 pressure_required`.
 - **The round feedback uses original answers when one scored**, omitting retries from the generator
   input and CV region. When none scored, a scored retry produces feedback under the new prompt version.
-  Screen 8 gives both question retries and follow-up retries their own pages, numbered when repeated.
+  Screen 8 gives both question retries and follow-up retries their own pages, numbered when repeated;
+  a retry's page reads the model answer of the answer it follows (§3.21).
 - **After the round's last answer the page opens on that answer's frame with the feedback next**,
   never on screen 7 — the defect #44's review left for this slice.
 - The page opens, in order, on an open answer-again, the open answer to the current prompt, the frame

@@ -45,6 +45,8 @@ const followUpRetry: FeedbackAnswerView = {
   followUpAnswer: true,
   again: 1,
   prompt: "What did you measure?",
+  own: "We measured the error rate.",
+  modelAnswer: { segments: [{ text: "We tracked the error rate weekly.", unsupported: false }], translated: null },
   durationMs: 30_000,
   wpm: 120,
   rewrite: 0,
@@ -77,6 +79,8 @@ describe("practice feedback frames", () => {
   ] as const)("distinguishes follow-up retry pages in %s", (language, first, second) => {
     const markup = renderToStaticMarkup(
       createElement(AnswerPager, {
+        roundId: "round-1",
+        cvLabel: "CV v1",
         answers: [{ ...followUpRetry, again: 2 }, followUpRetry],
         length: 3,
         language,
@@ -93,6 +97,8 @@ describe("practice feedback frames", () => {
   ] as const)("numbers the bank retry heading in %s", (language, heading, label) => {
     const markup = renderToStaticMarkup(
       createElement(AnswerPager, {
+        roundId: "round-1",
+        cvLabel: "CV v1",
         answers: [{ ...followUpRetry, followUpAnswer: false, again: 2 }, { ...followUpRetry, followUpAnswer: false }],
         length: 3,
         language,

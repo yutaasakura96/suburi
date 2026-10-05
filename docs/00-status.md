@@ -50,7 +50,7 @@ pinned model and its replacement deadline are in `03` §4.
 per-answer frame, answer again, and a round that ends with no rating; its original 28 strings and
 numbered follow-up label passed the native read, and so did the bank-retry heading (Next).
 **Updated:** 2026-10-06 (#49's Japanese strings all accepted; #50's
-catalogue string read; #43, #44, #45, #46, #47, #49 and #50 built; #42 closed; #55 and #56 on 2026-09-30)
+catalogue string read; #43, #44, #45, #46, #47, #49, #50 and #74 built; #42 closed; #55 and #56 on 2026-09-30)
 
 ## Done
 - Phase 1 — `docs/01-project-brief.md`, `docs/02-product-requirements.md`, `docs/06-decision-log.md`.

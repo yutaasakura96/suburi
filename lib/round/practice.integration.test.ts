@@ -9,9 +9,11 @@ import { feedbackScreen, roundFrame } from "../../app/(app)/round/load";
 import {
   FIXTURE_FEEDBACK,
   FIXTURE_FOLLOW_UP,
+  FIXTURE_MODEL_ANSWER,
   fakeEmbedder,
   fakeFeedbackGenerator,
   fakeFollowUpGenerator,
+  fakeModelAnswerGenerator,
   fakeModelHealth,
   fakeQuestionGenerator,
   fakeScorer,
@@ -123,7 +125,14 @@ async function setUp(db: TestDb) {
       after: (work) => void scheduled.push(work),
       deadline: () => Date.now() + 280_000,
     }),
-    complete: createComplete({ ...base, generator, waitBoundMs: 50, sleep: async () => {} }),
+    complete: createComplete({
+      ...base,
+      generator,
+      modelAnswerGenerator: fakeModelAnswerGenerator(() => FIXTURE_MODEL_ANSWER),
+      after: (work) => void scheduled.push(work),
+      waitBoundMs: 50,
+      sleep: async () => {},
+    }),
   };
 
   const headers = (signedIn: boolean) => ({
@@ -707,6 +716,9 @@ describe("a practice round ends without a rating (07 §5.12)", () => {
       // The answer given again has no follow-up of its own; the first keeps its one.
       expect(screen.answers.map((answer) => answer.followUp?.kind ?? null)).toEqual(["asked", null, null, "asked", "asked"]);
       expect(screen.answers.map((answer) => answer.followUpAnswer)).toEqual([false, false, true, false, false]);
+      // An answer given again has no model answer of its own (11 §3.21): its page reads its question's.
+      expect(await db.select().from(s.modelAnswers)).toHaveLength(6);
+      expect(screen.answers.map((answer) => answer.modelAnswer !== null)).toEqual([true, true, true, true, true]);
       // The CV region lists original bank-question spans only; follow-up spans are tracked in #85.
       expect(screen.grounding?.unsupported.map((span) => span.position)).toEqual([1, 2, 3]);
     }));

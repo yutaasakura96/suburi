@@ -1233,7 +1233,9 @@ scores, and the frame after the last answer is the one that leads to the feedbac
   `Question 1 · again` / `第1問・再回答` — `again 2`, `再回答2` for a second one — with its own figures
   and score rows, headed `Question 1 / 3 · again`, then `Question 1 / 3 · again 2`. It has no follow-up row. A scored retry of a
   follow-up answer also has its own page, headed as a follow-up given again. A second retry carries
-  `again 2` / `再回答2` in its heading and pager label.
+  `again 2` / `再回答2` in its heading and pager label. Under the pager (§8, #74) its page shows what
+  was said that time beside the model answer of the answer it follows: a retry has none of its own
+  (`06`, 2026-10-04).
 - **When an original answer scored, round-level findings use the first answers and their
   follow-ups; `Checked against your CV` lists unsupported spans from bank-question answers only.**
   If none scored, both use scored answers given again, including follow-up retries, under the new
