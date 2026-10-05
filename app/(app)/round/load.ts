@@ -454,7 +454,8 @@ export async function feedbackScreen(db: Db, round: RoundRow): Promise<FeedbackS
   };
   const okIds = [...attempts.values()].filter((attempt) => attempt.status === "ok").map((attempt) => attempt.id);
   const scoreRows = okIds.length === 0 ? [] : await db.select().from(s.scores).where(inArray(s.scores.scoringAttemptId, okIds));
-  // The round-level regions read what the feedback call read: no answer given again (07 §5.12).
+  // The round-level regions read what the feedback call read: the answers given again only when no
+  // other answer scored (07 §5.12).
   const roundLevelAnswers = feedbackAnswers(answered, attempts);
   const roundLevel = roundLevelAnswers.flatMap((answer) => attempts.get(answer.id) ?? []);
   // An attempt that went through the CV check says which language it read (04 `scoring_attempts`).

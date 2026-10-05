@@ -95,17 +95,15 @@ export async function neverCitedClaims(db: Db, round: Pick<RoundRow, "id" | "cvV
 
 /**
  * The answers round feedback is written from, and the ones its scoring counts (07 §5.12): every
- * submitted answer to a question or its follow-up, and **no answer given again**.
+ * submitted answer to a question or its follow-up. The answers given again stand in for them only
+ * when none of those has a score in or still to land and at least one was given again.
  */
-export function feedsRoundFeedback(answer: Pick<AnswerRow, "transcriptCorrected" | "retryOfAnswerId">) {
-  return answer.transcriptCorrected !== null && answer.retryOfAnswerId === null;
-}
-
 export function feedbackAnswers(answers: readonly AnswerRow[], attempts: Awaited<ReturnType<typeof latestAttempts>>) {
-  const originals = answers.filter(feedsRoundFeedback);
-  return originals.some((answer) => ["ok", "pending"].includes(attempts.get(answer.id)?.status ?? ""))
-    ? originals
-    : answers.filter((answer) => answer.transcriptCorrected !== null && answer.retryOfAnswerId !== null);
+  const submitted = answers.filter((answer) => answer.transcriptCorrected !== null);
+  const originals = submitted.filter((answer) => answer.retryOfAnswerId === null);
+  if (originals.some((answer) => ["ok", "pending"].includes(attempts.get(answer.id)?.status ?? ""))) return originals;
+  const retries = submitted.filter((answer) => answer.retryOfAnswerId !== null);
+  return retries.length > 0 ? retries : originals;
 }
 
 type Outcome =
