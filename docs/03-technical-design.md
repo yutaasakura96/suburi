@@ -651,7 +651,7 @@ pressure, not part of the practice UI's rhythm. It exists so a forgotten open ta
 unbounded upload. When it fires it behaves exactly like the realistic cap: the take is kept. **It is
 stored as the round's `per_answer_cap_seconds = 900`** (`04`, `06` 2026-09-27 confirm 2), since the
 column is `not null`. **It is never drawn** (#45): practice's record frames show no clock and no
-limit, and their waveform scrolls instead of filling toward the cap (`10` §12).
+limit, and their waveform scrolls instead of filling toward the cap (`10` §15).
 
 ---
 
