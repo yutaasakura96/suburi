@@ -671,9 +671,11 @@ and the raw transcript for that row.
 `/history/{roundId}` is one round's detail, and another user's id is a 404. The rail is the layout, so
 it stays put while the detail changes. Its first page — 20 rounds — is read by the page itself; `Older
 rounds` fetches the next from `GET /api/rounds` by cursor (`07` §5.13). The count beside `ROUNDS` is
-every round, listed yet or not. A detail refresh reads every older page already loaded, including
-beyond the 100-round request limit, and keeps a page `Older rounds` adds while it is reading. Home
-links here until the navigation exists.
+every round, listed yet or not. A detail refresh reads the older pages again as far as the oldest
+round loaded, including beyond the 100-round request limit, and merges them in by round id, in the
+order the server returned them: a round already listed is never dropped — not when another tab has
+started a round since, and not a page `Older rounds` adds while it is reading. Home links here until
+the navigation exists.
 
 **The chrome, in English (§0).** The artboard's strings are layout; these replace them. Data keeps its
 language: questions, follow-ups, transcripts and a stored `応募書類 v1` are shown as written, and a

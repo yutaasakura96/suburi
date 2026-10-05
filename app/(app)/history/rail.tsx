@@ -46,6 +46,9 @@ export function HistoryRail({
     olderRef.current = older;
   }, [older]);
 
+  // A retry in the detail refreshes the layout's first page. The older pages are read again with it,
+  // as far as the oldest round loaded, so a round listed further down does not go on saying it is
+  // unscored. Nothing is hard-deleted, so the merge is by id and never drops a round already listed.
   useEffect(() => {
     const loaded = olderRef.current;
     const oldestId = loaded?.items.at(-1)?.id;

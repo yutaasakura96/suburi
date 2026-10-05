@@ -1104,8 +1104,8 @@ what History's `Abandoned` line reads (`10` §10).
   milliseconds.
 - **The cursor keeps `started_at` to the microsecond** for the same reason: two rounds inside one
   millisecond would otherwise be skipped or repeated. It is base64url, so it needs no escaping in a
-  query string. Anything this server did not mint — wrong shape, wrong timestamp form, an id that is
-  not a uuid — is `400` naming `cursor`.
+  query string. Anything this server did not mint — wrong shape, wrong timestamp form, a timestamp
+  that is not a real instant, an id that is not a uuid — is `400` naming `cursor`.
 - **A parameter sent twice is a `400`** naming it, like an unknown one (§4): there is no single value
   to honour. `limit` outside 1–100, or not an integer, is a `400` too, never clamped.
 - **History's first page is read by the page itself**, as a Server Component, through the same
