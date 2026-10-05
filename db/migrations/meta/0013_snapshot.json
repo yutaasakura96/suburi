@@ -1,5 +1,5 @@
 {
-  "id": "b1d96095-fea5-44cc-afec-6e221e493048",
+  "id": "9590d66a-3ab2-4976-be11-3eaf9ee284d7",
   "prevId": "613a51fa-a06c-403b-9ec6-2af1d2ccad17",
   "version": "7",
   "dialect": "postgresql",
@@ -318,6 +318,12 @@
         "audio_s3_key": {
           "name": "audio_s3_key",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "audio_uploaded_at": {
+          "name": "audio_uploaded_at",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         },
@@ -1506,123 +1512,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.model_answers": {
-      "name": "model_answers",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "answer_id": {
-          "name": "answer_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "body": {
-          "name": "body",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "unsupported_spans": {
-          "name": "unsupported_spans",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'::jsonb"
-        },
-        "body_translated": {
-          "name": "body_translated",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "model_id": {
-          "name": "model_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "prompt_version": {
-          "name": "prompt_version",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "tokens_in": {
-          "name": "tokens_in",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "tokens_out": {
-          "name": "tokens_out",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "model_answers_answer_id_answers_id_fk": {
-          "name": "model_answers_answer_id_answers_id_fk",
-          "tableFrom": "model_answers",
-          "tableTo": "answers",
-          "columnsFrom": [
-            "answer_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
-        },
-        "model_answers_user_id_users_id_fk": {
-          "name": "model_answers_user_id_users_id_fk",
-          "tableFrom": "model_answers",
-          "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "model_answers_answer_id_unique": {
-          "name": "model_answers_answer_id_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "answer_id"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.near_duplicate_checks": {
       "name": "near_duplicate_checks",
       "schema": "",
@@ -2009,7 +1898,7 @@
       "checkConstraints": {
         "rate_limit_windows_route_check": {
           "name": "rate_limit_windows_route_check",
-          "value": "\"rate_limit_windows\".\"route\" in ('cv-versions', 'rounds', 'transcribe', 'submit', 'complete', 'feedback', 'speech', 'scoring-attempts', 'scoring-run', 'model-answers')"
+          "value": "\"rate_limit_windows\".\"route\" in ('cv-versions', 'rounds', 'transcribe', 'submit', 'complete', 'feedback', 'speech', 'scoring-attempts', 'scoring-run')"
         }
       },
       "isRLSEnabled": false

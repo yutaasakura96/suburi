@@ -8,7 +8,7 @@ import { createAuth } from "../lib/auth/auth";
 import { mintSessionCookie } from "../lib/auth/test/session";
 import { getConfig } from "../lib/config";
 import { E2E_URL, MOCK_S3_ENDPOINT } from "./database";
-import { startMockOpenAi, type MockOpenAi } from "./mock-openai";
+import { generatedQuestions, startMockOpenAi, type MockOpenAi } from "./mock-openai";
 import { startMockS3, type MockS3 } from "./mock-s3";
 
 // The round's failure paths (#48), end to end against the production build (11 §4): an upload held
@@ -107,6 +107,7 @@ test.beforeAll(async () => {
           answered_language: japanese(body) ? "ja" : "en",
         };
       }
+      if (formatOf(body) === "generated_questions") return generatedQuestions(body);
       if (formatOf(body) === "round_feedback") return { ...(japanese(body) ? FINDINGS_JA : FINDINGS), untouched: [] };
       if (formatOf(body) === "follow_up") return { follow_up: String(body.instructions).includes("深掘り") ? FOLLOW_UP_JA : FOLLOW_UP };
       return { fail: 400 };
@@ -776,6 +777,7 @@ test("a spent OpenAI project refuses the round at Setup as model_unavailable, an
   projectSpent = true;
 
   await page.goto("/round/new");
+  await page.getByRole("radio", { name: /^General practice/ }).click();
   await page.getByRole("button", { name: "Start this round" }).click();
   await expect(page.getByText("The scoring model is unreachable. A round cannot start until it recovers.")).toBeVisible();
   await expect(page).toHaveURL("/round/new");

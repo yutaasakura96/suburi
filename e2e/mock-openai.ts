@@ -44,14 +44,59 @@ export interface MockOpenAiOptions {
   readonly transcription?: () => { text: string; seconds: number } | MockFailure;
   /** `GET /v1/models/{id}`, the round's preflight: a failure to send in place of the model, or null. */
   readonly preflight?: () => MockFailure | null;
+  /** `POST /v1/audio/speech`, answered with MP3 as the speech endpoint does. Its JSON body is recorded. */
+  readonly speech?: () => Uint8Array | MockFailure;
+}
+
+/**
+ * Half a second of silence a browser will really play: twenty MPEG-1 Layer III frames at 128 kbps and
+ * 44.1 kHz, each a header and an all-zero body. The spoken question's audio is never asserted on
+ * (11 §9) — only that it was asked for and played without an error.
+ */
+export function silentMp3() {
+  const frame = new Uint8Array(417);
+  frame.set([0xff, 0xfb, 0x90, 0x00]);
+  const audio = new Uint8Array(frame.length * 20);
+  for (let index = 0; index < 20; index += 1) audio.set(frame, index * frame.length);
+  return audio;
+}
+
+/**
+ * As many questions as the generator was asked for — what a spec answers a `generated_questions`
+ * request with. Tagged and numbered, so no two calls write the same question, in this worker or the
+ * next.
+ */
+const RUN = randomUUID().slice(0, 8);
+let generated = 0;
+export function generatedQuestions(body: Record<string, unknown>) {
+  const count = Number(/=== questions needed ===\n(\d+)/.exec(String(body.input))?.[1] ?? 0);
+  return { questions: Array.from({ length: count }, () => `Generated e2e question ${RUN}-${(generated += 1)}?`) };
+}
+
+/**
+ * A unit vector that depends on the text alone: the same text embeds the same way, and two texts are
+ * as good as orthogonal, so nothing the mock embeds is anything else's near-duplicate.
+ */
+export function mockEmbedding(text: string) {
+  let state = createHash("sha256").update(text).digest().readUInt32LE(0) || 1;
+  const values = Array.from({ length: EMBEDDING_DIMENSIONS }, () => {
+    // xorshift32: spread enough for a direction, and the same on every machine.
+    state ^= state << 13;
+    state ^= state >>> 17;
+    state ^= state << 5;
+    return (state >>> 0) / 0xffffffff - 0.5;
+  });
+  const norm = Math.hypot(...values);
+  return values.map((value) => value / norm);
 }
 
 /**
  * Answers every POST /v1/responses with `payload` as the model's structured output — or, given a
  * function, with what it returns for that request's body, so a spec can answer each extraction
  * window (#29) with that window's claims, or each round-loop call by its format. `GET /v1/models/{id}`
- * — the round's preflight — answers unless `preflight` says otherwise. A multipart body (a
- * transcription) is recorded as `{}`.
+ * — the round's preflight — answers unless `preflight` says otherwise, and `POST /v1/embeddings` always
+ * does, with a vector per input that is unlike every other. A multipart body (a transcription) is
+ * recorded as `{}`.
  */
 export async function startMockOpenAi(
   payload: object | ((body: Record<string, unknown>) => object | MockFailure | Promise<object | MockFailure>),

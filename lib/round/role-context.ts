@@ -1,7 +1,10 @@
 import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import * as s from "../../db/schema";
-import { authenticate, guarded, parseBody, writeFailed, type RoundDeps } from "./http";
+import { apiError } from "../api/errors";
+import { characterLength } from "../cv/spans";
+import { authenticate, guarded, log, parseBody, writeFailed, type RoundDeps } from "./http";
+import { MAX_POSTING_CHARS, MAX_POSTING_NAME_CHARS, MAX_SOURCE_FILENAME_CHARS } from "./limits";
 
 /**
  * `POST /api/role-contexts` (07 §5.3): a **posting** or **General practice**. Research arrives with

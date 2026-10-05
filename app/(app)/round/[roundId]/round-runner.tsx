@@ -12,6 +12,7 @@ import type { RoundFrame } from "../load";
 import { CalloutRail, RoundFooter, RoundHeader, caption, roundSectionLabel } from "../parts";
 import { heldTake, holdTake, releaseRoundTakes, releaseTake, type UploadRejection } from "./held-take";
 import { WAVEFORM_BARS, useRecorder, type Take } from "./recorder";
+import { useSpokenQuestion } from "./spoken-question";
 import { StuckTakeFrame } from "./stuck-take";
 
 interface Transcript {
@@ -737,7 +738,7 @@ function RecordFrame({
             </div>
           ) : null}
           <div className="flex items-center gap-[22px]">
-            <Button variant="outline" onClick={() => void recorder.start()} disabled={uploading !== null} className="gap-[12px]">
+            <Button variant="outline" onClick={startRecording} disabled={uploading !== null} className="gap-[12px]">
               <span className="size-[11px] rounded-full bg-attention-mark" aria-hidden />
               {held ? copy.recordAgain : copy.startRecording}
             </Button>

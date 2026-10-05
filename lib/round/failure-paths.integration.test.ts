@@ -1,4 +1,4 @@
-import { eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as s from "../../db/schema";
 import { seedUser } from "../../db/seed";
@@ -8,12 +8,15 @@ import { closePool, inRolledBackTransaction, type TestDb } from "../../db/test/d
 import {
   FIXTURE_FEEDBACK,
   FIXTURE_FOLLOW_UP,
+  fakeEmbedder,
   fakeFeedbackGenerator,
   fakeFollowUpGenerator,
   fakeModelHealth,
+  fakeQuestionGenerator,
   fakeScorer,
   fakeSpeechSynthesizer,
   fakeTranscriber,
+  numberedQuestions,
   uniformScores,
 } from "../ai/fake-round-ports";
 import { ModelCallFailed } from "../ai/upstream";
@@ -54,6 +57,7 @@ const CORRECTED_SENTINEL = "IBEX-SENTINEL-8830";
 const TYPED_SENTINEL = "TAPIR-SENTINEL-5512";
 const FOLLOW_UP_SENTINEL = "OKAPI-SENTINEL-2093";
 const FAILURE_SENTINEL = "QUOKKA-SENTINEL-7765";
+const POSTING_SENTINEL = "NARWHAL-SENTINEL-3318";
 
 const HEARD = `I led the migration at ${RAW_SENTINEL}, um, in six months.`;
 const CORRECTED = `I led the migration at ${CORRECTED_SENTINEL} in six months.`;
@@ -149,12 +153,13 @@ async function setUp(raw: TestDb) {
   const speech = fakeSpeechSynthesizer();
   const followUps = fakeFollowUpGenerator(() => ({ ...FIXTURE_FOLLOW_UP, text: `How did you measure the ${FOLLOW_UP_SENTINEL} six months?` }));
   const base = { auth, db, transaction: savepointTransaction(db) };
+  const questions = { questionGenerator: fakeQuestionGenerator(numberedQuestions()), embedder: fakeEmbedder() };
   const timing = { waitBoundMs: 50, sleep: async () => {} };
   const scoring = { ...base, scorer, sleep: async () => {} };
 
   const handlers = {
     roleContext: createPostRoleContext(base),
-    round: createPostRound({ ...base, health: fakeModelHealth(), scorer }),
+    round: createPostRound({ ...base, ...questions, health: fakeModelHealth(), scorer }),
     read: createGetRound(base),
     open: createOpenAnswer({ ...base, store, prefix: "dev/" }),
     transcribe: createTranscribe({ ...base, store, transcriber }),
@@ -236,6 +241,7 @@ async function setUp(raw: TestDb) {
     base,
     faults,
     scoring,
+    questions,
     store,
     scorer,
     transcriber,
@@ -801,7 +807,7 @@ async function failAtEveryCall(
       expect(value).toMatch(/^[0-9a-f-]{36}$/);
     }
     for (const text of [reply.text, ...logged.slice(loggedBefore)]) {
-      for (const sentinel of [FAILURE_SENTINEL, RAW_SENTINEL, CORRECTED_SENTINEL, TYPED_SENTINEL, FOLLOW_UP_SENTINEL]) {
+      for (const sentinel of [FAILURE_SENTINEL, RAW_SENTINEL, CORRECTED_SENTINEL, TYPED_SENTINEL, FOLLOW_UP_SENTINEL, POSTING_SENTINEL]) {
         expect(text, `call ${n}`).not.toContain(sentinel);
       }
     }
@@ -835,6 +841,37 @@ describe("write_failed on every round route (11 §3.16)", () => {
         expect((await act()).status).toBe(201);
       });
       expect(calls).toBeGreaterThan(0);
+    }));
+
+  it("POST /api/role-contexts, a posting: nothing written, and the same call then saves it", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const posting = { kind: "posting", company_name: "Synthetic Co", role_title: "Engineer", body: `A posting about ${POSTING_SENTINEL}.` };
+      const act = () => world.post(world.handlers.roleContext, posting);
+      const calls = await failAtEveryCall(world, act, async () => {
+        expect((await db.select({ id: s.roleContexts.id }).from(s.roleContexts)).length).toBe(0);
+        expect((await act()).status).toBe(201);
+      });
+      expect(calls).toBeGreaterThan(0);
+    }));
+
+  it("POST /api/rounds, its questions generated: no round and no question left behind, and the same call then starts it", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      // An empty slice: every question of the round is the generator's, written with the round.
+      await db.update(s.questions).set({ retiredAt: new Date() }).where(eq(s.questions.roundType, "behavioural"));
+      const live = () => db.select({ id: s.questions.id }).from(s.questions).where(and(eq(s.questions.roundType, "behavioural"), isNull(s.questions.retiredAt)));
+      const body = { round_type: "behavioural", language: "en", mode: "realistic", length: 3, role_context_id: await world.general() };
+      const act = () => world.post(world.handlers.round, body);
+      const calls = await failAtEveryCall(world, act, async () => {
+        expect(await count(db, s.rounds)).toBe(0);
+        expect((await db.select({ id: s.roundQuestions.id }).from(s.roundQuestions)).length).toBe(0);
+        expect(await live()).toHaveLength(0);
+        expect((await act()).status).toBe(201);
+        expect(await live()).toHaveLength(3);
+      });
+      expect(calls).toBeGreaterThan(0);
+      expect(world.questions.questionGenerator.calls).toBeGreaterThan(0);
     }));
 
   it("GET /api/rounds/{id}: the envelope, and the same read then answers", () =>
@@ -1109,7 +1146,7 @@ describe("no text in an envelope or a log line, on any round route (11 §3.10)",
       // POST /api/rounds.
       refused(await post(handlers.round, { ...roundBody, cv_version_id: crypto.randomUUID() }));
       refused(await post(handlers.round, { ...roundBody, role_context_id: crypto.randomUUID() }));
-      refused(await post(createPostRound({ ...world.base, health: fakeModelHealth(false), scorer: world.scorer }), roundBody));
+      refused(await post(createPostRound({ ...world.base, ...world.questions, health: fakeModelHealth(false), scorer: world.scorer }), roundBody));
 
       // An earlier round, abandoned by the one the rest of the walk uses.
       const abandonedId = await world.startRound();
@@ -1227,7 +1264,7 @@ describe("a spent OpenAI project (12 §6, 06 2026-09-27 confirm 5)", () => {
         check: async () => ({ ok: false as const, latencyMs: 1, errorClass: "project_spend_limit_exceeded" }),
       };
       const body = { round_type: "hr", language: "en", mode: "realistic", length: 3, role_context_id: await world.general() };
-      const response = await world.post(createPostRound({ ...world.base, health, scorer: world.scorer }), body);
+      const response = await world.post(createPostRound({ ...world.base, ...world.questions, health, scorer: world.scorer }), body);
       expect(response.status).toBe(503);
       expect(response.json.error).toMatchObject({ code: "model_unavailable", detail: { error_class: "project_spend_limit_exceeded" } });
       expect(await count(db, s.rounds)).toBe(0);

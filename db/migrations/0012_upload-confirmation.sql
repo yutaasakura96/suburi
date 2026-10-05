@@ -1,1 +1,0 @@
-ALTER TABLE "answers" ADD COLUMN "audio_uploaded_at" timestamp with time zone;

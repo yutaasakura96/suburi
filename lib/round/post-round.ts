@@ -91,7 +91,12 @@ export function createPostRound(deps: PostRoundDeps) {
       plan.shortfall === 0
         ? null
         : generateCandidates(deps, { ...slice, cvVersionId: cv.id, roleContextId: context.id, shortfall: plan.shortfall }).catch(
-            (error: unknown) => (error instanceof ModelCallFailed ? error : new ModelCallFailed("Question generation", "unexpected")),
+            (error: unknown) => {
+              // Only a model call's failure is the generator's. A failed read of what it is shown is
+              // the database's, and goes to the route's guard as `write_failed` (07 §2).
+              if (error instanceof ModelCallFailed) return error;
+              throw error;
+            },
           ),
     ]);
     if (!health.ok) {
@@ -165,6 +170,39 @@ export function createPostRound(deps: PostRoundDeps) {
         });
       }
       return writeFailed("round_write_failed", error, {});
+    }
+
+    /**
+     * Each candidate through the guard, in the model's order, until the round is full. A candidate
+     * the guard maps to an existing question is not asked twice: that question joins the reserve,
+     * ahead of the plan's, and the reserve — repeats — fills only what the candidates could not.
+     */
+    async function fillFromCandidates(tx: Db, batch: GeneratedCandidates) {
+      const matched: string[] = [];
+      for (const candidate of batch.candidates) {
+        if (chosen.length === length) break;
+        const first = admitted.inserted === 0;
+        const admission = await admitCandidate(tx, slice, candidate, {
+          generatorModelId: deps.questionGenerator.modelId,
+          generatorPromptVersion: batch.promptVersion,
+          embeddingModelId: deps.embedder.modelId,
+          // One call wrote these rows: its tokens go on the first, so a sum over rows is the spend (04).
+          tokensIn: first ? batch.tokensIn : null,
+          tokensOut: first ? batch.tokensOut : null,
+        });
+        if (admission.kind === "inserted") {
+          admitted.inserted += 1;
+          chosen.push(admission.questionId);
+        } else {
+          admitted.reused += 1;
+          matched.push(admission.questionId);
+        }
+      }
+      for (const questionId of [...matched, ...plan.reserve]) {
+        if (chosen.length === length) break;
+        if (!chosen.includes(questionId)) chosen.push(questionId);
+      }
+      if (chosen.length < length) throw new BankTooSmall();
     }
 
     log("info", {

@@ -537,7 +537,7 @@ describe("an abandoned round takes no more writes (07 §5.5, §5.12)", () => {
       const [row] = await db.select().from(s.rounds).where(eq(s.rounds.id, roundId));
       const frame = await roundFrame(db, world.userId, row);
       expect(frame).not.toBe("complete");
-      expect(frame !== "complete" && frame.start).toEqual({ kind: "abandoned", answered: 1 });
+      expect(frame !== "complete" && frame.start).toEqual({ kind: "abandoned", answered: 1, byDay: false });
     }));
 
   it("refuses a round started on an earlier Asia/Tokyo day the same way", () =>
