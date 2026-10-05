@@ -1137,7 +1137,8 @@ A practice round is chosen on Setup (§2), where the mode's line already says wh
   transcribed (`07` §5.6). It is offered here and nowhere after: §5's transcript is final, as in
   realistic mode. While the take is being transcribed the frame says `Transcribing the take.` /
   `文字起こしをしています。`
-- **A reload before the transcript** shows the question again, as §3 does: the take was in the tab.
+- **A reload before the transcript** shows the question again, as §3 does: the take is uploaded, but
+  the page cannot play it back (`06`, 2026-10-04).
   Recording then is a re-take onto the answer already opened.
 
 ### Transcript correction — §6 in practice
