@@ -48,6 +48,7 @@ export function writeFailed(event: string, error: unknown, ids: Record<string, s
 type Ids = Record<string, string>;
 export const roundIdOf = (_request: Request, roundId: string): Ids => (isUuid(roundId) ? { round_id: roundId } : {});
 export const answerIdOf = (_request: Request, answerId: string): Ids => (isUuid(answerId) ? { answer_id: answerId } : {});
+export const attemptIdOf = (_request: Request, attemptId: string): Ids => (isUuid(attemptId) ? { attempt_id: attemptId } : {});
 const noId = (): Ids => ({});
 
 /**

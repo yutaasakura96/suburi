@@ -790,6 +790,55 @@ describe("POST /api/scoring-attempts/{id}/run (07 §5.10)", () => {
     }));
 });
 
+describe("never a bare 500 (07 §2)", () => {
+  it("answers write_failed on each History route when the session read itself throws, with the error's text nowhere", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const auth = {
+        api: {
+          getSession: async (): Promise<null> => {
+            throw new Error("session store unreachable near refund");
+          },
+        },
+      };
+      const base = { auth, db, transaction: savepointTransaction(db, world.fail) };
+      const get = (path: string) => new Request(`http://localhost:3000${path}`);
+      const post = (path: string, body: unknown) =>
+        new Request(`http://localhost:3000${path}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(body),
+        });
+      const attempts = await db.$count(s.scoringAttempts);
+
+      const replies: [Promise<Response>, Record<string, string>][] = [
+        [createGetRounds(base)(get("/api/rounds")), {}],
+        [
+          createGetAnswerAudio({ ...base, store: world.store })(get(`/api/answers/${world.failedAnswerId}/audio`), world.failedAnswerId),
+          { answer_id: world.failedAnswerId },
+        ],
+        [createPostScoringAttempt({ ...base, scorer: world.scorer })(post("/api/scoring-attempts", { answer_id: world.failedAnswerId })), {}],
+        [
+          createRunScoringAttempt({ ...base, scorer: world.scorer, sleep: async () => {}, deadline: () => Date.now() + 280_000 })(
+            post(`/api/scoring-attempts/${world.pendingAttemptId}/run`, {}),
+            world.pendingAttemptId,
+          ),
+          { attempt_id: world.pendingAttemptId },
+        ],
+      ];
+      for (const [reply, ids] of replies) {
+        const response = await reply;
+        const text = await response.text();
+        expect(response.status).toBe(500);
+        expect(JSON.parse(text).error).toMatchObject({ code: "write_failed", detail: { ...ids, error_class: "unexpected" } });
+        expect(text).not.toContain("refund");
+      }
+      for (const text of logged) expect(text).not.toContain("refund");
+      expect(world.scorer.calls).toBe(0);
+      expect(await db.$count(s.scoringAttempts)).toBe(attempts);
+    }));
+});
+
 describe("History's detail (10 §10)", () => {
   async function detailOf(db: TestDb, roundId: string, now = new Date()) {
     const [round] = await db.select().from(s.rounds).where(eq(s.rounds.id, roundId));

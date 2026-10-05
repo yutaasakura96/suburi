@@ -4,7 +4,7 @@ import * as s from "../../db/schema";
 import { apiError } from "../api/errors";
 import type { AnswerScorer } from "../ai/score";
 import type { Rubric } from "../rubric/types";
-import { authenticate, isUuid, log, notFound, parseBody, writeFailed, type Db, type RoundDeps } from "./http";
+import { attemptIdOf, authenticate, guarded, isUuid, log, notFound, parseBody, writeFailed, type Db, type RoundDeps } from "./http";
 import { runScoringAttempt, type ScoringRunDeps } from "./run-scoring";
 import { newerRoundExists } from "./state";
 import { roundStatus } from "./status";
@@ -34,7 +34,7 @@ const createSchema = z.strictObject({ answer_id: z.uuid() });
  * Progress's boundary.
  */
 export function createPostScoringAttempt(deps: ScoringAttemptDeps) {
-  return async function POST(request: Request): Promise<Response> {
+  return guarded("scoring_attempt_failed", async function POST(request: Request): Promise<Response> {
     const session = await authenticate(deps, request, "scoring-attempts");
     if (session instanceof Response) return session;
     const { userId } = session;
@@ -115,7 +115,7 @@ export function createPostScoringAttempt(deps: ScoringAttemptDeps) {
       },
       { status: 201 },
     );
-  };
+  });
 }
 
 /**
@@ -176,7 +176,7 @@ export interface RunScoringDeps extends RoundDeps, ScoringRunDeps {
  * spends its retries marks the attempt `failed` and answers `502 scoring_failed`.
  */
 export function createRunScoringAttempt(deps: RunScoringDeps) {
-  return async function POST(request: Request, attemptId: string): Promise<Response> {
+  return guarded("scoring_run_failed", async function POST(request: Request, attemptId: string): Promise<Response> {
     const session = await authenticate(deps, request, "scoring-run");
     if (session instanceof Response) return session;
     const { userId } = session;
@@ -210,5 +210,5 @@ export function createRunScoringAttempt(deps: RunScoringDeps) {
       round.mode === "realistic" &&
       roundStatus(round, { newerRoundExists: await newerRoundExists(deps.db, round), now: new Date() }) === "in_progress";
     return Response.json(await attemptView(deps.db, attemptId, { withheld }));
-  };
+  }, attemptIdOf);
 }
