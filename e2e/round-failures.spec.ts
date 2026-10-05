@@ -467,6 +467,11 @@ const REFUSED = {
     ja: "この録音は対応していない音声形式のため、アップロードできません。回答を入力してください。",
   },
 } as const;
+const TYPED_CAPTION = {
+  en: "A typed answer is recorded as typed. It has no duration and no pace, and it is not counted in progress.",
+  ja: "入力した回答は、入力したものとして記録します。時間と話す速さは記録せず、進捗にも入れません。",
+};
+const TAKE_KEPT = { en: " The take is kept.", ja: "録音は残ります。" };
 const REFUSALS = ["upload_too_large", "unsupported_content_type"] as const;
 
 /** What the slot route answers a take it can never accept (07 §5.6); the typed slot still goes through. */
@@ -574,6 +579,9 @@ test("a reload onto a slot opened as typed opens the typing box, never the recor
   await expect(page.getByRole("button", { name: "Try again" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Type the answer instead" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Save the typed answer" })).toBeDisabled();
+  // No take is held: the caption does not say one is kept.
+  expect(await heldTakes(page)).toEqual([]);
+  await expect(page.getByTestId("typed-caption")).toHaveText(TYPED_CAPTION.en);
 
   await page.getByLabel("Your answer — typed, not spoken").fill(TYPED);
   await page.getByRole("button", { name: "Save the typed answer" }).click();
@@ -582,6 +590,30 @@ test("a reload onto a slot opened as typed opens the typing box, never the recor
   expect(answers).toHaveLength(1);
   expect(answers[0]).toMatchObject({ id: answerId, transcriptRaw: TYPED, transcriberModelId: null, audioS3Key: null });
 });
+
+for (const language of ["en", "ja"] as const) {
+  test(`a reload onto a typed slot says the take is kept only when one is held: ${language}`, async ({ page }) => {
+    await signIn(page);
+    const roundId = await startRound(page, language);
+    await refuseTakes(page, "upload_too_large");
+    await page.goto(`/round/${roundId}`);
+    await page.getByRole("button", { name: language === "ja" ? "録音を開始" : "Start recording" }).click();
+    await expect(page.getByTestId("record-timer")).toHaveText("0:01", { timeout: 5_000 });
+    await page.getByRole("button", { name: language === "ja" ? "停止して文字起こし" : "Stop and transcribe" }).click();
+    await expect(page.getByTestId("take-notice")).toHaveText(REFUSED.upload_too_large[language]);
+    expect(await heldTakes(page)).toHaveLength(1);
+    expect((await page.request.post(`/api/rounds/${roundId}/answers`, { data: { source: "typed" } })).status()).toBe(201);
+
+    await page.reload();
+    await expect(page.getByTestId("typed-caption")).toHaveText(TYPED_CAPTION[language] + TAKE_KEPT[language]);
+    await expect(page.getByRole("button", { name: language === "ja" ? "録音を開始" : "Start recording" })).toHaveCount(0);
+
+    // The same slot in a browser holding nothing: the sentence about the take is gone, and nothing else.
+    await page.evaluate(() => new Promise((done) => (indexedDB.deleteDatabase("suburi-round").onsuccess = done)));
+    await page.reload();
+    await expect(page.getByTestId("typed-caption")).toHaveText(TYPED_CAPTION[language]);
+  });
+}
 
 test("an unconfirmed upload resumes at upload, then transcription completes without a new take", async ({ page }) => {
   await signIn(page);

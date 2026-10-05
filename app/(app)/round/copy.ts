@@ -167,8 +167,8 @@ const en = {
   // 07 §5.8: the typing fallback, when transcription cannot succeed.
   typeInstead: "Type the answer instead",
   typedAnswer: "Your answer — typed, not spoken",
-  typedCaption:
-    "A typed answer is recorded as typed. It has no duration and no pace, and it is not counted in progress. The take is kept.",
+  typedCaption: (takeKept: boolean) =>
+    `A typed answer is recorded as typed. It has no duration and no pace, and it is not counted in progress.${takeKept ? " The take is kept." : ""}`,
   saveTyped: "Save the typed answer",
   savingTyped: "Saving the typed answer.",
   tryAgain: "Try again",
@@ -355,7 +355,8 @@ const ja: RoundCopy = {
   },
   typeInstead: "回答を入力する",
   typedAnswer: "あなたの回答 — 音声ではなく入力",
-  typedCaption: "入力した回答は、入力したものとして記録します。時間と話す速さは記録せず、進捗にも入れません。録音は残ります。",
+  typedCaption: (takeKept) =>
+    `入力した回答は、入力したものとして記録します。時間と話す速さは記録せず、進捗にも入れません。${takeKept ? "録音は残ります。" : ""}`,
   saveTyped: "入力した回答を保存する",
   savingTyped: "入力した回答を保存しています。",
   tryAgain: "もう一度試す",

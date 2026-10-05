@@ -377,7 +377,8 @@ read and accepted the same day.
   take is in S3. If the browser could not store it, the rail says the take is only in this tab.
   **A page loaded onto a slot already opened for typing** (`07` §5.5, `resume.at: transcript`) shows
   that frame with the typing box open and no rail or other control: the answer is typed, and the
-  record frame is never offered for it.
+  record frame is never offered for it. Its caption ends `録音は残ります。` only when a take for that
+  prompt is held on the device; with none held, the caption stops a sentence earlier (`06`, 2026-10-05).
   A take no retry could send — over the size cap, or of a type the route refuses — stays held, and
   the frame says so in **one rail, in place of the held one**: why this recording cannot be uploaded,
   and to type the answer instead — `この録音はサイズが大きすぎるため、アップロードできません。回答を入力してください。`

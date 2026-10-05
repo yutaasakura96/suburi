@@ -37,7 +37,9 @@ round** — the 2026-10-04 entry below said one per round — so the refused tak
 next question's and stays until the round completes. A slot opened as typed stays typed: a take sent
 to it afterwards is refused (`422 unsupported_content_type`), never given a key. **Resume names
 that slot's next call as `transcript`** (`07` §5.5), and a page loaded onto it opens the typing box
-rather than the record frame — the owner's ruling, since the upload it used to name can never succeed. The 20,000-character cap on typed text is
+rather than the record frame — the owner's ruling, since the upload it used to name can never succeed.
+That page says `録音は残ります。` / "The take is kept." only when a take is held on the device: the
+caption is the read sentence with or without its last one, no new wording. The 20,000-character cap on typed text is
 removed with it: the fallback was specified with no limit.
 
 ### [2026-10-05] Round creation and writes serialize per user

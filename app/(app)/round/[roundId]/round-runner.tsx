@@ -50,7 +50,7 @@ type Screen =
   /** The take is uploaded and could not be transcribed: it is kept, and the answer is retried or typed (07 §5.7–§5.8). */
   | { readonly kind: "untranscribed"; readonly question: Question; readonly answerId: string }
   /** The slot was opened as typed (07 §5.6) and its text is not saved yet: the answer is typed, never recorded. */
-  | { readonly kind: "typed"; readonly question: Question; readonly answerId: string }
+  | { readonly kind: "typed"; readonly question: Question; readonly answerId: string; readonly takeHeld: boolean }
   | { readonly kind: "transcript"; readonly question: Question; readonly transcript: Transcript }
   | { readonly kind: "correct"; readonly question: Question; readonly transcript: Transcript }
   /**
@@ -77,7 +77,7 @@ function initialScreen(start: RoundFrame["start"]): Screen {
   if (start.kind !== "question") return start;
   const question = { position: start.position, text: start.text, followUpVersion: start.followUpVersion };
   if (start.transcript) return { kind: "transcript", question, transcript: start.transcript };
-  if (start.openAnswerId && start.typedSlot) return { kind: "typed", question, answerId: start.openAnswerId };
+  if (start.openAnswerId && start.typedSlot) return { kind: "typed", question, answerId: start.openAnswerId, takeHeld: false };
   return start.openAnswerId && start.uploadConfirmed ? { kind: "uploading", question, uploaded: true } : { kind: "asked", question };
 }
 
@@ -297,9 +297,13 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
   // goes back on screen.
   const resumeTake = useEffectEvent(async () => {
     const { start } = frame;
-    if (start.kind !== "question" || start.transcript || start.typedSlot) return;
+    if (start.kind !== "question" || start.transcript) return;
     const question = { position: start.position, text: start.text, followUpVersion: start.followUpVersion };
     const take = await heldTake(slotOf(question));
+    if (start.typedSlot) {
+      if (take) setScreen((shown) => (shown.kind === "typed" ? { ...shown, takeHeld: true } : shown));
+      return;
+    }
     if (start.openAnswerId && start.uploadConfirmed && !take?.rejection) {
       await transcribe(question, start.openAnswerId, take ? { take, onDevice: true } : undefined);
     } else if (take) setScreen({ kind: "held", question, take, onDevice: true, cause: take.rejection ?? null });
@@ -507,6 +511,7 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
           onRetry={null}
           onType={(text) => void saveTyped(screen.question, screen.answerId, text)}
           typingOpen
+          takeKept={screen.takeHeld}
         />
       );
       break;

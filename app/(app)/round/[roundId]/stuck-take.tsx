@@ -24,6 +24,7 @@ export function StuckTakeFrame({
   onRetry,
   onType,
   typingOpen = false,
+  takeKept = true,
 }: {
   copy: RoundCopy;
   language: RoundLanguage;
@@ -40,6 +41,8 @@ export function StuckTakeFrame({
   onType: ((text: string) => void) | null;
   /** The slot is typed already: the box is open from the start, with nothing to press first. */
   typingOpen?: boolean;
+  /** False when no take exists any more: the caption does not then say one is kept. */
+  takeKept?: boolean;
 }) {
   const [typing, setTyping] = useState(typingOpen);
   const [text, setText] = useState("");
@@ -92,7 +95,7 @@ export function StuckTakeFrame({
           <Button onClick={() => onType(text)} disabled={busy || empty} className="self-start">
             {copy.saveTyped}
           </Button>
-          <p className={caption}>{copy.typedCaption}</p>
+          <p className={caption} data-testid="typed-caption">{copy.typedCaption(takeKept)}</p>
         </div>
       ) : null}
 
