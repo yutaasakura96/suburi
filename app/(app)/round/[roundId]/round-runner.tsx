@@ -224,7 +224,7 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
 
   /** Transcribe the uploaded take (07 §5.7). Idempotent, so it is retried on its own. */
   async function transcribe(question: Question, answerId: string, local?: { take: Take; onDevice: boolean }) {
-    setScreen({ kind: "uploading", question, uploaded: !local });
+    setScreen({ kind: "uploading", question, uploaded: true });
     setError(null);
     setBusy(true);
     const transcribed = await postJson<Transcribed>(`/api/answers/${answerId}/transcribe`);
