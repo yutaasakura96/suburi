@@ -106,6 +106,9 @@ async function tokenTotals(db: Db, userId: string, window: Week): Promise<TokenT
       union all
       select model_id, tokens_in, tokens_out, created_at
         from ${s.followUps} where user_id = ${userId}
+      union all
+      select model_id, tokens_in, tokens_out, created_at
+        from ${s.modelAnswers} where user_id = ${userId}
     ) token_rows
     where created_at >= ${window.start} and created_at < ${window.end}
       and (tokens_in is not null or tokens_out is not null)

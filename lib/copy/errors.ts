@@ -115,6 +115,10 @@ const CATALOGUE = {
     ja: "講評をまとめられませんでした。ラウンドは終了し、採点は残っています。もう一度お試しください。",
     en: "The round feedback could not be written. The round is complete and its scores are kept. Try again.",
   },
+  model_answer_generation_failed: {
+    ja: "模範回答を作成できませんでした。ラウンドの記録と採点はそのまま残っています。もう一度お試しください。",
+    en: "The model answers could not be written. The round and its scores are kept as they are. Try again.",
+  },
   speech_failed: {
     ja: "質問を読み上げられませんでした。文字はそのまま残ります。このまま回答してください。",
     en: "The question could not be read aloud. It stays as text; answer it as usual.",

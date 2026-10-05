@@ -88,7 +88,7 @@ The accent means **this one**: the selected tab, the current round, the score ma
 
 | Token | Value | Meaning |
 | --- | --- | --- |
-| `--attention-mark` | `oklch(0.58 0.11 45)` | A *mark*: the record dot, a score dot at the low end, the rail on an unsupported CV claim |
+| `--attention-mark` | `oklch(0.58 0.11 45)` | A *mark*: the record dot, a score dot at the low end, the rail on an unsupported CV claim, the 1px underline on a part of a model answer the CV does not back (`10` §8) |
 | `--attention-ink` | `oklch(0.52 0.11 45)` | *Text*: `録音中`, a low score numeral, `未採点`, `中断`, a missing-follow-up note |
 
 **Attention is never a judgement of the user.** It marks the thing the eye should reach first — a

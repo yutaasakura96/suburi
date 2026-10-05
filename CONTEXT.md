@@ -52,6 +52,7 @@ docs and the build.
 | **Drift** | The same answer scoring differently over time because the *scorer* changed. The central technical risk. |
 | **Unsupported claim** | A span of the answer's **corrected** text that no CV claim supports. An `answer_flags` row whose quote is **sliced from `transcript_corrected` by span**, never taken from model output. |
 | **Untouched material** | Two or three **relevant** CV claims never cited, picked for round feedback from the never-cited set and stored on `round_feedback`. Not every uncited claim. **The never-cited set is the round's**: claims no answer *in that round* cited — what this sitting left unsaid, where coverage is what has never been said at all. |
+| **Model answer** (`模範回答`) | How one question a round asked — a bank question or a follow-up — could have been answered **by this user, from the record they really have**: the round's CV version and what they said. One `model_answers` row per answer, written when the round completes and **never rewritten**. The parts the CV does not back are stored as spans and underlined. **Coaching, not measurement**: no score, no stamp, nothing Progress reads. |
 | **Felt pressure** | A 1–5 self-report taken once per realistic round, **before any feedback**. Instrumentation for the brief's falsification test — never feedback, never averaged, never shown as something to improve. |
 | **敬語 / register** | A scored rubric dimension in Japanese only. Not a politeness filter, not a translation concern. |
 

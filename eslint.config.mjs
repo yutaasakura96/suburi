@@ -37,6 +37,7 @@ export default defineConfig([
     files: [
       "scripts/measure-round-latency.mts",
       "scripts/measure-question-generation.mts",
+      "scripts/measure-model-answers.mts",
       "scripts/ear-check.mts",
       "lib/config.ts",
       "instrumentation-client.ts",

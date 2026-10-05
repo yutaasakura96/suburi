@@ -1,9 +1,11 @@
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import * as s from "@/db/schema";
 import type { FeedbackItem, TranslatedFeedback } from "@/lib/ai/round-feedback";
-import { sliceQuote } from "@/lib/cv/spans";
+import { underlineSegments } from "@/lib/cv/segments";
+import { characterLength, sliceQuote, type Span } from "@/lib/cv/spans";
 import type { Db } from "@/lib/round/http";
 import { rewritePercent } from "@/lib/round/measures";
+import type { TranslatedModelAnswer } from "@/lib/round/model-answers";
 import { loadBankCounts } from "@/lib/round/select-questions";
 import {
   latestAttempts,
@@ -205,9 +207,35 @@ export async function roundFrame(db: Db, userId: string, round: RoundRow): Promi
   };
 }
 
+/** A run of a model answer: its text, and whether the round's CV version backs it (04 `model_answers`). */
+export interface ModelAnswerSegment {
+  readonly text: string;
+  readonly unsupported: boolean;
+}
+
+/**
+ * One stored model answer (10 §8), as runs **sliced from the stored body by its stored spans**. A
+ * Japanese round's carries the same answer in English, stored with it, for the pill.
+ */
+export interface ModelAnswerView {
+  readonly segments: readonly ModelAnswerSegment[];
+  readonly translated: readonly ModelAnswerSegment[] | null;
+}
+
+function modelAnswerSegments(body: string, spans: readonly Span[]): ModelAnswerSegment[] {
+  return underlineSegments(body, { start: 0, end: characterLength(body) }, spans).map((segment) => ({
+    text: segment.text,
+    unsupported: segment.claim,
+  }));
+}
+
 export interface FeedbackAnswerView {
   readonly position: number;
   readonly prompt: string;
+  /** What the user said: the corrected transcript, as it was scored. */
+  readonly own: string;
+  /** Null when none is stored: a call that failed or has not landed yet, or a round from before model answers existed. */
+  readonly modelAnswer: ModelAnswerView | null;
   readonly durationMs: number | null;
   readonly wpm: number | null;
   readonly rewrite: number | null;
@@ -223,7 +251,14 @@ export interface FeedbackAnswerView {
    * answer with no `follow_ups` row: a round from before follow-ups existed.
    */
   readonly followUp:
-    | { readonly kind: "asked"; readonly text: string; readonly status: "ok" | "pending" | "failed" }
+    | {
+        readonly kind: "asked";
+        readonly text: string;
+        readonly status: "ok" | "pending" | "failed";
+        /** The follow-up's own answer and its model answer, as the question's are above. */
+        readonly own: string | null;
+        readonly modelAnswer: ModelAnswerView | null;
+      }
     | { readonly kind: "missing" }
     | null;
 }
@@ -279,13 +314,33 @@ export async function feedbackScreen(db: Db, round: RoundRow): Promise<FeedbackS
   // The pager is one bank question per position; its follow-up hangs off it as a row.
   const submitted = answered.filter((answer) => answer.questionId !== null);
   // Every submitted answer's attempt, follow-ups' included: the same set `complete` reads (07 §5.12).
-  const attempts = await latestAttempts(db, answered.map((answer) => answer.id));
+  const [attempts, modelAnswerRows] = await Promise.all([
+    latestAttempts(db, answered.map((answer) => answer.id)),
+    answered.length === 0
+      ? []
+      : db.select().from(s.modelAnswers).where(inArray(s.modelAnswers.answerId, answered.map((answer) => answer.id))),
+  ]);
+  const modelAnswerOf = (answerId: string): ModelAnswerView | null => {
+    const row = modelAnswerRows.find((candidate) => candidate.answerId === answerId);
+    if (!row) return null;
+    const translated = row.bodyTranslated as TranslatedModelAnswer | null;
+    return {
+      segments: modelAnswerSegments(row.body, row.unsupportedSpans),
+      translated: translated ? modelAnswerSegments(translated.body, translated.unsupported_spans) : null,
+    };
+  };
   const followUpOf = (answerId: string): FeedbackAnswerView["followUp"] => {
     const row = followUps.find((followUp) => followUp.parentAnswerId === answerId);
     if (!row) return null;
     if (row.status === "missing" || row.promptText === null) return { kind: "missing" };
     const own = answered.find((answer) => answer.parentAnswerId === answerId);
-    return { kind: "asked", text: row.promptText, status: (own && attempts.get(own.id)?.status) ?? "pending" };
+    return {
+      kind: "asked",
+      text: row.promptText,
+      status: (own && attempts.get(own.id)?.status) ?? "pending",
+      own: own?.transcriptCorrected ?? null,
+      modelAnswer: own ? modelAnswerOf(own.id) : null,
+    };
   };
   const okIds = [...attempts.values()].filter((attempt) => attempt.status === "ok").map((attempt) => attempt.id);
   const scoreRows = okIds.length === 0 ? [] : await db.select().from(s.scores).where(inArray(s.scores.scoringAttemptId, okIds));
@@ -346,6 +401,8 @@ export async function feedbackScreen(db: Db, round: RoundRow): Promise<FeedbackS
       return {
         position: answer.position,
         prompt: answer.promptText,
+        own: answer.transcriptCorrected ?? "",
+        modelAnswer: modelAnswerOf(answer.id),
         durationMs: answer.audioDurationMs,
         wpm: answer.wordsPerMinute,
         rewrite: answer.rewriteMagnitude === null ? null : rewritePercent(answer.rewriteMagnitude),

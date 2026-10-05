@@ -2,7 +2,8 @@
 
 **Date:** 2026-09-12
 **Status:** Phase 1 complete. **Amended 2026-09-27** by the round-loop decisions (`06`, "Phase 6 — the
-round loop"): §2, §3, US-2, US-4, US-5, US-7, US-8, US-11, US-13 and §7.
+round loop"): §2, §3, US-2, US-4, US-5, US-7, US-8, US-11, US-13 and §7. **Amended 2026-10-04**
+(#74): US-17, a model answer for each question, raised by the user after the first real round.
 **Upstream:** `01-project-brief.md`. Decisions and their reasoning: `06-decision-log.md`.
 
 No technical decisions appear here. Stack, storage, speech engine and model choices belong to
@@ -242,6 +243,31 @@ realistic round can be run — everything else in v1 may land during the 30-day 
 - **Untouched material:** flagged at round level: **two or three relevant** CV units never referenced,
   chosen from everything the round left uncited — not a list of all of them.
 - Both cite the CV version used.
+
+**US-17 — See how each question could have been answered** `MUST` *(added 2026-10-04, #74)*
+> As the user, I want, for each question I was asked, a suggestion of how it should have been
+> answered, stored so I can look at it again later, so that I answer better next time.
+
+Raised by the user on 2026-10-03, after the first real English round: the feedback showed what to fix
+and what worked, and the question, but never an answer to it.
+
+*Acceptance:*
+- **Every question the round asked has a model answer**, the follow-ups included, shown at round end
+  on that question's page of the feedback, beside what the user said.
+- **It is stored with the round**, written once when the round completes, and reads the same
+  whenever it is reviewed.
+- **It is the user's own answer at its best, not an invented one**: built from the CV version the
+  round was scored against and from what the user actually said. It never adds an achievement, a
+  number or a role the user does not have, and whatever in it the CV does not back is marked as such.
+- **It is not a score and changes no score.** No dimension, no comparison with the user's answer, no
+  place in progress.
+- **Never mid-round** in realistic mode (US-8): it arrives with the round-end feedback.
+- A Japanese round's model answer is Japanese, at interview register, with the English toggle.
+- A round whose model answers could not be written still completes and still shows its feedback;
+  the gap is stated and can be filled afterwards.
+
+The second and third points were proposed when the request was written down and are built as
+proposed; they are the user's to confirm (`06`, 2026-10-04).
 
 ### History and progress
 

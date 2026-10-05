@@ -16,6 +16,12 @@ export const FEEDBACK_MODEL = "gpt-5.6-sol";
 export const FOLLOW_UP_MODEL = "gpt-5.6-sol";
 
 /**
+ * The model answer to each question of a completed round, stamped on `model_answers` (04). Coaching,
+ * not measurement: no score depends on it, so changing it draws no Progress boundary.
+ */
+export const MODEL_ANSWER_MODEL = "gpt-5.6-sol";
+
+/**
  * Question generation at round start (07 §5.4), stamped on `questions.generator_model_id`. Stamp 3 is
  * the generator *prompt* version, which lives in the prompt's filename (`lib/prompts/`).
  */

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { requireSession } from "@/lib/auth/session";
 import { getDb } from "@/lib/db";
 import { loadStatus } from "@/lib/monitor/status";
+import { ROUND_COST_BASELINE_USD, SPEND_MULTIPLE } from "@/lib/monitor/thresholds";
 import {
   CHECK_NAMES,
   LAST_WEEK_ROWS,
@@ -114,7 +115,7 @@ export default async function StatusPage() {
             </table>
             <p className="text-[12px] leading-[1.7] text-ink-6">
               Spend counts the stored token columns only, priced at lib/ai/models.ts&apos;s rates. Unpriced
-              models are named and excluded from the dollar figure. The threshold is 3 × $0.40 per round
+              models are named and excluded from the dollar figure. The threshold is {SPEND_MULTIPLE} × ${ROUND_COST_BASELINE_USD.toFixed(2)} per round
               started this week, with a floor of one round.
             </p>
           </section>

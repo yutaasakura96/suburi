@@ -13,6 +13,8 @@ index; and `rate_limit_windows.route` extended for the round routes. **Migrated 
 `round_feedback.untouched_claim_ids`. **Migrated by #44** (`0009_follow-ups`): `follow_ups`.
 **Migrated by #50** (`0012_history`): `scoring_attempts.run_started_at`, and `rate_limit_windows.route`
 extended for History's two retry routes. The remaining round-loop changes are not migrated yet.
+**Amended 2026-10-04 for model answers** (`06`, 2026-10-04, #74; migrated by `0013_model-answers`):
+`model_answers` is new, and `rate_limit_windows.route` gains `model-answers`.
 
 ---
 
@@ -67,6 +69,7 @@ extended for History's two retry routes. The remaining round-loop changes are no
 | `scoring_attempts` | One attempt to score one answer. Append-only; a retry is a new row. |
 | `scores` | One dimension's integer 1–5 within one scoring attempt. |
 | `round_feedback` | The round-level narrative: what to fix, what worked. |
+| `model_answers` | The **model answer** to one question a round asked — a bank question or a follow-up: how it could have been answered from the user's real record, with the parts the CV does not back marked. Coaching, not measurement. |
 | `claim_citations` | A CV claim was cited when evaluating an answer. This is the coverage record. |
 | `answer_flags` | A span of an answer's corrected text that the scorer flagged — today only `unsupported`: nothing in the CV backs it. |
 | `held_out_rescores` | A past answer re-scored under new stamps, to make drift visible. |
@@ -639,6 +642,47 @@ bad picks are dropped, not a reason to fail feedback that is otherwise whole.
 
 ---
 
+### `model_answers`
+
+How one question of a completed round could have been answered **by this user, from the record they
+really have** (`06`, 2026-10-04, #74): the round's CV version and what they said, and nothing a
+model invented. One row per answer, for a bank question and for a follow-up alike. Stored so that
+what is reviewed months later is what was written when the round ended.
+
+| Column | Type | Null | Default | Notes |
+| --- | --- | --- | --- | --- |
+| `id` | `uuid` | no | `gen_random_uuid()` | PK |
+| `answer_id` | `uuid` | no | — | → `answers.id` **restrict**, **unique** — the answer whose question this answers. Never a practice retry: a retry is the same question, which has its model answer already |
+| `user_id` | `text` | no | — | → `users.id` **restrict** |
+| `body` | `text` | no | — | the model answer, in the round's language |
+| `unsupported_spans` | `jsonb` | no | `'[]'` | `[{ start, end }]`, code-point spans into `body`, half-open and in order: **the parts the round's CV version does not back** — they came from what the user said alone. Each was quoted by the model and **found in `body` by the server** before it was stored; a quote it could not find is dropped and counted, never clamped (`03` §11) |
+| `body_translated` | `jsonb` | yes | — | the other-language toggle (PRD §4): `{ language, body, unsupported_spans }`, the same answer in the other language with its own spans into that text. `en` on a Japanese round; null on an English one |
+| `model_id`, `prompt_version` | `text` | no | — | the pinned model and the versioned prompt that wrote it (`model-answer-{en,ja}-…`) |
+| `tokens_in` / `tokens_out` | `integer` | yes | — | counted in the week's spend (`cron_readings`, below) |
+| `created_at` | `timestamptz` | no | `now()` | |
+
+**Written once and never rewritten.** The unique constraint is what makes that true under a race: the
+writer inserts with `on conflict do nothing`, so `complete` and a retry cannot both write one answer's
+row, and the first to commit is the one kept. An answer whose call failed — or is still running
+behind `complete`'s response (`07` §5.12) — has **no row**; the absence
+is the gap the feedback screen states and `POST /api/rounds/{id}/model-answers` fills (`07` §5.19). A
+round completed before this table existed has none either, and the same route writes them.
+
+**Not measurement.** A model answer carries no score and none of the four stamps, reads no score when
+it is written, and is read by nothing that plots or compares: not Progress, not History's scores, not
+the held-out re-score. Its `model_id` and `prompt_version` say what wrote it; a change to either draws
+no boundary anywhere, because there is nothing to draw one on.
+
+**The marks are located before storage.** The writing call names what the CV does not back, and the
+server also marks digit figures absent from the CV text and the candidate's own answer, comparing
+normalized value and kind (plain number, percent, or multiplier). A range (20〜30%) lends
+its shared marker to its first end, in the model answer and in what supports it. The underline covers the figure
+only; spelled-out numbers are tracked in #84 (`06`, 2026-10-05).
+Every mark is a real span of the stored text. Nonnumeric claims still depend on the writing call and
+the real-round read; no second model call checks them.
+
+---
+
 ### `claim_citations`
 
 The coverage record. This table is what makes *"CV material never used"* expressible — one of the
@@ -729,7 +773,7 @@ so concurrent requests on different serverless instances cannot both slip under 
 | `id` | `uuid` | no | `gen_random_uuid()` | PK |
 | `user_id` | `text` | no | — | → `users.id` **restrict** |
 | `session_id` | `text` | no | — | `sessions.id`, **deliberately not a foreign key** — see below |
-| `route` | `text` | no | — | Checked: `cv-versions`, since #42 `rounds`, `transcribe`, `submit`, `complete`, `feedback`, since #45 `speech`, and since #50 `scoring-attempts`, `scoring-run`. Each later ⚡ route in `07` extends the list in the migration of the slice that builds it |
+| `route` | `text` | no | — | Checked: `cv-versions`, since #42 `rounds`, `transcribe`, `submit`, `complete`, `feedback`, since #45 `speech`, since #50 `scoring-attempts`, `scoring-run`, and since #74 `model-answers`. Each later ⚡ route in `07` extends the list in the migration of the slice that builds it |
 | `window_started_at` | `timestamptz` | no | — | Database clock, never the function's |
 | `count` | `integer` | no | — | Requests counted in this window, **refused ones included** |
 | `created_at` | `timestamptz` | no | `now()` | |
@@ -836,6 +880,7 @@ version's is null, the reading is null.
 | `round_questions (round_id, position)` *(unique)* | The prompt at position *n* — every ask, every resume. |
 | `follow_ups (parent_answer_id)` *(unique)* | The follow-up of an answer — resume, the feedback screen, History's hole. |
 | `answer_flags (answer_id)` | An answer's flags on the feedback screen and in History. |
+| `model_answers (answer_id)` *(unique)* | An answer's model answer on the feedback screen — and the conflict target that makes it written once. |
 | `role_contexts (user_id) where kind = 'general'` *(unique)* | Makes General practice one row per user. |
 | `rounds (user_id, started_at desc)` | History's left rail. |
 | `rounds (user_id, language, round_type, started_at desc)` | Home's "18 days since 行動面接・日本語" interval arithmetic on screen 2. |
@@ -931,6 +976,7 @@ characters per minute. The rubric label `v1.2` is the artboards' sample; the fir
 | --- | --- |
 | `answers`, `scoring_attempts`, `scores` | Never deleted. Never updated. The measurement record. |
 | `round_questions`, `follow_ups`, `answer_flags` | Never deleted. Never updated. What a round asked, what it followed up with, and what its scorer flagged. |
+| `model_answers` | Never deleted. Never updated. What is reviewed later is what was written when the round ended. |
 | `role_contexts` | Never deleted, never updated. A changed posting is a new row. |
 | `near_duplicate_checks` | Never deleted. Never updated. The guard's decisions, each beside the threshold it was made under. |
 | `transcript_raw` | **Never discarded**, even after correction (PRD §9). |
@@ -982,3 +1028,6 @@ Stated so a later session recognises these as decisions, not oversights:
     has numbers, thresholds, ids and unpriced model identifiers; no column is used for a transcript,
     a CV or a note (`12` §7). Runs are appended, never updated, so "all clear" can only ever be a fresh
     run's finding, never an old one edited.
+14. **A model answer that scores, or that changes.** `model_answers` has no score column, no rubric
+    reference and no update path, and one row per answer. It cannot become a second opinion on a
+    score, and what was stored at the round's end is what is read later.

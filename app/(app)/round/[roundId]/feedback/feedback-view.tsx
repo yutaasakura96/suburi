@@ -11,11 +11,11 @@ import { FindingsRetry } from "./findings-retry";
  * Screen 8's card (10 §8), and the one piece of state it holds: the language the feedback is read in.
  *
  * **A Japanese round's feedback is Japanese, with a pill to read it in English** (PRD §4). The pill
- * changes the feedback and nothing else: the dimension names, which follow the feedback language, and
- * the round-level findings with their two headings, which are read from the translation stored with
- * them (04 `body_translated`). The round's own chrome — the header, the question, its figures, the
- * pager, the CV check and the stamps — stays in the round's language (10 §0). An English round has no
- * pill.
+ * changes the feedback and nothing else: the dimension names, which follow the feedback language, the
+ * round-level findings with their two headings, which are read from the translation stored with
+ * them (04 `body_translated`), and each model answer, read from the translation stored with it. The
+ * round's own chrome — the header, the question, its figures, the pager, what the user said, the CV
+ * check and the stamps — stays in the round's language (10 §0). An English round has no pill.
  */
 export function FeedbackView({ screen }: { screen: FeedbackScreen }) {
   const { language } = screen.round;
@@ -53,7 +53,14 @@ export function FeedbackView({ screen }: { screen: FeedbackScreen }) {
 
       <div className="grid grid-cols-3">
         <div className="col-span-2 border-r border-rule-frame px-[32px] pt-[30px] pb-[32px]">
-          <AnswerPager answers={screen.answers} length={screen.round.length} language={language} reading={reading} />
+          <AnswerPager
+            roundId={screen.round.id}
+            answers={screen.answers}
+            length={screen.round.length}
+            language={language}
+            reading={reading}
+            cvLabel={cvLabel}
+          />
         </div>
 
         <div className="flex flex-col gap-[26px] px-[32px] pt-[30px] pb-[32px]">

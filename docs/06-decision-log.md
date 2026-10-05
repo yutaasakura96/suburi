@@ -3,6 +3,172 @@
 Newest first. Every entry records what was chosen, why, and what was rejected.
 
 ---
+## Phase 6 — #74, a model answer for each question
+
+Raised by the owner after the first real English round on `develop` (2026-10-03): the feedback says
+what to fix, and shows the question, but never how it could have been answered. Each question a round
+asks now has a model answer, stored with the round. The issue's three suggestions — show it on each
+question's tab beside the user's own answer, ground it in the user's real record, generate it once at
+`complete` — were firstmate's, marked "to confirm"; **they are built as suggested, and the choices
+below are the build's, still the owner's to confirm.**
+
+### [2026-10-06] A pending call and its retry may race
+
+If a round-end call outlives the 45 s wait and the user presses retry before its row lands, a second
+call runs and whichever commits first is kept. Both use the same question, CV version and answer;
+the row is written once, and the worst case is one extra call. The owner accepted this limit without
+coordination of in-flight calls.
+
+### [2026-10-05] Model-answer figures accept パーセント and a range's shared marker
+
+The owner widened the figure rule below twice, and closed the list for #74. パーセント is a percent
+marker beside %, ％ and percent, in the model answer and in what supports it. A range joined by 〜,
+~, -, – or "to" lends its trailing magnitude or marker to its first end, read the same way on both
+sides. In the CV or the candidate's own answer, 20〜30% also supports 20% and 3〜5万件 also supports
+3万. In the model answer and its English translation, 20〜30% is the two figures 20% and 30%, so a CV
+that says only 20名 backs neither end; the underline on the first end covers its digits only. The
+owner added the model-answer side after the first reading left that 20 unmarked.
+
+### [2026-10-05] Model-answer figures use digit values and three kinds
+
+The owner narrowed the deterministic check to ASCII or full-width digit figures. A figure starts at
+a word boundary and may carry a magnitude (k, K, thousand, million, billion, 千, 万, 億), percent
+(%, ％, percent), or multiplier (x, ×, 倍). Its identity is the normalized value and one of three
+kinds: plain number, percent, or multiplier. Surrounding words are ignored, and the underline covers
+only the figure. Dot-separated components of a CV or own-answer figure also support that value; comma
+groups have exactly three digits; adjacent magnitude groups form one value. Digits joined by a slash
+(24/7, 2021/04) are never marked, but in the CV or own answer each side supports its value. English number words,
+kanji numerals, and written fractions or multipliers are outside this check; spelled-out numbers are
+tracked in [#84](https://github.com/yutaasakura96/suburi/issues/84). This supersedes the earlier
+figure identity decision below.
+
+### [2026-10-05] Figure identity includes magnitude and unit
+
+The deterministic model-answer check distinguishes counts from percentages, multipliers, fractions,
+money and other units, and expands written magnitudes such as million, k, 万 and 億. The owner also
+required written forms including twice, double, triple, half, halved, 倍, 半減 and 半分 to be marked when
+absent from the CV and the candidate's own answer. The same check runs on the Japanese answer and its
+English translation. Unit tests cover each form and the case where three engineers do not support
+three million.
+
+### [2026-10-05] Model-answer figures are checked after writing; spend baseline is $0.70
+
+The owner chose a deterministic second check for figures in the Japanese answer and its English
+translation as well as English-round answers. The server compares numbers, percentages and multipliers
+with the round's stored CV text and the candidate's own answer, including the earlier answer for a
+follow-up. Missing figures become unsupported spans beside the writing call's marks. This supersedes
+the 2026-10-04 decision that the writing call was the only marker; nonnumeric truthfulness still needs
+the real-round read. The owner also raised the per-round spend baseline from $0.40 to $0.70 and read
+and accepted all ten #74 Japanese strings on 2026-10-05.
+
+### [2026-10-04] A model answer is the user's own answer at its best, from the record they really have
+
+One per question asked, written from the round's CV version — the same citable claims a scorer is
+shown — the role context, the rubric's best anchors, the question as asked and the corrected
+transcript. **It may use nothing else**: every employer, number, result, team size and date in it comes
+from a CV claim or from the user's own words, never sharpened (`速くなった` does not become `40%`), and
+two pieces of work are never joined into one. **It keeps the example the user chose** whenever that
+example answers the question, even when the CV holds a similar one with better numbers: the story
+the user can tell in a real interview is the one they lived. **Rejected:** a generic "ideal answer"
+to the question (useless in an interview — it is not the user's record, and it would teach them to
+say things they cannot back up); an answer free to pick the CV's strongest example (the first draft
+did this, and dropped what the user had actually said); and reading the scores, so that the model
+answer "fixes" the low dimensions (it aims at the best anchor of every dimension anyway, and reading
+no score means it waits for none and exists even when scoring failed).
+
+### [2026-10-04] What the CV does not back is marked, by the call that wrote it, and the server only locates
+
+The issue asks that anything beyond the CV be marked as such. A model answer built on the user's own
+example will often carry details only the user said — a team of five, three months, a result with a
+number. Those are returned as verbatim quotes of the answer with a start hint, and **stored as spans
+of the stored body** (`model_answers.unsupported_spans`), found by the same locator as an answer's
+flags (`lib/round/grounding.ts`): a quote that is not in the text is dropped and counted, never
+clamped. The screen underlines the spans and its caption names the CV stamp. **The limit, stated:**
+the marking is the writing call's own. The server guarantees a mark is real text; nothing checks
+that every unbacked part is marked, or that nothing was invented. **Rejected for now:** a second
+call that scores the model answer against the CV as an answer is scored — twice the calls and
+latency for a check whose need no real round has shown; it is the named next step if one does (`07`
+§7, `11` §9). **Rejected outright:** marking by string-matching the CV (a claim is paraphrased, not
+quoted, so it would mark everything), and storing the model's quote instead of a span (`04` §6 #12's
+rule: no quote from model output).
+
+### [2026-10-04] Follow-ups get one too, and a practice retry does not
+
+"For each question asked": a follow-up is a question the round asked, and it is where the first live
+round went thinnest. Its call also reads the question it followed and that answer, and the screen
+shows it as a second pair under the first. A practice "answer again" is the same question, which
+already has its model answer, so it gets none. **Cost accepted:** twice the calls.
+
+### [2026-10-04] Its own table, its own call and prompt — not a field of the round feedback
+
+`model_answers`, one row per answer, unique on `answer_id`, never updated. `round_feedback` is one
+row written whole, and a model answer per question inside it would have made six to fourteen long
+generations part of the one call the user is waiting on, failing together. Separate calls run side by
+side, fail one at a time, and can be written for a round that was completed before they existed. The
+prompts are `model-answer-en-1.0` and `model-answer-ja-1.0`, and the model is the pinned one. **It is
+not measurement**: no score, none of the four stamps, no Progress boundary when its prompt or model
+changes (`04` §6 #14).
+
+### [2026-10-04] Written at `complete`, beside the feedback, and never a reason to fail it or hold it
+
+The calls start when the round closes and run under the wait for the last score and the feedback
+call. The rows are stored after the feedback, and stored even when the feedback was not.
+**`complete` waits for them at most 45 s from the round's close**: an English round's calls finish
+about when its feedback does, a Japanese round's about 10 s after, and every round measured inside
+32 s. Past 45 s the feedback goes out and a call still running is stored in `after()` — invariant 2
+is about the feedback screen, and a model answer is not allowed to be what it waits on. The first
+build waited for every call up to its 90 s limit; that made one slow call the whole screen's wait,
+and was changed before it shipped. **A failed call is a count in the response and a
+gap on the screen**, with a control that writes what is missing through `POST
+/api/rounds/{id}/model-answers` (`07` §5.19) — which also writes them for the rounds completed before
+this existed, the owner's first real round among them. **Rejected:** generating wholly in `after()`
+(the feedback screen would always render without them and need to poll or spin; `after()` is only
+where the slow tail lands); generating lazily when a
+tab is opened (a wait on the screen that must never wait, and the stored text would depend on when
+it was first looked at); and **any way to regenerate one** (`07` §6): the issue asks for something
+stable to review later, and a re-roll is how a reference becomes whatever read best.
+
+### [2026-10-04] A Japanese round's model answer is translated by the same call, like its feedback
+
+The English pill reads the feedback from a stored translation (2026-10-03, below). The model answer
+follows it: `body_translated` holds the English and its own spans, written by the same call and
+refused whole if the translation is missing. The Japanese is written in です・ます体 at the register
+the 敬語 dimension scores. What the user said is never translated.
+
+### [2026-10-04] Measured: 16 s for an English round's calls, 25 s for a Japanese one, bounded at 90 s
+
+`scripts/measure-model-answers.mts`, five rounds per language through the real port, synthetic
+input (`03` §4 has the table). A round's calls take as long as the slowest: **15.9 s at the median
+in English, 25.0 s in Japanese**, and the slowest single call of 50 was 31.6 s. The bound is 90 s
+with no retry inside `complete`. Nothing the server located was dropped: 74 marks over 30 English
+answers, 26 over 20 Japanese. **The first draft marked narration** — 22 marks over six answers,
+whole sentences among them, the mistake `score-en-1.1`'s first draft made — and was tightened before
+the measurement to results, standing, sizes, figures and work the CV does not name. **Cost: about $0.22 for an
+English round of three questions and their follow-ups, about $0.35 for a Japanese one**, which is
+most of what a round was estimated at ($0.40, 2026-09-29). **The spend baseline is left as the owner
+set it, and that leaves a known false alarm**: the week's threshold is $1.20 a round started, a
+three-question round stays well under it, but a seven-question Japanese round's model answers alone
+are about $0.80, and with its fourteen scoring calls (about $0.03 each, `03` §4) it comes to about
+$1.30. A week of only such rounds would read red with nothing wrong. Raising the constant is the
+owner's call (it was theirs, 2026-09-29), and it is due to be replaced by the measured cost of the
+first eight real rounds anyway. **Not measured:** a
+real CV and a real answer — every reading here is synthetic, and the read of a real round is `11` §5's
+checklist item.
+
+### [2026-10-04] On the screen: under the pager, what was said beside the model answer
+
+Screen 8 had no artboard for this. The per-answer region gains two columns under the pager: the
+corrected transcript on the left — the screen never showed what the user said, only its scores — and
+the model answer on the right, with a second pair for an answered follow-up. Unbacked spans carry a
+`--attention-mark` underline and a caption that says so in words (`05`: never colour alone); a
+question with none says that nothing is underlined — **what was marked, not that the answer was
+checked**, since the marks are the writing call's own. **Nothing is drawn between the two columns** — no diff, no score
+for the model answer, no "you missed" list: comparison is the round-level findings' job, and a second
+judgement beside the score rows would be prose beside a dimension by another route. The nine new
+Japanese strings and the catalogue's one (`docs/checklists/native-read-round.md` §12) were read and
+accepted by the owner on 2026-10-05.
+
+---
 ## Phase 6 — #50, History
 
 The one screen that reads a past round: the rail, the matrix, the recording and the raw transcript

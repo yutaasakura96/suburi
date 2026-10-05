@@ -96,6 +96,26 @@ const INVENTED_CLAIM = 999;
 const JAPANESE = "決済基盤の移行を担当し、障害率を半分にしました。";
 const UNUSED_HEADING = "=== CV claims no answer in this round used ===";
 
+// The model answer (#74), as the mock writes it for every question and follow-up. It quotes one part
+// the server can find in its own answer and one it cannot: only the first is ever underlined.
+const MODEL_UNSUPPORTED = "a team of four";
+const MODEL_ANSWER = {
+  answer: `I led the payments migration over six months and cut the failure rate by half. I planned the cutover with ${MODEL_UNSUPPORTED}.`,
+  unsupported: [
+    { quote: MODEL_UNSUPPORTED, start_hint: 100 },
+    { quote: INVENTED_QUOTE, start_hint: 0 },
+  ],
+};
+const MODEL_UNSUPPORTED_JA = "4名のチーム";
+const MODEL_ANSWER_JA = {
+  answer: `前職では決済基盤の移行を担当し、半年で完了いたしました。${MODEL_UNSUPPORTED_JA}で切り替えを計画いたしました。`,
+  unsupported: [{ quote: MODEL_UNSUPPORTED_JA, start_hint: 28 }],
+  translated: {
+    answer: `At my previous company I led the payments platform migration and completed it in six months. I planned the cutover with ${MODEL_UNSUPPORTED}.`,
+    unsupported: [{ quote: MODEL_UNSUPPORTED, start_hint: 118 }],
+  },
+};
+
 /** The claims a call was shown under `heading`, by the number it was shown them with. */
 function claimsShown(body: Record<string, unknown>, heading: string) {
   const block = String(body.input).split(heading)[1]?.split("\n\n")[0] ?? "";
@@ -112,6 +132,7 @@ const UNSCORABLE = "zebra-unscorable-sentinel";
 let scoringFails = false;
 let followUpFails = false;
 let followUpMalformed = false;
+let modelAnswerFails = false;
 
 function formatOf(body: Record<string, unknown>) {
   return ((body.text as { format?: { name?: string } } | undefined)?.format?.name ?? "") as string;
@@ -168,6 +189,10 @@ test.beforeAll(async () => {
         if (followUpMalformed) return { follow_up: "What changed? Who approved it?" };
         return { follow_up: japaneseFollowUp(body) ? FOLLOW_UP_JA : FOLLOW_UP };
       }
+      if (formatOf(body) === "model_answer") {
+        if (modelAnswerFails) return { fail: 500 };
+        return String(body.input).includes("=== rubric ja ") ? MODEL_ANSWER_JA : MODEL_ANSWER;
+      }
       // Once these specs have answered the seeded questions, a round's are generated (07 §5.4).
       if (formatOf(body) === "generated_questions") return generatedQuestions(body);
       return { fail: 400 };
@@ -186,6 +211,7 @@ test.beforeEach(() => {
   scoringFails = false;
   followUpFails = false;
   followUpMalformed = false;
+  modelAnswerFails = false;
   heard = HEARD_EN;
 });
 
@@ -378,6 +404,17 @@ test("a realistic English round: Setup → each question and its follow-up → p
   // The follow-up is a row under its answer's scores, with no scale of its own (10 §8).
   await expect(page.getByTestId("follow-up-row")).toHaveText(`└ Follow-up${FOLLOW_UP}Scored on 6 dimensions. Not counted in progress.`);
   await expect(page.getByTestId("round-stamp")).toContainText("follow-up-en-1.0");
+  // Under the pager (10 §8): what was said beside the model answer stored for it, the question's and
+  // then the follow-up's. Only what the server found in the stored answer is underlined.
+  await expect(page.getByTestId("answer-texts")).toHaveCount(2);
+  await expect(page.getByTestId("own-answer")).toHaveText([CORRECTED, CORRECTED]);
+  await expect(page.getByTestId("model-answer")).toHaveText([MODEL_ANSWER.answer, MODEL_ANSWER.answer]);
+  await expect(page.getByTestId("model-answer-unsupported")).toHaveText([MODEL_UNSUPPORTED, MODEL_UNSUPPORTED]);
+  await expect(page.getByTestId("model-answer-legend").first()).toHaveText(
+    /^Written from (CV v\d+) and what you said\. An underline marks what \1 does not back\.$/,
+  );
+  await expect(page.getByTestId("follow-up-texts")).toContainText("Model answer to the follow-up");
+  await expect(page.getByTestId("model-answer-not-written")).toHaveCount(0);
   await page.screenshot({ path: test.info().outputPath("screen8-follow-up.png"), fullPage: true });
   // No composite, anywhere on the screen (AGENTS.md invariant 1).
   await expect(page.locator("main")).not.toContainText(/total|average|overall/i);
@@ -408,7 +445,22 @@ test("a realistic English round: Setup → each question and its follow-up → p
       .where(eq(s.answers.roundId, roundId)),
     feedback: await db.select({ ids: s.roundFeedback.untouchedClaimIds }).from(s.roundFeedback)
       .where(eq(s.roundFeedback.roundId, roundId)),
+    modelAnswers: await db.select({ body: s.modelAnswers.body, spans: s.modelAnswers.unsupportedSpans, translated: s.modelAnswers.bodyTranslated, prompt: s.modelAnswers.promptVersion })
+      .from(s.modelAnswers).innerJoin(s.answers, eq(s.answers.id, s.modelAnswers.answerId))
+      .where(eq(s.answers.roundId, roundId)),
   }));
+  // One model answer per question asked, follow-ups included, each with the one span the server
+  // found in its own body (04 `model_answers`).
+  const markStart = MODEL_ANSWER.answer.indexOf(MODEL_UNSUPPORTED);
+  expect(stored.modelAnswers).toHaveLength(6);
+  for (const modelAnswer of stored.modelAnswers) {
+    expect(modelAnswer).toEqual({
+      body: MODEL_ANSWER.answer,
+      spans: [{ start: markStart, end: markStart + MODEL_UNSUPPORTED.length }],
+      translated: null,
+      prompt: "model-answer-en-1.0",
+    });
+  }
   // Three questions and three follow-ups: a follow-up's answer goes through the same check. Its flag
   // is stored and sent to the feedback call; the region above names the bank questions' only.
   expect(stored.attempts).toHaveLength(6);
@@ -558,6 +610,45 @@ test("feedback not ready: the scores render, one sentence says so, and the retry
   await page.getByRole("button", { name: "Write the findings" }).click();
   await expect(page.getByTestId("to-fix")).toContainText("Lead with the result");
   await expect(page.getByTestId("findings-not-ready")).toHaveCount(0);
+});
+
+test("model answers not written: the feedback renders, the gap is stated, and the retry writes them", async ({ page }) => {
+  await signIn(page);
+  const roundId = await startRound(page);
+  for (let position = 1; position <= 3; position += 1) await positionByApi(page, roundId);
+
+  modelAnswerFails = true;
+  await page.goto(`/round/${roundId}`);
+  await page.getByRole("radio", { name: /Fairly tense/ }).click();
+  await page.getByRole("button", { name: "Go to the feedback" }).click();
+
+  // The round completes and its feedback is whole: a model answer is never a reason to fail either.
+  await expect(page).toHaveURL(`/round/${roundId}/feedback`);
+  await expect(page.getByTestId("to-fix")).toContainText("Lead with the result");
+  await expect(page.getByTestId("score-row")).toHaveCount(6);
+  await expect(page.getByTestId("own-answer")).toHaveText([CORRECTED, CORRECTED]);
+  await expect(page.getByTestId("model-answer")).toHaveCount(0);
+  const gap = page.getByTestId("model-answer-not-written");
+  await expect(gap).toHaveCount(2);
+  await expect(gap.first()).toContainText("No model answer is written for this question yet.");
+  await page.screenshot({ path: test.info().outputPath("screen8-model-answer-not-written.png"), fullPage: true });
+
+  // Still failing: the catalogue's sentence, and the control stays.
+  await gap.first().getByRole("button", { name: "Write the model answers" }).click();
+  await expect(gap.first()).toContainText("The model answers could not be written.");
+
+  // One call writes every model answer the round lacks, this question's and the others'.
+  modelAnswerFails = false;
+  await gap.first().getByRole("button", { name: "Write the model answers" }).click();
+  await expect(page.getByTestId("model-answer")).toHaveText([MODEL_ANSWER.answer, MODEL_ANSWER.answer]);
+  await expect(gap).toHaveCount(0);
+  await page.getByRole("button", { name: "Question 3" }).click();
+  await expect(page.getByTestId("model-answer")).toHaveCount(2);
+  const written = await withDb((db) =>
+    db.select({ id: s.modelAnswers.id }).from(s.modelAnswers).innerJoin(s.answers, eq(s.answers.id, s.modelAnswers.answerId))
+      .where(eq(s.answers.roundId, roundId)),
+  );
+  expect(written).toHaveLength(6);
 });
 
 test("a follow-up that could not be generated: the answer is saved, the screen says so, and the round goes on", async ({ page }) => {
@@ -832,6 +923,14 @@ test("a realistic Japanese round: Japanese throughout, seven rows, and the feedb
   await expect(page.getByTestId("what-worked")).toContainText("第3問で、具体的な場面を挙げて説明できている。");
   await expect(page.getByTestId("pressure-stamp")).toHaveText("緊張度4を講評前に記録");
   await expect(page.getByTestId("round-stamp")).toContainText(/^評価基準 v1\.0・.*・応募書類 v\d+/);
+  // The model answer under the pager is Japanese, with its legend naming 応募書類 (10 §8).
+  await expect(page.getByTestId("answer-texts").first()).toContainText("あなたの回答");
+  await expect(page.getByTestId("model-answer")).toHaveText([MODEL_ANSWER_JA.answer, MODEL_ANSWER_JA.answer]);
+  await expect(page.getByTestId("model-answer-unsupported")).toHaveText([MODEL_UNSUPPORTED_JA, MODEL_UNSUPPORTED_JA]);
+  await expect(page.getByTestId("model-answer-legend").first()).toHaveText(
+    /^(応募書類 v\d+)とあなたの回答をもとに作成しています。下線は、\1に裏づけのない内容です。$/,
+  );
+  await expect(page.getByTestId("follow-up-texts")).toContainText("深掘りへの模範回答");
   await expect(main).not.toContainText(/total|average|overall|合計|平均|総合/i);
   // The pill is the one Latin word on the screen, and it names the language it switches to.
   const pill = page.getByTestId("feedback-language");
@@ -850,6 +949,12 @@ test("a realistic Japanese round: Japanese throughout, seven rows, and the feedb
   await expect(page.getByTestId("what-worked")).toContainText("What worked 1");
   await expect(page.getByTestId("what-worked")).toContainText("In answer 3, you explained with a concrete situation.");
   await expect(page.getByTestId("findings")).toHaveAttribute("lang", "en");
+  // The model answer is read from the translation stored with it; what was said is never translated.
+  await expect(page.getByTestId("model-answer")).toHaveText([MODEL_ANSWER_JA.translated.answer, MODEL_ANSWER_JA.translated.answer]);
+  await expect(page.getByTestId("model-answer").first()).toHaveAttribute("lang", "en");
+  await expect(page.getByTestId("model-answer-unsupported")).toHaveText([MODEL_UNSUPPORTED, MODEL_UNSUPPORTED]);
+  await expect(page.getByTestId("own-answer").first()).toHaveText(CORRECTED_JA);
+  await expect(page.getByTestId("answer-texts").first()).toContainText("模範回答");
   await expect(page.getByText("日本語・実戦・3問")).toBeVisible();
   await expect(page.getByTestId("answer-region")).toContainText("第1問 / 3問");
   await expect(page.getByTestId("pressure-stamp")).toHaveText("緊張度4を講評前に記録");
@@ -857,6 +962,7 @@ test("a realistic Japanese round: Japanese throughout, seven rows, and the feedb
   await pill.click();
   await expect(pill).toHaveText("English");
   await expect(page.getByTestId("to-fix")).toContainText("結論を最初の一文に置く");
+  await expect(page.getByTestId("model-answer").first()).toHaveText(MODEL_ANSWER_JA.answer);
   await page.getByRole("button", { name: "第2問" }).click();
   await expect(page.getByTestId("answer-region")).toHaveAttribute("data-position", "2");
 
@@ -865,6 +971,22 @@ test("a realistic Japanese round: Japanese throughout, seven rows, and the feedb
   expect(stored.language).toBe("ja");
   expect(stored.bodyTranslated).toEqual({ language: "en", ...FINDINGS_JA.translated });
   expect(stored.promptVersion).toBe("feedback-ja-1.1");
+  // So is each model answer's, with its own span into the English text (04 `model_answers`).
+  const modelAnswers = await withDb((db) =>
+    db.select({ translated: s.modelAnswers.bodyTranslated, prompt: s.modelAnswers.promptVersion })
+      .from(s.modelAnswers).innerJoin(s.answers, eq(s.answers.id, s.modelAnswers.answerId))
+      .where(eq(s.answers.roundId, roundId)),
+  );
+  const translatedStart = MODEL_ANSWER_JA.translated.answer.indexOf(MODEL_UNSUPPORTED);
+  expect(modelAnswers).toHaveLength(6);
+  expect(modelAnswers[0]).toEqual({
+    translated: {
+      language: "en",
+      body: MODEL_ANSWER_JA.translated.answer,
+      unsupported_spans: [{ start: translatedStart, end: translatedStart + MODEL_UNSUPPORTED.length }],
+    },
+    prompt: "model-answer-ja-1.0",
+  });
 
   // The scorer read the Japanese rubric and the corrected text, never the raw one (03 §4).
   const scoring = openAi.requests.slice(requestsBefore).filter((request) => formatOf(request.body) === "answer_scores");

@@ -145,3 +145,18 @@ export function followUpValues(
     ...overrides,
   } satisfies typeof s.followUps.$inferInsert;
 }
+
+export function modelAnswerValues(
+  world: World,
+  answerId: string,
+  overrides: Partial<typeof s.modelAnswers.$inferInsert> = {},
+): typeof s.modelAnswers.$inferInsert {
+  return {
+    answerId,
+    userId: world.userId,
+    body: "決済基盤の移行を担当いたしました。",
+    modelId: "fixture-model-2026-01-01",
+    promptVersion: "model-answer-fixture",
+    ...overrides,
+  };
+}

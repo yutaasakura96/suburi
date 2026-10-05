@@ -118,7 +118,8 @@ the thing being measured.
   one from the 1280px canvas.
 - **Every new Japanese string needs a native read.** Rules earned so far: `docs/05-design-system.md`
   §6.
-- A round is roughly $0.40 on `gpt-5.6-sol`. Cost is not the constraint at this volume.
+- A round is well under a dollar on `gpt-5.6-sol` (`docs/03-technical-design.md` §6). Cost is not the
+  constraint at this volume.
 
 ## Workflow
 

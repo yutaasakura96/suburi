@@ -471,9 +471,10 @@ read a Japanese round's feedback in English.
 
 **What the pill changes (`06`, 2026-10-03):** the feedback, and nothing else — the seven dimension
 names (`Structure … Keigo (register)`) and the round-level findings with their two headings
-(`To fix 3`, `What worked 1`), read from the stored translation (`04` `round_feedback.body_translated`).
-The round's own chrome stays Japanese: the header, `第1問 / 5問`, the figures, the question, the pager
-and the stamps. The pill appears only when the stored translation exists. It names the language it
+(`To fix 3`, `What worked 1`), read from the stored translation (`04` `round_feedback.body_translated`),
+and **each model answer**, read from the translation stored with it (`04` `model_answers`, #74).
+The round's own chrome stays Japanese: the header, `第1問 / 5問`, the figures, the question, the pager,
+the answer texts' labels and legend, what the user said, and the stamps. The pill appears only when the stored translation exists. It names the language it
 switches to, in that language — `English`, then `日本語` — and the choice is the page's, not stored.
 **An English round has no pill**: its feedback is English already (PRD §4).
 
@@ -501,6 +502,35 @@ switches to, in that language — `English`, then `日本語` — and the choice
   not a mismatch.
 - **Answer pager:** `第2問 第3問 第4問 第5問` at 12px `--ink-label`, a flex `--rule-section` line,
   then `以下に4問`.
+- **Answer texts, under the pager** (#74, `06`, 2026-10-04; no artboard): two equal columns, 28px
+  apart, for the answer the pager is on. Left, under the §3.3 section label `あなたの回答` /
+  `Your answer`, **what the user said** — the corrected transcript as it was scored, 13px/1.85
+  `--ink-3`, line breaks kept. Right, under `模範回答` / `Model answer`, **the model answer stored
+  for that question** (`04` `model_answers`), 13px/1.85 `--ink-2`.
+  - **What the CV does not back is underlined** — a 1px `--attention-mark` bottom border on each
+    stored span (`unsupported_spans`), the colour of the 裏づけなし rails below. The mark is never
+    colour alone: a 12px `--ink-6` caption under the answer says what it is and names the round's CV
+    stamp — `応募書類 v3とあなたの回答をもとに作成しています。下線は、応募書類 v3に裏づけのない内容です。` /
+    `Written from CV v3 and what you said. An underline marks what CV v3 does not back.` With no span:
+    `応募書類 v3とあなたの回答をもとに作成しています。応募書類 v3に裏づけのない内容として下線を付けた箇所はありません。` /
+    `Written from CV v3 and what you said. Nothing in it is underlined as going beyond CV v3.` The
+    caption is always there, for the reason 裏づけなし's empty rail is. **It says what was marked,
+    not that every claim was checked**: figures also pass the server's deterministic check (`04` `model_answers`).
+  - **An answered follow-up has a second pair below**, 24px down, labelled `深掘りへの回答` /
+    `Your answer to the follow-up` and `深掘りへの模範回答` / `Model answer to the follow-up`. A
+    follow-up that is missing, or was never answered, has none.
+  - **With the pill on `English`**, the right column is the stored English translation with its own
+    underlines, and carries `lang="en"`; the left column and every label stay as they are.
+  - **No model answer stored** — its call failed at `complete`, was still running when the response
+    went out (`07` §5.12; a reload shows it once it lands), or the round is from before model
+    answers existed — the right column is one plain sentence, `この質問の模範回答はまだ作成されていません。`
+    / `No model answer is written for this question yet.`, and an outline button `模範回答を作成する` /
+    `Write the model answers`, which writes every one the round lacks (`07` §5.19) and refreshes.
+    While it runs the button is disabled and a caption reads `模範回答を作成しています。` /
+    `Writing the model answers.` **No spinner**, and nothing else on the screen waits. A failure is
+    the catalogue's sentence on an attention rail above the button, which stays.
+  - **A model answer is never scored, graded or compared with the user's answer here.** It sits
+    beside what was said; the screen draws no diff and no judgement between the two.
 
 ### Round-level region
 - `直すところ 3件` — a numbered list, index in mono `--ink-label`, text 13px/1.75. The items quote the
@@ -560,6 +590,8 @@ control**: it could never succeed.
 - **No composite.** No round total, no average, no per-answer aggregate, no letter, no percentage.
 - **No prose beside a dimension** (design system §7).
 - **No comparison to other users**, and no comparison to a target other than the user's own history.
+- **No regenerating a model answer** (`07` §6). The one stored with the round is the one shown, now
+  and later; the control above writes only what is missing.
 
 ---
 
@@ -1009,7 +1041,7 @@ One row per `12` §6 row `self-check` covers, **always all ten, in `12` §6's or
 | --- | --- |
 | Check | 13px `--ink-2`: `Scores pending over 24 hours`, `Failed scores not retried`, `Spend this week`, `CV quotes not found in text`, `CV claims split`, `CV claims duplicated`, `CV longest unread run`, `CV quotes outside window`, `Rounds without feedback over 24 hours`, `Daily backup failed` |
 | Reading | 13px mono, right-aligned: a count (`0`, `3`), code points (`1,071`), or dollars (`$0.84`). `—` in `--ink-9` when there is no reading |
-| Threshold | 12px mono `--ink-label`, right-aligned: `above 0`, `above 2,000`, `above $1.20` |
+| Threshold | 12px mono `--ink-label`, right-aligned: `above 0`, `above 2,000`, `above $2.10` |
 | State | 12px, right-aligned: `Red` in `--attention-ink`/500; `OK` in `--ink-4`; `No reading` in `--ink-9` |
 
 When spend includes a model without a price, its row is red regardless of the dollar threshold. Under
@@ -1024,7 +1056,7 @@ reads `—` and `No reading`.
 
 Under the table, 12px/1.7 `--ink-6`: `Spend counts the stored token columns only, priced at
 lib/ai/models.ts's rates. Unpriced models are named and excluded from the dollar figure. The threshold
-is 3 × $0.40 per round started this week, with a floor of one round.` — the loose-until-re-measured
+is 3 × $0.70 per round started this week, with a floor of one round.` — the loose-until-re-measured
 caveat of `12` §6, stated where the number is read.
 
 ### Last week — `LAST WEEK`

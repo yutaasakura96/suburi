@@ -11,8 +11,11 @@ import {
   fakeEmbedder,
   FIXTURE_FEEDBACK_JA,
   FIXTURE_FOLLOW_UP,
+  FIXTURE_MODEL_ANSWER,
+  FIXTURE_MODEL_ANSWER_JA,
   fakeFeedbackGenerator,
   fakeFollowUpGenerator,
+  fakeModelAnswerGenerator,
   fakeModelHealth,
   fakeQuestionGenerator,
   fakeScorer,
@@ -27,6 +30,7 @@ import { createAuth } from "../auth/auth";
 import { mintSessionCookie } from "../auth/test/session";
 import { getConfig } from "../config";
 import { createComplete, createFeedbackRetry } from "./complete";
+import { createModelAnswersRetry } from "./model-answers";
 import { createOpenAnswer } from "./open-answer";
 import { createPostRound } from "./post-round";
 import { createPostRoleContext } from "./role-context";
@@ -121,11 +125,23 @@ async function setUp(db: TestDb, { healthy = true, vectorOf }: { healthy?: boole
   }));
   const generator = fakeFeedbackGenerator(({ rubric }) => (rubric.language === "ja" ? FIXTURE_FEEDBACK_JA : FIXTURE_FEEDBACK));
   const followUps = fakeFollowUpGenerator(() => ({ ...FIXTURE_FOLLOW_UP, text: FOLLOW_UP_TEXT }));
+  const modelAnswers = fakeModelAnswerGenerator(({ rubric }) => (rubric.language === "ja" ? FIXTURE_MODEL_ANSWER_JA : FIXTURE_MODEL_ANSWER));
   const health = fakeModelHealth(healthy);
   const questionGenerator = fakeQuestionGenerator(numberedQuestions());
   const embedder = fakeEmbedder(vectorOf);
   const base = { auth, db, transaction: savepointTransaction(db, fail, depth) };
   const timing = { waitBoundMs: 50, sleep: async () => {} };
+
+  /** `complete` as the route builds it, or with a model-answer wait a test shortens. */
+  const completeWith = (overrides: { modelAnswerWaitMs?: number } = {}) =>
+    createComplete({
+      ...base,
+      generator,
+      modelAnswerGenerator: modelAnswers,
+      after: (work) => void scheduled.push(work),
+      ...timing,
+      ...overrides,
+    });
 
   const handlers = {
     roleContext: createPostRoleContext(base),
@@ -140,8 +156,9 @@ async function setUp(db: TestDb, { healthy = true, vectorOf }: { healthy?: boole
       after: (work) => void scheduled.push(work),
       deadline: () => Date.now() + 280_000,
     }),
-    complete: createComplete({ ...base, generator, ...timing }),
+    complete: completeWith(),
     feedback: createFeedbackRetry({ ...base, generator, ...timing }),
+    modelAnswers: createModelAnswersRetry({ ...base, modelAnswerGenerator: modelAnswers }),
   };
 
   const responses: string[] = [];
@@ -166,7 +183,7 @@ async function setUp(db: TestDb, { healthy = true, vectorOf }: { healthy?: boole
   const post = (handler: (request: Request) => Promise<Response>, body: unknown, options?: { signedIn?: boolean }) =>
     call((request) => handler(request), "", body, options);
 
-  /** Runs everything `submit` scheduled in `after()`, as Vercel's waitUntil would. */
+  /** Runs everything `submit` and `complete` scheduled in `after()`, as Vercel's waitUntil would. */
   async function drainAfter() {
     while (scheduled.length > 0) await scheduled.shift()!();
   }
@@ -215,9 +232,11 @@ async function setUp(db: TestDb, { healthy = true, vectorOf }: { healthy?: boole
     transcriber,
     generator,
     followUps,
+    modelAnswers,
     health,
     questionGenerator,
     handlers,
+    completeWith,
     call,
     post,
     responses,
@@ -241,7 +260,13 @@ async function playThrough(world: World, overrides: object = {}) {
 
 async function count(
   db: TestDb,
-  table: typeof s.rounds | typeof s.roundQuestions | typeof s.roundFeedback | typeof s.answers | typeof s.followUps,
+  table:
+    | typeof s.rounds
+    | typeof s.roundQuestions
+    | typeof s.roundFeedback
+    | typeof s.answers
+    | typeof s.followUps
+    | typeof s.modelAnswers,
 ) {
   return (await db.select({ id: table.id }).from(table)).length;
 }
@@ -950,6 +975,8 @@ describe("POST /api/rounds/{id}/complete (11 §3.14)", () => {
         db,
         transaction: async (work) => work(db),
         generator: world.generator,
+        modelAnswerGenerator: world.modelAnswers,
+        after: () => {},
         waitBoundMs: 60_000,
         // The scores land during the first poll.
         sleep: () => world.drainAfter(),
@@ -1809,11 +1836,12 @@ describe("follow-ups: one per answer, written by submit (07 §5.9, 11 §3.1)", (
       const screen = await feedbackScreen(db, round);
       // One page per bank question; the follow-up hangs off it and is not a page of its own.
       expect(screen.answers.map((answer) => answer.position)).toEqual([1, 2, 3]);
-      expect(screen.answers.map((answer) => answer.followUp)).toEqual([
+      expect(screen.answers.map((answer) => answer.followUp)).toMatchObject([
         { kind: "asked", text: FOLLOW_UP_TEXT, status: "ok" },
         { kind: "missing" },
         { kind: "asked", text: FOLLOW_UP_TEXT, status: "ok" },
       ]);
+      expect(screen.answers[1].followUp).toEqual({ kind: "missing" });
       expect(screen.stamps.generatorVersions).toContain("follow-up-en-fake");
     }));
 
@@ -1831,6 +1859,429 @@ describe("follow-ups: one per answer, written by submit (07 §5.9, 11 §3.1)", (
       for (const text of logged) expect(text).not.toContain(FOLLOW_UP_SENTINEL);
       // `next.text` returns the follow-up to its owner, by design; no error envelope carries it.
       for (const text of world.responses) if (text.includes('"error"')) expect(text).not.toContain(FOLLOW_UP_SENTINEL);
+    }));
+});
+
+// #74: how each question could have been answered, from the round's CV version and what was said.
+// Written once per answer at `complete`, beside the feedback, and by the retry for what is lacking.
+describe("model answers (#74, 07 §5.12, §5.19)", () => {
+  // Recognisable text in a model answer: stored and shown to its owner, and logged nowhere.
+  // Its digits follow a letter: digits at a word boundary are a figure, and the server marks one the
+  // CV does not hold (04 `model_answers`).
+  const MODEL_SENTINEL = "QUOKKA-SENTINEL-X6120";
+  const MODEL_ANSWER = {
+    ...FIXTURE_MODEL_ANSWER,
+    answer: `At ${MODEL_SENTINEL} I led the migration and finished it in six months, with a team of four.`,
+    unsupported: [{ quote: "a team of four", startHint: 70 }],
+  };
+  const modelAnswersOf = (db: TestDb, roundId: string) =>
+    db
+      .select({ modelAnswer: s.modelAnswers, answer: s.answers })
+      .from(s.modelAnswers)
+      .innerJoin(s.answers, eq(s.answers.id, s.modelAnswers.answerId))
+      .where(eq(s.answers.roundId, roundId));
+
+  // 07 §5.12: a slow call is not what the feedback waits for. It is `pending`, and lands in `after()`.
+  it("answers without a call still running past the wait, and stores it behind the response", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const { roundId } = await playThrough(world);
+      await world.drainAfter();
+      const respond = world.modelAnswers.generate;
+      let release = () => {};
+      const held = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      let call = 0;
+      world.modelAnswers.generate = async (input, options) => {
+        call += 1;
+        if (call === 2) await held;
+        return respond(input, options);
+      };
+      const response = await world.call(world.completeWith({ modelAnswerWaitMs: 0 }), roundId, { felt_pressure: 3 });
+      expect(response.status).toBe(201);
+      // The five that had finished are stored whatever the wait; the one still running is not waited for.
+      expect(response.json.model_answers).toEqual({ written: 5, failed: 0, pending: 1 });
+      expect(response.json.feedback.to_fix).toHaveLength(2);
+      expect(await modelAnswersOf(db, roundId)).toHaveLength(5);
+
+      release();
+      await world.drainAfter();
+      expect(await modelAnswersOf(db, roundId)).toHaveLength(6);
+      expect(world.modelAnswers.calls).toBe(6);
+    }));
+
+  it("leaves a gap, and no row, when the call it did not wait for fails", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const { roundId } = await playThrough(world);
+      await world.drainAfter();
+      const respond = world.modelAnswers.generate;
+      let fail = () => {};
+      const held = new Promise<never>((_, reject) => {
+        fail = () => reject(new ModelCallFailed("Model answer", "upstream_timeout"));
+      });
+      let call = 0;
+      world.modelAnswers.generate = async (input, options) => {
+        call += 1;
+        if (call === 2) await held;
+        return respond(input, options);
+      };
+      const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+      const response = await world.call(world.completeWith({ modelAnswerWaitMs: 0 }), roundId, { felt_pressure: 3 });
+      expect(response.json.model_answers).toEqual({ written: 5, failed: 0, pending: 1 });
+
+      fail();
+      await world.drainAfter();
+      expect(await modelAnswersOf(db, roundId)).toHaveLength(5);
+      expect(errors.mock.calls.map(([line]) => JSON.parse(line as string).event)).toContain("model_answer_call_failed");
+
+      // The retry writes it, as it does one that failed in front of the response.
+      world.modelAnswers.generate = respond;
+      const retried = await world.call(world.handlers.modelAnswers, roundId, {});
+      expect(retried.json).toEqual({ model_answers: { written: 1, failed: 0 } });
+    }));
+
+  it("writes one per answer at complete, follow-ups included, from the CV's claims and the corrected text", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const { roundId } = await playThrough(world);
+      await world.drainAfter();
+      const respond = world.modelAnswers.generate;
+      world.modelAnswers.generate = async (input, options) => {
+        // Outside any transaction, like every model call of the round (06, 2026-09-27).
+        expect(world.inTransaction()).toBe(false);
+        return respond(input, options);
+      };
+      const response = await world.call(world.handlers.complete, roundId, { felt_pressure: 3 });
+      expect(response.status).toBe(201);
+      expect(response.json.model_answers).toEqual({ written: 6, failed: 0, pending: 0 });
+
+      expect(world.modelAnswers.calls).toBe(6);
+      const [cv] = await db.select().from(s.cvVersions).where(and(eq(s.cvVersions.userId, world.userId), eq(s.cvVersions.language, "en")));
+      const claims = await db.select().from(s.cvClaims).where(eq(s.cvClaims.cvVersionId, cv.id));
+      for (const input of world.modelAnswers.inputs) {
+        expect(input.claims).toHaveLength(claims.length);
+        expect(input.rubric.language).toBe("en");
+        expect(input.roundType).toBe("hr");
+        expect(input.roleContext).toEqual({ kind: "general" });
+        // The corrected text, never the raw one the transcriber heard.
+        expect(input.answer).not.toContain(SENTINEL);
+      }
+      // A follow-up is sent with the question it followed and what was said to it.
+      const followUps = world.modelAnswers.inputs.filter((input) => input.parent !== null);
+      expect(followUps).toHaveLength(3);
+      expect(followUps.every((input) => input.prompt === FOLLOW_UP_TEXT)).toBe(true);
+      expect(followUps.every((input) => input.parent!.answer === "I led the migration, um, in six months.")).toBe(true);
+
+      const rows = await modelAnswersOf(db, roundId);
+      expect(rows).toHaveLength(6);
+      expect(new Set(rows.map((row) => row.answer.id)).size).toBe(6);
+      for (const { modelAnswer } of rows) {
+        expect(modelAnswer).toMatchObject({
+          userId: world.userId,
+          body: FIXTURE_MODEL_ANSWER.answer,
+          bodyTranslated: null,
+          modelId: "fake-model-answer-2026-01-01",
+          promptVersion: "model-answer-en-fake",
+          tokensIn: 2_000,
+          tokensOut: 300,
+        });
+        // The mark is a span of the stored body, found there from the model's quote.
+        expect(modelAnswer.unsupportedSpans).toHaveLength(1);
+        const [span] = modelAnswer.unsupportedSpans;
+        expect(Array.from(modelAnswer.body).slice(span.start, span.end).join("")).toBe("a team of four");
+      }
+    }));
+
+  it("stores a span only where the quote stands in the answer, and counts what it drops", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const { roundId } = await playThrough(world);
+      await world.drainAfter();
+      world.modelAnswers.generate = async () => ({
+        ...MODEL_ANSWER,
+        unsupported: [...MODEL_ANSWER.unsupported, { quote: "a team of five", startHint: 70 }, { quote: "", startHint: 0 }],
+      });
+      await world.call(world.handlers.complete, roundId, { felt_pressure: 3 });
+      const rows = await modelAnswersOf(db, roundId);
+      expect(rows.every((row) => row.modelAnswer.unsupportedSpans.length === 1)).toBe(true);
+      const line = logged.map((text) => JSON.parse(text)).find((entry) => entry.event === "model_answers_generated");
+      expect(line).toMatchObject({ round_id: roundId, wanted: 6, generated: 6, failed: 0, unsupported_spans: 6, unsupported_dropped: 12 });
+    }));
+
+  // 04 `model_answers`: a figure in digits that neither the CV nor the candidate's words hold is marked
+  // by the server, whatever the writing call marked.
+  it("marks a figure neither the CV nor the candidate's words hold, though the model marked nothing", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const { roundId } = await playThrough(world);
+      await world.drainAfter();
+      world.modelAnswers.generate = async () => ({
+        ...MODEL_ANSWER,
+        answer: "I led the migration and cut failed payments by 83%.",
+        unsupported: [],
+      });
+      await world.call(world.handlers.complete, roundId, { felt_pressure: 3 });
+      const rows = await modelAnswersOf(db, roundId);
+      expect(rows).toHaveLength(6);
+      for (const { modelAnswer } of rows) {
+        const marked = modelAnswer.unsupportedSpans.map((span) => Array.from(modelAnswer.body).slice(span.start, span.end).join(""));
+        expect(marked).toEqual(["83%"]);
+      }
+    }));
+
+  it("leaves a failed call's answer without a row, completes the round all the same, and the retry writes only that one", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const { roundId } = await playThrough(world);
+      await world.drainAfter();
+      const respond = world.modelAnswers.generate;
+      let call = 0;
+      world.modelAnswers.generate = async (input, options) => {
+        call += 1;
+        if (call === 2) throw new ModelCallFailed("Model answer", "upstream_500");
+        return respond(input, options);
+      };
+      const response = await world.call(world.handlers.complete, roundId, { felt_pressure: 3 });
+      expect(response.status).toBe(201);
+      expect(response.json.model_answers).toEqual({ written: 5, failed: 1, pending: 0 });
+      expect(await count(db, s.roundFeedback)).toBe(1);
+      expect(await modelAnswersOf(db, roundId)).toHaveLength(5);
+
+      const [round] = await db.select().from(s.rounds).where(eq(s.rounds.id, roundId));
+      const lacking = (await feedbackScreen(db, round)).answers.flatMap((answer) => [
+        answer.modelAnswer,
+        answer.followUp?.kind === "asked" ? answer.followUp.modelAnswer : null,
+      ]);
+      expect(lacking.filter((modelAnswer) => modelAnswer === null)).toHaveLength(1);
+
+      world.modelAnswers.generate = respond;
+      const retried = await world.call(world.handlers.modelAnswers, roundId, {});
+      expect(retried.status).toBe(201);
+      expect(retried.json).toEqual({ model_answers: { written: 1, failed: 0 } });
+      // Five calls answered at complete, and one more now: only the answer that lacked one.
+      expect(world.modelAnswers.calls).toBe(6);
+      expect(await modelAnswersOf(db, roundId)).toHaveLength(6);
+
+      // A round that lacks none makes no model call.
+      const again = await world.call(world.handlers.modelAnswers, roundId, {});
+      expect(again.status).toBe(200);
+      expect(again.json).toEqual({ model_answers: { written: 0, failed: 0 } });
+      expect(world.modelAnswers.calls).toBe(6);
+    }));
+
+  it("is 502 model_answer_generation_failed when a retry's call fails, keeping what the others wrote", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const { roundId } = await playThrough(world);
+      await world.drainAfter();
+      const respond = world.modelAnswers.generate;
+      world.modelAnswers.generate = async () => {
+        throw new ModelCallFailed("Model answer", "upstream_timeout");
+      };
+      const completed = await world.call(world.handlers.complete, roundId, { felt_pressure: 3 });
+      expect(completed.status).toBe(201);
+      expect(completed.json.model_answers).toEqual({ written: 0, failed: 6, pending: 0 });
+
+      let call = 0;
+      world.modelAnswers.generate = async (input, options) => {
+        call += 1;
+        if (call > 4) throw new ModelCallFailed("Model answer", "malformed_output");
+        return respond(input, options);
+      };
+      const retried = await world.call(world.handlers.modelAnswers, roundId, {});
+      expect(retried.status).toBe(502);
+      expect(retried.json.error).toEqual({
+        code: "model_answer_generation_failed",
+        message: "Not every model answer was written; the round is complete.",
+        detail: { round_id: roundId, written: 4, failed: 2, error_class: "malformed_output" },
+      });
+      expect(await modelAnswersOf(db, roundId)).toHaveLength(4);
+    }));
+
+  it("writes them when the feedback is not: they wait for no score, and the feedback retry writes none", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const { roundId } = await playThrough(world);
+      // No score has landed: the bound runs out and no feedback is written.
+      const response = await world.call(world.handlers.complete, roundId, { felt_pressure: 3 });
+      expect(response.status).toBe(502);
+      expect(response.json.error.code).toBe("feedback_generation_failed");
+      expect(await count(db, s.roundFeedback)).toBe(0);
+      expect(await modelAnswersOf(db, roundId)).toHaveLength(6);
+
+      await world.drainAfter();
+      expect((await world.call(world.handlers.feedback, roundId, {})).status).toBe(201);
+      expect(world.modelAnswers.calls).toBe(6);
+    }));
+
+  it("writes a round completed before model answers existed its model answers, on the retry", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const { roundId } = await playThrough(world);
+      await world.drainAfter();
+      await world.call(world.handlers.complete, roundId, { felt_pressure: 3 });
+      await db.execute(sql`delete from model_answers`);
+      const [round] = await db.select().from(s.rounds).where(eq(s.rounds.id, roundId));
+      expect((await feedbackScreen(db, round)).answers.every((answer) => answer.modelAnswer === null)).toBe(true);
+
+      const retried = await world.call(world.handlers.modelAnswers, roundId, {});
+      expect(retried.status).toBe(201);
+      expect(retried.json).toEqual({ model_answers: { written: 6, failed: 0 } });
+      // The round feedback is written once and is not touched.
+      expect(world.generator.calls).toBe(1);
+    }));
+
+  it("keeps the row a concurrent call stored first", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const { roundId, answers } = await playThrough(world);
+      await world.drainAfter();
+      const respond = world.modelAnswers.generate;
+      let raced = false;
+      world.modelAnswers.generate = async (input, options) => {
+        if (!raced) {
+          raced = true;
+          await db.insert(s.modelAnswers).values({
+            answerId: answers[0].answerId,
+            userId: world.userId,
+            body: "Stored first.",
+            modelId: "fake-model-answer-2026-01-01",
+            promptVersion: "model-answer-en-fake",
+          });
+        }
+        return respond(input, options);
+      };
+      const response = await world.call(world.handlers.complete, roundId, { felt_pressure: 3 });
+      expect(response.json.model_answers).toEqual({ written: 5, failed: 0, pending: 0 });
+      const rows = await modelAnswersOf(db, roundId);
+      expect(rows).toHaveLength(6);
+      expect(rows.find((row) => row.answer.id === answers[0].answerId)!.modelAnswer.body).toBe("Stored first.");
+    }));
+
+  it("writes none for a practice answer-again: the question has its model answer", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const { json } = await world.startRound({ mode: "practice" });
+      const { answerId } = await world.answerPosition(json.round.id);
+      const [original] = await db.select().from(s.answers).where(eq(s.answers.id, answerId));
+      const [retry] = await db
+        .insert(s.answers)
+        .values({ ...original, id: undefined, retryOfAnswerId: original.id, audioS3Key: null, transcriptCorrected: null, rewriteMagnitude: null })
+        .returning({ id: s.answers.id });
+      await world.call(world.handlers.submit, retry.id, { transcript_corrected: "I led it, better." });
+      for (let position = 2; position <= 3; position += 1) await world.answerPosition(json.round.id);
+      await world.drainAfter();
+
+      const response = await world.call(world.handlers.complete, json.round.id, {});
+      expect(response.status).toBe(201);
+      expect(response.json.model_answers).toEqual({ written: 6, failed: 0, pending: 0 });
+      expect((await modelAnswersOf(db, json.round.id)).map((row) => row.answer.id)).not.toContain(retry.id);
+    }));
+
+  it("is 500 write_failed when the retry cannot store them, and a later retry writes them", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const { roundId } = await playThrough(world);
+      await world.drainAfter();
+      await world.call(world.handlers.complete, roundId, { felt_pressure: 3 });
+      await db.execute(sql`delete from model_answers`);
+      world.fail.next = true;
+      const failed = await world.call(world.handlers.modelAnswers, roundId, {});
+      expect(failed.status).toBe(500);
+      expect(failed.json.error).toMatchObject({ code: "write_failed", detail: { round_id: roundId, error_class: "pg_57014" } });
+      expect(await modelAnswersOf(db, roundId)).toHaveLength(0);
+      expect((await world.call(world.handlers.modelAnswers, roundId, {})).status).toBe(201);
+      expect(await modelAnswersOf(db, roundId)).toHaveLength(6);
+    }));
+
+  it("refuses the retry with no session, for another user's round, and for a round that is still open", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const { json } = await world.startRound();
+      const roundId = json.round.id as string;
+      expect((await world.call(world.handlers.modelAnswers, roundId, {}, { signedIn: false })).status).toBe(401);
+      expect((await world.call(world.handlers.modelAnswers, "not-a-uuid", {})).status).toBe(404);
+
+      const open = await world.call(world.handlers.modelAnswers, roundId, {});
+      expect(open.status).toBe(409);
+      expect(open.json.error.code).toBe("round_not_complete");
+
+      await db.update(s.rounds).set({ userId: await insertOtherUser(db), completedAt: new Date() }).where(eq(s.rounds.id, roundId));
+      expect((await world.call(world.handlers.modelAnswers, roundId, {})).status).toBe(404);
+      expect(world.modelAnswers.calls).toBe(0);
+      expect(await count(db, s.modelAnswers)).toBe(0);
+    }));
+
+  it("shows screen 8 what was said beside its model answer, marked by the stored spans", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const { roundId } = await playThrough(world);
+      await world.drainAfter();
+      await world.call(world.handlers.complete, roundId, { felt_pressure: 3 });
+      const [round] = await db.select().from(s.rounds).where(eq(s.rounds.id, roundId));
+      const screen = await feedbackScreen(db, round);
+      const [first] = screen.answers;
+      expect(first.own).toBe("I led the migration, um, in six months.");
+      expect(first.modelAnswer).toEqual({
+        segments: [
+          { text: "I led the payments migration and finished it in six months. I planned the cutover with ", unsupported: false },
+          { text: "a team of four", unsupported: true },
+          { text: ".", unsupported: false },
+        ],
+        translated: null,
+      });
+      // The follow-up's own answer and model answer hang off the question, as its row does.
+      expect(first.followUp).toMatchObject({ kind: "asked", own: "It was my call, um, in the end." });
+      expect(first.followUp?.kind === "asked" ? first.followUp.modelAnswer?.segments.map((segment) => segment.text).join("") : null).toBe(
+        FIXTURE_MODEL_ANSWER.answer,
+      );
+    }));
+
+  it("stores a Japanese round's model answer with its English, each with its own spans", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const { roundId } = await playThrough(world, { language: "ja" });
+      await world.drainAfter();
+      const response = await world.call(world.handlers.complete, roundId, { felt_pressure: 3 });
+      expect(response.json.model_answers).toEqual({ written: 6, failed: 0, pending: 0 });
+      expect(world.modelAnswers.inputs.every((input) => input.rubric.language === "ja")).toBe(true);
+
+      const [{ modelAnswer }] = await modelAnswersOf(db, roundId);
+      expect(modelAnswer.promptVersion).toBe("model-answer-ja-fake");
+      expect(modelAnswer.body).toBe(FIXTURE_MODEL_ANSWER_JA.answer);
+      const [span] = modelAnswer.unsupportedSpans;
+      expect(Array.from(modelAnswer.body).slice(span.start, span.end).join("")).toBe("4名のチーム");
+      const translated = modelAnswer.bodyTranslated as { language: string; body: string; unsupported_spans: { start: number; end: number }[] };
+      expect(translated.language).toBe("en");
+      expect(translated.body).toBe(FIXTURE_MODEL_ANSWER_JA.translated!.answer);
+      expect(translated.unsupported_spans.map((mark) => translated.body.slice(mark.start, mark.end))).toEqual(["a team of four"]);
+
+      const [round] = await db.select().from(s.rounds).where(eq(s.rounds.id, roundId));
+      const screen = await feedbackScreen(db, round);
+      expect(screen.answers[0].modelAnswer?.translated?.filter((segment) => segment.unsupported)).toEqual([
+        { text: "a team of four", unsupported: true },
+      ]);
+    }));
+
+  it("carries no model answer into a log line or an envelope, on success or failure", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const { roundId } = await playThrough(world);
+      await world.drainAfter();
+      let call = 0;
+      world.modelAnswers.generate = async () => {
+        call += 1;
+        if (call === 3) throw new ModelCallFailed("Model answer", "upstream_500");
+        return MODEL_ANSWER;
+      };
+      await world.call(world.handlers.complete, roundId, { felt_pressure: 3 });
+      world.fail.next = true;
+      await world.call(world.handlers.modelAnswers, roundId, {});
+      await world.call(world.handlers.modelAnswers, roundId, {});
+      expect((await modelAnswersOf(db, roundId)).some((row) => row.modelAnswer.body.includes(MODEL_SENTINEL))).toBe(true);
+      for (const text of [...world.responses, ...logged]) expect(text).not.toContain(MODEL_SENTINEL);
     }));
 });
 

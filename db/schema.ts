@@ -41,6 +41,7 @@ export const RATE_LIMITED_ROUTES = [
   "speech",
   "scoring-attempts",
   "scoring-run",
+  "model-answers",
 ] as const;
 // 12 §6's monitoring jobs and what they read (04 cron_readings). #47 adds the near-miss row; #56
 // added the daily dump's.
@@ -591,6 +592,35 @@ export const roundFeedback = pgTable(
     createdAt: createdAt(),
   },
   (t) => [oneOf("round_feedback", "language", t.language, LANGUAGES)],
+);
+
+// Append-only: the one model answer written for one answer of a round (04). Coaching, never
+// measurement: it carries no score and no stamp of the four, and Progress never reads it. Its marked
+// spans index `body`, as an answer flag's index `transcript_corrected`.
+export const modelAnswers = pgTable(
+  "model_answers",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    answerId: uuid("answer_id")
+      .notNull()
+      .references(() => answers.id, { onDelete: "restrict" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    // The model answer, in the round's language.
+    body: text("body").notNull(),
+    // [start, end) into body, in characters (code points): what the round's CV version does not back.
+    unsupportedSpans: jsonb("unsupported_spans").$type<{ start: number; end: number }[]>().notNull().default([]),
+    // The English toggle of a Japanese round: { language, body, unsupported_spans }. Null on an English one.
+    bodyTranslated: jsonb("body_translated"),
+    // Exact pinned string, never an alias.
+    modelId: text("model_id").notNull(),
+    promptVersion: text("prompt_version").notNull(),
+    tokensIn: integer("tokens_in"),
+    tokensOut: integer("tokens_out"),
+    createdAt: createdAt(),
+  },
+  (t) => [unique("model_answers_answer_id_unique").on(t.answerId)],
 );
 
 export const claimCitations = pgTable(

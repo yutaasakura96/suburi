@@ -227,6 +227,19 @@ const en = {
   wrongLanguage: (answered: RoundLanguage) => `This answer was given in ${LANGUAGE_NAMES[answered]}. It is kept out of your English progress.`,
   retryFindings: "Write the findings",
   retryingFindings: "Writing the findings.",
+  // 10 §8, under the pager: what was said, and the model answer stored for it. An underline is a
+  // stored span of the stored model answer (04 `model_answers`).
+  ownAnswer: "Your answer",
+  modelAnswer: "Model answer",
+  followUpOwnAnswer: "Your answer to the follow-up",
+  followUpModelAnswer: "Model answer to the follow-up",
+  modelAnswerMarked: (cvLabel: string) =>
+    `Written from ${cvLabel} and what you said. An underline marks what ${cvLabel} does not back.`,
+  modelAnswerUnmarked: (cvLabel: string) =>
+    `Written from ${cvLabel} and what you said. Nothing in it is underlined as going beyond ${cvLabel}.`,
+  modelAnswerNotWritten: "No model answer is written for this question yet.",
+  writeModelAnswers: "Write the model answers",
+  writingModelAnswers: "Writing the model answers.",
   pressureRecorded: (value: number) => `Pressure ${value} recorded before the feedback`,
 };
 
@@ -347,6 +360,17 @@ const ja: RoundCopy = {
   wrongLanguage: () => "英語での回答です。日本語の進捗には入れません。",
   retryFindings: "講評をまとめる",
   retryingFindings: "講評をまとめています。",
+  ownAnswer: "あなたの回答",
+  modelAnswer: "模範回答",
+  followUpOwnAnswer: "深掘りへの回答",
+  followUpModelAnswer: "深掘りへの模範回答",
+  modelAnswerMarked: (cvLabel) =>
+    `${cvLabel}とあなたの回答をもとに作成しています。下線は、${cvLabel}に裏づけのない内容です。`,
+  modelAnswerUnmarked: (cvLabel) =>
+    `${cvLabel}とあなたの回答をもとに作成しています。${cvLabel}に裏づけのない内容として下線を付けた箇所はありません。`,
+  modelAnswerNotWritten: "この質問の模範回答はまだ作成されていません。",
+  writeModelAnswers: "模範回答を作成する",
+  writingModelAnswers: "模範回答を作成しています。",
   pressureRecorded: (value) => `緊張度${value}を講評前に記録`,
 };
 

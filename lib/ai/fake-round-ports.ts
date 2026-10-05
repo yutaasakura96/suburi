@@ -7,6 +7,7 @@ import {
 } from "./generate-questions";
 import type { FollowUpGenerator, FollowUpInput, FollowUpResult } from "./follow-up";
 import type { ModelHealth } from "./health";
+import type { ModelAnswerGenerator, ModelAnswerInput, ModelAnswerResult } from "./model-answer";
 import { EMBEDDING_DIMENSIONS } from "./models";
 import type { RoundFeedbackGenerator, FeedbackInput, RoundFeedbackResult } from "./round-feedback";
 import type { AnswerScorer, CallOptions, ScoringInput, ScoringResult } from "./score";
@@ -120,6 +121,44 @@ export const FIXTURE_FEEDBACK_JA: RoundFeedbackResult = {
   untouched: [],
   tokensIn: 300,
   tokensOut: 120,
+};
+
+export function fakeModelAnswerGenerator(
+  respond: (input: ModelAnswerInput, options: CallOptions) => ModelAnswerResult | Promise<ModelAnswerResult>,
+): ModelAnswerGenerator & { calls: number; inputs: ModelAnswerInput[] } {
+  const fake = {
+    modelId: "fake-model-answer-2026-01-01",
+    promptVersions: { en: "model-answer-en-fake", ja: "model-answer-ja-fake" },
+    calls: 0,
+    inputs: [] as ModelAnswerInput[],
+    async generate(input: ModelAnswerInput, options: CallOptions = {}) {
+      fake.calls += 1;
+      fake.inputs.push(input);
+      return respond(input, options);
+    },
+  };
+  return fake;
+}
+
+/** One part the CV does not back, quoted from the answer as the model would quote it. */
+export const FIXTURE_MODEL_ANSWER: ModelAnswerResult = {
+  answer: "I led the payments migration and finished it in six months. I planned the cutover with a team of four.",
+  unsupported: [{ quote: "a team of four", startHint: 85 }],
+  translated: null,
+  tokensIn: 2_000,
+  tokensOut: 300,
+};
+
+/** A Japanese round's model answer, with the English the toggle reads (04 `model_answers.body_translated`). */
+export const FIXTURE_MODEL_ANSWER_JA: ModelAnswerResult = {
+  answer: "決済基盤の移行を担当し、半年で完了いたしました。4名のチームで切り替えを計画いたしました。",
+  unsupported: [{ quote: "4名のチーム", startHint: 24 }],
+  translated: {
+    answer: "I was in charge of the payments platform migration and completed it in six months. I planned the cutover with a team of four.",
+    unsupported: [{ quote: "a team of four", startHint: 106 }],
+  },
+  tokensIn: 2_400,
+  tokensOut: 520,
 };
 
 export function fakeTranscriber(
