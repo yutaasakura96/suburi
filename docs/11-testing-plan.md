@@ -446,6 +446,9 @@ check have unit tests of their own.
   the status alone; each route counts in its own rate-limit bucket. **A pending attempt run later is
   stamped with the scorer that scored it**, its other three stamps unmoved, and a failed one keeps the
   stamp it was given.
+- **Never a bare `500`** (§3.16, `07` §2): a session read that throws on each of the four routes above
+  is `500 write_failed` with `error_class: unexpected` and the id it was called with, the error's text in no
+  envelope or log line, no model call and no new attempt.
 - **The detail loader**: question, follow-up and missing-follow-up rows in order; a practice retry
   directly under the answer it retries; both transcripts on every answered row; **an unreached
   question's text absent from the whole serialised result**, and a held score's attempt id with it.
