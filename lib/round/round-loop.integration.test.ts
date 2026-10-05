@@ -960,8 +960,8 @@ describe("POST /api/rounds/{id}/complete (11 §3.14)", () => {
       expect(await count(db, s.roundFeedback)).toBe(1);
 
       const again = await world.call(world.handlers.complete, roundId, { felt_pressure: 2 });
-      expect(again.status).toBe(409);
-      expect(again.json.error).toMatchObject({ code: "round_already_complete", detail: { has_feedback: true } });
+      expect(again.status).toBe(200);
+      expect(again.json).toEqual(response.json);
       const [round] = await db.select().from(s.rounds).where(eq(s.rounds.id, roundId));
       expect(round.feltPressure).toBe(4);
     }));

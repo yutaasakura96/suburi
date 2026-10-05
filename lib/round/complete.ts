@@ -8,7 +8,7 @@ import { sliceQuote } from "../cv/spans";
 import type { Rubric } from "../rubric/types";
 import { pickUntouched } from "./grounding";
 import { citableClaimsOf } from "./run-scoring";
-import { authenticate, guarded, isUuid, log, notFound, parseBody, roundAbandoned, roundIdOf, writeFailed, type Db, type RoundDeps } from "./http";
+import { authenticate, guarded, isUuid, log, notFound, parseBody, pgErrorClass, roundAbandoned, roundIdOf, writeFailed, type Db, type RoundDeps } from "./http";
 import { isAbandoned, latestAttempts, lockRoundUser, noScores, readRoundStep, roundAnswers, scoringCounts, type RoundRow } from "./state";
 
 /**
@@ -209,9 +209,8 @@ async function writeRoundFeedback(deps: FeedbackDeps, round: RoundRow): Promise<
       : null;
 
   // Step 4: written once. A concurrent retry that wrote first keeps its row.
-  let feedback: FeedbackRow | null;
-  try {
-    [feedback] = await deps.transaction((tx) =>
+  let [feedback] = await deps.transaction(
+    (tx): Promise<FeedbackRow[]> =>
       tx
         .insert(s.roundFeedback)
         .values({
@@ -228,11 +227,8 @@ async function writeRoundFeedback(deps: FeedbackDeps, round: RoundRow): Promise<
         })
         .onConflictDoNothing({ target: s.roundFeedback.roundId })
         .returning(),
-    );
-    feedback ??= await existingFeedback(deps.db, round.id);
-  } catch (error) {
-    return { ok: false, response: writeFailed("round_feedback_write_failed", error, { round_id: round.id }) };
-  }
+  );
+  feedback ??= (await existingFeedback(deps.db, round.id))!;
   log("info", {
     event: "round_feedback_written",
     round_id: round.id,
@@ -244,10 +240,24 @@ async function writeRoundFeedback(deps: FeedbackDeps, round: RoundRow): Promise<
     tokens_out: result.tokensOut,
     duration_ms: elapsed(),
   });
-  return { ok: true, feedback: feedback!, counts };
+  return { ok: true, feedback, counts };
 }
 
 const completeSchema = z.strictObject({ felt_pressure: z.int().min(1).max(5).optional() });
+
+/** What `complete` answers for a complete round (07 §5.12). `feedback: null` is feedback still pending: §5.16 writes it. */
+function completedView(round: RoundRow, feedback: FeedbackRow | null, counts: ReturnType<typeof scoringCounts> | null) {
+  return {
+    round: { id: round.id, completed_at: round.completedAt!.toISOString(), felt_pressure: round.feltPressure },
+    feedback: feedback ? feedbackView(feedback) : null,
+    scoring: counts,
+  };
+}
+
+async function roundScoringCounts(db: Db, roundId: string) {
+  const answers = (await roundAnswers(db, roundId)).filter((answer) => answer.transcriptCorrected !== null);
+  return scoringCounts((await latestAttempts(db, answers.map((answer) => answer.id))).values());
+}
 
 export function createComplete(deps: CompleteDeps) {
   return guarded("round_complete_failed", async function POST(request: Request, roundId: string): Promise<Response> {
@@ -260,10 +270,11 @@ export function createComplete(deps: CompleteDeps) {
     if (body instanceof Response) return body;
     const pressure = body.felt_pressure ?? null;
 
-    let closed: RoundRow | Response;
+    type Closed = { round: RoundRow; already: boolean } | Response;
+    let closed: Closed;
     try {
       // Step 1: the rating and completed_at, committed before anything else happens.
-      closed = await deps.transaction(async (tx): Promise<RoundRow | Response> => {
+      closed = await deps.transaction(async (tx): Promise<Closed> => {
         await lockRoundUser(tx, userId);
         const [round] = await tx
           .select()
@@ -271,15 +282,7 @@ export function createComplete(deps: CompleteDeps) {
           .where(and(eq(s.rounds.id, roundId), eq(s.rounds.userId, userId)))
           .for("update");
         if (!round) return notFound("round");
-        if (round.completedAt !== null) {
-          // The envelope's detail is flat (07 §2), so it says whether feedback exists, not what it is:
-          // screen 8 reads it from the round.
-          const existing = await existingFeedback(tx, roundId);
-          return apiError("round_already_complete", "The round is already complete.", {
-            round_id: roundId,
-            has_feedback: existing !== null,
-          });
-        }
+        if (round.completedAt !== null) return { round, already: true };
         if (await isAbandoned(tx, round)) return roundAbandoned(roundId);
         if (round.mode === "realistic" && pressure === null) {
           return apiError("pressure_required", "A realistic round needs its felt-pressure rating.", { round_id: roundId });
@@ -300,28 +303,30 @@ export function createComplete(deps: CompleteDeps) {
           .set({ feltPressure: pressure, completedAt: new Date() })
           .where(and(eq(s.rounds.id, roundId), isNull(s.rounds.completedAt)))
           .returning();
-        return updated;
+        return { round: updated, already: false };
       });
     } catch (error) {
       return writeFailed("round_complete_failed", error, { round_id: roundId });
     }
     if (closed instanceof Response) return closed;
+    const { round } = closed;
+    // The same call again is the same answer: the round as it was completed, and its feedback if written.
+    if (closed.already) {
+      return Response.json(completedView(round, await existingFeedback(deps.db, roundId), await roundScoringCounts(deps.db, roundId)));
+    }
     log("info", { event: "round_completed", round_id: roundId, felt_pressure: pressure });
 
-    // The model answers' calls run beside the wait and the feedback call; they are stored after it.
-    const settleModelAnswers = startModelAnswers(deps, closed);
-    const outcome = await writeRoundFeedback(deps, closed);
-    const modelAnswers = await settleModelAnswers();
+    // The round is complete whatever happens next: a database failure from here on leaves the
+    // feedback pending for its own route (07 §5.16), never `write_failed` for a write that landed.
+    let outcome: Outcome;
+    try {
+      outcome = await writeRoundFeedback(deps, round);
+    } catch (error) {
+      log("error", { event: "round_feedback_pending", round_id: roundId, error_class: pgErrorClass(error) });
+      return Response.json(completedView(round, null, await roundScoringCounts(deps.db, roundId).catch(() => null)), { status: 201 });
+    }
     if (!outcome.ok) return outcome.response;
-    return Response.json(
-      {
-        round: { id: closed.id, completed_at: closed.completedAt!.toISOString(), felt_pressure: closed.feltPressure },
-        feedback: feedbackView(outcome.feedback),
-        scoring: outcome.counts,
-        model_answers: modelAnswers,
-      },
-      { status: 201 },
-    );
+    return Response.json(completedView(round, outcome.feedback, outcome.counts), { status: 201 });
   }, roundIdOf);
 }
 
@@ -345,7 +350,12 @@ export function createFeedbackRetry(deps: CompleteDeps) {
     const existing = await existingFeedback(deps.db, roundId);
     if (existing) return Response.json({ feedback: feedbackView(existing) });
 
-    const outcome = await writeRoundFeedback(deps, round);
+    let outcome: Outcome;
+    try {
+      outcome = await writeRoundFeedback(deps, round);
+    } catch (error) {
+      return writeFailed("round_feedback_write_failed", error, { round_id: roundId });
+    }
     if (!outcome.ok) return outcome.response;
     return Response.json({ feedback: feedbackView(outcome.feedback) }, { status: 201 });
   }, roundIdOf);

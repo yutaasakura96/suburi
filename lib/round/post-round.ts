@@ -6,7 +6,7 @@ import type { Embedder } from "../ai/embed";
 import type { QuestionGenerator } from "../ai/generate-questions";
 import type { ModelHealth } from "../ai/health";
 import type { AnswerScorer } from "../ai/score";
-import { ModelCallFailed } from "../ai/upstream";
+import { ModelCallFailed, SPEND_LIMIT_CLASSES } from "../ai/upstream";
 import { admitCandidate, lockSlice } from "../questions/near-duplicate";
 import { generateCandidates, type GeneratedCandidates } from "./generate-candidates";
 import { authenticate, guarded, log, notFound, parseBody, writeFailed, type Db, type RoundDeps } from "./http";
@@ -109,6 +109,13 @@ export function createPostRound(deps: PostRoundDeps) {
         shortfall: plan.shortfall,
         error_class: generated.errorClass,
       });
+      // A spent project (12 §6) is the model being unavailable, whichever call met it first.
+      if ((SPEND_LIMIT_CLASSES as readonly string[]).includes(generated.errorClass)) {
+        return apiError("model_unavailable", "The model's project has reached its spend limit.", {
+          model_id: deps.health.modelId,
+          error_class: generated.errorClass,
+        });
+      }
       return apiError("question_generation_failed", "The round's questions could not be generated; nothing was created.", {
         error_class: generated.errorClass,
       });

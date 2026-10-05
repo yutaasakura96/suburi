@@ -696,18 +696,20 @@ describe("POST /api/answers/{id}/transcript — the typed answer (07 §5.8)", ()
       expect((await world.read(roundId)).json.resume).toEqual({ at: "submit", answer_id: answerId });
     }));
 
-  it("gives a slot opened for typing its key when a take is sent to it after all", () =>
+  it("refuses a take sent to a slot opened for typing: the slot keeps no key and nothing is presigned", () =>
     inRolledBackTransaction(async (db) => {
       const world = await setUp(db);
       const roundId = await world.startRound();
       const typed = await world.call(world.handlers.open, roundId, { source: "typed" });
       const answerId = typed.json.answer_id as string;
       const taken = await world.call(world.handlers.open, roundId, { content_type: "audio/webm", expected_bytes: AUDIO.byteLength });
-      expect(taken.status).toBe(200);
-      expect(taken.json.answer_id).toBe(answerId);
-      const [row] = await db.select().from(s.answers).where(eq(s.answers.id, answerId));
-      expect(row.audioS3Key).toBe(world.store.presigned.at(-1)!.key);
-      expect(await db.select().from(s.answers).where(eq(s.answers.roundId, roundId))).toHaveLength(1);
+      expect(taken.status).toBe(422);
+      expect(taken.json.error).toMatchObject({ code: "unsupported_content_type", detail: { answer_id: answerId } });
+      expect(world.store.presigned).toHaveLength(0);
+      const rows = await db.select().from(s.answers).where(eq(s.answers.roundId, roundId));
+      expect(rows).toHaveLength(1);
+      expect(rows[0].audioS3Key).toBeNull();
+      expect((await world.call(world.handlers.typed, answerId, { source: "typed", text: TYPED })).status).toBe(201);
     }));
 
   it.each([
@@ -906,34 +908,62 @@ describe("write_failed on every round route (11 §3.16)", () => {
       expect(calls).toBeGreaterThan(0);
     }));
 
-  it("POST …/complete: the rating is on record or the round is still open, never half, and feedback is written once", () =>
+  it("POST …/complete: write_failed only while the round is still open; once it is complete, the same completed result with feedback pending", () =>
     inRolledBackTransaction(async (db) => {
       const world = await setUp(db);
       const roundId = await world.startRound();
       await world.answerAll(roundId);
       await world.drainAfter();
       const act = () => world.call(world.handlers.complete, roundId, { felt_pressure: 4 });
-      const calls = await failAtEveryCall(world, act, async () => {
-        const [round] = await db.select().from(s.rounds).where(eq(s.rounds.id, roundId));
-        const resumed = await world.read(roundId);
-        // The rating and `completed_at` are one write: both, or neither (07 §5.12).
-        if (round.completedAt === null) {
-          expect(round.feltPressure).toBeNull();
-          expect(resumed.json.resume).toEqual({ at: "complete" });
-          expect(await count(db, s.roundFeedback)).toBe(0);
-          expect((await act()).status).toBe(201);
-        } else {
-          expect(round.feltPressure).toBe(4);
-          expect(resumed.json).toMatchObject({ round: { status: "complete" }, resume: null });
-          // The same call again says so, and `feedback` is the retry for what is left.
-          const again = await act();
-          expect(again.status).toBe(409);
-          expect(again.json.error.code).toBe("round_already_complete");
-          expect([200, 201]).toContain((await world.call(world.handlers.feedback, roundId, {})).status);
+      let before = 0;
+      let after = 0;
+      for (let n = 1; ; n += 1) {
+        expect(n).toBeLessThan(80);
+        await world.raw.execute(sql`savepoint failure_point`);
+        world.faults.arm(n);
+        const reply = await act();
+        const failed = world.faults.disarm();
+        if (failed) {
+          const [round] = await db.select().from(s.rounds).where(eq(s.rounds.id, roundId));
+          const resumed = await world.read(roundId);
+          // The rating and `completed_at` are one write: both, or neither (07 §5.12).
+          if (round.completedAt === null) {
+            before += 1;
+            expect(reply.status, `call ${n}`).toBe(500);
+            expect(reply.json.error).toMatchObject({ code: "write_failed", detail: { round_id: roundId, error_class: "pg_08006" } });
+            expect(round.feltPressure).toBeNull();
+            expect(resumed.json.resume).toEqual({ at: "complete" });
+            expect(await count(db, s.roundFeedback)).toBe(0);
+            expect((await act()).status).toBe(201);
+          } else {
+            after += 1;
+            // The write landed, so the call says so: complete, its rating, and feedback still pending.
+            expect(reply.status, `call ${n}`).toBe(201);
+            expect(reply.json).toMatchObject({ round: { id: roundId, felt_pressure: 4 }, feedback: null });
+            expect(reply.text).not.toContain(FAILURE_SENTINEL);
+            expect(resumed.json).toMatchObject({ round: { status: "complete" }, resume: null });
+            expect(await count(db, s.roundFeedback)).toBe(0);
+            // The same call again is the same completed result, and `feedback` writes what is pending.
+            const again = await act();
+            expect(again.status).toBe(200);
+            expect(again.json).toEqual({ ...reply.json, scoring: { ok: 6, pending: 0, failed: 0 } });
+            const written = await world.call(world.handlers.feedback, roundId, {});
+            expect(written.status).toBe(201);
+            const last = await world.call(world.handlers.complete, roundId, { felt_pressure: 2 });
+            expect(last.status).toBe(200);
+            expect(last.json).toEqual({ ...again.json, feedback: written.json.feedback });
+          }
+          expect(await count(db, s.roundFeedback)).toBe(1);
         }
-        expect(await count(db, s.roundFeedback)).toBe(1);
-      });
-      expect(calls).toBeGreaterThan(0);
+        world.scheduled.length = 0;
+        await world.raw.execute(sql`rollback to savepoint failure_point`);
+        if (!failed) {
+          expect(reply.status).toBe(201);
+          break;
+        }
+      }
+      expect(before).toBeGreaterThan(0);
+      expect(after).toBeGreaterThan(0);
     }));
 
   it("POST …/feedback: no feedback row, and the same call then writes it", () =>
@@ -1063,7 +1093,7 @@ describe("no text in an envelope or a log line, on any round route (11 §3.10)",
       };
       await world.drainAfter();
       refused(await call(handlers.complete, roundId, { felt_pressure: 3 }));
-      refused(await call(handlers.complete, roundId, { felt_pressure: 3 }));
+      expect((await call(handlers.complete, roundId, { felt_pressure: 3 })).status).toBe(200);
       refused(await call(handlers.feedback, roundId, {}));
       refused(await call(handlers.open, roundId, slot));
 

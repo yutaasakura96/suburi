@@ -662,6 +662,23 @@ describe("POST /api/rounds — generation at round start (07 §5.4, 11 §3.13)",
       expect(await count(db, s.questions)).toBe(before);
     }));
 
+  it("is 503 model_unavailable when the preflight passes and generation meets a spent project, and creates nothing", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db, {
+        respond: () => {
+          throw new ModelCallFailed("Question generation", "project_spend_limit_exceeded");
+        },
+      });
+      const before = await count(db, s.questions);
+      const { status, json } = await world.startRound();
+
+      expect(world.questionGenerator.calls).toBe(1);
+      expect(status).toBe(503);
+      expect(json.error).toMatchObject({ code: "model_unavailable", detail: { error_class: "project_spend_limit_exceeded" } });
+      expect(await count(db, s.rounds)).toBe(0);
+      expect(await count(db, s.questions)).toBe(before);
+    }));
+
   it("is 502 when the embedding call fails, and creates nothing", () =>
     inRolledBackTransaction(async (db) => {
       const world = await setUp(db);

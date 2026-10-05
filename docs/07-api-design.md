@@ -160,7 +160,7 @@ that asserts the two lists match.
 | `scoring_in_progress` | 409 | `scoring-attempts/{id}/run` | History — on the answer's row: it is being scored, wait and try again (§5.10) |
 | `pressure_not_applicable` | 422 | `complete` | — (a client bug in practice mode) |
 | `pressure_required` | 422 | `complete` | screen 7 |
-| `round_already_complete` | 409 | `complete`, `answers`, `transcribe`, `transcript`, `submit` | — |
+| `round_already_complete` | 409 | `answers`, `transcribe`, `transcript`, `submit` | — |
 | `round_not_complete` | 409 | `complete` | screen 7 |
 | `round_abandoned` | 409 | `answers`, `transcribe`, `transcript`, `submit`, `complete` | the round screen — the round takes no more writes; start a new one (§5.5) |
 | `feedback_generation_failed` | 502 | `complete`, `feedback` | screen 8 — the round is complete and its scores show; the round-level note is pending and retryable, unless `detail.error_class` is `no_scores`, which no retry can fix (§5.12) |
@@ -679,7 +679,8 @@ exists** — after recording, before the upload (`06`, 2026-09-27). When this ro
 take (`upload_too_large`, `unsupported_content_type`) no row exists yet: `{ "source": "typed" }`,
 alone, opens the same current slot with `audio_s3_key` null and returns only `answer_id`, and the
 client sends the typed transcript through §5.8 (`06`, 2026-10-05). It is idempotent like the take's
-form, and a take sent to that slot afterwards gives it its key. A body that is neither form is a
+form. A slot opened this way stays typed: a take sent to it afterwards is refused as
+`422 unsupported_content_type`, so the page keeps the take and offers typing again. A body that is neither form is a
 `400` naming the fields.
 
 The client sends only what it cannot know about itself: the content type and the take's byte size.
@@ -1161,14 +1162,14 @@ shows every score that landed and a pending round-level note, and generation is 
 - `mode = 'practice'` and a `felt_pressure` → `422 pressure_not_applicable`. The check constraint is
   the backstop. **A practice round is completed the same way, without a rating**, and gets the same
   round feedback (`06`, 2026-09-27).
-- **The feedback is written from the answers the round asked for** — each question's first answer and
-  its follow-up's (#49, `06`, 2026-10-04). An answer given again in practice (§5.6) is scored and
-  shown on its own. When an original answer scored, retries are not waited for, counted or sent to
-  the feedback call. When none scored, scored retries are used instead, with prompt versions
-  `feedback-en-1.3` and `feedback-ja-1.2`.
-- Already complete → `409 round_already_complete`, with `detail.has_feedback` saying whether the
-  feedback exists. The envelope's `detail` is flat (§2), so it cannot carry the feedback itself;
-  screen 8 reads it from the round (`06`, 2026-10-01).
+- Already complete → **`200` with the same completed result**: the round as it was completed, its
+  stored rating whatever this call sent, the feedback if it is written and `feedback: null` if it is
+  still pending. The call is idempotent, never `409 round_already_complete`, and makes no model call
+  (`06`, 2026-10-05).
+- **Once step 1 has committed, this route never answers `write_failed`.** A database failure in
+  steps 2–4 leaves the round complete with its rating, and the response is the normal `201` with
+  `feedback: null` — pending — and `scoring` null if the counts could not be read. §5.16 writes the
+  feedback on retry. `write_failed` is only the answer while the round is still open.
 - Not all answers submitted → `409 round_not_complete`. A position counts once its question is
   submitted and its follow-up is either answered or `missing`; a follow-up unanswered, or not stored
   yet, keeps the round open.

@@ -377,10 +377,9 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
   async function complete(value: number | null) {
     setError(null);
     setBusy(true);
-    const result = await postJson(`/api/rounds/${round.id}/complete`, value === null ? {} : { felt_pressure: value });
-    // The round is complete in all three: feedback written, feedback not ready, or completed already.
-    const completed =
-      result.ok || result.code === "feedback_generation_failed" || result.code === "round_already_complete";
+    const result = await postJson(`/api/rounds/${round.id}/complete`, { felt_pressure: value });
+    // The round is complete in both: feedback written or still pending, or feedback not generated.
+    const completed = result.ok || result.code === "feedback_generation_failed";
     if (!completed) return fail(result.code, () => void complete(value));
     await releaseRoundTakes(round.id);
     router.push(`/round/${round.id}/feedback`);

@@ -121,13 +121,11 @@ export function createOpenAnswer(deps: OpenAnswerDeps) {
               answer_id: step.answer.id,
             });
           }
+          // A slot opened as typed has no key and takes none: its answer is typed (07 §5.8).
           if (take && step.answer.audioS3Key === null) {
-            const [answer] = await tx
-              .update(s.answers)
-              .set({ audioS3Key: answerAudioKey(deps.prefix, userId, roundId, step.answer.id) })
-              .where(eq(s.answers.id, step.answer.id))
-              .returning();
-            return { answer, created: false };
+            return apiError("unsupported_content_type", "This slot was opened for a typed answer; it takes no upload.", {
+              answer_id: step.answer.id,
+            });
           }
           return { answer: step.answer, created: false };
         }

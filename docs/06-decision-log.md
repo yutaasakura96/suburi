@@ -9,6 +9,21 @@ What a round does when a recording, an upload, a transcription, a score or a dat
 how it resumes. The behaviour was settled on 2026-09-12, 2026-09-27 and 2026-09-28 (below); these are
 the choices the build needed.
 
+### [2026-10-05] `complete` is idempotent, and never `write_failed` once the round is complete
+
+The owner's ruling. `write_failed` promises that nothing was written and the same call resumes; after
+step 1 commits `completed_at` neither is true. So a database failure in the feedback steps answers the
+normal `201` with `feedback: null` — pending, for `POST …/feedback` to write — and **a repeated
+`complete` on a complete round answers `200` with the same completed result**, not
+`409 round_already_complete`. The stored rating stands whatever the repeat sends. A model failure or
+the score wait running out is still `502 feedback_generation_failed`, as before.
+
+### [2026-10-05] A spent project met by question generation is `503 model_unavailable`
+
+The owner's ruling. The preflight and generation run together; when the probe passes and generation
+gets `429 project_spend_limit_exceeded`, the round is refused as `503 model_unavailable` with that
+error class, exactly as when the probe meets it — not `502 question_generation_failed`.
+
 ### [2026-10-05] A take the slot route refuses is kept and answered by typing
 
 The owner's ruling, superseding the build's "not held, recorded again": **a captured take is never
@@ -19,7 +34,8 @@ retry, since none could succeed, and offers typing. No answer
 row exists at that point, so `POST …/answers` takes `{ "source": "typed" }` and opens the current
 slot with no `audio_s3_key`; `07` §5.8 then stores the text. **Held takes are keyed by prompt, not by
 round** — the 2026-10-04 entry below said one per round — so the refused take is not replaced by the
-next question's and stays until the round completes. The 20,000-character cap on typed text is
+next question's and stays until the round completes. A slot opened as typed stays typed: a take sent
+to it afterwards is refused (`422 unsupported_content_type`), never given a key. The 20,000-character cap on typed text is
 removed with it: the fallback was specified with no limit.
 
 ### [2026-10-05] Round creation and writes serialize per user
