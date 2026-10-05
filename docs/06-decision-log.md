@@ -89,7 +89,7 @@ the go-on state it holds); a client cache library (`03` §7 names them as not ad
 
 ### [2026-10-04, owner-accepted 2026-10-05] The new Japanese strings passed the native read
 
-Every Japanese string practice adds is in `docs/checklists/native-read-round.md` §10, written to
+Every Japanese string practice adds is in `docs/checklists/native-read-round.md` §13, written to
 `05` §6's rules. The owner read and accepted all 28 strings on 2026-10-05.
 The owner also accepted the numbered follow-up retry label on 2026-10-05. A numbered bank-retry
 heading added afterward is listed separately for a native read.

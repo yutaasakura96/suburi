@@ -32,7 +32,7 @@ import { createPostRoleContext } from "./role-context";
 import { createSubmit } from "./submit";
 import { createTranscribe } from "./transcribe";
 
-// Practice mode through its handlers (#49, 11 §3.20): the round's read, the re-take, answer again,
+// Practice mode through its handlers (#49, 11 §3.22): the round's read, the re-take, answer again,
 // and a round that completes with no rating — against the migrated test database, with a real Better
 // Auth session. Only the model ports and the bucket are faked (11 §2).
 

@@ -469,7 +469,8 @@ block have unit tests of their own, and §3.1 holds `model_answers` to one row p
 - **No model answer, and nothing it was written from, reaches a log line or an error envelope**
   (§3.10).
 - The week's spend counts `model_answers` tokens (§3.17).
-### 3.20 Practice mode (#49)
+
+### 3.22 Practice mode (#49)
 
 Practice is where a second row for one prompt is written on purpose, so what it must not disturb is
 tested with it. Through the handlers, against Postgres.

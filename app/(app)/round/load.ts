@@ -390,7 +390,6 @@ export interface FeedbackScreen {
     readonly roundType: RoundType;
     readonly mode: RoundMode;
     readonly language: RoundLanguage;
-    readonly mode: RoundMode;
     readonly length: number;
     readonly date: string;
   };
@@ -493,7 +492,6 @@ export async function feedbackScreen(db: Db, round: RoundRow): Promise<FeedbackS
       roundType: round.roundType as RoundType,
       mode: round.mode,
       language: round.language as RoundLanguage,
-      mode: round.mode,
       length: round.length,
       date: tokyoDate(round.startedAt),
     },

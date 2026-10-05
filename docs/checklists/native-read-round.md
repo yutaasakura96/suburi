@@ -353,7 +353,8 @@ the user will learn from and repeat aloud, so an unnatural phrase in it is taugh
 Read on the first real Japanese round completed with model answers on `develop`: each one, for
 whether a candidate would say it in a real interview. A rule it breaks is a new prompt version, not an
 edit.
-## 10. #49, practice mode — `app/(app)/round/copy.ts`
+
+## 13. #49, practice mode — `app/(app)/round/copy.ts`
 
 Practice's frames (`10` §15). **Owner read and accepted the original 28 Japanese strings and the
 numbered follow-up retry label on 2026-10-05.** The numbered bank-question retry heading was added
