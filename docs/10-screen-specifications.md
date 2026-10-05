@@ -631,8 +631,9 @@ Header: `行動面接` 17px/600, `日本語・実戦・5問`, date, and
 `求人票 Mercari_SRE_2026.pdf・緊張度4を講評前に記録` at 12px `--ink-6`. Right: the `English`
 language pill and `編集できません` at 11px `--ink-8`.
 
-**A past round is read-only.** For a Japanese round with a stored translation, the pill still toggles
-the feedback language; nothing else can change.
+**A past round's content is read-only.** An unscored answer can be scored from its row without changing
+the round feedback (`07` §5.10–§5.12). For a Japanese round with a stored translation, the pill changes
+the dimension labels; the feedback itself is read on screen 8.
 
 Columns: `196px repeat(7, 1fr) 58px 34px` — question, the seven dimensions, TIME, play.
 

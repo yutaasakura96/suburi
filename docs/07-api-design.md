@@ -1083,17 +1083,17 @@ GET /api/rounds?limit=20&language=ja&round_type=behavioural
   "next_cursor": "eyJzIjoiMjAyNi0wOS0xMlQwMzowNDo1MVoiLCJpIjoiNzdhZiJ9" }
 ```
 
-Every row carries its stamps, because History is where a change of stamp has to be legible per row —
-Progress draws the boundary line, History says which side a round is on (refusal #5). `status` is the
-derived `in_progress` / `abandoned` / `complete` of §5.5 — what History's `Abandoned` line reads
-(`10` §10).
+Every row names the round's CV and rubric and the models behind its displayed scores; History detail
+names the generator versions as well (`10` §10). Progress draws the boundary where any scored answer's
+stamp changed (refusal #5). `status` is the derived `in_progress` / `abandoned` / `complete` of §5.5 —
+what History's `Abandoned` line reads (`10` §10).
 
 **As built (#50).**
 
-- **`scoring_model_ids` is a list** — *amended from `scoring_model_id`.* A round's answers are scored
-  one attempt each, and a retry made after the pinned model changed (§5.11) is scored by the new one,
-  so a round can carry two. One string would have to pick, and the row would then say the round is on
-  one side of a boundary it straddles. The list is every model behind the round's **displayed** scores,
+- **`scoring_model_ids` is a list** — *amended from `scoring_model_id`.* Each answer displays a score
+  only when its latest attempt succeeded. A retry made after the pinned model changed (§5.11) is scored
+  by the new one, so a round can carry two. One string would put the round on one side of a boundary it
+  straddles. The list is every model behind the round's **displayed** scores,
   sorted. Pending and failed attempts produced no displayed score, so their models are excluded; the
   list is empty when no answer has an `ok` score.
 - **`answers` counts submitted answers**, follow-ups' and practice retries' included, and `scoring`
