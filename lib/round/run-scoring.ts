@@ -54,7 +54,7 @@ export const RUN_CLAIM_SECONDS = 300;
 const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 /** The claims of one CV version a scorer may cite, in document order — each sliced from the stored body. */
-export async function citableClaimsOf(db: Pick<Db, "select">, cvVersionId: string): Promise<{ claims: CitableClaim[]; rejected: number }> {
+export async function citableClaimsOf(db: Pick<Db, "select">, cvVersionId: string): Promise<{ claims: CitableClaim[]; rejected: number; body: string }> {
   const [[version], documents, claims] = await Promise.all([
     db.select({ body: s.cvVersions.body }).from(s.cvVersions).where(eq(s.cvVersions.id, cvVersionId)),
     db
@@ -68,7 +68,7 @@ export async function citableClaimsOf(db: Pick<Db, "select">, cvVersionId: strin
       .where(eq(s.cvClaims.cvVersionId, cvVersionId))
       .orderBy(asc(s.cvClaims.spanStart), asc(s.cvClaims.id)),
   ]);
-  return citableClaims(version.body, documents, claims);
+  return { ...citableClaims(version.body, documents, claims), body: version.body };
 }
 
 export async function runScoringAttempt(

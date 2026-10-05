@@ -26,7 +26,7 @@ describe("the constants are 12 §6's", () => {
     expect(SELF_CHECK_STALE_HOURS).toBe(48);
     expect(UNCLAIMED_RUN_MAX_CODE_POINTS).toBe(2_000);
     expect(ANY).toBe(0);
-    expect(ROUND_COST_BASELINE_USD).toBe(0.4);
+    expect(ROUND_COST_BASELINE_USD).toBe(0.7);
     expect(SPEND_MULTIPLE).toBe(3);
   });
 });
@@ -66,18 +66,18 @@ describe("unclaimed_run_max, 2,000 code points", () => {
   it("is red above it", () => expect(isRed(2_001, UNCLAIMED_RUN_MAX_CODE_POINTS)).toBe(true));
 });
 
-describe("week-to-date spend: 3 × $0.40 × max(1, rounds started)", () => {
-  it("floors at one round, so a week with no round started is $1.20", () => {
-    expect(spendThresholdUsd(0)).toBe(1.2);
-    expect(spendThresholdUsd(1)).toBe(1.2);
+describe("week-to-date spend: 3 × $0.70 × max(1, rounds started)", () => {
+  it("floors at one round, so a week with no round started is $2.10", () => {
+    expect(spendThresholdUsd(0)).toBe(2.1);
+    expect(spendThresholdUsd(1)).toBe(2.1);
   });
   it("scales with rounds started", () => {
-    expect(spendThresholdUsd(2)).toBe(2.4);
-    expect(spendThresholdUsd(8)).toBe(9.6);
+    expect(spendThresholdUsd(2)).toBe(4.2);
+    expect(spendThresholdUsd(8)).toBe(16.8);
   });
-  it("is not red a cent below it", () => expect(isRed(1.19, spendThresholdUsd(0))).toBe(false));
-  it("is not red at it", () => expect(isRed(1.2, spendThresholdUsd(0))).toBe(false));
-  it("is red a cent above it", () => expect(isRed(1.21, spendThresholdUsd(0))).toBe(true));
-  it("is not red at it, with rounds started", () => expect(isRed(2.4, spendThresholdUsd(2))).toBe(false));
-  it("is red above it, with rounds started", () => expect(isRed(2.400001, spendThresholdUsd(2))).toBe(true));
+  it("is not red a cent below it", () => expect(isRed(2.09, spendThresholdUsd(0))).toBe(false));
+  it("is not red at it", () => expect(isRed(2.1, spendThresholdUsd(0))).toBe(false));
+  it("is red a cent above it", () => expect(isRed(2.11, spendThresholdUsd(0))).toBe(true));
+  it("is not red at it, with rounds started", () => expect(isRed(4.2, spendThresholdUsd(2))).toBe(false));
+  it("is red above it, with rounds started", () => expect(isRed(4.200001, spendThresholdUsd(2))).toBe(true));
 });

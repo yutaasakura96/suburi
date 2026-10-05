@@ -67,7 +67,8 @@ by round end the scores are already rows.
    `submit` **30 per 10 minutes** each, two of the longest rounds with retries to spare; `complete` and
    `feedback` **6 per 10 minutes** each. Every one its own bucket. **The speech route (#45): 30 per 10
    minutes** — one request per prompt asked, 14 in the longest round, and a reload asks again. A later
-   slice's ⚡ route sets its own here the same way.
+   slice's ⚡ route sets its own here the same way: `model-answers` (#74, §5.19) **6 per 10 minutes**,
+   as `feedback` is.
    **History's retry (#50):** `POST /api/scoring-attempts` and `scoring-attempts/{id}/run` **30 per 10
    minutes** each, in two buckets (`scoring-attempts`, `scoring-run`) — the longest round has 14
    answers, and retrying every one of them is 14 of each call.
@@ -163,6 +164,7 @@ that asserts the two lists match.
 | `round_not_complete` | 409 | `complete` | screen 7 |
 | `round_abandoned` | 409 | `answers`, `submit`, `complete` | the round screen — the round takes no more writes; start a new one (§5.5) |
 | `feedback_generation_failed` | 502 | `complete`, `feedback` | screen 8 — the round is complete and its scores show; the round-level note is pending and retryable, unless `detail.error_class` is `no_scores`, which no retry can fix (§5.12) |
+| `model_answer_generation_failed` | 502 | `model-answers` | screen 8 — under the question whose model answer is not written; the round, its scores and its feedback are untouched, and the retry stays (§5.19) |
 | `role_context_too_large` | 422 | `POST /api/role-contexts` | Setup's add form — before anything is saved. The cap is measured (§5.3) |
 | `speech_failed` | 502 | `speech` | screen 3 — a short notice; the question stays as text and the round goes on (§5.15) |
 | `write_failed` | 500 | every round route | the screen that made the call — nothing half-written; the round stays resumable |
@@ -180,6 +182,9 @@ same change, as `11` §3.10 requires.
 **`scoring_in_progress` landed with History (#50)**, with its copy: §5.10 always said a second `run`
 while the first is in flight is a `409`, and no catalogued `409` meant that — the three there are about
 a round's state, not an attempt's.
+
+**`model_answer_generation_failed` is added by model answers** (#74, `06`, 2026-10-04), with its
+copy. **Only the retry route raises it**: `complete` never fails for a model answer (§5.12).
 
 **`round_abandoned` landed with the tracer too** (#42 review): `answers`, `submit` and `complete` read
 the derived status (§5.5) inside their locked transaction, so a stale tab cannot write into a round a
@@ -984,7 +989,8 @@ POST /api/rounds/77af0b13-…/complete
                   { "title": "Put the conclusion in the first sentence", "body": "…" } ],
       "what_worked": "You explained the difficulty with a concrete situation." },
     "language": "ja", "model_id": "gpt-5.6-sol", "prompt_version": "feedback-ja-1.1" },
-  "scoring": { "ok": 10, "pending": 0, "failed": 0 } }
+  "scoring": { "ok": 10, "pending": 0, "failed": 0 },
+  "model_answers": { "written": 10, "failed": 0, "pending": 0 } }
 ```
 
 **`body_translated` is the English toggle of a Japanese round's feedback** (PRD §4): the same
@@ -1025,6 +1031,39 @@ findings that are otherwise whole. The `round_feedback_written` log line carries
 `feedback-en-1.1`; a Japanese round's `feedback-ja-1.0` picks untouched material from its first
 version (#43). Both bumped again with follow-ups (#44), whose answers they read, to `feedback-en-1.2`
 and `feedback-ja-1.1`.
+
+**Model answers are written beside steps 2 to 4, and never fail the call** (#74, `06`, 2026-10-04).
+The moment step 1 commits, one model call starts for **every submitted answer of the round that is not
+a practice retry** — each bank question and each follow-up — all at once, each on its own. A call
+reads the round type and role context, the rubric's dimensions with their best anchors, the citable
+claims of the round's CV version, the question as it was asked, and the **corrected** transcript; a
+follow-up's call also reads the question it followed and that answer. **It reads no score**, so it
+waits for none, and an answer whose scoring failed has a model answer too.
+
+- **What comes back is the answer and the parts of it the CV does not back**, each quoted verbatim
+  with a start hint. The server finds each quote in the answer and stores its span; one it cannot find
+  is dropped and counted, never clamped (`03` §11). The server then adds a span for each digit figure
+  neither the CV text nor the user's own answer holds (`04` `model_answers`). A Japanese round's call
+  returns the same answer in English with its own quotes, stored in `body_translated`; a result
+  without the translation is refused as malformed, as feedback's is.
+- **Each call is bounded at 90 s** (`MODEL_ANSWER_TIMEOUT_MS`, from `03` §4's measurement, 2026-10-04:
+  the slowest call seen was 31.6 s), with no retry here.
+- **The feedback is never held for one.** `complete` waits for the model answers **no longer than
+  45 s from step 1's commit** (`MODEL_ANSWER_WAIT_MS`; the slowest of ten measured rounds took 31.6 s),
+  and that time runs beside steps 2 and 3, not after them: once step 4 is done and the 45 s are up,
+  the response goes out. A call still running then is `pending`; it finishes in `after()` and its row
+  is written there, inside the route's 300 s. A unit test holds the wait under the call's bound and
+  under step 2's 60 s plus step 3's 120 s.
+- If a call outlives that wait and the user presses §5.19's retry before its row lands, both calls
+  can run; whichever commits first keeps the one stored model answer.
+- **The rows are written after step 4**, in one transaction of their own with `on conflict do
+  nothing` (`04` `model_answers`) — and written **whether or not the feedback was**: a round whose
+  feedback failed still gets its model answers, and the `502` below does not carry the count.
+- **`model_answers` reports what happened**: `written`; `failed` — the calls that failed, or every
+  one if the write did; and `pending` — the calls not waited for. A failure is a log line
+  (`model_answer_call_failed`, with ids and the error class) and a gap on screen 8, which §5.19
+  fills. The log line `model_answers_generated` carries counts, tokens and the duration, and nothing
+  a model wrote (`12` §7).
 
 **If step 2's bound runs out or step 3 fails**, no `round_feedback` is written: it is one row, never
 rewritten, and feedback from an incomplete set of scores would be permanent (`04`). The response is
@@ -1237,6 +1276,28 @@ the lowest, median and highest similarity among them, and how many candidates we
 
 ---
 
+### 5.19 `POST /api/rounds/{roundId}/model-answers` ⚡
+
+Writes the model answers a **complete** round still lacks, and nothing else (#74) — the calls that
+failed at `complete` (§5.12), or all of them for a round completed before model answers existed. It
+generates and stores exactly as §5.12 does, for only the answers with no `model_answers` row. No body.
+
+```json
+201
+{ "model_answers": { "written": 2, "failed": 0 } }
+```
+
+- **Nothing lacking → `200`** with `{ "written": 0, "failed": 0 }` and **no model call**. An answer that
+  has a model answer never gets a second: the row is written once (`04`).
+- Any call failed → `502 model_answer_generation_failed`, with `detail` `{ round_id, written, failed,
+  error_class }`. **What succeeded is stored** — `written` says how many — and a further retry asks
+  only for the rest.
+- The write failed → `500 write_failed`; nothing was half-written.
+- Not complete → `409 round_not_complete`. Another user's round, or an id that is not a uuid → `404`.
+
+**It never touches a score, the feedback, or an existing model answer**, and takes no input: which
+answers, which CV version and which prompt are all the round's own (§1 rule 6).
+
 ## 6. Endpoints that do not exist, and must not be added
 
 Stated so a later session recognises these as refusals, not gaps. Each one, if added, would quietly
@@ -1253,6 +1314,7 @@ convert a guarantee in `04` §6 into a preference.
 | `POST /api/rounds/{id}/abandon` | `completed_at is null` is the record. Abandonment is data, and derived (`04` `rounds`). |
 | Anything that changes a round's questions after it starts | `round_questions` is fixed with the round (`04` §6). A re-roll is how a question the user has already heard gets swapped for an easier one. |
 | A speech route that takes text | §5.15 defines the server-side prompt source. One that took text would be a general TTS proxy on the user's key. |
+| Anything that regenerates, edits or replaces a model answer | `model_answers` is written once per answer (`04` §6). A regenerate button turns a stored reference into something re-rolled until it flatters, and what is reviewed later would no longer be what the round ended with. §5.19 writes only what is missing. |
 | A model or rubric selector on any request | The stamps would become user-chosen, making drift voluntary and biased (decision log). Both are config and resolved server-side. |
 | Anything with a `share`, `visibility`, `export` or `public` in it | Refusal #6. Multi-tenancy is not permission to build a sharing surface (`03` §2, `08` §7). |
 | `POST /api/questions` | The bank is written by generation with the near-duplicate guard, or by seed. A hand-inserted question skips the embedding check and fragments the measurement (`03` §11). |
@@ -1276,6 +1338,10 @@ convert a guarantee in `04` §6 into a preference.
   answer, which is marked unscored and retried alone (§5.12).
 - ~~**A database failure mid-write**~~ — **decided 2026-09-28**: `write_failed`, `500`, on every round
   route, and the round stays resumable (§3).
+- **Whether a model answer's marks need a second, checking call.** The call that writes a model
+  answer names what the CV does not back in it, and the server checks its digit figures on its own
+  (`04` `model_answers`); nothing independent verifies the rest (`06`, 2026-10-04 and 2026-10-05).
+  Left as it is until real rounds show a miss.
 - ~~**Each round route's rate limit**~~ — **set by #42** for the routes it built (§1 rule 5); a later
   slice's ⚡ route adds its own there. **#50 set History's two** (`scoring-attempts`, `scoring-run`).
 - ~~**User-facing copy for every code in §3.**~~ **Closed in #13:** `lib/copy/errors.ts` owns the

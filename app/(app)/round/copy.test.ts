@@ -33,6 +33,8 @@ const jaStrings = strings({
   unused: () => ja.unused(UNUSED),
   unsupported: () => ja.unsupported(2, "チーム全体の生産性を上げた", "応募書類 v3"),
   nothingUnsupported: () => ja.nothingUnsupported("応募書類 v3"),
+  modelAnswerMarked: () => ja.modelAnswerMarked("応募書類 v3"),
+  modelAnswerUnmarked: () => ja.modelAnswerUnmarked("応募書類 v3"),
 });
 
 describe("a Japanese round's chrome (10 §0)", () => {
@@ -167,6 +169,23 @@ describe("the strings 10 §3–§8 quote", () => {
     expect(ja.followUpMissing).toBe("深掘りが生成されませんでした。空欄として記録しています。");
   });
 
+  // 模範回答 is CONTEXT.md's word for a model answer; 10 §8 quotes the labels, the legend and the gap.
+  it("writes the answer texts and the model answer's legend (10 §8)", () => {
+    expect(ja.ownAnswer).toBe("あなたの回答");
+    expect(ja.modelAnswer).toBe("模範回答");
+    expect(ja.followUpOwnAnswer).toBe("深掘りへの回答");
+    expect(ja.followUpModelAnswer).toBe("深掘りへの模範回答");
+    expect(ja.modelAnswerMarked("応募書類 v3")).toBe(
+      "応募書類 v3とあなたの回答をもとに作成しています。下線は、応募書類 v3に裏づけのない内容です。",
+    );
+    expect(ja.modelAnswerUnmarked("応募書類 v3")).toBe(
+      "応募書類 v3とあなたの回答をもとに作成しています。応募書類 v3に裏づけのない内容として下線を付けた箇所はありません。",
+    );
+    expect(ja.modelAnswerNotWritten).toBe("この質問の模範回答はまだ作成されていません。");
+    expect(ja.writeModelAnswers).toBe("模範回答を作成する");
+    expect(ja.writingModelAnswers).toBe("模範回答を作成しています。");
+  });
+
   // 05 §5.9: the round's stamps joined by nakaguro, the rubric as 評価基準.
   it("joins the stamps by nakaguro", () => {
     expect(ja.stamps([ja.rubricStamp("v1.0"), "set-piece-ja-1.0", "応募書類 v3"])).toBe("評価基準 v1.0・set-piece-ja-1.0・応募書類 v3");
@@ -186,6 +205,15 @@ describe("an English round's chrome", () => {
       "Unused — “Led the 2024 payments platform migration” “Customer negotiation in English”",
     );
     expect(en.wrongLanguage("ja")).toBe("This answer was given in Japanese. It is kept out of your English progress.");
+  });
+
+  it("writes the model answer's legend (10 §8)", () => {
+    expect(en.modelAnswerMarked("CV v1")).toBe(
+      "Written from CV v1 and what you said. An underline marks what CV v1 does not back.",
+    );
+    expect(en.modelAnswerUnmarked("CV v1")).toBe(
+      "Written from CV v1 and what you said. Nothing in it is underlined as going beyond CV v1.",
+    );
   });
 
   it("joins the stamps by a spaced middle dot", () => {

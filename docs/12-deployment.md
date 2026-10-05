@@ -137,8 +137,8 @@ expectations onto a branch that unfinished code writes to. That is the same rule
 the sensitive material has exactly two homes.
 
 **Local uses the same pinned model strings as production** (`03` §12). Testing against a cheaper model
-would make local behaviour unrepresentative of the thing being measured. Cost is not the constraint —
-a round is roughly $0.40 (`03` §6).
+would make local behaviour unrepresentative of the thing being measured. Cost is not the constraint
+(`03` §6).
 
 **Local uses the real bucket under `dev/`, not MinIO** (`06`, 2026-09-28), with the same IAM user as
 `develop`, so the direct browser→S3 upload runs against real S3 CORS and a real presigned URL from
@@ -328,13 +328,18 @@ insert. A cron cannot read Vercel logs, and the counters used to live only there
 response (`06`, 2026-09-29). The current-version selection rule is in `04` `cron_readings`.
 
 **The round-cost baseline is a constant, not a measurement yet** (`06`, 2026-09-29). It is set from
-`03` §6's estimate, **about $0.40 a round**, because no real round exists to measure. Spend is counted
-from every stored `tokens_in`/`tokens_out` row — `questions`, `scoring_attempts`, `round_feedback`
-and `follow_ups` (`04`) — each counted in the week of its own `created_at`, with no round
-attribution. The threshold is 3× the baseline × max(1, rounds started that week). Rows are priced
+`03` §6's estimate plus #74's measured model-answer spend, **$0.70 a round**. Spend is counted
+from every stored `tokens_in`/`tokens_out` row — `questions`, `scoring_attempts`, `round_feedback`,
+`follow_ups` and `model_answers` (`04`) — each counted in the week of its own `created_at`, with no
+round attribution. The threshold is 3× the baseline × max(1, rounds started that week). Rows are priced
 by per-model constants beside the pinned strings in `lib/ai/models.ts`. Transcription, speech, embeddings and CV extraction
 store no tokens and are not in it, so the threshold is loose until it is re-measured: **after eight
 real rounds, the constant is replaced by the measured cost of those rounds**, recorded in `06`.
+**Model answers (#74) added spend to the original estimate**: measured on synthetic input at about
+$0.22 for an English round of three questions and their follow-ups and about $0.35 for a Japanese
+one (`03` §4, 2026-10-04). The owner raised the baseline from $0.40 to $0.70 on 2026-10-05,
+making the 3× threshold $2.10 per round started. The re-measurement after eight real rounds includes
+model answers.
 
 **One failure no row here sees: a lumped reading** (#29). A late, dense section returned as a few
 paragraph-sized claims leaves coverage complete, abuts nothing and repeats nothing, so every counter

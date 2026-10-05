@@ -180,6 +180,17 @@ async function seedEverything(db: TestDb) {
     modelId: "fixture-model",
     promptVersion: "feedback-fixture",
   });
+  await db.insert(s.modelAnswers).values({
+    answerId: first.id,
+    userId: world.userId,
+    body: AWKWARD,
+    unsupportedSpans: [{ start: 0, end: 3 }],
+    bodyTranslated: { language: "en", body: AWKWARD, unsupported_spans: [{ start: 1, end: 2 }] },
+    modelId: "fixture-model",
+    promptVersion: "model-answer-fixture",
+    tokensIn: 5_000,
+    tokensOut: 800,
+  });
   const [run] = await db.insert(s.cronRuns).values({ job: "self-check" }).returning({ id: s.cronRuns.id });
   await db.insert(s.cronReadings).values({
     runId: run.id,

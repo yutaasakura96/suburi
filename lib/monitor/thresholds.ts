@@ -22,10 +22,10 @@ export const ANY = 0;
 export const UNCLAIMED_RUN_MAX_CODE_POINTS = 2_000;
 
 /**
- * The round-cost baseline, US dollars per round: 03 §6's estimate, because no real round exists yet.
+ * The round-cost baseline, US dollars per round: 03 §6's estimate plus #74's model-answer spend.
  * **Replaced by the measured cost of the first eight real rounds**, with an entry in 06 (2026-09-29).
  */
-export const ROUND_COST_BASELINE_USD = 0.4;
+export const ROUND_COST_BASELINE_USD = 0.7;
 
 /** Week-to-date spend is red above this many baselines per round started that week. */
 export const SPEND_MULTIPLE = 3;

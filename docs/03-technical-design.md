@@ -156,7 +156,8 @@ short-lived presigned URL; the function only ever handles the resulting object k
 7. **Follow-up** — generated from the corrected answer at submit and written to `follow_ups` (or
    recorded as missing), asked once, answered through 3–6.
 8. Repeat. Realistic mode collects the felt-pressure rating; then `complete` waits for the last scores
-   and generates the round feedback (`07` §5.12).
+   and generates the round feedback (`07` §5.12). Beside both, it writes a **model answer** for every
+   question the round asked (§4, `04` `model_answers`).
 
 ### Scoring runs during the round, not at the end of it
 
@@ -184,7 +185,7 @@ note is stated as pending with a retry. The bound comes from the latency measure
 
 ## 4. Model use
 
-Five text jobs on one pinned model, and three more on models of their own:
+Six text jobs on one pinned model, and three more on models of their own:
 
 | Job | Model | Latency budget | Stakes |
 | --- | --- | --- | --- |
@@ -192,6 +193,7 @@ Five text jobs on one pinned model, and three more on models of their own:
 | Follow-up generation | `gpt-5.6-sol` | user is waiting, inside a timed round | Medium — scored, stamped, never banked |
 | Answer scoring | `gpt-5.6-sol` | during the next answer; the last one by the end of screen 7 | **The instrument** |
 | Round feedback | `gpt-5.6-sol` | at `complete`, after the last score (`07` §5.12) | High — one row, never rewritten |
+| Model answers | `gpt-5.6-sol` | at `complete`, **beside** the wait and the feedback call, one call per question asked, all at once; waited for no longer than 45 s from the round's close, then stored behind the response (`07` §5.12) | Medium — coaching, stored once, never a score. **It must not invent a record** |
 | CV claim extraction | `gpt-5.6-sol` | **measured: 43–46 s on real documents, windowed** (#20/#29, 2026-09-27) | High — every citation and every coverage count rests on it |
 | Transcription | `gpt-transcribe` | user is waiting, after each take | Medium — the raw transcript is final |
 | Text-to-speech | `gpt-4o-mini-tts-2025-12-15`, voice `marin` (#45) | user is waiting, at ask time | Low — not retained |
@@ -258,6 +260,51 @@ the validators (`lib/round/grounding.ts`).
   that no answer uses, among 65 of filler: all 12 picks were from those three.
 - **A first draft of the prompt was slower and wrong** — 19.7 s median, 1,591 output tokens, two or
   three "unsupported" sentences an answer. It was flagging narration; the fix is in `06`, 2026-10-03.
+
+**Model answers, measured 2026-10-04 (#74)** with `scripts/measure-model-answers.mts`, through the real
+port and `model-answer-en-1.0` / `model-answer-ja-1.0`, five rounds per language from the development
+machine. Synthetic throughout (`11` §8): the invented CVs in `lib/cv/test/` read as 55 claims (en) and
+85 (ja), an invented posting, and invented answers — three questions and their follow-ups in English,
+two and theirs in Japanese. Every call of a round starts together, as `complete` starts them, and what
+came back went through the server's span check (`lib/round/grounding.ts`).
+
+| Job | Prompt | n | median | p90 | slowest | tokens in / out | length |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Model answer, a question | `model-answer-en-1.0` | 15 | 11.2 s | 22.2 s | 30.4 s | 5,358 / 725 | 247 words |
+| Model answer, a follow-up | `model-answer-en-1.0` | 15 | 9.1 s | 11.2 s | 15.7 s | 5,404 / 602 | 122 words |
+| A round's six calls, side by side | `model-answer-en-1.0` | 5 | 15.9 s | 28.8 s | 30.4 s | 32,306 / 4,711 | — |
+| Model answer, a question | `model-answer-ja-1.0` | 10 | 17.3 s | 30.2 s | 31.6 s | 6,964 / 1,655 | 473 字 |
+| Model answer, a follow-up | `model-answer-ja-1.0` | 10 | 13.7 s | 16.8 s | 23.1 s | 7,069 / 1,285 | 257 字 |
+| A round's four calls, side by side | `model-answer-ja-1.0` | 5 | 25.0 s | 31.0 s | 31.6 s | 28,064 / 6,139 | — |
+
+- **What they cost the user in waiting.** A round's calls take as long as its slowest one — 16 s in
+  English and 25 s in Japanese at the median — and start when the round closes, so they run under
+  the wait for the last score and the feedback call (about 15 s on its own, above). **An English
+  round's feedback screen arrives about when it did; a Japanese round's about 10 s later**, because
+  its call writes the answer twice: the English translation for the toggle comes from the same call
+  (PRD §4).
+- **`complete` waits for them no longer than 45 s from the round's close** (`MODEL_ANSWER_WAIT_MS`,
+  `07` §5.12): every one of the ten rounds measured finished inside 32 s. Past that the feedback goes
+  out and a call still running is stored behind the response, in `after()`, so one slow model answer
+  can never hold the feedback screen — invariant 2 is about that screen, not this text.
+- **A call is bounded at 90 s, with no retry inside `complete`**: nearly three times the slowest call
+  seen (31.6 s of 50), and well inside the route's 300 s. A call that fails leaves a gap the feedback
+  screen states, with a retry (`07` §5.19).
+- **Nothing was dropped**: 74 marks over 30 English answers and 26 over 20 Japanese ones, each a run
+  the server found verbatim in the answer it marks, and the 26 marks of the English translations
+  likewise.
+- **Read by eye, on the synthetic rounds**: the answers keep the example the candidate gave, bring in
+  one or two CV claims as a separate example, and mark what only the candidate said — a team size, a
+  duration, a result with a number, a piece of work the CV does not name. **The first draft marked
+  narration** (22 marks over six answers, whole sentences among them) and sometimes swapped the
+  candidate's example for a better-numbered one from the CV; a later draft left a figure that only
+  the candidate had said unmarked inside a story. All three rules were tightened before this
+  measurement, and nothing shipped under a draft. What no measurement here shows is a fact the
+  model invented and did not mark: the prompt forbids it, and no second call checks (`06`,
+  2026-10-04). Digit figures have since gained a deterministic check of their own (`04`
+  `model_answers`).
+- **Cost: about $0.22 for an English round of three questions and their follow-ups, about $0.35 for
+  a Japanese one** — roughly $0.07 and $0.12 a question with its follow-up, at the prices below.
   The drop counters would not have shown it: every one of those quotes was verbatim.
 
 **Round-start generation, measured 2026-10-03 (#47)** with `scripts/measure-question-generation.mts`:
@@ -466,7 +513,8 @@ qualifications, 志望動機 and 自己PR only; **never from a 履歴書's perso
 
 Pricing that drove this (per 1M tokens, verified 2026-09-12): `gpt-6-astra` $10/$50, `gpt-5.6-sol`
 $4/$20, `gpt-5.6-terra` $2/$12, `gpt-5.6-luna` $0.20/$1.20. A realistic round is roughly **$0.40 on
-Sol**; the 30-day target of eight rounds is a few dollars. **Cost is not a constraint at this
+Sol**, before its model answers (#74, measured above: $0.07 to $0.12 more per question with its
+follow-up); the 30-day target of eight rounds is a few dollars. **Cost is not a constraint at this
 volume, so quality and consistency decided it, not price.**
 
 ### Two rules that are not negotiable
@@ -614,6 +662,7 @@ limit, and their waveform scrolls instead of filling toward the cap (`10` §12).
 | Text-to-speech failed | The question stays as text, with a short notice; the round goes on (`speech_failed`, `07` §5.15) | round id, position, error class |
 | Round feedback failed, or the last score did not land in time | The round is complete; every landed score renders; the round-level note is pending, with a retry (`07` §5.12) | round id, model, error class, pending count |
 | Follow-up generation failed | The round continues; the hole is recorded (`follow_ups`, `missing`) | answer id, model, error class |
+| A model answer failed | The round is complete and its feedback renders; that question says no model answer is written yet, with a retry (`07` §5.19) | round id, answer id, error class |
 | OpenAI project spend limit | Preflight refuses the round — `503 model_unavailable`. Upstream it is `429 project_spend_limit_exceeded`, mapped, never retried as a rate limit | event only |
 | Model refusal / malformed output | Same as scoring failed | answer id, **not the content** |
 | Auth rejected | "This account cannot sign in." No enumeration of why | email hash only |
@@ -679,7 +728,7 @@ suburi/
 │   ├── migrations/
 │   └── seed.ts                seeded user row, set pieces
 ├── lib/
-│   ├── ai/                    ports: generate (questions, follow-ups, round feedback) · transcribe · score · tts · embed · extract-cv-claims  ← one interface each
+│   ├── ai/                    ports: generate (questions, follow-ups, round feedback, model answers) · transcribe · score · tts · embed · extract-cv-claims  ← one interface each
 │   │   └── models.ts          every model string, pinned — the only place one is written
 │   ├── api/                   the 07 §2 envelope and the 07 §3 code table — no user-visible string
 │   │   └── rate-limit.ts      the one per-session limiter every ⚡ route calls, and each route's limit

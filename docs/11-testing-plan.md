@@ -98,6 +98,7 @@ amending first.
 | Flag span sanity | `answer_flags.span_end <= span_start` raises a check violation | — |
 | A flag keeps its attempt | Deleting a `scoring_attempts` row that an `answer_flags` row names raises a foreign-key violation | A flag with nothing saying which scorer raised it |
 | Language only on an `ok` attempt | `answered_language` set on a `pending` or `failed` attempt raises a check violation | A wrong-language exclusion resting on a call that never finished |
+| One model answer per answer | A second `model_answers` row for one `answer_id` raises a unique violation; a row without its `body`, `model_id` or `prompt_version` raises not-null; deleting an answer that has one raises a foreign-key violation | A model answer re-rolled after the round, or one that cannot say what wrote it |
 | One General practice | A second `role_contexts` row with `kind = 'general'` for one user raises a unique violation | General practice split across rows, and its rounds grouped as two |
 
 ### 3.2 No composite score — asserted three ways
@@ -433,6 +434,42 @@ check have unit tests of their own.
   every model stamp names a fixture; no recording; a first attempt claimed only where the question has
   no earlier answer; and it refuses, writing nothing, without the CV, rubric and questions it stamps.
 
+### 3.21 Model answers (#74)
+
+`07` §5.12 and §5.19, with a fake model-answer generator. The port's output check and its input
+block have unit tests of their own, and §3.1 holds `model_answers` to one row per answer.
+
+- **`complete` writes one `model_answers` row per submitted answer** — each bank question and each
+  follow-up — with the body, the model, the prompt version and the tokens, and reports
+  `model_answers: { written, failed, pending }`.
+- The generator is sent the question as asked and the **corrected** text, never the raw one; a
+  follow-up's call carries the question it followed and that answer. **It is sent no score.**
+- **A mark is a span the server found**: a quote that stands in the answer is stored as its span, in
+  code points; an invented one is dropped and counted, never clamped. A Japanese round's row carries
+  its English translation with spans into the English text.
+- **A digit figure neither the CV text nor the user's own answer holds is marked by the server**,
+  whatever the writing call marked, in the answer and in its English translation
+  (`lib/round/model-answer-figures.test.ts`; the rule is `04` `model_answers`).
+- **A failed call never fails `complete`**: the round completes, its feedback is written, the other
+  answers' rows are written, and `failed` counts the one that is not.
+- **A slow call never holds the feedback**: past the wait, `complete` answers with the calls that
+  finished stored and the rest counted as `pending`; a pending call's row is written in `after()`,
+  and one that then fails leaves a gap the retry fills.
+- **The rows are written even when the feedback is not**, and a round completed before the table
+  existed has none.
+- **The retry writes only what is lacking**: `201` with the count, one call per missing answer and no
+  call for an answer that has a row; `200` and no model call when nothing is lacking; `502
+  model_answer_generation_failed` when a call fails again, with what succeeded stored; `500
+  write_failed` when the insert fails; `409 round_not_complete`; `404` for another user's round.
+- **A row is never rewritten**: one a concurrent call stored first is kept, and the later result is
+  discarded.
+- **No model answer for a practice answer-again.**
+- Screen 8 reads each answer's model answer as segments cut at the stored spans, the follow-up's
+  beside the follow-up, and a missing one as missing.
+- **No model answer, and nothing it was written from, reaches a log line or an error envelope**
+  (§3.10).
+- The week's spend counts `model_answers` tokens (§3.17).
+
 ## 4. End-to-end, in Playwright
 
 Chromium, fake media device, S3 PUT and OpenAI intercepted. What this pass exists to catch is the
@@ -455,6 +492,8 @@ wiring between screens that no unit test sees.
 | Missing follow-up | With the fake generator failing, screen 6 says the follow-up was not generated, the answer is locked, and one control goes on to the next question; screen 8 shows the gap on that answer. |
 | Follow-up not stored | A reload onto an answer committed without its follow-up shows the saved answer and one control, which writes the follow-up and asks it. |
 | Spoken question | Realistic mode requests the speech route for the prompt on screen, by position; practice mode never requests it. A round opened with no gesture offers the control that plays it. A failed request puts the `speech_failed` notice where the speaker line was, and the take is recorded as usual. |
+| Model answer | Screen 8 shows what was said beside the stored model answer, for the question and for its follow-up, with the located unsupported quotes and independently found unsupported figures underlined and the legend naming the CV stamp; a Japanese round's reads in English from the stored translation when the pill is on, and what was said does not change. |
+| Model answers not written | With the fake generator failing, the round completes and its feedback renders; each answer says its model answer is not written, with a control — **no spinner**; a retry that fails shows the catalogue's sentence, and one that succeeds fills every answer of the round. |
 | Feedback not ready | With the fake feedback generator failing, screen 8 renders every score, a plain pending sentence and a retry — **no spinner** — and the retry fills the round-level region. |
 | CV grounding | The mock scorer and feedback call each return one thing the server can verify and one it cannot. Screen 8 shows one `Unsupported` rail per answer quoting the corrected text and one `Unused` rail quoting the CV; **the invented quote and the invented claim number appear nowhere.** |
 | Wrong language | A Japanese answer in an English round carries the wrong-language line on its own page of the pager and no other, is still scored, and its attempt stores `answered_language = 'ja'`. |
@@ -484,6 +523,7 @@ either irreducibly human or need a real human ear.
 - [ ] Japanese transcription is good enough to correct rather than retype — on **spoken keigo**, which is the hardest case and the one the rubric scores.
 - [ ] Realistic mode's TTS pronounces the question correctly, including company names and 役職 — in both languages, with the model pinned in `lib/ai/models.ts`. `npm run ear-check` speaks synthetic questions in both languages through the real port and writes them, with a page to play them from, to `private/ear-check/` (#45).
 - [ ] **The round loop's latencies are measured and recorded in `03` §4** — scoring, follow-up generation, round feedback, question generation, transcription and TTS — before release. Re-measure changed models or prompts; the Japanese follow-up awaits a real round with follow-ups on `develop`, and `feedback-en-1.2` has not been re-measured (`06`, #44).
+- [ ] **Model answers, read on a real round** (#74): each one answers the question asked, keeps the example given, says nothing the CV or the user's own words do not hold, and underlines what the CV does not back. Measured and read on synthetic rounds only so far (`03` §4, 2026-10-04); **no model answer for the real CV has been read.**
 - [ ] **The rubric v1.0 read**: the user has reviewed every dimension's per-level anchors in both languages, and the Japanese has had its native read, before it is seeded anywhere real.
 - [ ] The felt-pressure screen still feels unhurried. It is instrumentation and it is where the last score lands; if it starts feeling like a loading screen, both purposes are damaged.
 - [ ] Feedback renders **while you are still sitting there.** PRD §9 calls a spinner that outlives the sitting a defect — this is the acceptance test for that sentence, and no automated test can make it.
@@ -576,6 +616,7 @@ Each of these is a decision, with what would change it.
 | Not tested | Why that is acceptable | Revisit when |
 | --- | --- | --- |
 | **Scoring quality as pass/fail** | §6 — it is a judgement, and automating it would launder the judgement. | Never as a CI gate. Possibly as a tracked metric once there are enough held-out rounds to know what noise looks like. |
+| **A model answer's truthfulness** | Deterministic tests cover digit figures in both languages against the CV and the candidate's own answer, comparing normalized value and kind (plain number, percent, or multiplier); spelled-out numbers are tracked in #84, and other invented facts still require a real model read. Tests also hold that marks are real spans and a row is written once (§3.20). §5's checklist item is the read. | A real round shows an unmarked nonnumeric invention — then a second, checking call (`07` §7). |
 | **TTS output** | Nothing to assert programmatically beyond "audio was produced"; the thing that matters is whether 役職 is pronounced correctly, and that is an ear. | — |
 | **Real transcription accuracy** | Depends on a model whose exact id is still unconfirmed (`03` §4), and the correction step exists precisely because transcription is imperfect. | The transcription model is pinned, then measure word error rate on a fixed set of real takes. |
 | **Mobile and other browsers** | Desktop-only, stated by the app, no breakpoints (decision log Phase 2). Testing it would test a claim not being made. | Mobile is ever in scope. |

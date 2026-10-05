@@ -10,6 +10,7 @@ import {
   insertAttempt,
   insertRound,
   insertWorld,
+  modelAnswerValues,
   roundValues,
 } from "./test/fixtures";
 
@@ -409,6 +410,54 @@ describe("the measurement record refuses", () => {
       await expectRefused(db, () => db.delete(s.answers).where(eq(s.answers.id, parent)), {
         kind: "restrict",
         constraint: "follow_ups_parent_answer_id_answers_id_fk",
+      });
+    }));
+
+  // 04 `model_answers`: written once per answer, so what is reviewed later is what was written.
+  it("a second model answer for one answer", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await insertWorld(db);
+      const round = await insertRound(db, world);
+      const answered = await insertAnswer(db, world, round);
+      await db.insert(s.modelAnswers).values(modelAnswerValues(world, answered));
+
+      await expectRefused(
+        db,
+        () => db.insert(s.modelAnswers).values(modelAnswerValues(world, answered, { body: "別の模範回答。" })),
+        { kind: "unique", constraint: "model_answers_answer_id_unique" },
+      );
+    }));
+
+  it.each([
+    ["body", "body"],
+    ["modelId", "model_id"],
+    ["promptVersion", "prompt_version"],
+  ] as const)("a model answer without its %s", (field, column) =>
+    inRolledBackTransaction(async (db) => {
+      const world = await insertWorld(db);
+      const round = await insertRound(db, world);
+      const answered = await insertAnswer(db, world, round);
+      const lacking = { ...modelAnswerValues(world, answered), [field]: null };
+
+      await expectRefused(
+        db,
+        // Deliberately ill-typed: the point is that the database refuses it too.
+        () => db.insert(s.modelAnswers).values(lacking as typeof s.modelAnswers.$inferInsert),
+        { kind: "not_null", column },
+      );
+    }),
+  );
+
+  it("deleting an answer that has a model answer", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await insertWorld(db);
+      const round = await insertRound(db, world);
+      const answered = await insertAnswer(db, world, round);
+      await db.insert(s.modelAnswers).values(modelAnswerValues(world, answered));
+
+      await expectRefused(db, () => db.delete(s.answers).where(eq(s.answers.id, answered)), {
+        kind: "restrict",
+        constraint: "model_answers_answer_id_answers_id_fk",
       });
     }));
 

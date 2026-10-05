@@ -274,20 +274,20 @@ describe("self-check", () => {
     }));
 
   describe("week-to-date spend", () => {
-    it("is not red exactly at 3 × $0.40 with no round started, and red a token above it", () =>
+    it("is not red exactly at 3 × $0.70 with no round started, and red a token above it", () =>
       inRolledBackTransaction(async (db) => {
         const world = await insertWorld(db);
-        // 300,000 tokens in at $4.00 per million is $1.20.
-        await tokenQuestion(db, world, at(-HOUR), 300_000, 0);
+        // 525,000 tokens in at $4.00 per million is $2.10.
+        await tokenQuestion(db, world, at(-HOUR), 525_000, 0);
 
         const quiet = await selfCheck(db, world.userId);
-        expect(quiet.spend_week_to_date_usd).toMatchObject({ value: 1.2, threshold: 1.2, isRed: false });
+        expect(quiet.spend_week_to_date_usd).toMatchObject({ value: 2.1, threshold: 2.1, isRed: false });
         expect(quiet.spend_week_to_date_usd.windowStart).toEqual(WEEK_START);
         expect(quiet.spend_week_to_date_usd.windowEnd).toEqual(NOW);
 
         await tokenQuestion(db, world, at(-HOUR), 0, 1);
         const red = await selfCheck(db, world.userId);
-        expect(red.spend_week_to_date_usd).toMatchObject({ value: 1.20002, threshold: 1.2, isRed: true, subjectIds: [] });
+        expect(red.spend_week_to_date_usd).toMatchObject({ value: 2.10002, threshold: 2.1, isRed: true, subjectIds: [] });
       }));
 
     it("counts every token table, each row by its own created_at, and nothing from before Monday in Tokyo", () =>
@@ -295,7 +295,7 @@ describe("self-check", () => {
         const world = await insertWorld(db);
         // Sunday 23:59 in Tokyo: last week, however large.
         await tokenQuestion(db, world, new Date(WEEK_START.getTime() - 60_000), 10_000_000, 10_000_000);
-        await tokenQuestion(db, world, WEEK_START, 100_000, 0); // $0.40
+        await tokenQuestion(db, world, WEEK_START, 50_000, 0); // $0.20
         // A round started last week whose attempt and feedback land this week count this week.
         const old = await round(db, world, { startedAt: at(-7 * 24 * HOUR), completedAt: at(-HOUR) });
         const answered = await answer(db, world, old);
@@ -312,21 +312,31 @@ describe("self-check", () => {
           createdAt: at(-HOUR),
         }); // $0.20
         await feedback(db, old, { tokensOut: 20_000, createdAt: at(-HOUR) }); // $0.40
+        // So is the answer's model answer (04 `model_answers`).
+        await db.insert(s.modelAnswers).values({
+          answerId: answered,
+          userId: world.userId,
+          body: "fixture",
+          modelId: CV_EXTRACTION_MODEL,
+          promptVersion: "model-answer-fixture",
+          tokensIn: 50_000,
+          createdAt: at(-HOUR),
+        }); // $0.20
 
         const { spend_week_to_date_usd: reading } = await selfCheck(db, world.userId);
-        expect(reading).toMatchObject({ value: 1.2, threshold: 1.2, isRed: false });
+        expect(reading).toMatchObject({ value: 1.2, threshold: 2.1, isRed: false });
       }));
 
-    it("raises the threshold by $1.20 for each round started this week", () =>
+    it("raises the threshold by $2.10 for each round started this week", () =>
       inRolledBackTransaction(async (db) => {
         const world = await insertWorld(db);
         await round(db, world, { startedAt: WEEK_START });
         await round(db, world, { startedAt: at(-HOUR) });
         await round(db, world, { startedAt: new Date(WEEK_START.getTime() - 1) }); // last week
-        await tokenQuestion(db, world, at(-HOUR), 600_000, 0); // $2.40
+        await tokenQuestion(db, world, at(-HOUR), 1_050_000, 0); // $4.20
 
         const { spend_week_to_date_usd: reading } = await selfCheck(db, world.userId);
-        expect(reading).toMatchObject({ value: 2.4, threshold: 2.4, isRed: false });
+        expect(reading).toMatchObject({ value: 4.2, threshold: 4.2, isRed: false });
       }));
 
     it("turns red for an unpriced model and names it in the stored run and status", () =>
@@ -337,7 +347,7 @@ describe("self-check", () => {
         await tokenQuestion(db, world, at(-HOUR), 100_000, 0);
 
         const { spend_week_to_date_usd: reading } = await selfCheck(db, world.userId);
-        expect(reading).toMatchObject({ value: 0.4, threshold: 1.2, isRed: true, unpricedModelIds: ["unpriced-model-2031-01-01"] });
+        expect(reading).toMatchObject({ value: 0.4, threshold: 2.1, isRed: true, unpricedModelIds: ["unpriced-model-2031-01-01"] });
         const status = await loadStatus(db, world.userId, at(HOUR));
         expect(status.checks.find((check) => check.signal === "spend_week_to_date_usd")).toMatchObject({
           value: 0.4, isRed: true, unpricedModelIds: ["unpriced-model-2031-01-01"],

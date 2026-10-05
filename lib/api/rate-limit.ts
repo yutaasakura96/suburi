@@ -29,6 +29,8 @@ export const RATE_LIMITS: Record<RateLimitedRoute, { limit: number; windowSecond
   submit: { limit: 30, windowSeconds: 600 },
   complete: { limit: 6, windowSeconds: 600 },
   feedback: { limit: 6, windowSeconds: 600 },
+  // The model answers' retry (07 §5.19): one call writes every one the round still lacks.
+  "model-answers": { limit: 6, windowSeconds: 600 },
   // One request per prompt asked in realistic mode: 14 in the longest round with follow-ups, and a
   // reload asks again. Two such rounds with reloads to spare, like `transcribe` and `submit`.
   speech: { limit: 30, windowSeconds: 600 },

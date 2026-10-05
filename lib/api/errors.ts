@@ -41,6 +41,7 @@ export const ERROR_STATUS = {
   round_not_complete: 409,
   round_abandoned: 409,
   feedback_generation_failed: 502,
+  model_answer_generation_failed: 502,
   speech_failed: 502,
   role_context_too_large: 422,
   write_failed: 500,

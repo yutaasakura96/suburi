@@ -45,7 +45,8 @@ async function loadClaims(db: Pick<Db, "execute">, cvVersionId: string) {
   return rows.map((row) => row.quote);
 }
 
-async function loadRoleContext(db: Pick<Db, "execute">, roleContextId: string): Promise<GenerationRoleContext> {
+/** A round's role context as a generating call is shown it: a posting with its text, or General practice. */
+export async function loadRoleContext(db: Pick<Db, "execute">, roleContextId: string): Promise<GenerationRoleContext> {
   const { rows } = await db.execute<{ kind: string; company_name: string | null; role_title: string | null; body: string | null }>(sql`
     select kind, company_name, role_title, body from role_contexts where id = ${roleContextId}`);
   const [row] = rows;

@@ -3,6 +3,7 @@ import { openAiEmbedder } from "../ai/embed";
 import { openAiQuestionGenerator } from "../ai/generate-questions";
 import { openAiFollowUpGenerator } from "../ai/follow-up";
 import { openAiModelHealth } from "../ai/health";
+import { openAiModelAnswerGenerator } from "../ai/model-answer";
 import { openAiRoundFeedbackGenerator } from "../ai/round-feedback";
 import { openAiAnswerScorer } from "../ai/score";
 import { openAiTranscriber } from "../ai/transcribe";
@@ -39,6 +40,7 @@ export function roundDeps() {
     questionGenerator: openAiQuestionGenerator(openAi),
     embedder: openAiEmbedder(openAi),
     followUpGenerator: openAiFollowUpGenerator(openAi),
+    modelAnswerGenerator: openAiModelAnswerGenerator(openAi),
     store: s3AudioStore({
       region: config.AWS_REGION,
       bucket: config.S3_BUCKET,
