@@ -397,3 +397,9 @@ followed by `点`, `採点` for scoring, `深掘り` for a follow-up, `講評` f
 
 `採点中`, `未採点`, `講評に進む`, `先へ進む`, `└ 深掘り` and `講評をまとめています。` are reused from §2
 and §8 as they stand.
+
+**What cannot be read in advance — not yet read.** `lib/prompts/feedback-ja-1.2.ts`, used only when
+no original answer scored and the findings are written from answers given again, names them
+`第2問の再回答` and `第2問の深掘りの再回答` in the findings. Its instructions are in English; what needs
+the read is its **output**, on the first such practice round on `develop`, for whether those names
+read naturally. A rule it breaks is a prompt version, not an edit.

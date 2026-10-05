@@ -494,7 +494,8 @@ last and completes without a rating — the defect #44's review left for this sl
 practice rows. **Owner-confirmed 2026-10-05:** feedback uses scored retries when no original answer
 scored, with new prompt versions; scored follow-up retries have their own page on screen 8. The
 owner read and accepted the original 28 Japanese strings and the numbered follow-up retry label in
-`docs/checklists/native-read-round.md` §10. The new numbered bank-retry heading awaits a native read.
+`docs/checklists/native-read-round.md` §11. The new numbered bank-retry heading awaits a native read, and so does what `feedback-ja-1.2`
+calls an answer given again in its findings, on the first round that uses it.
 
 **#54, #55 and #56 are next, then #21. #20, #29 and #38 are done.** #21 is blocked by all three
 (native `blocked_by` edges, 2026-09-29), and #56 by #55. They were triaged 2026-09-29 (`06`): #54 and
