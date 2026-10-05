@@ -334,6 +334,7 @@ describe("GET /api/rounds (07 §5.13)", () => {
     ["?language=en&language=ja", ["language"]],
     ["?cursor=not-a-cursor", ["cursor"]],
     [`?cursor=${Buffer.from(JSON.stringify({ s: "2026-09-01", i: "x" })).toString("base64url")}`, ["cursor"]],
+    [`?cursor=${Buffer.from(JSON.stringify({ s: "2026-99-99T25:61:61.000000Z", i: "0b0e4b0e-9f43-4c58-8a5e-5f2a6d6f3c11" })).toString("base64url")}`, ["cursor"]],
   ])("is 400 for %s, naming the field and listing nothing", (query, fields) =>
     inRolledBackTransaction(async (db) => {
       const world = await setUp(db);

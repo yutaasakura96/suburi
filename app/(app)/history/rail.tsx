@@ -8,6 +8,25 @@ import { failureText, getJson, type FailureCode } from "../round/api";
 import { CalloutRail, caption, sectionLabel } from "../round/parts";
 import { HISTORY_COPY, statusLine } from "./copy";
 
+type OlderRounds = { items: readonly RoundListItem[]; next: string | null };
+
+function mergeItems(current: readonly RoundListItem[], incoming: readonly RoundListItem[]) {
+  const byId = new Map(current.map((item) => [item.id, item]));
+  for (const item of incoming) byId.set(item.id, item);
+  return [...byId.values()].sort((a, b) => b.started_at.localeCompare(a.started_at) || b.id.localeCompare(a.id));
+}
+
+function mergePages(current: OlderRounds | null, incoming: OlderRounds): OlderRounds {
+  if (!current) return incoming;
+  const items = mergeItems(current.items, incoming.items);
+  const currentLast = current.items.at(-1);
+  const incomingLast = incoming.items.at(-1);
+  const currentIsOlder = currentLast && incomingLast &&
+    (currentLast.started_at < incomingLast.started_at ||
+      (currentLast.started_at === incomingLast.started_at && currentLast.id < incomingLast.id));
+  return { items, next: currentIsOlder || !incomingLast ? current.next : incoming.next };
+}
+
 /**
  * 10 §10's left rail: every round, newest first, the selected one marked by the 05 §5.6 rail. The
  * first page arrives with the layout; older ones are fetched from `GET /api/rounds` by cursor.
@@ -28,37 +47,35 @@ export function HistoryRail({
   pageMax: number;
 }) {
   const selected = useParams<{ roundId?: string }>().roundId;
-  const [older, setOlder] = useState<{ items: readonly RoundListItem[]; next: string | null } | null>(null);
+  const [older, setOlder] = useState<OlderRounds | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<FailureCode | null>(null);
-  const olderCount = useRef(0);
-  const items = [...initial.items, ...(older?.items ?? [])];
+  const olderRef = useRef(older);
+  const items = mergeItems(older?.items ?? [], initial.items);
   const next = older ? older.next : initial.next_cursor;
 
-  // A retry in the detail refreshes the layout's first page. The older pages are read again with it,
-  // so a round listed further down does not go on saying it is unscored. A page `Older rounds` adds
-  // while they are being read is kept after them.
   useEffect(() => {
-    if (olderCount.current === 0 || initial.next_cursor === null) return;
+    olderRef.current = older;
+  }, [older]);
+
+  useEffect(() => {
+    const loaded = olderRef.current;
+    const oldestId = loaded?.items.at(-1)?.id;
+    if (!oldestId || initial.next_cursor === null) return;
     let stale = false;
     void (async () => {
-      const count = olderCount.current;
-      const items: RoundListItem[] = [];
+      const refreshed: RoundListItem[] = [];
       let cursor: string | null = initial.next_cursor;
-      while (cursor !== null && items.length < count) {
+      while (cursor !== null && !refreshed.some((item) => item.id === oldestId)) {
         const result = await getJson<RoundListPage>(
-          `/api/rounds?limit=${Math.min(count - items.length, pageMax)}&cursor=${encodeURIComponent(cursor)}`,
+          `/api/rounds?limit=${Math.min(Math.max(loaded.items.length - refreshed.length, 1), pageMax)}&cursor=${encodeURIComponent(cursor)}`,
         );
         if (stale || !result.ok) return;
-        items.push(...result.json.items);
+        refreshed.push(...result.json.items);
         cursor = result.json.next_cursor;
       }
       if (stale) return;
-      olderCount.current += items.length - count;
-      setOlder((current) => {
-        if (!current || current.items.length <= count) return { items, next: cursor };
-        return { items: [...items, ...current.items.slice(count)], next: current.next };
-      });
+      setOlder((current) => mergePages(current, { items: refreshed, next: cursor }));
     })();
     return () => {
       stale = true;
@@ -75,8 +92,7 @@ export function HistoryRail({
       setError(result.code);
       return;
     }
-    olderCount.current += result.json.items.length;
-    setOlder((current) => ({ items: [...(current?.items ?? []), ...result.json.items], next: result.json.next_cursor }));
+    setOlder((current) => mergePages(current, { items: result.json.items, next: result.json.next_cursor }));
   }
 
   return (

@@ -345,6 +345,29 @@ test("refresh keeps every older round already loaded", async ({ page }) => {
   await withDb((db) => db.delete(s.rounds).where(inArray(s.rounds.id, older.map((round) => round.id))));
 });
 
+test("refresh keeps the oldest loaded round when another tab starts a round", async ({ page }) => {
+  const older = await insertOlderRounds();
+  await page.route("**/api/scoring-attempts", (route) =>
+    route.fulfill({ status: 503, json: { error: { code: "invalid_request" } } }),
+  );
+  await signIn(page);
+  await page.goto(`/history/${id("failed-en")}`);
+  for (let pageNumber = 0; pageNumber < 6; pageNumber++) {
+    await page.getByRole("button", { name: "Older rounds" }).click();
+    await expect(rounds(page)).toHaveCount(Math.min(40 + pageNumber * 20, 124));
+  }
+  const newId = "00000000-0000-4000-8000-000000000121";
+  await withDb(async (db) => {
+    const [exemplar] = await db.select().from(s.rounds).where(eq(s.rounds.id, id("complete-ja")));
+    await db.insert(s.rounds).values({ ...exemplar, id: newId, startedAt: new Date(exemplar.startedAt.getTime() + 1_000) });
+  });
+  await rows(page).nth(2).getByTestId("history-retry").click();
+  await expect(rounds(page).first().getByRole("link")).toHaveAttribute("href", `/history/${newId}`);
+  await expect(rounds(page)).toHaveCount(125);
+  await expect(rounds(page).last().getByRole("link")).toHaveAttribute("href", `/history/${older[119].id}`);
+  await withDb((db) => db.delete(s.rounds).where(inArray(s.rounds.id, [...older.map((round) => round.id), newId])));
+});
+
 test("refresh keeps a page Older rounds adds while it is in flight", async ({ page }) => {
   const older = await insertOlderRounds();
   let release = () => {};

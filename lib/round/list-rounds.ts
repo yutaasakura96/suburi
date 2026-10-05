@@ -69,7 +69,9 @@ export function decodeCursor(value: string): Cursor | null {
     const parsed: unknown = JSON.parse(Buffer.from(value, "base64url").toString("utf8"));
     if (typeof parsed !== "object" || parsed === null) return null;
     const { s: startedAt, i: id } = parsed as Record<string, unknown>;
-    if (typeof startedAt !== "string" || !TIMESTAMP.test(startedAt)) return null;
+    if (typeof startedAt !== "string" || !TIMESTAMP.test(startedAt) || startedAt.startsWith("0000-")) return null;
+    const instant = Date.parse(startedAt);
+    if (!Number.isFinite(instant) || new Date(instant).toISOString().slice(0, 19) !== startedAt.slice(0, 19)) return null;
     if (typeof id !== "string" || !isUuid(id)) return null;
     return { s: startedAt, i: id };
   } catch {
