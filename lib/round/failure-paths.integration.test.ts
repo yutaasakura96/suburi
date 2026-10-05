@@ -12,6 +12,7 @@ import {
   fakeFollowUpGenerator,
   fakeModelHealth,
   fakeScorer,
+  fakeSpeechSynthesizer,
   fakeTranscriber,
   uniformScores,
 } from "../ai/fake-round-ports";
@@ -26,6 +27,7 @@ import { createOpenAnswer } from "./open-answer";
 import { createPostRound } from "./post-round";
 import { createPostRoleContext } from "./role-context";
 import { runScoringAttempt } from "./run-scoring";
+import { createSpeech } from "./speech";
 import { createSubmit } from "./submit";
 import { createTranscribe } from "./transcribe";
 import { createTypedTranscript } from "./typed-transcript";
@@ -144,6 +146,7 @@ async function setUp(raw: TestDb) {
   const scorer = fakeScorer(uniformScores(3));
   const transcriber = fakeTranscriber(() => ({ text: HEARD, durationMs: 90_000 }));
   const generator = fakeFeedbackGenerator(() => FIXTURE_FEEDBACK);
+  const speech = fakeSpeechSynthesizer();
   const followUps = fakeFollowUpGenerator(() => ({ ...FIXTURE_FOLLOW_UP, text: `How did you measure the ${FOLLOW_UP_SENTINEL} six months?` }));
   const base = { auth, db, transaction: savepointTransaction(db) };
   const timing = { waitBoundMs: 50, sleep: async () => {} };
@@ -164,6 +167,7 @@ async function setUp(raw: TestDb) {
     }),
     complete: createComplete({ ...base, generator, ...timing }),
     feedback: createFeedbackRetry({ ...base, generator, ...timing }),
+    speech: createSpeech({ ...base, speech }),
   };
 
   const responses: string[] = [];
@@ -175,6 +179,11 @@ async function setUp(raw: TestDb) {
       }),
       id,
     );
+    // The speech route's success is audio, not JSON: only its status is read.
+    if (!response.headers.get("content-type")?.includes("json")) {
+      await response.body?.cancel();
+      return { status: response.status, json: null, text: "" };
+    }
     const text = await response.text();
     responses.push(text);
     return { status: response.status, json: JSON.parse(text), text };
@@ -183,6 +192,7 @@ async function setUp(raw: TestDb) {
     send(handler, id, { method: "POST", body: JSON.stringify(body) });
   const post = (handler: (request: Request) => Promise<Response>, body: unknown) => call((request) => handler(request), "", body);
   const read = (roundId: string, query = "") => send(handlers.read, roundId, { method: "GET" }, query);
+  const speak = (roundId: string, query: string, handler = handlers.speech) => send(handler, roundId, { method: "GET" }, query);
 
   async function drainAfter() {
     while (scheduled.length > 0) await scheduled.shift()!();
@@ -235,6 +245,8 @@ async function setUp(raw: TestDb) {
     call,
     post,
     read,
+    speak,
+    speech,
     responses,
     scheduled,
     drainAfter,
@@ -837,6 +849,20 @@ describe("write_failed on every round route (11 §3.16)", () => {
       expect(calls).toBeGreaterThan(0);
     }));
 
+  it("GET …/speech: the envelope with nothing spoken, and the same request then speaks the question", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const roundId = await world.startRound();
+      const act = () => world.speak(roundId, "?position=1&kind=question");
+      const calls = await failAtEveryCall(world, act, async (failed) => {
+        expect(failed.json.error.detail.round_id).toBe(roundId);
+        expect(world.speech.calls).toBe(0);
+        expect((await act()).status).toBe(200);
+        world.speech.calls = 0;
+      });
+      expect(calls).toBeGreaterThan(0);
+    }));
+
   it("POST …/answers: no slot, and the round resumes at the same call", () =>
     inRolledBackTransaction(async (db) => {
       const world = await setUp(db);
@@ -1051,7 +1077,11 @@ describe("never a bare 500 (07 §2)", () => {
         },
       };
       const before = logged.length;
-      for (const handler of [createGetRound({ ...world.base, auth }), createOpenAnswer({ ...world.base, auth, store: world.store, prefix: "dev/" })]) {
+      for (const handler of [
+        createGetRound({ ...world.base, auth }),
+        createOpenAnswer({ ...world.base, auth, store: world.store, prefix: "dev/" }),
+        createSpeech({ ...world.base, auth, speech: world.speech }),
+      ]) {
         const reply = await world.call(handler, roundId, { content_type: "audio/webm", expected_bytes: 8 });
         expect(reply.status).toBe(500);
         expect(reply.json.error).toMatchObject({ code: "write_failed", detail: { round_id: roundId, error_class: "unexpected" } });
@@ -1089,6 +1119,14 @@ describe("no text in an envelope or a log line, on any round route (11 §3.10)",
       refused(await call(handlers.open, abandonedId, slot));
       refused(await call(handlers.submit, abandonedAnswer, { transcript_corrected: CORRECTED }));
       refused(await call(handlers.complete, abandonedId, { felt_pressure: 3 }));
+
+      // GET …/speech: a query that names text, a follow-up it does not read, and a voice that fails.
+      refused(await world.speak(roundId, `?position=1&kind=question&text=${RAW_SENTINEL}`));
+      refused(await world.speak(roundId, "?position=1&kind=follow_up"));
+      const silent = fakeSpeechSynthesizer(() => {
+        throw new ModelCallFailed("Speech", "upstream_500");
+      });
+      refused(await world.speak(roundId, "?position=1&kind=question", createSpeech({ ...world.base, speech: silent })));
 
       // POST …/answers.
       refused(await call(handlers.open, roundId, { ...slot, content_type: "audio/mp4" }));
@@ -1153,6 +1191,7 @@ describe("no text in an envelope or a log line, on any round route (11 §3.10)",
           "unsupported_content_type",
           "upload_too_large",
           "presign_failed",
+          "speech_failed",
           "audio_missing",
           "transcription_failed",
           "transcript_already_final",

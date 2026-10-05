@@ -2,7 +2,7 @@ import { z } from "zod";
 import { apiError } from "../api/errors";
 import { SPEECH_CONTENT_TYPE, type SpeechSynthesizer } from "../ai/tts";
 import { ModelCallFailed } from "../ai/upstream";
-import { authenticate, isUuid, log, notFound, type RoundDeps } from "./http";
+import { authenticate, guarded, isUuid, log, notFound, roundIdOf, type RoundDeps } from "./http";
 import { getRound, promptAt } from "./state";
 
 /**
@@ -59,7 +59,7 @@ function relay(reader: ReadableStreamDefaultReader<Uint8Array>, firstByte: Uint8
 }
 
 export function createSpeech(deps: SpeechDeps) {
-  return async function GET(request: Request, roundId: string): Promise<Response> {
+  return guarded("speech_read_failed", async function GET(request: Request, roundId: string): Promise<Response> {
     const session = await authenticate(deps, request, "speech");
     if (session instanceof Response) return session;
     const { userId } = session;
@@ -143,5 +143,5 @@ export function createSpeech(deps: SpeechDeps) {
     );
     // `no-store`: the audio is not retained (03 §4), by the browser's cache either.
     return new Response(body, { headers: { "content-type": SPEECH_CONTENT_TYPE, "cache-control": "no-store" } });
-  };
+  }, roundIdOf);
 }
