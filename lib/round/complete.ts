@@ -118,25 +118,19 @@ async function writeRoundFeedback(deps: FeedbackDeps, round: RoundRow): Promise<
   const started = performance.now();
   const elapsed = () => Math.round(performance.now() - started);
   const allAnswers = await roundAnswers(deps.db, round.id);
-  const originals = allAnswers.filter(feedsRoundFeedback);
+  const answerIds = allAnswers.map((answer) => answer.id);
 
   // Step 2: poll until no latest attempt is pending, or the bound runs out.
   const bound = deps.waitBoundMs ?? COMPLETE_WAIT_BOUND_MS;
-  let attempts = await latestAttempts(deps.db, originals.map((answer) => answer.id));
-  while ([...attempts.values()].some((attempt) => attempt.status === "pending") && performance.now() - started < bound) {
+  let attempts = await latestAttempts(deps.db, answerIds);
+  let answers = feedbackAnswers(allAnswers, attempts);
+  while (answers.some((answer) => attempts.get(answer.id)?.status === "pending") && performance.now() - started < bound) {
     await sleep(POLL_MS);
-    attempts = await latestAttempts(deps.db, originals.map((answer) => answer.id));
+    attempts = await latestAttempts(deps.db, answerIds);
+    answers = feedbackAnswers(allAnswers, attempts);
   }
-  const retryOnly = noScores(scoringCounts(attempts.values()));
-  const answers = retryOnly ? allAnswers.filter((answer) => answer.transcriptCorrected !== null && answer.retryOfAnswerId !== null) : originals;
-  if (retryOnly) {
-    attempts = await latestAttempts(deps.db, answers.map((answer) => answer.id));
-    while ([...attempts.values()].some((attempt) => attempt.status === "pending") && performance.now() - started < bound) {
-      await sleep(POLL_MS);
-      attempts = await latestAttempts(deps.db, answers.map((answer) => answer.id));
-    }
-  }
-  const counts = scoringCounts(attempts.values());
+  const retryOnly = answers.some((answer) => answer.retryOfAnswerId !== null);
+  const counts = scoringCounts(answers.flatMap((answer) => attempts.get(answer.id) ?? []));
   const failure = (errorClass: string) => {
     log("error", { event: "feedback_generation_failed", round_id: round.id, error_class: errorClass, ...counts, duration_ms: elapsed() });
     return {
