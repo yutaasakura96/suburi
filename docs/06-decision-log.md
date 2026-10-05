@@ -30,6 +30,14 @@ deploy that never happened).
 unattended migration this entry leaves out. And a Postgres advisory lock serialises two builds at once
 — drizzle reads its journal before it opens its transaction, so both would run the same migration and
 the second would fail on the first's tables.
+**And a third, for the migration drizzle skips.** Its migrator applies only the entries whose journal
+`when` is later than the newest applied one. A migration generated on a branch that merges second,
+renumbered at the merge, keeps its earlier timestamp, and the build would pass with it unapplied — the
+drift this entry exists to end. So after migrating, the step compares the rows in
+`drizzle.__drizzle_migrations` with the entries in the folder's `meta/_journal.json` and fails the
+build when the database has fewer, naming the cause and the fix: regenerate the migration so its
+timestamp is the newest. A plain `<`, so redeploying an older commit, where the database has more,
+still passes.
 
 ---
 ## Phase 6 — #74, a model answer for each question

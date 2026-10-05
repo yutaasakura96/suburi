@@ -106,6 +106,30 @@ describe("applyMigrations", () => {
     expect(await tableExists("half_applied")).toBe(false);
   });
 
+  // drizzle applies only what is newer than the newest applied migration: one generated on a branch
+  // that merged second keeps its earlier timestamp and would be skipped, with the build green.
+  it("rejects when a migration older than the newest applied one was skipped", async () => {
+    await applyMigrations(MIGRATE_URL);
+    const outOfOrder = folderWith((copy, folder) => {
+      const last = copy.entries[copy.entries.length - 1];
+      copy.entries.push({ ...last, idx: total, when: last.when - 1, tag: "9999_merged-second" });
+      writeFileSync(join(folder, "9999_merged-second.sql"), "create table merged_second (id integer);");
+    });
+
+    await expect(applyMigrations(MIGRATE_URL, outOfOrder)).rejects.toThrow(
+      `Only ${total} of the ${total + 1} migrations in ${outOfOrder} are applied. The likely cause is a migration whose journal "when" is older than the newest applied one, as after a renumber at merge: drizzle skips it. Regenerate it so its timestamp is the newest.`,
+    );
+    expect(await tableExists("merged_second")).toBe(false);
+  });
+
+  // Redeploying an older commit: the database is ahead of the folder, which expand-only makes safe.
+  it("passes on a database ahead of the folder", async () => {
+    await applyMigrations(MIGRATE_URL);
+    const oneBehind = folderWith((copy) => copy.entries.pop());
+
+    expect(await applyMigrations(MIGRATE_URL, oneBehind)).toEqual({ applied: 0, total });
+  });
+
   // Two develop deploys can build at once. Unserialised, both would read an empty journal and the
   // second would fail on the first's tables.
   it("serialises two runs against one database", async () => {

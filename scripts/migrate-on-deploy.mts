@@ -3,26 +3,27 @@ import { getDeployMigrationConfig } from "../lib/config.ts";
 
 // Vercel's build runs this before `npm run build` (vercel.json, docs/12-deployment.md §4). It
 // migrates the develop deployment's database and nothing else; a failure exits non-zero, which fails
-// the build and leaves the previous deployment serving. Logs counts and the database's own error,
-// never the URL or anything in it.
-const migration = getDeployMigrationConfig();
+// the build and leaves the previous deployment serving. Logs counts and the error, never the URL or
+// anything in it.
+const secrets: string[] = [];
+const scrub = (text: string) => secrets.reduce((out, secret) => (secret ? out.replaceAll(secret, "[redacted]") : out), text);
 
-if (!migration) {
-  console.log("No migration on this build: only the develop deployment migrates its database.");
-} else {
-  const { url, deployment } = migration;
-  const { password, hostname } = new URL(url);
-  const secrets = [url, password, decodeURIComponent(password), hostname];
-  const scrub = (text: string) => secrets.reduce((out, secret) => (secret ? out.replaceAll(secret, "[redacted]") : out), text);
-
-  try {
+try {
+  const migration = getDeployMigrationConfig();
+  if (!migration) {
+    console.log("No migration on this build: only the develop deployment migrates its database.");
+  } else {
+    const { url, deployment } = migration;
+    const { password, hostname } = new URL(url);
+    secrets.push(url, password, hostname);
+    secrets.push(decodeURIComponent(password));
     const { applied, total } = await applyMigrations(url);
     console.log(`Migrated the ${deployment} database: ${applied} applied, ${total} in its journal.`);
-  } catch (error) {
-    console.error(`Migrating the ${deployment} database failed; nothing was applied.`);
-    for (const line of describe(error)) console.error(scrub(line));
-    process.exitCode = 1;
   }
+} catch (error) {
+  console.error("Migrating this deployment's database failed.");
+  for (const line of describe(error)) console.error(scrub(line));
+  process.exitCode = 1;
 }
 
 // The error, what it wraps and what caused it: drizzle wraps the database's error as a cause, and a

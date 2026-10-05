@@ -254,8 +254,8 @@ already merged. So step 3 is the build's:
   `0`, having read no database variable.
 - **Migration first, build second, promotion last.** A migration that fails exits non-zero, the build
   fails, and Vercel keeps serving the previous deployment — red in the Vercel dashboard and on the
-  commit's status in GitHub. Pending migrations apply in one transaction, so a failure applies none of
-  them. A build that fails *after* a migration leaves the schema ahead of the code, which expand-only
+  commit's status in GitHub. Pending migrations apply in one transaction, so one that fails applies none
+  of them. A build that fails *after* a migration leaves the schema ahead of the code, which expand-only
   (below) makes safe.
 - **It needs one variable, `DATABASE_URL_UNPOOLED`,** in the Preview scope (§2), and reads no other:
   `lib/config.ts` parses it apart from the rest, as it does Sentry's, under the same `verify-full`
@@ -266,9 +266,18 @@ already merged. So step 3 is the build's:
 - **It is `drizzle-kit migrate`'s migrator and journal** (`db/migrate.ts`), so `npm run db:migrate` by
   hand and a deploy agree on what is applied. Two builds at once are serialised by a Postgres advisory
   lock, which is one more reason the URL is the direct one.
+- **A skipped migration fails the build.** drizzle applies only the migrations whose journal `when` is
+  later than the newest applied one, so a migration generated on a branch that merged second, and
+  renumbered at the merge, keeps its earlier timestamp and is passed over in silence. After migrating,
+  `db/migrate.ts` counts the rows in `drizzle.__drizzle_migrations` against the entries in
+  `db/migrations/meta/_journal.json` and fails when the database has fewer, naming that cause. The fix
+  is to regenerate the migration so its timestamp is the newest. A database with *more* than the
+  folder — an older commit redeployed — passes.
 - **The log line is counts only:** `Migrated the develop database: 2 applied, 15 in its journal.` A
-  failure prints the database's error and the statement that raised it — migration SQL, which is in
-  the repository — with the URL, its host and its password scrubbed.
+  failure prints the error and the statement that raised it — migration SQL, which is in the
+  repository — with the URL, its host and its password scrubbed, and a missing or malformed variable
+  goes through the same path. It does not say whether anything was applied: the check above fails
+  after drizzle's transaction has committed.
 - **Seeding is not part of it.** `npm run db:seed:develop` stays a hand-run step (§3 step 8).
 
 **Extending it to `main` is a decision, not an edit** — it reverses the paragraph above. The mechanism

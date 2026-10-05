@@ -591,7 +591,8 @@ pinned and upgraded deliberately, and the OpenAI SDK sits on the scoring path.
 **Green CI is required to deploy** (`12-deployment.md` §4), and `main`'s migrations are run by hand
 *before* the push that deploys — so CI runs against the schema production is about to have, not the one
 it had. `develop`'s are applied by its own build (`12` §4); `db/migrate.integration.test.ts` holds that
-step: from empty, from one behind, a migration that fails, and two builds at once.
+step: from empty, from one behind, a migration that fails, a migration drizzle skipped for its older
+timestamp, a database ahead of the folder, and two builds at once.
 
 **No coverage threshold.** The target is the list in §3, not a percentage. A coverage number would be
 satisfiable by testing the easy half of the codebase, and the four things that matter here are worth
