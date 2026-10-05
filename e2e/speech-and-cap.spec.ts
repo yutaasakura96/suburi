@@ -257,7 +257,8 @@ test("pausing a pending spoken question to record does not show a speech failure
       rejectPlayback(new DOMException("Playback was paused", "AbortError"));
     };
     navigator.mediaDevices.getUserMedia = async () => {
-      throw new DOMException("Microphone unavailable", "NotAllowedError");
+      // Not a refusal: #48 gives a blocked microphone its own sentence.
+      throw new DOMException("Microphone unavailable", "NotFoundError");
     };
   });
   await page.goto(`/round/${round.id}`);
