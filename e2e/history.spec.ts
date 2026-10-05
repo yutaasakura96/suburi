@@ -307,6 +307,58 @@ test("failed and pending attempts under another model do not appear in displayed
   }
 });
 
+test("refresh keeps every older round already loaded", async ({ page }) => {
+  const exemplar = await withDb(async (db) => {
+    const [round] = await db.select().from(s.rounds).where(eq(s.rounds.id, id("complete-ja")));
+    return round;
+  });
+  const older = Array.from({ length: 120 }, (_, index) => ({
+    ...exemplar,
+    id: `00000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`,
+    startedAt: new Date(Date.UTC(2026, 7, 31 - index)),
+  }));
+  await withDb((db) => db.insert(s.rounds).values(older));
+  const limits: number[] = [];
+  page.on("request", (request) => {
+    if (request.url().includes("/api/rounds?")) limits.push(Number(new URL(request.url()).searchParams.get("limit") ?? 20));
+  });
+  await page.route("**/api/scoring-attempts", (route) =>
+    route.fulfill({ status: 503, json: { error: { code: "invalid_request" } } }),
+  );
+  await signIn(page);
+  await page.goto(`/history/${id("failed-en")}`);
+  for (let pageNumber = 0; pageNumber < 6; pageNumber++) {
+    await page.getByRole("button", { name: "Older rounds" }).click();
+    await expect(rounds(page)).toHaveCount(Math.min(40 + pageNumber * 20, 124));
+  }
+  await rows(page).nth(2).getByTestId("history-retry").click();
+  await expect(rows(page).nth(2).getByRole("alert")).toBeVisible();
+  await expect.poll(() => limits.includes(100)).toBe(true);
+  await expect.poll(() => limits.includes(4)).toBe(true);
+  await expect(rounds(page)).toHaveCount(124);
+  await expect(rounds(page).last().getByRole("link")).toHaveAttribute("href", `/history/${older[119].id}`);
+  await withDb((db) => db.delete(s.rounds).where(inArray(s.rounds.id, older.map((round) => round.id))));
+});
+
+test("a lost attempt creation response reveals the committed pending attempt", async ({ page }) => {
+  await signIn(page);
+  await page.route("**/api/scoring-attempts", async (route) => {
+    const created = await route.fetch();
+    expect(created.status()).toBe(201);
+    await route.fulfill({ status: 503, json: { error: { code: "invalid_request" } } });
+  });
+  await page.goto(`/history/${id("failed-en")}`);
+  const row = rows(page).nth(2);
+  await row.getByTestId("history-retry").click();
+  await expect(row.getByTestId("history-unscored")).toContainText("Not scored yet");
+  await expect(row.getByTestId("history-retry")).toBeEnabled();
+  const pending = await withDb((db) =>
+    db.select().from(s.scoringAttempts).where(eq(s.scoringAttempts.answerId, id("failed-en:q2"))),
+  );
+  expect(pending.map((attempt) => attempt.status).sort()).toEqual(["failed", "pending"]);
+  await withDb((db) => db.delete(s.scoringAttempts).where(eq(s.scoringAttempts.id, pending.find((attempt) => attempt.status === "pending")!.id)));
+});
+
 test("a retry that fails says so and leaves the answer retryable", async ({ page }) => {
   // The run spends its three retries first, 14 s of backoff apart (07 §5.10).
   test.setTimeout(90_000);

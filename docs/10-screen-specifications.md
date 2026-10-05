@@ -671,7 +671,8 @@ and the raw transcript for that row.
 `/history/{roundId}` is one round's detail, and another user's id is a 404. The rail is the layout, so
 it stays put while the detail changes. Its first page — 20 rounds — is read by the page itself; `Older
 rounds` fetches the next from `GET /api/rounds` by cursor (`07` §5.13). The count beside `ROUNDS` is
-every round, listed yet or not. Home links here until the navigation exists.
+every round, listed yet or not. A detail refresh reads every older page already loaded, including
+beyond the 100-round request limit. Home links here until the navigation exists.
 
 **The chrome, in English (§0).** The artboard's strings are layout; these replace them. Data keeps its
 language: questions, follow-ups, transcripts and a stored `応募書類 v1` are shown as written, and a
@@ -714,7 +715,8 @@ complete round links to as `Round feedback`.
   for one still pending, each with `Retry scoring`. A failed score gets a new attempt and then its run;
   a pending one is run as it is (`07` §5.10–§5.11). While it runs the row says `Scoring this answer.`
   in words — no spinner (`03` §8) — and the scores then replace the line. A failure is the catalogue's
-  sentence on the row, with the retry still offered. **Only that answer is scored**: the round feedback
+  sentence on the row, with the retry still offered. If attempt creation commits but its response is
+  lost, History refreshes the row so the pending attempt can be run. **Only that answer is scored**: the round feedback
   is not regenerated (`06`, 2026-09-28), and an answer with an `ok` score has no control at all.
 - **`Not answered`** — a follow-up that was asked and never answered is shown with its text; **a
   question the round never reached is shown as `Q3` alone, without its text.** Only an answer makes a

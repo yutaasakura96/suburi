@@ -40,13 +40,22 @@ export function HistoryRail({
   useEffect(() => {
     if (olderCount.current === 0 || initial.next_cursor === null) return;
     let stale = false;
-    void getJson<RoundListPage>(
-      `/api/rounds?limit=${Math.min(olderCount.current, pageMax)}&cursor=${encodeURIComponent(initial.next_cursor)}`,
-    ).then((result) => {
-      if (stale || !result.ok) return;
-      olderCount.current = result.json.items.length;
-      setOlder({ items: result.json.items, next: result.json.next_cursor });
-    });
+    void (async () => {
+      const count = olderCount.current;
+      const items: RoundListItem[] = [];
+      let cursor: string | null = initial.next_cursor;
+      while (cursor !== null && items.length < count) {
+        const result = await getJson<RoundListPage>(
+          `/api/rounds?limit=${Math.min(count - items.length, pageMax)}&cursor=${encodeURIComponent(cursor)}`,
+        );
+        if (stale || !result.ok) return;
+        items.push(...result.json.items);
+        cursor = result.json.next_cursor;
+      }
+      if (stale) return;
+      olderCount.current = items.length;
+      setOlder({ items, next: cursor });
+    })();
     return () => {
       stale = true;
     };

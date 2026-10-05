@@ -247,6 +247,7 @@ function Unscored({
       if (!created.ok) {
         setBusy(false);
         setError(created.code);
+        router.refresh();
         return;
       }
       attemptId = created.json.attempt_id;
