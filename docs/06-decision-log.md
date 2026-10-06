@@ -9,8 +9,9 @@ Newest first. Every entry records what was chosen, why, and what was rejected.
 
 Screen 7's options stop responding from the press until the feedback opens or the call fails (`10`
 §7). Before, a different option could be picked while the first was being recorded, and the screen
-then showed a rating that was not the round's. The value sent was already fixed at the press; this
-only keeps the selection shown equal to it. Built with #73, taken out of it as outside that issue,
+then showed a rating that was not the round's. The value sent is fixed at each press; this keeps the
+selection shown equal to it. After a failed call the options change again, and `Try again` sends the
+rating picked then, not the one the failed call carried. Built with #73, taken out of it as outside that issue,
 and restored once the owner answered "Yes, lock it" (2026-10-06).
 
 ---

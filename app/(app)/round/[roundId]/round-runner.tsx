@@ -1034,6 +1034,8 @@ function PressureFrame({
   const sectionLabel = roundSectionLabel(language);
   // 10 §7, while the round closes: what `complete` is waiting for, read from the round beside it.
   const closing = closingWait(copy, useScoringProgress(roundId, busy));
+  // After a failed close the options change again, so trying again sends the rating picked now.
+  const failure = error?.retry && picked !== null ? { ...error, retry: () => onPick(picked) } : error;
   return (
     <div className="grid flex-grow grid-cols-3">
       <div className="col-span-2 flex flex-col gap-[14px] border-r border-rule-frame px-[32px] pt-[30px] pb-[32px]">
@@ -1070,7 +1072,7 @@ function PressureFrame({
           ))}
         </div>
         <div className="mt-auto flex flex-col gap-[10px]">
-          <ErrorLine error={error} retryLabel={copy.tryAgain} />
+          <ErrorLine error={failure} retryLabel={copy.tryAgain} />
           <Button
             onClick={() => picked !== null && onPick(picked)}
             disabled={picked === null || busy}
