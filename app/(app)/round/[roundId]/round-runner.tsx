@@ -12,7 +12,7 @@ import type { AnsweredView, NextView, RoundFrame } from "../load";
 import { CalloutRail, ErrorLine, RoundFooter, RoundHeader, caption, roundSectionLabel, type Failure } from "../parts";
 import { AnsweredFrame, type FrameNext } from "./answered-frame";
 import { closingWait, useScoringProgress } from "./closing-progress";
-import { heldAnswerAgain, heldTake, holdTake, releaseRoundTakes, releaseTake, type HeldAnswerAgain, type UploadRejection } from "./held-take";
+import { forgetAnswerAgain, heldAnswerAgain, heldTake, holdTake, releaseRoundTakes, releaseTake, type HeldAnswerAgain, type UploadRejection } from "./held-take";
 import { WAVEFORM_BARS, useRecorder, type Take } from "./recorder";
 import { useSpokenQuestion } from "./spoken-question";
 import { StuckTakeFrame } from "./stuck-take";
@@ -315,9 +315,13 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
     });
     if (!opened.ok) {
       // The typed text landed and its response did not: the same text again returns the stored row.
-      if (opened.code === "transcript_already_final" && opened.answerId) return saveTyped(question, opened.answerId, text);
+      if (opened.code === "transcript_already_final" && opened.answerId) {
+        if (question.again) await forgetAnswerAgain(slotOf(question));
+        return saveTyped(question, opened.answerId, text);
+      }
       return fail(opened.code, () => void openTyped(question, text));
     }
+    if (question.again) await forgetAnswerAgain(slotOf(question));
     await saveTyped(question, opened.json.answer_id, text);
   }
 
@@ -326,23 +330,22 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
   // goes back on screen. Practice lets go of a take once it is in S3, so one it still holds beside a
   // confirmed upload is a newer take that never arrived: that one is sent, not the older object.
   //
-  // An answer-again take whose slot never opened has no row to resume from, so it is found by the
-  // round instead: the newest held take wins, as it does beside a confirmed upload.
+  // An answer-again take whose slot never opened has no row to resume from: the page loads onto a
+  // per-answer frame, and the take is found by the round instead.
   const offerAnswerAgain = (held: HeldAnswerAgain) => {
     const question = { position: held.position, text: held.text, followUpVersion: held.followUpVersion, again: held.again };
     setScreen({ kind: "held", question, take: held, onDevice: true, cause: held.rejection ?? null });
   };
   const resumeTake = useEffectEvent(async () => {
     const { start } = frame;
-    const again = practice && ((start.kind === "question" && !start.transcript) || start.kind === "answered") ? await heldAnswerAgain(round.id) : null;
     if (start.kind === "answered") {
+      const again = practice ? await heldAnswerAgain(round.id) : null;
       if (again) offerAnswerAgain(again);
       return;
     }
     if (start.kind !== "question" || start.transcript) return;
     const question = { position: start.position, text: start.text, followUpVersion: start.followUpVersion, again: start.again };
     const take = await heldTake(slotOf(question));
-    if (again && again.heldAt > (take?.heldAt ?? 0)) return offerAnswerAgain(again);
     if (start.typedSlot) {
       if (take) setScreen((shown) => (shown.kind === "typed" ? { ...shown, takeHeld: true } : shown));
       return;

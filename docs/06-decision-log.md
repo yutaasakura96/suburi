@@ -87,12 +87,13 @@ follow-up work is filed separately. **Resolved 2026-10-07**, below.
 ### [2026-10-07] A held answer-again take remembers which answer it was given beside
 
 Resolves the known limitation of 2026-10-06 above. A held take now carries, beside its slot, the
-prompt's text and follow-up version and the answer it is given again beside (`again`), and when it was
-held. A practice reload that opens on a per-answer frame, or on a question with no transcript, also
-looks for the round's held answer-again takes, and offers the newest one on its own question,
-headed `· again`, as #48 offers a held first take; its retry opens the slot with `retry_of_answer_id`.
-Where that take is older than a take held for the prompt the page opens on, the newer wins, as on
-2026-10-06. A take held before this carries none of it and is left as it was. No server change, no
+prompt's text and follow-up version and the answer it is given again beside (`again`). A practice
+reload that opens on a per-answer frame also looks for the round's held answer-again take, and offers
+it on its own question, headed `· again`, as #48 offers a held first take; its retry opens the slot
+with `retry_of_answer_id`. A reload onto an open answer is unchanged: the take is found by the prompt
+the page opens on. A refused take answered by typing stays held (07 §5.8) but stops naming the answer
+once the typed slot opens, so it is not offered again after that answer is sent. A take held before
+this carries none of it and is left as it was. No server change, no
 migration: it is the same IndexedDB store and key. Rejected: asking the server, which has no row to
 name while the slot call never arrived.
 
