@@ -13,8 +13,8 @@ import { startMockS3, type MockS3 } from "./mock-s3";
 
 // The round's two waits (#73, 10 §3–5 and §7), against the production build: the take on its way and
 // the round closing. Each call is held open in the browser, so what the screen says while it waits
-// can be read; nothing is slowed on the server. The round's read (07 §5.5) is answered here, so the
-// counts on screen are the ones this file chose.
+// can be read. The round closing waits on the mock's own calls — two scores, then the feedback — so
+// the counts on screen are the ones the round's real read (07 §5.5) gave.
 
 test.describe.configure({ mode: "serial" });
 
@@ -59,6 +59,9 @@ function formatOf(body: Record<string, unknown>) {
 let s3: MockS3;
 let openAi: MockOpenAi;
 let heard = RAW;
+// A scoring call, and the feedback's, wait on these while a spec reads the closing wait.
+let scoringHeld: Promise<void> | null = null;
+let feedbackHeld: Promise<void> | null = null;
 
 test.beforeAll(async () => {
   // As e2e/round.spec.ts seeds; every helper skips what is already there. This file sorts after that
@@ -73,11 +76,12 @@ test.beforeAll(async () => {
   });
   s3 = await startMockS3();
   openAi = await startMockOpenAi(
-    (body) => {
+    async (body) => {
       const japanese = String(body.input).includes("=== rubric ja ");
       if (formatOf(body) === "generated_questions") return generatedQuestions(body);
       if (formatOf(body) === "follow_up") return { follow_up: japanese || String(body.instructions).includes("深掘り") ? "どのように測りましたか。" : "How did you measure it?" };
       if (formatOf(body) === "answer_scores") {
+        await scoringHeld;
         return {
           scores: (japanese ? [...DIMENSIONS, "keigo"] : DIMENSIONS).map((dimension) => ({ dimension, value: 3, justification: "e2e" })),
           citations: [],
@@ -86,6 +90,7 @@ test.beforeAll(async () => {
         };
       }
       if (formatOf(body) === "round_feedback") {
+        await feedbackHeld;
         const findings = {
           to_fix: [
             { title: "Lead with the result", body: "In answer 1, the outcome arrives last." },
@@ -112,6 +117,8 @@ test.afterAll(async () => {
 
 test.beforeEach(() => {
   heard = RAW;
+  scoringHeld = null;
+  feedbackHeld = null;
 });
 
 async function startRound(page: Page, language: "ja" | "en" = "en") {
@@ -137,10 +144,26 @@ async function answerByApi(page: Page, roundId: string) {
   return (await submitted.json()) as { next: { kind: string } };
 }
 
-/** Every question and follow-up through the API, up to screen 7. */
-async function answerAllByApi(page: Page, roundId: string) {
+/** How many of the round's submitted answers its read (07 §5.5) says are scored. */
+async function scored(page: Page, roundId: string) {
+  const read = (await (await page.request.get(`/api/rounds/${roundId}`)).json()) as { answers: { state: string; scoring?: { status: string } }[] };
+  return read.answers.filter((answer) => answer.state === "submitted" && answer.scoring?.status === "ok").length;
+}
+
+/**
+ * The rest of the round through the API, up to screen 7, `answered` of its six answers given already:
+ * four are scored, and the scoring of the last two and the feedback's call are held open in the mock.
+ */
+async function answerToClosing(page: Page, roundId: string, answered = 0) {
+  for (let given = answered; given < 4; given += 1) await answerByApi(page, roundId);
+  await expect.poll(() => scored(page, roundId), { timeout: 15_000 }).toBe(4);
+  let releaseScoring!: () => void;
+  let releaseFeedback!: () => void;
+  scoringHeld = new Promise<void>((resolve) => (releaseScoring = resolve));
+  feedbackHeld = new Promise<void>((resolve) => (releaseFeedback = resolve));
   let next = "question";
   while (next !== "pressure") next = (await answerByApi(page, roundId)).next.kind;
+  return { releaseScoring, releaseFeedback };
 }
 
 /** Holds every matching request in the browser until `release` is called; it then goes on unchanged. */
@@ -158,29 +181,6 @@ async function hold(page: Page, matches: (url: URL, method: string) => boolean) 
 
 const isUpload = (url: URL, method: string) => url.origin === MOCK_S3_ENDPOINT && method === "PUT";
 const isTranscribe = (url: URL) => url.pathname.endsWith("/transcribe");
-const isComplete = (url: URL) => url.pathname.endsWith("/complete");
-
-/** Answers the round's read (07 §5.5) with `done` of `total` submitted answers no longer pending. */
-async function stubRead(page: Page, roundId: string, counts: () => { done: number; total: number } | 404) {
-  let reads = 0;
-  await page.route(`**/api/rounds/${roundId}`, async (route) => {
-    if (route.request().method() !== "GET") return route.fallback();
-    reads += 1;
-    const now = counts();
-    if (now === 404) return route.fulfill({ status: 404, contentType: "text/html", body: "<!doctype html>" });
-    await route.fulfill({
-      json: {
-        round: { id: roundId, status: "complete" },
-        answers: Array.from({ length: now.total }, (_, index) => ({
-          id: `answer-${index}`,
-          state: "submitted",
-          scoring: { attempt_id: `attempt-${index}`, status: index < now.done ? "ok" : "pending" },
-        })),
-      },
-    });
-  });
-  return { reads: () => reads };
-}
 
 const segments = (page: Page, testId: string) =>
   page.getByTestId(testId).getByTestId("wait-track").locator("[data-segment]").evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-segment")));
@@ -271,11 +271,8 @@ test("a failed transcription ends the wait, and trying again starts it and its c
 test("the round closing: answers scored N of M, then the feedback being written, then screen 8", async ({ page }) => {
   await signIn(page);
   const roundId = await startRound(page);
-  await answerAllByApi(page, roundId);
+  const closing = await answerToClosing(page, roundId);
   await page.goto(`/round/${roundId}`);
-  let counts = { done: 4, total: 6 };
-  await stubRead(page, roundId, () => counts);
-  const complete = await hold(page, isComplete);
 
   await page.getByRole("radio", { name: "Fairly tense" }).click();
   await page.getByRole("button", { name: "Go to the feedback" }).click();
@@ -290,39 +287,15 @@ test("the round closing: answers scored N of M, then the feedback being written,
   await page.screenshot({ path: test.info().outputPath("closing-wait-scoring.png"), fullPage: true });
 
   // The next read finds no score pending: every answer's segment is done and the feedback's runs.
-  counts = { done: 6, total: 6 };
-  await expect(wait.getByRole("status")).toHaveText("Scoring is finished. Writing the feedback.", { timeout: 5_000 });
+  closing.releaseScoring();
+  await expect(wait.getByRole("status")).toHaveText("Scoring is finished. Writing the feedback.", { timeout: 15_000 });
   expect(await segments(page, "closing-wait")).toEqual(["done", "done", "done", "done", "done", "done", "running"]);
   await expect(wait.getByTestId("wait-elapsed")).not.toHaveText("0:00");
   await page.screenshot({ path: test.info().outputPath("closing-wait-feedback.png"), fullPage: true });
 
-  complete.release();
+  closing.releaseFeedback();
   await page.waitForURL(`**/round/${roundId}/feedback`);
   await expect(page.getByTestId("score-row").first()).toBeVisible();
-});
-
-test("the round closing with no read: one running segment, the elapsed time, and no invented count", async ({ page }) => {
-  await signIn(page);
-  const roundId = await startRound(page);
-  await answerAllByApi(page, roundId);
-  await page.goto(`/round/${roundId}`);
-  const read = await stubRead(page, roundId, () => 404);
-  const complete = await hold(page, isComplete);
-
-  await page.getByRole("radio", { name: "A little aware of it" }).click();
-  await page.getByRole("button", { name: "Go to the feedback" }).click();
-
-  const wait = page.getByTestId("closing-wait");
-  await expect(wait.getByRole("status")).toHaveText("Recording the rating and writing the feedback.");
-  expect(await segments(page, "closing-wait")).toEqual(["running"]);
-  await expect.poll(() => elapsed(wait), { timeout: 10_000 }).toBeGreaterThanOrEqual(3);
-  // A round that cannot be read is not asked again.
-  expect(read.reads()).toBe(1);
-  await expect(wait.getByRole("status")).toHaveText("Recording the rating and writing the feedback.");
-  await page.screenshot({ path: test.info().outputPath("closing-wait-no-read.png"), fullPage: true });
-
-  complete.release();
-  await page.waitForURL(`**/round/${roundId}/feedback`);
 });
 
 test("a Japanese round says both waits in Japanese", async ({ page }) => {
@@ -348,11 +321,8 @@ test("a Japanese round says both waits in Japanese", async ({ page }) => {
   await page.getByRole("button", { name: "文字起こしを直す" }).click();
   await page.getByRole("button", { name: "この回答を送る" }).click();
   await expect(page.getByTestId("round-step")).toHaveText("第1問 / 3問・深掘り");
-  await answerAllByApi(page, roundId);
+  const held = await answerToClosing(page, roundId, 1);
   await page.reload();
-  let counts = { done: 4, total: 6 };
-  await stubRead(page, roundId, () => counts);
-  const complete = await hold(page, isComplete);
 
   await page.getByRole("radio", { name: "それなりに緊張した" }).click();
   await page.getByRole("button", { name: "講評に進む" }).click();
@@ -360,10 +330,10 @@ test("a Japanese round says both waits in Japanese", async ({ page }) => {
   await expect(closing.getByRole("status")).toHaveText("回答を採点しています。6件中4件が終わりました。");
   await expect(closing.getByText(WAIT_HINT_JA)).toBeVisible();
   await page.screenshot({ path: test.info().outputPath("ja-closing-wait-scoring.png"), fullPage: true });
-  counts = { done: 6, total: 6 };
-  await expect(closing.getByRole("status")).toHaveText("採点が終わりました。講評をまとめています。", { timeout: 5_000 });
+  held.releaseScoring();
+  await expect(closing.getByRole("status")).toHaveText("採点が終わりました。講評をまとめています。", { timeout: 15_000 });
   await page.screenshot({ path: test.info().outputPath("ja-closing-wait-feedback.png"), fullPage: true });
 
-  complete.release();
+  held.releaseFeedback();
   await page.waitForURL(`**/round/${roundId}/feedback`);
 });

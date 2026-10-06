@@ -47,7 +47,7 @@ export function closingWait(copy: RoundCopy, progress: ScoringProgress | null): 
 
 /**
  * Re-reads the round every two seconds while it closes. A read that fails changes nothing — the line
- * keeps what it last showed — and a round that cannot be read at all is not asked again.
+ * keeps what it last showed.
  */
 export function useScoringProgress(roundId: string, active: boolean): ScoringProgress | null {
   const [progress, setProgress] = useState<ScoringProgress | null>(null);
@@ -58,10 +58,8 @@ export function useScoringProgress(roundId: string, active: boolean): ScoringPro
     async function read() {
       const result = await getJson<unknown>(`/api/rounds/${roundId}`);
       if (stopped) return;
-      if (result.ok) {
-        const counts = scoringProgress(result.json);
-        if (counts) setProgress(counts);
-      } else if (result.status === 404) return;
+      const counts = result.ok ? scoringProgress(result.json) : null;
+      if (counts) setProgress(counts);
       timer = setTimeout(() => void read(), POLL_MS);
     }
     void read();

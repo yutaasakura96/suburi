@@ -36,11 +36,18 @@ read or shown.
 
 *Rejected:* streaming progress out of `complete` — it would change the one endpoint whose ordering
 `06`, 2026-09-27 fixed, for a caption; a counts-only endpoint — §5.5 already is that read. *The limit:*
-a read that fails leaves the line as it was, and with no read at all the wait stays on its first
-sentence and one running segment, which is true throughout. `GET /api/rounds/{roundId}` is specified
-in `07` and built by #48 and #49, neither merged when this was written: until one is, that fallback
-is what a real round shows, and the counts are proved against a stubbed read (`e2e/waits.spec.ts`).
-**#49 merged first, with the read**, so a real round now shows the counts.
+a read that fails leaves the line as it was, and until the first read lands the wait is on its first
+sentence and one running segment. `GET /api/rounds/{roundId}` is #49's, merged before this: a real
+round shows the counts, and `e2e/waits.spec.ts` proves them against that route, with two scoring
+calls and the feedback's held open in the mock.
+
+### [2026-10-06] Practice's round end stays on its caption
+
+A practice round ends on the same `complete` call, from the per-answer frame, and still says
+`Writing the findings.` in a caption alone (`10` §15): no wait line, no clock, no counts. Left out of
+#73 on purpose. The read of a practice round also carries the answers given again, so "N of M
+scored" has no settled meaning there; it stays a caption until the owner decides what the count
+means (`10` §12).
 
 ### [2026-10-06] Practice's held take waits on the same line
 

@@ -52,7 +52,8 @@ numbered follow-up label passed the native read, and so did the bank-retry headi
 **#73, the round's two waits, is built (2026-10-06), on `fm/suburi-73`:** the take on its way and the
 round closing each say what is running, with a segment per thing waited for and the elapsed time
 (`10` §3–5, §7, `05` §5.10). Its five Japanese strings are unread (`native-read-round.md` §14), and
-the round-end counts read `GET /api/rounds/{roundId}`, which #49 built (`06`).
+the round-end counts read `GET /api/rounds/{roundId}`, which #49 built, and are proved against it
+(`e2e/waits.spec.ts`). Practice's round end is left on its caption, on purpose (`06`).
 **Updated:** 2026-10-06 (#73 built; #49's Japanese strings all accepted; #50's
 catalogue string read; #43, #44, #45, #46, #47, #49, #50 and #74 built; #42 closed; #55 and #56 on 2026-09-30)
 

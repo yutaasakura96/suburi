@@ -497,7 +497,7 @@ Three lines at 12px/1.85 `--ink-4`:
 
   | While | Sentence | Track |
   | --- | --- | --- |
-  | nothing has been read yet, or the read is not available | `緊張度を記録して、講評をまとめています。` / `Recording the rating and writing the feedback.` | one segment, running |
+  | nothing has been read yet | `緊張度を記録して、講評をまとめています。` / `Recording the rating and writing the feedback.` | one segment, running |
   | some score is still pending | `回答を採点しています。6件中4件が終わりました。` / `Scoring your answers: 4 of 6 done.` | one segment per submitted answer — done or running — then one for the feedback, not started |
   | no score is pending | `採点が終わりました。講評をまとめています。` / `Scoring is finished. Writing the feedback.` | every answer's segment done, the feedback's running |
 
@@ -509,8 +509,7 @@ Three lines at 12px/1.85 `--ink-4`:
     waited for (`07` §5.12), and the feedback screen says which answers are unscored.
   - **Status only.** The read of a realistic round carries no score until the round is complete
     (`07` §5.5), and this line shows none after it either: how many, never how well.
-  - **A read that fails changes nothing**: the line keeps what it last showed. With no read at all it
-    stays on the first row, which is true throughout.
+  - **A read that fails changes nothing**: the line keeps what it last showed.
   - **A failure ends the wait**: the catalogue's sentence and `もう一度試す`, as before.
 
 **This screen cannot be skipped, and it cannot be answered after the feedback is seen** — the whole
@@ -881,7 +880,10 @@ Restated from PRD §9 because a specification that omits them invites a build th
 - **The role-context picker and add form** on Setup (§2), specified by the slice that builds them.
 - **Loading, error and offline states** beyond the two History statuses, the missing-follow-up row and
   the round's two waits — the take on its way (§3–5) and the round closing (§7), specified for #73.
-  The shorter waits — a submit, a retry on screen 8 — are still said in a caption alone.
+  The shorter waits — a submit, a retry on screen 8 — are still said in a caption alone. So is
+  **practice's round end** (§15, `Writing the findings.` / `講評をまとめています。`), deliberately:
+  its read also carries the answers given again, and what its count means is the owner's to decide
+  (`06`, 2026-10-06).
 
 ---
 
