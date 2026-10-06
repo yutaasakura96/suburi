@@ -381,7 +381,7 @@ Under the track, in both: `このままお待ちください。終わると自�
 - **A failure ends the wait**: the wait line goes, the record button comes back disabled, and the
   failure's sentence and `もう一度試す` stand where they did. Trying again starts the wait line, and
   its clock, again.
-- **Both modes.** Practice has no clock while recording (§12); this one is not the take's, and is
+- **Both modes.** Practice has no clock while recording (§15); this one is not the take's, and is
   drawn in practice too.
 
 ### 5. Transcript back — `RecordTranscript.dc.html`
