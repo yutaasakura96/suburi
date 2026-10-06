@@ -9,6 +9,17 @@ What a round does when a recording, an upload, a transcription, a score or a dat
 how it resumes. The behaviour was settled on 2026-09-12, 2026-09-27 and 2026-09-28 (below); these are
 the choices the build needed.
 
+### [2026-10-06] Review correction: only the project's spend limit is mapped
+
+This corrects the 2026-10-04 entry "A spent project is classed by its code, and the organization's
+limit with it", whose second half no longer describes the code. `lib/ai/upstream.ts` classes only a
+`429` whose code is `project_spend_limit_exceeded` as that code and marks it not retryable. A `429
+organization_spend_limit_exceeded` is classed `upstream_429` and retried like any rate limit. The
+issue's criterion names the project code alone, and the "Review correction: reserved keys do not
+confirm upload" entry of 2026-10-04 narrowed the mapping to it; this entry states the consequence for
+the organization code, which that one left unsaid. Rejected: mapping the organization code as well,
+which is a path #48 does not ask for.
+
 ### [2026-10-06] Merged after #74: upload confirmation is migration `0014`
 
 #74 merged first and took `0013` for model answers, so `answers.audio_uploaded_at` is
