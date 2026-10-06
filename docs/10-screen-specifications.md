@@ -1234,6 +1234,8 @@ A practice round is chosen on Setup (§2), where the mode's line already says wh
 - **A reload before the transcript** shows the question again, as §3 does: the take is uploaded, but
   the page cannot play it back (`06`, 2026-10-04).
   Recording then is a re-take onto the answer already opened.
+  A re-take still held on the device is sent on that reload and this frame shows it, even where an
+  older take's upload was confirmed (`06`, 2026-10-06).
 
 ### Transcript correction — §6 in practice
 
