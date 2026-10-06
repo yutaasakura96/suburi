@@ -672,7 +672,7 @@ for (const code of REFUSALS) test(`a take refused as ${code} is kept on the devi
   expect(await heldTakes(page)).toEqual([held]);
 });
 
-test("a refused practice answer-again take answered by typing is not offered again once that answer is sent", async ({ page }) => {
+for (const lost of [false, true]) test(`a refused practice answer-again take answered by typing${lost ? ", its slot's response lost," : ""} is not offered again once that answer is sent`, async ({ page }) => {
   await signIn(page);
   const roundId = await startRound(page, "en", "practice");
   page.on("dialog", (dialog) => void dialog.accept());
@@ -681,7 +681,19 @@ test("a refused practice answer-again take answered by typing is not offered aga
   await page.getByRole("button", { name: "Answer again" }).click();
 
   // The slot route refuses the take: no answer-again row exists, and the held take names the answer it is beside.
-  await refuseTakes(page, "upload_too_large");
+  // Where the typed slot's response is lost, the row is written and the page never hears of it.
+  await page.route("**/api/rounds/*/answers", async (route) => {
+    if (route.request().postDataJSON()?.source !== "typed") {
+      return route.fulfill({
+        status: 422,
+        contentType: "application/json",
+        body: JSON.stringify({ error: { code: "upload_too_large", message: "The take was refused.", detail: {} } }),
+      });
+    }
+    if (!lost) return route.continue();
+    await route.fetch();
+    return route.abort("failed");
+  });
   await page.getByRole("button", { name: "Start recording" }).click();
   await expect(page.getByTestId("waveform").locator("span > span").nth(1)).toBeAttached({ timeout: 10_000 });
   await page.getByRole("button", { name: "Stop recording" }).click();
@@ -693,18 +705,34 @@ test("a refused practice answer-again take answered by typing is not offered aga
   await page.getByRole("button", { name: "Type the answer instead" }).click();
   await page.getByLabel("Your answer — typed, not spoken").fill(TYPED);
   await page.getByRole("button", { name: "Save the typed answer" }).click();
+  if (lost) {
+    // The reload opens on the row the lost response left behind, and the answer is typed onto it.
+    await expect.poll(async () => (await answersOf(roundId)).length).toBe(2);
+    await page.reload();
+    await page.getByLabel("Your answer — typed, not spoken").fill(TYPED);
+    await page.getByRole("button", { name: "Save the typed answer" }).click();
+  }
   await expect(page.getByTestId("raw-transcript")).toHaveText(TYPED);
-  expect(await heldTakes(page)).toEqual([{ ...held, again: null }]);
-  const typed = (await answersOf(roundId)).find((answer) => answer.id !== first);
+  await expect.poll(() => heldTakes(page)).toEqual([{ ...held, again: null }]);
+  const answers = await answersOf(roundId);
+  expect(answers).toHaveLength(2);
+  const typed = answers.find((answer) => answer.id !== first);
   expect(typed).toMatchObject({ position: 1, retryOfAnswerId: first, transcriptRaw: TYPED });
 
-  // Once that answer is sent, a reload opens on its per-answer frame, not on the refusal again.
+  // Once that answer is sent, a reload opens on its per-answer frame and stays there: it is answered
+  // again from that frame, through a whole take, which a refusal offered over it would not allow.
   expect((await page.request.post(`/api/answers/${typed!.id}/submit`, { data: { transcript_corrected: TYPED } })).ok()).toBe(true);
+  await page.unroute("**/api/rounds/*/answers");
   await page.reload();
-  await expect(page.getByRole("button", { name: "Answer again" })).toBeVisible();
-  await expect(page.getByTestId("round-step")).toHaveText("Question 1 / 3 · again");
+  await page.getByRole("button", { name: "Answer again" }).click();
+  await page.getByRole("button", { name: "Start recording" }).click();
+  await expect(page.getByTestId("waveform").locator("span > span").nth(1)).toBeAttached({ timeout: 10_000 });
   await expect(page.getByTestId("take-notice")).toHaveCount(0);
-  expect(await answersOf(roundId)).toHaveLength(2);
+  await page.getByRole("button", { name: "Stop recording" }).click();
+  await expect(page.getByTestId("take-held")).toHaveText("Take recorded — not transcribed yet");
+  const again = await answersOf(roundId);
+  expect(again).toHaveLength(3);
+  expect(again.filter((answer) => answer.retryOfAnswerId !== null)).toHaveLength(2);
 });
 
 test("a typed answer whose response was lost is shown by saving it again, not refused as already final", async ({ page }) => {

@@ -92,7 +92,8 @@ reload that opens on a per-answer frame also looks for the round's held answer-a
 it on its own question, headed `· again`, as #48 offers a held first take; its retry opens the slot
 with `retry_of_answer_id`. A reload onto an open answer is unchanged: the take is found by the prompt
 the page opens on. A refused take answered by typing stays held (07 §5.8) but stops naming the answer
-once the typed slot opens, so it is not offered again after that answer is sent. A take held before
+once its answer-again row exists — when the typed slot opens, or when a reload opens on that row — so
+it is not offered again after that answer is sent. A take held before
 this carries none of it and is left as it was. No server change, no
 migration: it is the same IndexedDB store and key. Rejected: asking the server, which has no row to
 name while the slot call never arrived.

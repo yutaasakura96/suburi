@@ -345,6 +345,7 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
     }
     if (start.kind !== "question" || start.transcript) return;
     const question = { position: start.position, text: start.text, followUpVersion: start.followUpVersion, again: start.again };
+    if (start.again) await forgetAnswerAgain(slotOf(question));
     const take = await heldTake(slotOf(question));
     if (start.typedSlot) {
       if (take) setScreen((shown) => (shown.kind === "typed" ? { ...shown, takeHeld: true } : shown));
