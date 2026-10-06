@@ -359,6 +359,31 @@ countdown, no grace period, and no prompt asking whether to continue.
 answer slot and uploads; a recording that fails or a microphone that is denied writes nothing, and the
 question stays unseen (PRD §7).
 
+### Between 4 and 5 — the take is on its way (#73, `06`, 2026-10-06; no artboard)
+
+Stopping starts two calls, one after the other, and **the screen says which one is running**. The
+question stays at 19px and does not move. Below the divider, the record button and its two lines are
+replaced by one **wait line** (`05` §5.10):
+
+| While | Sentence | Track |
+| --- | --- | --- |
+| the slot is opened and the take is PUT to storage | `録音をアップロードしています。` / `Uploading your recording.` | two segments: the first running, the second not started |
+| the take is transcribed (`07` §5.7) | `回答を文字起こししています。` / `Transcribing your answer.` | the first done, the second running |
+
+Under the track, in both: `このままお待ちください。終わると自動で次へ進みます。` /
+`Please wait. This screen moves on by itself.` Beside the track, the time since the take was stopped,
+`0:07`, counting up across both steps.
+
+- **The two segments are the two calls.** One fills when its call has returned, never before and
+  never partly: the app knows which call is running and not how far through it is.
+- **No percentage, no bar that creeps, no estimate of the time left.** The elapsed clock is the only
+  figure, and it is a measurement.
+- **A failure ends the wait**: the wait line goes, the record button comes back disabled, and the
+  failure's sentence and `もう一度試す` stand where they did. Trying again starts the wait line, and
+  its clock, again.
+- **Both modes.** Practice has no clock while recording (§12); this one is not the take's, and is
+  drawn in practice too.
+
 ### 5. Transcript back — `RecordTranscript.dc.html`
 - The question is **demoted to 14px/1.85 `--ink-5`** — it has been answered; it is now context.
 - Section label `Raw transcript — 未修正`, and right-aligned `3:12・約250字/分・800字`.
@@ -465,6 +490,28 @@ Three lines at 12px/1.85 `--ink-4`:
   `1つ選ぶと講評に進めます。`
 - **Picked:** button becomes solid `--ink-1` / `#fff`; hint `緊張度4をこのラウンドに記録します。`
 - Stamp: `評価基準 v1.2・出題 v1.0・応募書類 v3`.
+- **While the round closes** (#73, `06`, 2026-10-06; no artboard): from the press until the feedback
+  screen opens, the hint under the button is replaced by a **wait line** (`05` §5.10), the button is
+  disabled, and the five options no longer change — the rating shown is the one being recorded. This
+  is where the last score lands and the feedback is written (`07` §5.12), so it says which:
+
+  | While | Sentence | Track |
+  | --- | --- | --- |
+  | nothing has been read yet, or the read is not available | `緊張度を記録して、講評をまとめています。` / `Recording the rating and writing the feedback.` | one segment, running |
+  | some score is still pending | `回答を採点しています。6件中4件が終わりました。` / `Scoring your answers: 4 of 6 done.` | one segment per submitted answer — done or running — then one for the feedback, not started |
+  | no score is pending | `採点が終わりました。講評をまとめています。` / `Scoring is finished. Writing the feedback.` | every answer's segment done, the feedback's running |
+
+  Under it, the same `このままお待ちください。終わると自動で次へ進みます。` and the elapsed clock,
+  from the press.
+  - **The counts are read, never estimated**: the screen re-reads the round every two seconds
+    (`07` §5.5) and counts the submitted answers — follow-ups included — and those whose latest
+    attempt is no longer `pending`. **A score that ended `failed` counts as done**: it is no longer
+    waited for (`07` §5.12), and the feedback screen says which answers are unscored.
+  - **Status only.** The read of a realistic round carries no score until the round is complete
+    (`07` §5.5), and this line shows none after it either: how many, never how well.
+  - **A read that fails changes nothing**: the line keeps what it last showed. With no read at all it
+    stays on the first row, which is true throughout.
+  - **A failure ends the wait**: the catalogue's sentence and `もう一度試す`, as before.
 
 **This screen cannot be skipped, and it cannot be answered after the feedback is seen** — the whole
 point is that the reading is taken before the result is known. The value is recorded on the round and
@@ -832,7 +879,9 @@ Restated from PRD §9 because a specification that omits them invites a build th
   felt-pressure screen before it.
 - **The four-round run.** Deferred as LATER and unshaped (decision log).
 - **The role-context picker and add form** on Setup (§2), specified by the slice that builds them.
-- **Loading, error and offline states** beyond the two History statuses and the missing-follow-up row.
+- **Loading, error and offline states** beyond the two History statuses, the missing-follow-up row and
+  the round's two waits — the take on its way (§3–5) and the round closing (§7), specified for #73.
+  The shorter waits — a submit, a retry on screen 8 — are still said in a caption alone.
 
 ---
 
@@ -1129,8 +1178,8 @@ A practice round is chosen on Setup (§2), where the mode's line already says wh
   `Stop recording` / `録音を停止` — stopping keeps the take and does not transcribe it — with no caption
   beside it.
 - **Take held** — the state practice adds between §4 and §5. Stopping opens the answer slot and
-  uploads the take (`07` §5.6); while that runs the frame says `Uploading the take.` /
-  `録音をアップロードしています。` Then, with the question still at 19px and unmoved:
+  uploads the take (`07` §5.6); while that runs the frame shows §4–5's wait line on its first step.
+  Then, with the question still at 19px and unmoved:
   - the status line, in `--ink-label`: `Take recorded — not transcribed yet` /
     `録音済み — 文字起こし前`;
   - a solid primary `Transcribe this take` / `この録音を文字起こしする`, captioned
@@ -1140,8 +1189,8 @@ A practice round is chosen on Setup (§2), where the mode's line already says wh
     `Recording again replaces this take.` / `録り直すと、いまの録音は置き換わります。`
 - **The re-take replaces the take in the same answer** — the same row and the same object, until it is
   transcribed (`07` §5.6). It is offered here and nowhere after: §5's transcript is final, as in
-  realistic mode. While the take is being transcribed the frame says `Transcribing the take.` /
-  `文字起こしをしています。`
+  realistic mode. While the take is being transcribed the frame shows §4–5's wait line on its second
+  step, in place of both buttons; its clock starts again, since the held take stood between the two.
 - **A reload before the transcript** shows the question again, as §3 does: the take is uploaded, but
   the page cannot play it back (`06`, 2026-10-04).
   Recording then is a re-take onto the answer already opened.

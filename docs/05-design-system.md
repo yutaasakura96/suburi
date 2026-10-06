@@ -293,6 +293,28 @@ Bottom-right of every screen that shows or produces a score. 10px mono, line-hei
 above it a 1px `--rule-section` rule with `padding-top: 12px`. Content is the round's stamps joined by
 nakaguro: `評価基準 v1.2・出題 v1.0・応募書類 v3`.
 
+### 5.10 Wait line
+
+For a wait the user has to sit through inside a round (`10` §3–5, §7; #73). Three rows, gap `10px`:
+
+- **What is happening**, one sentence at 13px/1.75 in `--ink-2`. It is the live region; nothing else
+  in the component is announced.
+- **The track and the clock**, on one line, gap `14px`. The track is `2px` tall and at most `240px`
+  wide, cut into equal segments with a `4px` gap — the round stepper's bar (§5.2), one segment per
+  thing being waited for. A segment is `--accent` when its thing **has finished**, `--rule-section`
+  when it has not started, and while it is running `--rule-section` with a `--accent-mid` sliver a
+  third of its width travelling left to right, 1.4 s, linear. The clock is the time since the wait
+  began, `0:07`, 12px mono `--ink-label`.
+- **What to do**, one caption at 12px/1.75 `--ink-6`: wait, and the screen moves on by itself.
+
+**A segment fills only for something that happened.** The travelling sliver says a call is running
+and nothing about how far along it is, so the track has no position that could be read as a
+percentage; the clock is the only figure, and it is measured. A wait with nothing to count is one
+running segment. Never a spinner, and never a bar that advances on a timer (`10` §11).
+
+**Under `prefers-reduced-motion`** the sliver does not travel: a running segment is solid
+`--accent-mid`, between the done and the not-started, and the clock is what moves.
+
 ---
 
 ## 6. Japanese copy rules

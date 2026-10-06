@@ -642,6 +642,10 @@ response is what makes that structural rather than a client courtesy.
   (`03` §7), and a stored copy would be the one thing it must not get.
 - `401 unauthenticated`; `404 not_found` for no such round, or another user's.
 
+**Screen 7 reads it while `complete` is in flight** (#73, `10` §7), every two seconds, for one thing:
+how many submitted answers' `scoring.status` is no longer `pending`. It reads no score from it, and a
+read that fails is ignored.
+
 **An in-flight recording is the one thing that does not survive** (`03` §7), and the UI says so before
 recording. The slot is opened only after a take exists, so a round reloaded mid-recording has no row
 for it: the question is simply asked again.

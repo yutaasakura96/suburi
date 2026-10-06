@@ -1,0 +1,354 @@
+import { eq } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { expect, test, type Page, type Route } from "@playwright/test";
+import * as s from "../db/schema";
+import { seedSyntheticCv } from "../db/seed-cv";
+import { seedRubrics, seedSetPieces, seedSyntheticQuestions } from "../db/seed-questions";
+import { createAuth } from "../lib/auth/auth";
+import { mintSessionCookie } from "../lib/auth/test/session";
+import { getConfig } from "../lib/config";
+import { E2E_URL, MOCK_S3_ENDPOINT } from "./database";
+import { generatedQuestions, silentMp3, startMockOpenAi, type MockOpenAi } from "./mock-openai";
+import { startMockS3, type MockS3 } from "./mock-s3";
+
+// The round's two waits (#73, 10 §3–5 and §7), against the production build: the take on its way and
+// the round closing. Each call is held open in the browser, so what the screen says while it waits
+// can be read; nothing is slowed on the server. The round's read (07 §5.5) is answered here, so the
+// counts on screen are the ones this file chose.
+
+test.describe.configure({ mode: "serial" });
+
+const open = () => drizzle(E2E_URL);
+
+async function withDb<T>(work: (db: ReturnType<typeof open>) => Promise<T>) {
+  const db = open();
+  try {
+    return await work(db);
+  } finally {
+    await db.$client.end();
+  }
+}
+
+async function seededUserId() {
+  return withDb(async (db) => {
+    const [user] = await db.select({ id: s.users.id }).from(s.users).where(eq(s.users.email, getConfig().ALLOWED_EMAIL));
+    return user.id;
+  });
+}
+
+async function signIn(page: Page) {
+  await withDb(async (db) => {
+    const cookie = await mintSessionCookie(createAuth({ db, transaction: true }), await seededUserId());
+    await page.context().addCookies([
+      { name: cookie.name, value: cookie.value, domain: "localhost", path: "/", httpOnly: true, secure: true, sameSite: "Lax" },
+    ]);
+  });
+}
+
+const RAW = "I led the payments migration over six months and cut the failure rate by half.";
+const RAW_JA = "前職では決済基盤の移行を担当し、半年で完了いたしました。";
+const WAIT_HINT = "Please wait. This screen moves on by itself.";
+const WAIT_HINT_JA = "このままお待ちください。終わると自動で次へ進みます。";
+const DIMENSIONS = ["structure", "evidence", "relevance", "fluency", "accuracy", "length_pacing"];
+
+/** The structured output a Responses call asks for, by its format's name. */
+function formatOf(body: Record<string, unknown>) {
+  return ((body.text as { format?: { name?: string } } | undefined)?.format?.name ?? "") as string;
+}
+
+let s3: MockS3;
+let openAi: MockOpenAi;
+let heard = RAW;
+
+test.beforeAll(async () => {
+  // As e2e/round.spec.ts seeds; every helper skips what is already there. This file sorts after that
+  // one on purpose (one worker, file order): its tracer expects the first set piece still unseen.
+  const userId = await seededUserId();
+  await withDb(async (db) => {
+    await db.transaction((tx) => seedSyntheticCv(tx, userId, "en"));
+    await db.transaction((tx) => seedSyntheticCv(tx, userId, "ja"));
+    await seedRubrics(db);
+    await seedSetPieces(db, userId);
+    await seedSyntheticQuestions(db, userId);
+  });
+  s3 = await startMockS3();
+  openAi = await startMockOpenAi(
+    (body) => {
+      const japanese = String(body.input).includes("=== rubric ja ");
+      if (formatOf(body) === "generated_questions") return generatedQuestions(body);
+      if (formatOf(body) === "follow_up") return { follow_up: japanese || String(body.instructions).includes("深掘り") ? "どのように測りましたか。" : "How did you measure it?" };
+      if (formatOf(body) === "answer_scores") {
+        return {
+          scores: (japanese ? [...DIMENSIONS, "keigo"] : DIMENSIONS).map((dimension) => ({ dimension, value: 3, justification: "e2e" })),
+          citations: [],
+          unsupported: [],
+          answered_language: japanese ? "ja" : "en",
+        };
+      }
+      if (formatOf(body) === "round_feedback") {
+        const findings = {
+          to_fix: [
+            { title: "Lead with the result", body: "In answer 1, the outcome arrives last." },
+            { title: "Name the number", body: "In answer 2, the scale of the change stays vague." },
+          ],
+          what_worked: "In answer 3, the example was concrete and your own.",
+        };
+        return { ...findings, untouched: [], ...(japanese ? { translated: findings } : {}) };
+      }
+      if (formatOf(body) === "model_answer") {
+        const answer = { answer: RAW, unsupported: [] };
+        return japanese ? { ...answer, translated: answer } : answer;
+      }
+      return { fail: 400 };
+    },
+    { transcription: () => ({ text: heard, seconds: 18 }), speech: silentMp3 },
+  );
+});
+
+test.afterAll(async () => {
+  await openAi?.close();
+  await s3?.close();
+});
+
+test.beforeEach(() => {
+  heard = RAW;
+});
+
+async function startRound(page: Page, language: "ja" | "en" = "en") {
+  const context = await page.request.post("/api/role-contexts", { data: { kind: "general" } });
+  expect(context.ok()).toBe(true);
+  const created = await page.request.post("/api/rounds", {
+    data: { round_type: "hr", language, mode: "realistic", length: 3, role_context_id: (await context.json()).id },
+  });
+  expect(created.status()).toBe(201);
+  return (await created.json()).round.id as string;
+}
+
+/** One answer through the API — slot, PUT, transcribe, submit — to the round's current prompt. */
+async function answerByApi(page: Page, roundId: string) {
+  const opened = await page.request.post(`/api/rounds/${roundId}/answers`, {
+    data: { content_type: "audio/webm", expected_bytes: 4 },
+  });
+  const slot = await opened.json();
+  expect((await page.request.put(slot.upload.url, { headers: slot.upload.headers, data: Buffer.from([1, 2, 3, 4]) })).ok()).toBe(true);
+  expect((await page.request.post(`/api/answers/${slot.answer_id}/transcribe`, { data: {} })).ok()).toBe(true);
+  const submitted = await page.request.post(`/api/answers/${slot.answer_id}/submit`, { data: { transcript_corrected: heard } });
+  expect(submitted.ok()).toBe(true);
+  return (await submitted.json()) as { next: { kind: string } };
+}
+
+/** Every question and follow-up through the API, up to screen 7. */
+async function answerAllByApi(page: Page, roundId: string) {
+  let next = "question";
+  while (next !== "pressure") next = (await answerByApi(page, roundId)).next.kind;
+}
+
+/** Holds every matching request in the browser until `release` is called; it then goes on unchanged. */
+async function hold(page: Page, matches: (url: URL, method: string) => boolean) {
+  let release!: () => void;
+  const released = new Promise<void>((resolve) => (release = resolve));
+  const handler = async (route: Route) => {
+    if (!matches(new URL(route.request().url()), route.request().method())) return route.fallback();
+    await released;
+    await route.continue();
+  };
+  await page.route("**/*", handler);
+  return { release, remove: () => page.unroute("**/*", handler) };
+}
+
+const isUpload = (url: URL, method: string) => url.origin === MOCK_S3_ENDPOINT && method === "PUT";
+const isTranscribe = (url: URL) => url.pathname.endsWith("/transcribe");
+const isComplete = (url: URL) => url.pathname.endsWith("/complete");
+
+/** Answers the round's read (07 §5.5) with `done` of `total` submitted answers no longer pending. */
+async function stubRead(page: Page, roundId: string, counts: () => { done: number; total: number } | 404) {
+  let reads = 0;
+  await page.route(`**/api/rounds/${roundId}`, async (route) => {
+    if (route.request().method() !== "GET") return route.fallback();
+    reads += 1;
+    const now = counts();
+    if (now === 404) return route.fulfill({ status: 404, contentType: "text/html", body: "<!doctype html>" });
+    await route.fulfill({
+      json: {
+        round: { id: roundId, status: "complete" },
+        answers: Array.from({ length: now.total }, (_, index) => ({
+          id: `answer-${index}`,
+          state: "submitted",
+          scoring: { attempt_id: `attempt-${index}`, status: index < now.done ? "ok" : "pending" },
+        })),
+      },
+    });
+  });
+  return { reads: () => reads };
+}
+
+const segments = (page: Page, testId: string) =>
+  page.getByTestId(testId).getByTestId("wait-track").locator("[data-segment]").evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-segment")));
+
+async function recordAndStop(page: Page, start: string, stop: string) {
+  await page.getByRole("button", { name: start }).click();
+  await expect(page.getByTestId("record-timer")).toHaveText("0:01", { timeout: 5_000 });
+  await page.getByRole("button", { name: stop }).click();
+}
+
+test("the take on its way: the screen names the upload, then the transcription, and counts the time", async ({ page }) => {
+  await signIn(page);
+  const roundId = await startRound(page);
+  await page.goto(`/round/${roundId}`);
+  const asked = await page.getByTestId("round-question").boundingBox();
+  const upload = await hold(page, isUpload);
+  const transcription = await hold(page, isTranscribe);
+  await recordAndStop(page, "Start recording", "Stop and transcribe");
+
+  // Step one of two: the upload is running, the transcription has not started.
+  const wait = page.getByTestId("take-wait");
+  await expect(wait.getByRole("status")).toHaveText("Uploading your recording.");
+  await expect(wait.getByText(WAIT_HINT)).toBeVisible();
+  expect(await segments(page, "take-wait")).toEqual(["running", "waiting"]);
+  // The record controls are gone while it waits, and the question has not moved (10 §3–5).
+  await expect(page.getByRole("button", { name: "Start recording" })).toHaveCount(0);
+  expect(await page.getByTestId("round-question").boundingBox()).toEqual(asked);
+  await expect(wait.getByTestId("wait-elapsed")).toHaveText("0:02", { timeout: 5_000 });
+  // Never a percentage (05 §5.10).
+  await expect(wait).not.toContainText("%");
+  await page.screenshot({ path: test.info().outputPath("take-wait-upload.png"), fullPage: true });
+
+  // Step two: the first segment fills only now that the upload has returned, and the clock runs on.
+  upload.release();
+  await expect(wait.getByRole("status")).toHaveText("Transcribing your answer.");
+  expect(await segments(page, "take-wait")).toEqual(["done", "running"]);
+  await expect(wait.getByTestId("wait-elapsed")).toHaveText("0:04", { timeout: 5_000 });
+  await page.screenshot({ path: test.info().outputPath("take-wait-transcribe.png"), fullPage: true });
+
+  transcription.release();
+  await expect(page.getByTestId("raw-transcript")).toHaveText(RAW);
+  await expect(wait).toHaveCount(0);
+});
+
+test("a failed transcription ends the wait, and trying again starts it and its clock again", async ({ page }) => {
+  await signIn(page);
+  const roundId = await startRound(page);
+  await page.goto(`/round/${roundId}`);
+  let failing = true;
+  await page.route("**/transcribe", (route) => (failing ? route.abort() : route.fallback()));
+  await recordAndStop(page, "Start recording", "Stop and transcribe");
+
+  const wait = page.getByTestId("take-wait");
+  await expect(page.getByText("The request did not reach the server, or its answer did not come back. Try again.")).toBeVisible();
+  await expect(wait).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Start recording" })).toBeDisabled();
+  await page.screenshot({ path: test.info().outputPath("take-wait-failed.png"), fullPage: true });
+
+  failing = false;
+  const transcription = await hold(page, isTranscribe);
+  await page.getByRole("button", { name: "Try again" }).click();
+  // The retry is the transcription alone (07 §5.7): the upload's segment is already done.
+  await expect(wait.getByRole("status")).toHaveText("Transcribing your answer.");
+  expect(await segments(page, "take-wait")).toEqual(["done", "running"]);
+  await expect(wait.getByTestId("wait-elapsed")).toHaveText("0:00");
+  transcription.release();
+  await expect(page.getByTestId("raw-transcript")).toHaveText(RAW);
+});
+
+test("the round closing: answers scored N of M, then the feedback being written, then screen 8", async ({ page }) => {
+  await signIn(page);
+  const roundId = await startRound(page);
+  await answerAllByApi(page, roundId);
+  await page.goto(`/round/${roundId}`);
+  let counts = { done: 4, total: 6 };
+  await stubRead(page, roundId, () => counts);
+  const complete = await hold(page, isComplete);
+
+  await page.getByRole("radio", { name: "Fairly tense" }).click();
+  await page.getByRole("button", { name: "Go to the feedback" }).click();
+
+  const wait = page.getByTestId("closing-wait");
+  await expect(wait.getByRole("status")).toHaveText("Scoring your answers: 4 of 6 done.");
+  await expect(wait.getByText(WAIT_HINT)).toBeVisible();
+  // A segment per answer, filled for each score that landed, and one for the feedback, not started.
+  expect(await segments(page, "closing-wait")).toEqual(["done", "done", "done", "done", "running", "running", "waiting"]);
+  await expect(wait).not.toContainText("%");
+  // The rating shown is the one being recorded: the options no longer change.
+  await page.getByRole("radio", { name: "Very tense" }).click({ force: true });
+  await expect(page.getByRole("radio", { name: "Fairly tense" })).toBeChecked();
+  await expect(page.getByRole("button", { name: "Go to the feedback" })).toBeDisabled();
+  await page.screenshot({ path: test.info().outputPath("closing-wait-scoring.png"), fullPage: true });
+
+  // The next read finds no score pending: every answer's segment is done and the feedback's runs.
+  counts = { done: 6, total: 6 };
+  await expect(wait.getByRole("status")).toHaveText("Scoring is finished. Writing the feedback.", { timeout: 5_000 });
+  expect(await segments(page, "closing-wait")).toEqual(["done", "done", "done", "done", "done", "done", "running"]);
+  await expect(wait.getByTestId("wait-elapsed")).not.toHaveText("0:00");
+  await page.screenshot({ path: test.info().outputPath("closing-wait-feedback.png"), fullPage: true });
+
+  complete.release();
+  await page.waitForURL(`**/round/${roundId}/feedback`);
+  await expect(page.getByTestId("score-row").first()).toBeVisible();
+});
+
+test("the round closing with no read: one running segment, the elapsed time, and no invented count", async ({ page }) => {
+  await signIn(page);
+  const roundId = await startRound(page);
+  await answerAllByApi(page, roundId);
+  await page.goto(`/round/${roundId}`);
+  const read = await stubRead(page, roundId, () => 404);
+  const complete = await hold(page, isComplete);
+
+  await page.getByRole("radio", { name: "A little aware of it" }).click();
+  await page.getByRole("button", { name: "Go to the feedback" }).click();
+
+  const wait = page.getByTestId("closing-wait");
+  await expect(wait.getByRole("status")).toHaveText("Recording the rating and writing the feedback.");
+  expect(await segments(page, "closing-wait")).toEqual(["running"]);
+  await expect(wait.getByTestId("wait-elapsed")).toHaveText("0:03", { timeout: 6_000 });
+  // A round that cannot be read is not asked again.
+  expect(read.reads()).toBe(1);
+  await expect(wait.getByRole("status")).toHaveText("Recording the rating and writing the feedback.");
+  await page.screenshot({ path: test.info().outputPath("closing-wait-no-read.png"), fullPage: true });
+
+  complete.release();
+  await page.waitForURL(`**/round/${roundId}/feedback`);
+});
+
+test("a Japanese round says both waits in Japanese", async ({ page }) => {
+  heard = RAW_JA;
+  await signIn(page);
+  const roundId = await startRound(page, "ja");
+  await page.goto(`/round/${roundId}`);
+  const upload = await hold(page, isUpload);
+  const transcription = await hold(page, isTranscribe);
+  await recordAndStop(page, "録音を開始", "停止して文字起こし");
+
+  const take = page.getByTestId("take-wait");
+  await expect(take.getByRole("status")).toHaveText("録音をアップロードしています。");
+  await expect(take.getByText(WAIT_HINT_JA)).toBeVisible();
+  await page.screenshot({ path: test.info().outputPath("ja-take-wait-upload.png"), fullPage: true });
+  upload.release();
+  await expect(take.getByRole("status")).toHaveText("回答を文字起こししています。");
+  await page.screenshot({ path: test.info().outputPath("ja-take-wait-transcribe.png"), fullPage: true });
+  transcription.release();
+  await expect(page.getByTestId("raw-transcript")).toHaveText(RAW_JA);
+
+  // The rest through the API: the take above is this round's first answer, transcribed and unsent.
+  await page.getByRole("button", { name: "文字起こしを直す" }).click();
+  await page.getByRole("button", { name: "この回答を送る" }).click();
+  await expect(page.getByTestId("round-step")).toHaveText("第1問 / 3問・深掘り");
+  await answerAllByApi(page, roundId);
+  await page.reload();
+  let counts = { done: 4, total: 6 };
+  await stubRead(page, roundId, () => counts);
+  const complete = await hold(page, isComplete);
+
+  await page.getByRole("radio", { name: "それなりに緊張した" }).click();
+  await page.getByRole("button", { name: "講評に進む" }).click();
+  const closing = page.getByTestId("closing-wait");
+  await expect(closing.getByRole("status")).toHaveText("回答を採点しています。6件中4件が終わりました。");
+  await expect(closing.getByText(WAIT_HINT_JA)).toBeVisible();
+  await page.screenshot({ path: test.info().outputPath("ja-closing-wait-scoring.png"), fullPage: true });
+  counts = { done: 6, total: 6 };
+  await expect(closing.getByRole("status")).toHaveText("採点が終わりました。講評をまとめています。", { timeout: 5_000 });
+  await page.screenshot({ path: test.info().outputPath("ja-closing-wait-feedback.png"), fullPage: true });
+
+  complete.release();
+  await page.waitForURL(`**/round/${roundId}/feedback`);
+});

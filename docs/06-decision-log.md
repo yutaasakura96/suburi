@@ -3,6 +3,59 @@
 Newest first. Every entry records what was chosen, why, and what was rejected.
 
 ---
+## Phase 6 — #73, the round's two waits
+
+Raised by the owner after the first real English round on `develop` (2026-10-03): after stopping a
+recording nothing shows how long the transcription is taking, how far along it is, or what is
+happening. The issue's suggestions — a clear state with a progress bar or a time estimate, the same
+at round end while the answers are scored, specified in `10` first — were firstmate's; the owner
+approved starting on 2026-10-05. **The choices below are the build's, still the owner's to confirm.**
+
+### [2026-10-06] A wait is said as what is running, a segment per thing waited for, and the time so far
+
+One component, the wait line (`05` §5.10), on both waits: a sentence naming the call in flight, a
+track cut into one segment per thing being waited for, the elapsed time beside it, and a line saying
+to wait and that the screen moves on by itself. The take on its way has two segments because it is
+two calls, upload then transcription (`10` §3–5); the round closing has one per submitted answer and
+one for the feedback (`10` §7). **A segment fills only when its own thing has finished.**
+
+*Rejected:* a percentage or a bar that creeps — the app knows which call is running and never how far
+through it is, so any position would be invented; a time estimate — scoring's slowest measured call
+took five times its median (`03` §4), so an estimate is wrong on exactly the wait the user notices; a
+spinner — it says only that something is happening, which was the complaint, and
+`10` §11 already calls one that outlives the sitting a defect. The elapsed clock is the one figure
+shown because it is the one figure measured.
+
+### [2026-10-06] The round-end counts are read from the round, beside `complete`, not returned by it
+
+`complete` is one call that waits for the last scores and then writes the feedback (`07` §5.12), so
+it can report nothing until it is over. Screen 7 re-reads the round every two seconds while that call
+is in flight (`07` §5.5) and counts the submitted answers and those whose latest attempt is no longer
+`pending`. **A failed score counts as done**, as it does for `complete`. Status only: no score is
+read or shown.
+
+*Rejected:* streaming progress out of `complete` — it would change the one endpoint whose ordering
+`06`, 2026-09-27 fixed, for a caption; a counts-only endpoint — §5.5 already is that read. *The limit:*
+a read that fails leaves the line as it was, and with no read at all the wait stays on its first
+sentence and one running segment, which is true throughout. `GET /api/rounds/{roundId}` is specified
+in `07` and built by #48 and #49, neither merged when this was written: until one is, that fallback
+is what a real round shows, and the counts are proved against a stubbed read (`e2e/waits.spec.ts`).
+**#49 merged first, with the read**, so a real round now shows the counts.
+
+### [2026-10-06] Practice's held take waits on the same line
+
+#49 landed while this was open, with a sentence of its own for each of practice's two waits
+(`Uploading the take.`, `Transcribing the take.`). They are the same two calls, so practice shows the
+wait line too (`10` §15) and those two strings are retired (`native-read-round.md` §13). The clock
+starts again for the transcription, because the held take stands between the two calls.
+
+### [2026-10-06] The rating cannot change while the round closes
+
+Screen 7's options stop responding from the press until the feedback opens or the call fails. Before,
+a different option could be picked while the first was being recorded, and the screen then showed a
+rating that was not the round's.
+
+---
 ## Phase 6 — #49, practice mode
 
 The round with the pressure taken out: a re-take, each answer's scores as they land, a second go at

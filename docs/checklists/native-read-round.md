@@ -94,7 +94,7 @@ Every screen of a Japanese round.
 | ✓ | ★ 録音中 | Recording |
 | ✓ | ★ 停止して文字起こし | Stop and transcribe |
 | ✓ | ★ 4分で自動的に止まります。そこまでの録音は残ります。 | Stops by itself at 4 minutes. What was recorded up to then is kept. |
-| ✓ | 録音をアップロードして、文字起こしをしています。 | Uploading the take and transcribing it. |
+| ✓ | ~~録音をアップロードして、文字起こしをしています。~~ | Uploading the take and transcribing it. — **retired by #73**: the wait now names each of its two calls (§14). |
 | ✓ | マイクを使えません。何も録音されておらず、この質問は未回答のままです。 | The microphone is not available. Nothing was recorded, and the question stays unseen. |
 | ✓ | 録音に失敗しました。何も録音されておらず、この質問は未回答のままです。 | The recording failed. Nothing was recorded, and the question stays unseen. |
 | ✓ | 録音をアップロードできませんでした。録音はこのタブに残っています。もう一度お試しください。 | The take could not be uploaded. It is still in this tab; try again. |
@@ -371,11 +371,11 @@ followed by `点`, `採点` for scoring, `深掘り` for a follow-up, `講評` f
 | ✓ | 回答ごとの採点は、済みしだい出ます。講評はラウンドの最後にまとめて出ます。 | The record frames' footer, where realistic promises silence — Each answer's scores appear once it is scored. The round's feedback comes at the end. |
 | ✓ | 文字起こしをするまでは、録り直せます。 | Under the record button, where realistic says one take — You can record again until the take is transcribed. |
 | ✓ | 録音を停止 | The stop button. Stopping keeps the take and does not transcribe it — Stop recording. |
-| ✓ | 録音をアップロードしています。 | While the stopped take uploads — Uploading the take. |
+| ✓ | ~~録音をアップロードしています。~~ | While the stopped take uploads — Uploading the take. — **retired by #73**: practice's upload shows the wait line's own sentence (§14). |
 | ✓ | 録音済み — 文字起こし前 | The status line over a held take — Take recorded — not transcribed yet. |
 | ✓ | この録音を文字起こしする | The primary button on a held take — Transcribe this take. |
 | ✓ | 文字起こしをすると、この録音で確定します。録り直しはできなくなります。 | Its caption — Once it is transcribed, the take is final and cannot be recorded again. |
-| ✓ | 文字起こしをしています。 | While the held take is transcribed — Transcribing the take. |
+| ✓ | ~~文字起こしをしています。~~ | While the held take is transcribed — Transcribing the take. — **retired by #73**: practice's transcription shows the wait line's own sentence (§14). |
 | ✓ | 録り直す | The record button once a take is held — Record again. |
 | ✓ | 録り直すと、いまの録音は置き換わります。 | Its caption — Recording again replaces this take. |
 | ✓ | 送ると、この回答を採点します。採点が済むと、次の画面に出ます。 | The send caption under a follow-up's answer or an answer given again — Sending scores this answer. Its scores appear on the next screen once it is scored. |
@@ -403,3 +403,19 @@ and §8 as they stand.
 no original answer scored and the findings are written from answers given again, names them
 `第2問の再回答` and `第2問の深掘りの再回答` in the findings. The owner read both names on 2026-10-06
 and accepted them as written. A rule the prompt's output breaks is a prompt version, not an edit.
+
+## 14. #73, the round's two waits
+
+**Not read yet.** Five new strings, all on the wait line (`05` §5.10) in `app/(app)/round/copy.ts`:
+two for the take on its way (`10` §3–5), two for the round closing (`10` §7), and the line under all
+of them. `緊張度を記録して、講評をまとめています。` (§2) is unchanged and still the closing wait's first
+sentence. `{6}` and `{4}` stand for the round's own counts, set tight (`05` §6); the counter is `件`
+because the count is of answers, follow-ups included, not of questions.
+
+| | Japanese | Intent |
+| --- | --- | --- |
+| | 録音をアップロードしています。 | While the take is uploaded — Uploading your recording. |
+| | 回答を文字起こししています。 | While the take is transcribed — Transcribing your answer. |
+| | 回答を採点しています。{6}件中{4}件が終わりました。 | While a score is still pending at round end — Scoring your answers: 4 of 6 done. |
+| | 採点が終わりました。講評をまとめています。 | Once no score is pending — Scoring is finished. Writing the feedback. |
+| | このままお待ちください。終わると自動で次へ進みます。 | Under every wait line — Please wait. This screen moves on by itself. |
