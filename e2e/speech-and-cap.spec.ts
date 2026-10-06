@@ -281,7 +281,12 @@ test("a failed speech request shows the notice, and the round goes on as text", 
 
   const response = await failed;
   expect(response.status()).toBe(502);
-  expect((await response.json()).error).toMatchObject({
+  // The envelope is read from a request of the test's own, never from the page's: the audio element
+  // drops a load that answered 502, and Chromium keeps no body for a request cancelled before it
+  // finished — which this one is, some of the time.
+  const refused = await page.request.get(response.url());
+  expect(refused.status()).toBe(502);
+  expect((await refused.json()).error).toMatchObject({
     code: "speech_failed",
     detail: { round_id: round.id, position: 1, error_class: "upstream_503" },
   });
