@@ -295,7 +295,7 @@ nakaguro: `評価基準 v1.2・出題 v1.0・応募書類 v3`.
 
 ### 5.10 Wait line
 
-For a wait the user has to sit through inside a round (`10` §3–5, §7; #73). Three rows, gap `10px`:
+For a wait the user has to sit through inside a round (`10` §3–5, §7, §15; #73). Three rows, gap `10px`:
 
 - **What is happening**, one sentence at 13px/1.75 in `--ink-2`. It is the live region; nothing else
   in the component is announced.

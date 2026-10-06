@@ -384,6 +384,46 @@ test("a practice round closing says the same, counting a question given again on
   await page.waitForURL(`**/round/${roundId}/feedback`);
 });
 
+test("a practice round closing does not wait on an answer given again while its original is scored", async ({ page }) => {
+  await signIn(page);
+  const roundId = await startRound(page, "en", "practice");
+  let next = "question";
+  while (next !== "feedback") next = (await answerByApi(page, roundId)).next.kind;
+  const read = async () =>
+    (await (await page.request.get(`/api/rounds/${roundId}`)).json()) as { answers: { id: string; state: string; scoring?: { status: string } }[] };
+  const withStatus = async (status: string) => (await read()).answers.filter((answer) => answer.scoring?.status === status).length;
+  await expect.poll(() => withStatus("ok"), { timeout: 15_000 }).toBe(6);
+
+  // Every original is scored; the last one is given again and that score is held open.
+  let releaseScoring!: () => void;
+  let releaseFeedback!: () => void;
+  scoringHeld = new Promise<void>((resolve) => (releaseScoring = resolve));
+  feedbackHeld = new Promise<void>((resolve) => (releaseFeedback = resolve));
+  const last = (await read()).answers.at(-1)!;
+  const again = await page.request.post(`/api/rounds/${roundId}/answers`, {
+    data: { content_type: "audio/webm", expected_bytes: 4, retry_of_answer_id: last.id },
+  });
+  expect(again.status()).toBe(201);
+  const slot = await again.json();
+  expect((await page.request.put(slot.upload.url, { headers: slot.upload.headers, data: Buffer.from([1, 2, 3, 4]) })).ok()).toBe(true);
+  expect((await page.request.post(`/api/answers/${slot.answer_id}/transcribe`, { data: {} })).ok()).toBe(true);
+  expect((await page.request.post(`/api/answers/${slot.answer_id}/submit`, { data: { transcript_corrected: heard } })).ok()).toBe(true);
+  expect(await withStatus("pending")).toBe(1);
+
+  await page.goto(`/round/${roundId}`);
+  await page.getByRole("button", { name: "Go to the feedback" }).click();
+  const wait = page.getByTestId("closing-wait");
+  // 07 §5.12: `complete` is already writing the feedback, so the line says so: six of six, not five.
+  await expect(wait.getByRole("status")).toHaveText("Scoring is finished. Writing the feedback.");
+  expect(await segments(page, "closing-wait")).toEqual(["done", "done", "done", "done", "done", "done", "running"]);
+  expect(await withStatus("pending")).toBe(1);
+  await page.screenshot({ path: test.info().outputPath("practice-closing-wait-retry-pending.png"), fullPage: true });
+
+  releaseFeedback();
+  await page.waitForURL(`**/round/${roundId}/feedback`);
+  releaseScoring();
+});
+
 test("a Japanese round says both waits in Japanese", async ({ page }) => {
   heard = RAW_JA;
   await signIn(page);

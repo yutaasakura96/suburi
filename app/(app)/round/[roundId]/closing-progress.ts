@@ -53,9 +53,9 @@ export function scoringProgress(read: unknown): ScoringProgress | null {
 }
 
 /**
- * The wait line for a closing round: a segment per answer and one for the feedback, each filled only
- * once its own thing has finished (05 §5.10). With nothing read, one running segment — which says
- * nothing of a rating when none is asked, as in a practice round (10 §15).
+ * The wait line for a closing round: a segment per question counted and one for the feedback, each
+ * filled only once its own thing has finished (05 §5.10). With nothing read, one running segment —
+ * which says nothing of a rating when none is asked, as in a practice round (10 §15).
  */
 export function closingWait(
   copy: RoundCopy,
