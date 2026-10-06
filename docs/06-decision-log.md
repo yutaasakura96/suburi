@@ -273,7 +273,22 @@ sentence and one running segment. `GET /api/rounds/{roundId}` is #49's, merged b
 round shows the counts, and `e2e/waits.spec.ts` proves them against that route, with two scoring
 calls and the feedback's held open in the mock.
 
-### [2026-10-06] Practice's round end stays on its caption
+### [2026-10-06] Practice's round end shows the wait line, each question counted once
+
+The owner answered the question the entry below left open — "Show progress at the end of a practice
+round too?" — with "Yes, and count each question once". Practice's closing screen (`10` §15) now
+shows §7's wait line in place of the caption, with its counts read from the round beside `complete`.
+The read carries the answers given again, so the rows are collapsed by `retry_of_answer_id` to the
+original: one question is one segment however many times it was answered, and it is done only when
+the original and every retry have left `pending`, since `complete` waits for all of them. Before the
+first read lands the sentence is `Writing the findings.` — §7's `Recording the rating…` would name a
+rating that practice never takes. No string is new.
+
+*Rejected:* counting the latest attempt per question — a retry's score landing would mark the
+question done while the original's was still being waited for; counting rows — "5 of 7" in a
+six-question round reads as a different round from the timed one.
+
+### [2026-10-06] Practice's round end stays on its caption — superseded by the entry above
 
 A practice round ends on the same `complete` call, from the per-answer frame, and still says
 `Writing the findings.` in a caption alone (`10` §15): no wait line, no clock, no counts. Left out of
