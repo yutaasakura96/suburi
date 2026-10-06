@@ -46,7 +46,8 @@ follow-ups:** the route does not read #44's `follow_ups` yet, so a follow-up is 
 pinned model and its replacement deadline are in `03` §4.
 **#50, History, is built (2026-10-04), on `fm/suburi-50`** (Next).
 **#48, failure paths, is built (2026-10-04), on `fm/suburi-48`** (Next).
-**Updated:** 2026-10-06 (#50's catalogue string read; #43, #44, #45, #46, #47, #48 and #50 built; #42 closed; #55 and #56 on 2026-09-30)
+**#74, a model answer for each question, is built (2026-10-04), on `fm/suburi-74`** (Next).
+**Updated:** 2026-10-06 (#50's catalogue string read; #43, #44, #45, #46, #47, #48, #50 and #74 built; #42 closed; #55 and #56 on 2026-09-30)
 
 ## Done
 - Phase 1 — `docs/01-project-brief.md`, `docs/02-product-requirements.md`, `docs/06-decision-log.md`.
@@ -422,7 +423,7 @@ only; their output, and the Japanese follow-up strings, are unread
 (`docs/checklists/native-read-round.md` §8). Migration `0009` is **not yet applied to either Neon
 branch** (`12` §4). Decisions in `06`, "Phase 6 — #44".
 
-**#48 is built (2026-10-04), on `fm/suburi-48`.** Built, with expand-only migration `0013` for upload confirmation, not yet applied to Neon: `GET /api/rounds/{id}`,
+**#48 is built (2026-10-04), on `fm/suburi-48`.** Built, with expand-only migration `0014` for upload confirmation, not yet applied to Neon: `GET /api/rounds/{id}`,
 the resume read (`07` §5.5); `POST /api/answers/{id}/transcript`, the typed answer (`07` §5.8), stored
 with no transcriber, pace or duration; one guard around every round route, so nothing leaves as a
 bare `500`; a take held in IndexedDB from the moment it exists, with its retry, the leave-page
@@ -433,9 +434,33 @@ named with its fix; the earlier-day abandonment's own sentence; and a spent Open
 its code and never retried. **Tested:** every round route failed at each database call in turn
 (`11` §3.16), the sentinel walk over every refusal (`11` §3.10), and Playwright for each failure path
 (`11` §4). **The owner read and accepted all nine new Japanese strings on 2026-10-05**
-(`docs/checklists/native-read-round.md` §12); **the two refused-take sentences added after them were read and accepted by the owner the same day.** **Not done here:** whether a spent project refuses the preflight's probe
+(`docs/checklists/native-read-round.md` §13); **the two refused-take sentences added after them were read and accepted by the owner the same day.** **Not done here:** whether a spent project refuses the preflight's probe
 is unverified (`12` §6); and "excluded from Progress" for a typed answer is the mark only — the
 exclusion is #51's. Decisions in `06`, "Phase 6 — #48".
+
+**#74 is built (2026-10-04), on `fm/suburi-74`.** Raised by the owner after the first real English
+round: the feedback showed the question and never how it could have been answered. Built: migration
+`0013_model-answers` (`model_answers`, and `model-answers` in the rate limiter's route list),
+expand-only and **not yet applied to either Neon branch**; `model-answer-en-1.0` and
+`model-answer-ja-1.0` behind a port with a fake; `complete` writing one model answer per question
+asked, follow-ups included, beside its wait and its feedback call, never failing for one and never
+holding the feedback for a slow one (`07` §5.12); `POST /api/rounds/{id}/model-answers` writing what a complete round lacks (`07` §5.19),
+which is also how the rounds completed before this get theirs; screen 8's answer texts under the
+pager — what was said beside the model answer, with what the CV does not back underlined — in both
+languages, and in English from the stored translation on a Japanese round (`10` §8); model-answer
+tokens in the week's spend. Tests: `11` §3.21, three rows in §3.1, and two Playwright flows.
+**Measured** (`scripts/measure-model-answers.mts`, `03` §4): a round's calls take 16 s in English and
+25 s in Japanese at the median and 31.6 s at the slowest, so each call is bounded at 90 s and
+`complete` waits for them no longer than 45 s from the round's close, storing a later one in
+`after()`; about $0.22 and $0.35 a three-question round. **Not done here:** every reading is synthetic — no model
+answer has been written from the real CV, and none of its output has been read by a native speaker.
+Figures are checked independently against the CV text and the candidate's own answer (`06`, 2026-10-05).
+**The user's steps:** `npm run
+db:migrate` against Neon `develop` before the merge is verified there (`12` §4); open the 2026-10-03
+round's feedback on `develop` and press `Write the model answers`, or run a new round, and read what
+comes back against `11` §5's checklist item; and the read of the Japanese prompt's output
+(`docs/checklists/native-read-round.md` §12). The owner accepted all ten Japanese strings and raised
+the spend baseline to $0.70 on 2026-10-05 (`12` §6). Decisions in `06`, "Phase 6 — #74".
 
 **#47 is built (2026-10-03), on `fm/suburi-47`.** Built: migration `0010_generated-questions`
 (`near_duplicate_checks`, `role_contexts.source_filename`, the digest's five new signals), expand-only

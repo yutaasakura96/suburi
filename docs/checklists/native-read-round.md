@@ -326,7 +326,35 @@ string below on 2026-10-05.
 | --- | --- | --- |
 | ✓ | この回答はいま採点中です。少し待ってからもう一度お試しください。 | `scoring_in_progress` — This answer is being scored right now. Wait a moment and try again. |
 
-## 12. #48, failure paths
+## 12. #74, model answers
+
+**Read and accepted by the owner on 2026-10-05.** Ten new strings: nine on screen 8 (`app/(app)/round/copy.ts`) and one in the catalogue
+(`lib/copy/errors.ts`). `模範回答` is the word chosen for a model answer (`CONTEXT.md`); `{応募書類 v3}`
+stands for the round's stored CV label.
+
+| | Japanese | Intent |
+| --- | --- | --- |
+| | あなたの回答 | Section label over what the user said — Your answer |
+| | 模範回答 | Section label over the model answer — Model answer |
+| | 深掘りへの回答 | The same, for the follow-up — Your answer to the follow-up |
+| | 深掘りへの模範回答 | Model answer to the follow-up |
+| | {応募書類 v3}とあなたの回答をもとに作成しています。下線は、{応募書類 v3}に裏づけのない内容です。 | Caption under a model answer with underlined parts — Written from CV v3 and what you said. An underline marks what CV v3 does not back. |
+| | {応募書類 v3}とあなたの回答をもとに作成しています。{応募書類 v3}に裏づけのない内容として下線を付けた箇所はありません。 | The same, with nothing underlined — Nothing in it is underlined as going beyond CV v3. |
+| | この質問の模範回答はまだ作成されていません。 | An answer with no model answer stored — No model answer is written for this question yet. |
+| | 模範回答を作成する | The button that writes the missing ones — Write the model answers |
+| | 模範回答を作成しています。 | Caption while it runs — Writing the model answers. |
+| | 模範回答を作成できませんでした。ラウンドの記録と採点はそのまま残っています。もう一度お試しください。 | `model_answer_generation_failed` — The model answers could not be written. The round and its scores are kept as they are. Try again. |
+
+**What cannot be read in advance.** `lib/prompts/model-answer-ja-1.0.ts` is written in English and
+names the Japanese it asks for: です・ます体 throughout, 謙譲語 for the candidate's own actions, `御社`
+for the interviewer's company and `前職`・`現職` for the candidate's own, 450 to 600 字 for a question
+and 200 to 350 for a 深掘り. What needs a native reader is its **output**: a model answer is something
+the user will learn from and repeat aloud, so an unnatural phrase in it is taught, not just shown.
+Read on the first real Japanese round completed with model answers on `develop`: each one, for
+whether a candidate would say it in a real interview. A rule it breaks is a new prompt version, not an
+edit.
+
+## 13. #48, failure paths
 
 What a Japanese round's screens say when a take cannot be recorded, uploaded or transcribed, and when
 a round was left by the day ending. **All nine read and accepted as written by the owner, Yuta Asakura

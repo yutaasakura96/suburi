@@ -9,6 +9,7 @@ import type { Rubric } from "../rubric/types";
 import { pickUntouched } from "./grounding";
 import { citableClaimsOf } from "./run-scoring";
 import { authenticate, guarded, isUuid, log, notFound, parseBody, pgErrorClass, roundAbandoned, roundIdOf, writeFailed, type Db, type RoundDeps } from "./http";
+import { startModelAnswers, type CompleteModelAnswerDeps } from "./model-answers";
 import { isAbandoned, latestAttempts, lockRoundUser, noScores, readRoundStep, roundAnswers, scoringCounts, type RoundRow } from "./state";
 
 /**
@@ -321,22 +322,29 @@ export function createComplete(deps: CompleteDeps) {
     }
     log("info", { event: "round_completed", round_id: roundId, felt_pressure: pressure });
 
+    // The model answers' calls run beside the wait and the feedback call; they are stored after it.
+    const settleModelAnswers = startModelAnswers(deps, round);
     // The round is complete whatever happens next: a database failure from here on leaves the
     // feedback pending for its own route (07 §5.16), never `write_failed` for a write that landed.
-    let outcome: Outcome;
+    let outcome: Outcome | null;
     try {
       outcome = await writeRoundFeedback(deps, round);
     } catch (error) {
       log("error", { event: "round_feedback_pending", round_id: roundId, error_class: pgErrorClass(error) });
-      return Response.json(completedView(round, null, await roundScoringCounts(deps.db, roundId).catch(() => null)), { status: 201 });
+      outcome = null;
+    }
+    const modelAnswers = await settleModelAnswers();
+    if (outcome === null) {
+      const counts = await roundScoringCounts(deps.db, roundId).catch(() => null);
+      return Response.json({ ...completedView(round, null, counts), model_answers: modelAnswers }, { status: 201 });
     }
     if (!outcome.ok) return outcome.response;
-    return Response.json(completedView(round, outcome.feedback, outcome.counts), { status: 201 });
+    return Response.json({ ...completedView(round, outcome.feedback, outcome.counts), model_answers: modelAnswers }, { status: 201 });
   }, roundIdOf);
 }
 
 /** `POST /api/rounds/{roundId}/feedback` ⚡ (07 §5.16): the retry for step 3, and nothing else. */
-export function createFeedbackRetry(deps: CompleteDeps) {
+export function createFeedbackRetry(deps: FeedbackDeps) {
   return guarded("round_feedback_failed", async function POST(request: Request, roundId: string): Promise<Response> {
     const session = await authenticate(deps, request, "feedback");
     if (session instanceof Response) return session;

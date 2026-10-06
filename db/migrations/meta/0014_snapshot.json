@@ -1,6 +1,6 @@
 {
-  "id": "b1d96095-fea5-44cc-afec-6e221e493048",
-  "prevId": "613a51fa-a06c-403b-9ec6-2af1d2ccad17",
+  "id": "37e4a16f-b7da-4dc3-9769-911c00d06453",
+  "prevId": "b1d96095-fea5-44cc-afec-6e221e493048",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -318,6 +318,12 @@
         "audio_s3_key": {
           "name": "audio_s3_key",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "audio_uploaded_at": {
+          "name": "audio_uploaded_at",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         },

@@ -326,17 +326,20 @@ With a stubbed generator and embedder.
   a handler makes has been the one that failed, the limiter's upsert and the reads between two writes
   included. The injected error carries sentinel text in its message, and the envelope and every log
   line are scanned for it. A session read that throws is asserted separately on `GET /api/rounds/{id}`,
-  `POST …/answers` and `GET …/speech`: it is the envelope too, with `error_class: unexpected`.
+  `POST …/answers`, `GET …/speech` and `POST …/model-answers`: it is the envelope too, with
+  `error_class: unexpected`.
 - **The routes that walk covers are ten:** `POST /api/role-contexts`, `POST /api/rounds`,
   `GET /api/rounds/{id}`, `GET …/speech`, `POST …/answers`, `POST …/transcribe`, `POST …/transcript`,
   `POST …/submit`, `POST …/complete` and `POST …/feedback`. The four History routes — `GET /api/rounds`,
   `GET /api/answers/{id}/audio`, `POST /api/scoring-attempts` and `POST /api/scoring-attempts/{id}/run`
   — carry the same guard and are in neither this walk nor the sentinel walk below; their guard is
-  covered only by the thrown session read §3.20 records.
+  covered only by the thrown session read §3.20 records. #74's `POST …/model-answers` carries it too,
+  and is in neither walk: its guard is covered only by the thrown session read above.
 - **`complete` is the one route whose write can land before a later call fails.** Until
   `completed_at` commits a failure is `write_failed`; after it, the call answers `201` with
   `feedback: null`, the same call again answers `200` with that completed result, and the feedback
-  route writes what was pending (`07` §5.12).
+  route writes what was pending (`07` §5.12). A call that failed in #74's model answers instead leaves
+  the feedback whole and none of them written, for their own route (`07` §5.19).
 - **§3.10's sentinel test, on the nine of those ten routes that follow `POST /api/role-contexts`:**
   one test forces the refusals they give a signed-in caller — invalid bodies, missing rows, an
   abandoned and a completed round, each `422`, the upstream failures and a failed preflight — with

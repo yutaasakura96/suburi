@@ -1168,7 +1168,8 @@ shows every score that landed and a pending round-level note, and generation is 
 - Already complete → **`200` with the same completed result**: the round as it was completed, its
   stored rating whatever this call sent, the feedback if it is written and `feedback: null` if it is
   still pending. The call is idempotent, never `409 round_already_complete`, and makes no model call
-  (`06`, 2026-10-05).
+  (`06`, 2026-10-05) — so it carries no `model_answers`: that count is what the first call did, and
+  what a round still lacks is §5.19's.
 - **Once step 1 has committed, this route never answers `write_failed`.** A database failure in
   steps 2–4 leaves the round complete with its rating, and the response is the normal `201` with
   `feedback: null` — pending — and `scoring` null if the counts could not be read. §5.16 writes the

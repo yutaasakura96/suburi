@@ -671,6 +671,7 @@ limit, and their waveform scrolls instead of filling toward the cap (`10` §15).
 | Text-to-speech failed | The question stays as text, with a short notice; the round goes on (`speech_failed`, `07` §5.15) | round id, position, error class |
 | Round feedback failed, or the last score did not land in time | The round is complete; every landed score renders; the round-level note is pending, with a retry (`07` §5.12) | round id, model, error class, pending count |
 | Follow-up generation failed | The round continues; the hole is recorded (`follow_ups`, `missing`) | answer id, model, error class |
+| A model answer failed | The round is complete and its feedback renders; that question says no model answer is written yet, with a retry (`07` §5.19) | round id, answer id, error class |
 | OpenAI project spend limit | Preflight refuses the round — `503 model_unavailable`. Upstream it is `429 project_spend_limit_exceeded`, mapped, never retried as a rate limit — by the SDK or by the scoring loop, mid-round included (`lib/ai/upstream.ts`) | event, with the upstream code as its error class |
 | Model refusal / malformed output | Same as scoring failed | answer id, **not the content** |
 | Auth rejected | "This account cannot sign in." No enumeration of why | email hash only |

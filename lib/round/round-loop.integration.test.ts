@@ -961,7 +961,8 @@ describe("POST /api/rounds/{id}/complete (11 §3.14)", () => {
 
       const again = await world.call(world.handlers.complete, roundId, { felt_pressure: 2 });
       expect(again.status).toBe(200);
-      expect(again.json).toEqual(response.json);
+      // The repeat makes no model call, so it carries no count of model answers written.
+      expect(again.json).toEqual({ ...response.json, model_answers: undefined });
       const [round] = await db.select().from(s.rounds).where(eq(s.rounds.id, roundId));
       expect(round.feltPressure).toBe(4);
     }));

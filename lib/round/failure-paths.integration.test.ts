@@ -8,9 +8,11 @@ import { closePool, inRolledBackTransaction, type TestDb } from "../../db/test/d
 import {
   FIXTURE_FEEDBACK,
   FIXTURE_FOLLOW_UP,
+  FIXTURE_MODEL_ANSWER,
   fakeEmbedder,
   fakeFeedbackGenerator,
   fakeFollowUpGenerator,
+  fakeModelAnswerGenerator,
   fakeModelHealth,
   fakeQuestionGenerator,
   fakeScorer,
@@ -26,6 +28,7 @@ import { mintSessionCookie } from "../auth/test/session";
 import { getConfig } from "../config";
 import { createComplete, createFeedbackRetry } from "./complete";
 import { createGetRound } from "./get-round";
+import { createModelAnswersRetry } from "./model-answers";
 import { createOpenAnswer } from "./open-answer";
 import { createPostRound } from "./post-round";
 import { createPostRoleContext } from "./role-context";
@@ -151,6 +154,7 @@ async function setUp(raw: TestDb) {
   const transcriber = fakeTranscriber(() => ({ text: HEARD, durationMs: 90_000 }));
   const generator = fakeFeedbackGenerator(() => FIXTURE_FEEDBACK);
   const speech = fakeSpeechSynthesizer();
+  const modelAnswers = fakeModelAnswerGenerator(() => FIXTURE_MODEL_ANSWER);
   const followUps = fakeFollowUpGenerator(() => ({ ...FIXTURE_FOLLOW_UP, text: `How did you measure the ${FOLLOW_UP_SENTINEL} six months?` }));
   const base = { auth, db, transaction: savepointTransaction(db) };
   const questions = { questionGenerator: fakeQuestionGenerator(numberedQuestions()), embedder: fakeEmbedder() };
@@ -170,7 +174,7 @@ async function setUp(raw: TestDb) {
       after: (work) => void scheduled.push(work),
       deadline: () => Date.now() + 280_000,
     }),
-    complete: createComplete({ ...base, generator, ...timing }),
+    complete: createComplete({ ...base, generator, ...timing, modelAnswerGenerator: modelAnswers, after: (work) => void scheduled.push(work) }),
     feedback: createFeedbackRetry({ ...base, generator, ...timing }),
     speech: createSpeech({ ...base, speech }),
   };
@@ -247,6 +251,7 @@ async function setUp(raw: TestDb) {
     transcriber,
     generator,
     followUps,
+    modelAnswers,
     handlers,
     call,
     post,
@@ -273,7 +278,7 @@ async function makeReadOnly(world: World, db: TestDb, roundId: string, status: "
   else await db.update(s.rounds).set({ completedAt: new Date() }).where(eq(s.rounds.id, roundId));
 }
 
-async function count(db: TestDb, table: typeof s.rounds | typeof s.answers | typeof s.followUps | typeof s.roundFeedback | typeof s.scoringAttempts) {
+async function count(db: TestDb, table: typeof s.rounds | typeof s.answers | typeof s.followUps | typeof s.roundFeedback | typeof s.scoringAttempts | typeof s.modelAnswers) {
   return (await db.select({ id: table.id }).from(table)).length;
 }
 
@@ -983,6 +988,7 @@ describe("write_failed on every round route (11 §3.16)", () => {
       const act = () => world.call(world.handlers.complete, roundId, { felt_pressure: 4 });
       let before = 0;
       let after = 0;
+      let modelAnswerGaps = 0;
       for (let n = 1; ; n += 1) {
         expect(n).toBeLessThan(80);
         await world.raw.execute(sql`savepoint failure_point`);
@@ -1003,21 +1009,31 @@ describe("write_failed on every round route (11 §3.16)", () => {
             expect((await act()).status).toBe(201);
           } else {
             after += 1;
-            // The write landed, so the call says so: complete, its rating, and feedback still pending.
+            // The write landed, so the call says so: complete, with its rating.
             expect(reply.status, `call ${n}`).toBe(201);
-            expect(reply.json).toMatchObject({ round: { id: roundId, felt_pressure: 4 }, feedback: null });
+            expect(reply.json).toMatchObject({ round: { id: roundId, felt_pressure: 4 } });
             expect(reply.text).not.toContain(FAILURE_SENTINEL);
             expect(resumed.json).toMatchObject({ round: { status: "complete" }, resume: null });
-            expect(await count(db, s.roundFeedback)).toBe(0);
-            // The same call again is the same completed result, and `feedback` writes what is pending.
+            const { model_answers: modelAnswers, ...completed } = reply.json;
             const again = await act();
             expect(again.status).toBe(200);
-            expect(again.json).toEqual({ ...reply.json, scoring: { ok: 6, pending: 0, failed: 0 } });
-            const written = await world.call(world.handlers.feedback, roundId, {});
-            expect(written.status).toBe(201);
-            const last = await world.call(world.handlers.complete, roundId, { felt_pressure: 2 });
-            expect(last.status).toBe(200);
-            expect(last.json).toEqual({ ...again.json, feedback: written.json.feedback });
+            if (completed.feedback === null) {
+              // The feedback step met the failure: feedback still pending, for `feedback` to write.
+              expect(await count(db, s.roundFeedback)).toBe(0);
+              // The same call again is the same completed result.
+              expect(again.json).toEqual({ ...completed, scoring: { ok: 6, pending: 0, failed: 0 } });
+              const written = await world.call(world.handlers.feedback, roundId, {});
+              expect(written.status).toBe(201);
+              const last = await world.call(world.handlers.complete, roundId, { felt_pressure: 2 });
+              expect(last.status).toBe(200);
+              expect(last.json).toEqual({ ...again.json, feedback: written.json.feedback });
+            } else {
+              // The model answers' step met it: the feedback is whole, and the gap is theirs (07 §5.19).
+              expect(again.json).toEqual(completed);
+              expect(modelAnswers.written).toBe(0);
+              expect(await count(db, s.modelAnswers)).toBe(0);
+              modelAnswerGaps += 1;
+            }
           }
           expect(await count(db, s.roundFeedback)).toBe(1);
         }
@@ -1030,6 +1046,7 @@ describe("write_failed on every round route (11 §3.16)", () => {
       }
       expect(before).toBeGreaterThan(0);
       expect(after).toBeGreaterThan(0);
+      expect(modelAnswerGaps).toBeGreaterThan(0);
     }));
 
   it("POST …/feedback: no feedback row, and the same call then writes it", () =>
@@ -1042,7 +1059,7 @@ describe("write_failed on every round route (11 §3.16)", () => {
       const failing = fakeFeedbackGenerator(() => {
         throw new ModelCallFailed("Round feedback", "upstream_500");
       });
-      const closed = await world.call(createComplete({ ...world.base, generator: failing, waitBoundMs: 50, sleep: async () => {} }), roundId, {
+      const closed = await world.call(createComplete({ ...world.base, generator: failing, waitBoundMs: 50, sleep: async () => {}, modelAnswerGenerator: world.modelAnswers, after: () => {} }), roundId, {
         felt_pressure: 2,
       });
       expect(closed.status).toBe(502);
@@ -1069,7 +1086,9 @@ describe("POST …/complete on a round already complete (07 §5.12)", () => {
       expect(first.status).toBe(201);
       const clean = await act();
       expect(clean.status).toBe(200);
-      expect(clean.json).toEqual(first.json);
+      // The repeat makes no model call, so it carries no count of model answers written.
+      const completed = { ...first.json, model_answers: undefined };
+      expect(clean.json).toEqual(completed);
 
       let soft = 0;
       for (let n = 1; ; n += 1) {
@@ -1080,7 +1099,7 @@ describe("POST …/complete on a round already complete (07 §5.12)", () => {
         const failed = world.faults.disarm();
         await world.raw.execute(sql`rollback to savepoint failure_point`);
         if (!failed) {
-          expect(reply.json).toEqual(first.json);
+          expect(reply.json).toEqual(completed);
           break;
         }
         expect(reply.text).not.toContain(FAILURE_SENTINEL);
@@ -1118,6 +1137,7 @@ describe("never a bare 500 (07 §2)", () => {
         createGetRound({ ...world.base, auth }),
         createOpenAnswer({ ...world.base, auth, store: world.store, prefix: "dev/" }),
         createSpeech({ ...world.base, auth, speech: world.speech }),
+        createModelAnswersRetry({ ...world.base, auth, modelAnswerGenerator: world.modelAnswers }),
       ]) {
         const reply = await world.call(handler, roundId, { content_type: "audio/webm", expected_bytes: 8 });
         expect(reply.status).toBe(500);
