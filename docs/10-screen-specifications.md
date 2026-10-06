@@ -1327,7 +1327,9 @@ The round's stamp (`05` §5.9) closes the column: this frame shows scores.
 
 A practice round reloads onto, in this order: an answer-again that is open and not yet sent, on its
 own record or transcript frame; the open answer to the round's current prompt, as §3–§5; otherwise
-**the per-answer frame of the answer sent last**, with `Next` read from where the round stands. A
+**the per-answer frame of the answer sent last**, with `Next` read from where the round stands.
+Over any of these a take still held on the device for an answer given again, whose slot never
+opened, is offered again on its own question — the newest held take wins (`06`, 2026-10-07). A
 round with nothing sent yet reloads onto its first question. So a reload never loses an answer's
 scores, and the frame after the last answer is the one that leads to the feedback.
 

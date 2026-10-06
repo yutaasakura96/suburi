@@ -535,6 +535,42 @@ test("a practice take recorded again and held beats the older take the server co
   expect(answers[0]).toMatchObject({ id: slot.id, transcriptRaw: RAW });
 });
 
+test("a practice answer-again take whose slot never opened is held across a reload and offered again", async ({ page }) => {
+  await signIn(page);
+  const roundId = await startRound(page, "en", "practice");
+  page.on("dialog", (dialog) => void dialog.accept());
+
+  // Question 1 is answered, and the round stands on its per-answer frame.
+  const first = await answerByApi(page, roundId);
+  await page.goto(`/round/${roundId}`);
+  await page.getByRole("button", { name: "Answer again" }).click();
+  await expect(page.getByTestId("round-step")).toHaveText("Question 1 / 3 · again");
+
+  // The call that opens the slot never reaches the server: no answer-again row exists.
+  await page.route("**/api/rounds/*/answers", (route) => route.abort("failed"));
+  await page.getByRole("button", { name: "Start recording" }).click();
+  await expect(page.getByTestId("waveform").locator("span > span").nth(1)).toBeAttached({ timeout: 10_000 });
+  await page.getByRole("button", { name: "Stop recording" }).click();
+  await expect(page.getByTestId("take-notice")).toContainText(HELD);
+  const [held] = await heldTakes(page);
+  expect(held).toMatchObject({ roundId, position: 1 });
+  expect(await answersOf(roundId)).toHaveLength(1);
+
+  // The reload offers that take again, on the question it answers again, and the retry delivers it.
+  await page.unroute("**/api/rounds/*/answers");
+  await page.reload();
+  await expect(page.getByTestId("take-notice")).toHaveText(HELD);
+  await expect(page.getByTestId("round-step")).toHaveText("Question 1 / 3 · again");
+  expect(await warnsBeforeUnload(page)).toBe(true);
+  expect(await heldTakes(page)).toEqual([held]);
+  await page.getByRole("button", { name: "Try again" }).click();
+  await expect(page.getByTestId("take-held")).toHaveText("Take recorded — not transcribed yet");
+  const answers = await answersOf(roundId);
+  expect(answers).toHaveLength(2);
+  expect(answers.find((answer) => answer.id !== first)).toMatchObject({ position: 1, retryOfAnswerId: first });
+  expect(await heldTakes(page)).toEqual([]);
+});
+
 test("a retry of a held take whose answer was transcribed meanwhile shows that transcript", async ({ page }) => {
   await signIn(page);
   const roundId = await startRound(page);

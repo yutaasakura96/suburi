@@ -12,7 +12,7 @@ import type { AnsweredView, NextView, RoundFrame } from "../load";
 import { CalloutRail, ErrorLine, RoundFooter, RoundHeader, caption, roundSectionLabel, type Failure } from "../parts";
 import { AnsweredFrame, type FrameNext } from "./answered-frame";
 import { closingWait, useScoringProgress } from "./closing-progress";
-import { heldTake, holdTake, releaseRoundTakes, releaseTake, type UploadRejection } from "./held-take";
+import { heldAnswerAgain, heldTake, holdTake, releaseRoundTakes, releaseTake, type HeldAnswerAgain, type UploadRejection } from "./held-take";
 import { WAVEFORM_BARS, useRecorder, type Take } from "./recorder";
 import { useSpokenQuestion } from "./spoken-question";
 import { StuckTakeFrame } from "./stuck-take";
@@ -196,6 +196,7 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
   }
 
   const slotOf = (question: Question) => ({ roundId: round.id, position: question.position, followUp: question.followUpVersion !== null });
+  const promptOf = (question: Question) => ({ text: question.text, followUpVersion: question.followUpVersion, again: question.again });
 
   /**
    * Open the slot after the take exists (07 §5.6), PUT it to S3, transcribe it. **The take is held in
@@ -209,7 +210,7 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
     setScreen({ kind: "uploading", question, step: "upload" });
     setError(null);
     setBusy(true);
-    const held = onDevice ?? (await holdTake(slotOf(question), take));
+    const held = onDevice ?? (await holdTake(slotOf(question), take, promptOf(question)));
     const hold = (cause: FailureCode | null) => {
       setBusy(false);
       setScreen({ kind: "held", question, take, onDevice: held, cause });
@@ -222,7 +223,7 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
     if (!opened.ok) {
       if (opened.code === "transcript_already_final" && opened.answerId) return transcribe(question, opened.answerId);
       const rejection = rejectionOf(opened.code);
-      if (held && rejection) await holdTake(slotOf(question), take, rejection);
+      if (held && rejection) await holdTake(slotOf(question), take, promptOf(question), rejection);
       return hold(opened.code);
     }
     try {
@@ -324,11 +325,24 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
   // `transcribe` (07 §5.5), with the take still held behind it; otherwise a take held on this device
   // goes back on screen. Practice lets go of a take once it is in S3, so one it still holds beside a
   // confirmed upload is a newer take that never arrived: that one is sent, not the older object.
+  //
+  // An answer-again take whose slot never opened has no row to resume from, so it is found by the
+  // round instead: the newest held take wins, as it does beside a confirmed upload.
+  const offerAnswerAgain = (held: HeldAnswerAgain) => {
+    const question = { position: held.position, text: held.text, followUpVersion: held.followUpVersion, again: held.again };
+    setScreen({ kind: "held", question, take: held, onDevice: true, cause: held.rejection ?? null });
+  };
   const resumeTake = useEffectEvent(async () => {
     const { start } = frame;
+    const again = practice && ((start.kind === "question" && !start.transcript) || start.kind === "answered") ? await heldAnswerAgain(round.id) : null;
+    if (start.kind === "answered") {
+      if (again) offerAnswerAgain(again);
+      return;
+    }
     if (start.kind !== "question" || start.transcript) return;
     const question = { position: start.position, text: start.text, followUpVersion: start.followUpVersion, again: start.again };
     const take = await heldTake(slotOf(question));
+    if (again && again.heldAt > (take?.heldAt ?? 0)) return offerAnswerAgain(again);
     if (start.typedSlot) {
       if (take) setScreen((shown) => (shown.kind === "typed" ? { ...shown, takeHeld: true } : shown));
       return;
