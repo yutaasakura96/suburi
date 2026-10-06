@@ -443,8 +443,7 @@ tokens in the week's spend. Tests: `11` §3.21, three rows in §3.1, and two Pla
 `after()`; about $0.22 and $0.35 a three-question round. **Not done here:** every reading is synthetic — no model
 answer has been written from the real CV, and none of its output has been read by a native speaker.
 Figures are checked independently against the CV text and the candidate's own answer (`06`, 2026-10-05).
-**The user's steps:** `npm run
-db:migrate` against Neon `develop` before the merge is verified there (`12` §4); open the 2026-10-03
+**The user's steps:** open the 2026-10-03
 round's feedback on `develop` and press `Write the model answers`, or run a new round, and read what
 comes back against `11` §5's checklist item; and the read of the Japanese prompt's output
 (`docs/checklists/native-read-round.md` §12). The owner accepted all ten Japanese strings and raised
@@ -464,8 +463,7 @@ start; the owner accepted the wait as shipped on 2026-10-03, with `reasoning.eff
 as the lever and a progress indicator for the wait folded into #73** (`06`). Both languages generate:
 #43 opened `ja` on `POST /api/rounds`, and Setup's warning reads the chosen language's bank. **The
 user's steps:** the native read of one string and of what the four Japanese generator prompts write
-(`docs/checklists/native-read-round.md` §9), and `npm run db:migrate` against Neon `develop` before
-the merge is verified there (`12` §4).
+(`docs/checklists/native-read-round.md` §9).
 
 **#50 is built (2026-10-04), on `fm/suburi-50`.** Built: `GET /api/rounds` with the derived status,
 keyset-paged; `GET /api/answers/{id}/audio`, which checks the object before it signs; `POST
@@ -479,8 +477,8 @@ either Neon branch**. Tests: `11` §3.20 and History's Playwright rows in §4. *
 `next dev` against a seeded local database: the rail, the matrix in both languages, a row's
 transcripts and missing recording, and one retry scored by the real pinned model with the round
 feedback unchanged. The owner read and accepted #50's catalogue string on 2026-10-05
-(`docs/checklists/native-read-round.md` §11). **The user's remaining steps:** `npm run db:migrate`
-and `npm run db:seed:develop` against Neon `develop` before the merge is verified there (`12` §4);
+(`docs/checklists/native-read-round.md` §11). **The user's remaining steps:** `npm run db:seed:develop`
+against Neon `develop` before the merge is verified there (`12` §3 step 8);
 `11` §5's real-recording playback from History, which no fixture covers. Decisions in `06`, "Phase 6 — #50".
 
 **#49 is built (2026-10-04), on `fm/suburi-49`.** Practice's screens were specified first, in `10`
@@ -630,8 +628,9 @@ OpenAI `gpt-5.6-sol` pinned for all three model jobs.
   annoyance.
 - **`422` is the "an invariant refused this" code**, and its `code` names which. `403` is used nowhere;
   another user's row is `404`.
-- **Migrations are manual, expand-only, and run before the deploying push.** That is exactly what makes
-  Vercel's instant rollback a complete rollback story.
+- **Migrations are expand-only, and on `main` manual, run before the deploying push.** That is exactly
+  what makes Vercel's instant rollback a complete rollback story. **`develop`'s deploy applies its own**
+  since 2026-10-06 (`12` §4, `06`): Neon `develop` had drifted five migrations behind the test site.
 
 **The branch model, decided after 4b was written:** `main` → Vercel production → Neon `main`; `develop`
 → a stable Vercel URL → Neon `develop`, seeded synthetic. Feature branches come off `develop` and share
@@ -692,7 +691,7 @@ the only irreplaceable thing here.
   its key is gone from this file.
 - **No hooks, by decision.** Nothing blocks an edit or a push on `main`, so `12` §4's "nothing is
   committed straight to `main`" is a convention, not a mechanism. What still guards the
-  measurement record: manual expand-only migrations, and `drizzle-kit migrate`/`push`/`drop`, `psql`,
+  measurement record: manual expand-only migrations on `main`, and `drizzle-kit migrate`/`push`/`drop`, `psql`,
   `pg_dump`, all `aws` and every writing Neon MCP tool sitting in `permissions.ask`.
 
 ## Skipped

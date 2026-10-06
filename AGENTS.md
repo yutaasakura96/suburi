@@ -95,7 +95,7 @@ the thing being measured.
 
 - **Audio goes browser → S3 directly via presigned PUT.** A Vercel Function caps bodies at 4.5 MB and
   a four-minute take exceeds it. The client never chooses the object key.
-- **Migrations are manual and expand-only.** No down-migrations against production, never
+- **Migrations are expand-only, and manual on `main`; `develop`'s deploy applies its own** (`12` §4). No down-migrations against production, never
   `drizzle-kit push` against production, never a migration that rewrites `cv_versions.body` (every
   span indexes into it), never `delete` or `truncate` on `answers`, `scoring_attempts`, `scores`,
   `questions`, `cv_versions` or `cv_claims`. This is what makes Vercel's instant rollback a complete
