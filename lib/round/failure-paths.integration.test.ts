@@ -1177,7 +1177,7 @@ describe("no text in an envelope or a log line, on any round route (11 §3.10)",
       refused(await call(handlers.submit, abandonedAnswer, { transcript_corrected: CORRECTED }));
       refused(await call(handlers.complete, abandonedId, { felt_pressure: 3 }));
 
-      // GET …/speech: a query that names text, a follow-up it does not read, and a voice that fails.
+      // GET …/speech: a query that names text, a follow-up that is not stored, and a voice that fails.
       refused(await world.speak(roundId, `?position=1&kind=question&text=${RAW_SENTINEL}`));
       refused(await world.speak(roundId, "?position=1&kind=follow_up"));
       const silent = fakeSpeechSynthesizer(() => {

@@ -382,9 +382,8 @@ test("a realistic English round: Setup → each question and its follow-up → p
     // The one follow-up, generated from what was just sent, at the same position (07 §5.9).
     await expect(page.getByTestId("round-step")).toHaveText(`Question ${position} / 3 · follow-up`);
     await expect(page.getByTestId("round-question")).toHaveText(FOLLOW_UP);
-    // A follow-up is asked as text: the route does not speak `follow_ups` yet, and its question's
-    // audio, which shares the position, must not play over it.
-    await expect(page.getByTestId("speaker-line")).toBeEmpty();
+    // …and spoken too, as its own prompt: it shares its question's position, not its audio.
+    await expect(page.getByTestId("speaker-line")).toHaveText("Read aloud. The text stays on screen.");
     if (position === 2) {
       // A reload asks the stored follow-up again; nothing generates it a second time (07 §5.5).
       const generated = followUpCalls().length;
@@ -497,12 +496,21 @@ test("a realistic English round: Setup → each question and its follow-up → p
     expect(s3.objects.get(key)!.bytes).toBeGreaterThan(0);
     expect(s3.objects.get(key)!.contentType).toMatch(/^audio\/webm/);
   }
-  // Each prompt was spoken once, by the pinned model and voice, from the text the server holds for
-  // that position — the browser named a position and sent no text (07 §5.15).
+  // Each prompt was spoken as it was asked — the question, then its follow-up, and position 2's
+  // follow-up again on the reload — by the pinned model and voice, from the text the server holds for
+  // that position and kind: the browser named them and sent no text (07 §5.15).
   const speech = openAi.requests.slice(requestsBefore).filter((request) => request.path === "/v1/audio/speech");
-  expect(speech.map((request) => request.body.input)).toEqual(questions);
+  expect(speech.map((request) => request.body.input)).toEqual(
+    questions.flatMap((question, index) => [question, ...Array.from({ length: index === 1 ? 2 : 1 }, () => FOLLOW_UP)]),
+  );
   for (const request of speech) expect(request.body).toMatchObject({ model: TTS_MODEL, voice: TTS_VOICE, response_format: "mp3" });
-  expect(speechRequests).toEqual([1, 2, 3].map((position) => `/api/rounds/${roundId}/speech?position=${position}&kind=question`));
+  const speechOf = (position: number, kind: string) => `/api/rounds/${roundId}/speech?position=${position}&kind=${kind}`;
+  expect(speechRequests).toEqual(
+    [1, 2, 3].flatMap((position) => [
+      speechOf(position, "question"),
+      ...Array.from({ length: position === 2 ? 2 : 1 }, () => speechOf(position, "follow_up")),
+    ]),
+  );
 
   // The scorer read the corrected text, never the raw one (03 §4).
   const scoring = openAi.requests.slice(requestsBefore).filter((request) => formatOf(request.body) === "answer_scores");

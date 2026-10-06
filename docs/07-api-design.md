@@ -1279,7 +1279,7 @@ upload — is handled by the control, which says the recording could not be play
 
 ### 5.15 `GET /api/rounds/{roundId}/speech` ⚡
 
-Realistic mode's spoken question (`06`, 2026-09-27). Streams audio synthesised by the pinned TTS model
+Realistic mode's spoken question, and its spoken follow-up (`06`, 2026-09-27, 2026-10-07). Streams audio synthesised by the pinned TTS model
 for **one prompt of this round**, named by position and kind — never by text.
 
 ```
@@ -1291,12 +1291,12 @@ Content-Type: audio/mpeg
 <streamed audio>
 ```
 
-**The server reads question text** from `round_questions` at that position; the client sends none, so
-the route cannot be used to synthesise anything else on the user's key (§1 rule 6). A `practice` round
-or a position with no prompt is `404`. **Every `follow_up` request is still `404`:** #44's
-`follow_ups` exists, and the route does not read it yet (`06`, 2026-10-04), so screen 3 asks for no
-audio while a follow-up is on screen. When it does, it reads the text from the parent's `follow_ups`
-row, with a `missing` one still `404`. Question audio is well under the 4.5 MB body cap, so it crosses the function; it is **not
+**The server reads the text**: a `question`'s from `round_questions` at that position, a `follow_up`'s
+from the `follow_ups` row of that position's answer (`06`, 2026-10-07). The client sends none, so
+the route cannot be used to synthesise anything else on the user's key (§1 rule 6). A follow-up shares
+its question's position, so `kind` is what tells the two apart. A `practice` round or a position with
+no prompt is `404`, and so is a follow-up that is `missing` or not stored yet: there is nothing to
+say. Question audio is well under the 4.5 MB body cap, so it crosses the function; it is **not
 retained** (`03` §4), and the response is `Cache-Control: no-store` so the browser keeps none either.
 
 **The query is validated like a body** (§1 rule 3). `position` is 1–7 and `kind` is `question` or

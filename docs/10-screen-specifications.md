@@ -330,8 +330,10 @@ absent only from the transcript state, which substitutes:
   one, and nothing generates it again. It shares its question's position, so the header's step keeps
   the number and names it: `Question 2 / 3 · follow-up`, `第2問 / 3問・深掘り` in a Japanese round
   (`06`, 2026-10-03). The footer's stamp carries the follow-up prompt's version in place of the
-  question's. **A follow-up is not spoken yet**, in realistic mode either: it has no speaker line,
-  and its question's audio is not played over it (`06`, 2026-10-04).
+  question's. **A follow-up is spoken in realistic mode, as its question is** (`06`, 2026-10-07): the
+  same speaker line, the same control when the browser will not play sound unasked, and the same
+  `speech_failed` notice. The audio is the follow-up's own, asked of the speech route as
+  `kind=follow_up`; its question's is never played over it.
 - The question at **19px/1.9** in `--ink-2`, `max-width: 880px`. This is the largest reading text in
   the app and the only thing the screen is asking the user to do.
 - A `--rule-row` divider.

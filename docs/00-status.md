@@ -41,8 +41,9 @@ answer in both modes and both languages, written by `submit` or recorded as miss
 **#45, the spoken question, the cap and one take, is built (2026-10-03), on `fm/suburi-45`:** the
 speech route, screen 3's speaker line in both languages, and practice's guard, stored and never
 drawn. Its one step of the user's, `11` §5's ear check (`npm run ear-check`), was done on 2026-10-03:
-all ten samples, four English and six Japanese, sounded correct. **The issue stays open for speaking
-follow-ups:** the route does not read #44's `follow_ups` yet, so a follow-up is asked as text. The
+all ten samples, four English and six Japanese, sounded correct. **Follow-ups are spoken too
+(2026-10-07, on `fm/suburi-45-followup-speech`):** the route reads #44's `follow_ups`, and screen 3
+asks it for the follow-up on screen. The
 pinned model and its replacement deadline are in `03` §4.
 **#50, History, is built (2026-10-04), on `fm/suburi-50`** (Next).
 **#48, failure paths, is built (2026-10-04), on `fm/suburi-48`** (Next).

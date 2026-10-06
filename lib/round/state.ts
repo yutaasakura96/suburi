@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";
 import * as s from "../../db/schema";
 import { apiError } from "../api/errors";
 import { roundAbandoned } from "./http";
@@ -56,6 +56,26 @@ export async function roundFollowUps(db: Reader, roundId: string): Promise<Follo
     .innerJoin(s.answers, eq(s.answers.id, s.followUps.parentAnswerId))
     .where(eq(s.answers.roundId, roundId));
   return rows.map((row) => row.followUp);
+}
+
+/**
+ * The follow-up at `position`, generated or missing: the `follow_ups` row of the original answer to
+ * that position's bank question, which it shares the position with. Null when none is stored.
+ */
+export async function followUpAt(db: Reader, roundId: string, position: number): Promise<FollowUpRow | null> {
+  const [row] = await db
+    .select({ followUp: s.followUps })
+    .from(s.followUps)
+    .innerJoin(s.answers, eq(s.answers.id, s.followUps.parentAnswerId))
+    .where(
+      and(
+        eq(s.answers.roundId, roundId),
+        eq(s.answers.position, position),
+        isNotNull(s.answers.questionId),
+        isNull(s.answers.retryOfAnswerId),
+      ),
+    );
+  return row?.followUp ?? null;
 }
 
 /**

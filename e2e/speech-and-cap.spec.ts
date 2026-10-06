@@ -306,9 +306,34 @@ test("a failed speech request shows the notice, and the round goes on as text", 
   await expect(page.getByTestId("raw-transcript")).toHaveText(RAW);
   await page.getByRole("button", { name: "Correct the transcript" }).click();
   await page.getByRole("button", { name: "Send this answer" }).click();
-  // Its follow-up is asked as text: nothing is requested of the route for it, so nothing has failed.
+  // Its follow-up is asked of the route as its own prompt, and fails the same way: the notice, the
+  // follow-up as text, and a take that is recorded as usual.
   await expect(page.getByTestId("round-step")).toHaveText("Question 1 / 3 · follow-up");
   await expect(page.getByTestId("round-question")).toHaveText(FOLLOW_UP);
-  await expect(line).toBeEmpty();
-  expect(speech).toEqual([`/api/rounds/${round.id}/speech?position=1&kind=question`]);
+  await expect(line).toHaveText("The question could not be read aloud. It stays as text; answer it as usual.");
+  expect(speech).toEqual(["question", "follow_up"].map((kind) => `/api/rounds/${round.id}/speech?position=1&kind=${kind}`));
+  await page.getByRole("button", { name: "Start recording" }).click();
+  await expect(page.getByTestId("record-timer")).toHaveText("0:01", { timeout: 5_000 });
+});
+
+test("a follow-up is spoken from its own text, at its question's position", async ({ page }) => {
+  await signIn(page);
+  const speech = speechRequestsOf(page);
+  const round = await startRound(page, "realistic");
+  await page.goto(`/round/${round.id}`);
+  await page.getByRole("button", { name: "Start recording" }).click();
+  await expect(page.getByTestId("record-timer")).toHaveText("0:01", { timeout: 5_000 });
+  await page.getByRole("button", { name: "Stop and transcribe" }).click();
+  await page.getByRole("button", { name: "Correct the transcript" }).click();
+  await page.getByRole("button", { name: "Send this answer" }).click();
+
+  await expect(page.getByTestId("round-step")).toHaveText("Question 1 / 3 · follow-up");
+  await expect(page.getByTestId("round-question")).toHaveText(FOLLOW_UP);
+  await expect(page.getByTestId("speaker-line")).toHaveText(SPOKEN);
+  expect(speech).toEqual(["question", "follow_up"].map((kind) => `/api/rounds/${round.id}/speech?position=1&kind=${kind}`));
+  // The server read the follow-up's text from its row: the request named a position and a kind.
+  // Polled: the browser's request is seen before the server's call upstream has landed.
+  await expect
+    .poll(() => openAi.requests.filter((request) => request.path === "/v1/audio/speech").at(-1)!.body.input)
+    .toBe(FOLLOW_UP);
 });
