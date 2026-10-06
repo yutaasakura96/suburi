@@ -122,10 +122,10 @@ describe("openRetry", () => {
 
 describe("answerState (07 §5.5)", () => {
   it.each([
-    [{ audioS3Key: null, transcriptRaw: null, transcriptCorrected: null }, "open"],
-    [{ audioS3Key: "k", transcriptRaw: null, transcriptCorrected: null }, "uploaded"],
-    [{ audioS3Key: "k", transcriptRaw: "raw", transcriptCorrected: null }, "transcribed"],
-    [{ audioS3Key: "k", transcriptRaw: "raw", transcriptCorrected: "said" }, "submitted"],
+    [{ audioUploadedAt: null, transcriptRaw: null, transcriptCorrected: null }, "open"],
+    [{ audioUploadedAt: new Date(0), transcriptRaw: null, transcriptCorrected: null }, "uploaded"],
+    [{ audioUploadedAt: new Date(0), transcriptRaw: "raw", transcriptCorrected: null }, "transcribed"],
+    [{ audioUploadedAt: new Date(0), transcriptRaw: "raw", transcriptCorrected: "said" }, "submitted"],
   ] as const)("derives %o as %s", (columns, state) => {
     expect(answerState(columns)).toBe(state);
   });

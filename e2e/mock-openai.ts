@@ -93,7 +93,8 @@ export function mockEmbedding(text: string) {
 /**
  * Answers every POST /v1/responses with `payload` as the model's structured output — or, given a
  * function, with what it returns for that request's body, so a spec can answer each extraction
- * window (#29) with that window's claims, or each round-loop call by its format. `GET /v1/models/{id}`
+ * window (#29) with that window's claims, or each round-loop call by its format — or with a promise
+ * of it, so a spec can hold a call open until it has looked at the screen. `GET /v1/models/{id}`
  * — the round's preflight — answers unless `preflight` says otherwise, and `POST /v1/embeddings` always
  * does, with a vector per input that is unlike every other. A multipart body (a transcription) is
  * recorded as `{}`.
@@ -149,7 +150,7 @@ export async function startMockOpenAi(
         response.writeHead(404).end();
         return;
       }
-      const result = typeof payload === "function" ? payload(body) : payload;
+      const result = await (typeof payload === "function" ? payload(body) : payload);
       if (failed(result)) refuse(result);
       else send(200, responsesApiBody(result));
     });

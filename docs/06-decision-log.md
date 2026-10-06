@@ -9,6 +9,32 @@ What a round does when a recording, an upload, a transcription, a score or a dat
 how it resumes. The behaviour was settled on 2026-09-12, 2026-09-27 and 2026-09-28 (below); these are
 the choices the build needed.
 
+### [2026-10-06] Merged after #49: one round read, and practice's kept take beside the held one
+
+#49 merged first and built `GET /api/rounds/{roundId}` too, as `lib/round/read-round.ts`. There is one
+route and one module, #49's file, carrying both: #49's scores, `retry_of_answer_id`, open answer-again
+and `no-store`; #48's guard, its refusal of query parameters, `progress`, and **#48's `state` and
+`resume`** — `open` until `audio_uploaded_at` is set, and `resume.at` one of `answers`, `upload`,
+`transcribe`, `transcript`, `submit`, `complete`, with `answer_id` only where a row is waited on. That
+supersedes #49's "an open slot already reads `uploaded`" and its `answer_id: null`: a reserved key does
+not confirm an upload (2026-10-04, above). An open answer-again resumes by the same rule as any slot.
+
+- **A practice take is held in IndexedDB until its PUT lands**, then let go: from there #49's frame
+  keeps it or records again, and a reload shows the question again as #49 decided (2026-10-04, below).
+  A practice upload that fails is held and retried like a realistic one.
+- **`{ "source": "typed" }` takes `retry_of_answer_id`**, so an answer given again whose take the route
+  refuses is typed like any other; a typed retry slot refuses a take as a typed slot does.
+- **A failed transcription in practice opens the retry-or-type frame**, as in realistic. #49 returned
+  to the kept take with a retry; the take is final once the server has read it, and typing is the way out.
+- **A repeated `complete` counts the same answers the first did** — #49's feedback answers.
+- **One sentence for "Transcribing the take."**: #49's `文字起こしをしています。`. #48's
+  `録音の文字起こしをしています。` had the same English and the same key; no string was added or reworded.
+- The checklist's #48 section moved to `native-read-round.md` §14, behind #49's §13. No migration
+  moved: #49 added none.
+
+Rejected: keeping both read modules behind one route, and keeping #49's `uploaded`-on-open beside
+`audio_uploaded_at` — two answers to "did the take land".
+
 ### [2026-10-06] Review correction: only the project's spend limit is mapped
 
 This corrects the 2026-10-04 entry "A spent project is classed by its code, and the organization's
@@ -157,6 +183,151 @@ Screen copy had one sentence, for a newer round. A round left by the day ending 
 sentence**: telling the user a newer round started when none did is a wrong statement on a
 read-only screen. When both are true the newer round is named — it is the one that happened first
 from the user's side.
+
+---
+
+## Phase 6 — #49, practice mode
+
+The round with the pressure taken out: a re-take, each answer's scores as they land, a second go at
+the same question, and feedback with no rating asked first. The shape is 2026-09-27's (below); the
+server already completed a practice round and preferred seen questions. These are the choices the
+screens and the two remaining calls needed. The owner confirmed the feedback rule on 2026-10-05.
+
+### [2026-10-04, owner-confirmed 2026-10-05] Round feedback uses scored retries when no original answer scored
+
+**Owner-confirmed.** `complete` waits for,
+counts and sends to the feedback call the answers the round asked for: each question's first answer
+and its follow-up's. An answer given again is scored on its own, shown on its own per-answer frame
+and on its own page of screen 8, and is left out of the findings and of `Checked against your CV`
+when an original answer scored. When none scored, `complete` uses scored retries instead, including
+their CV check, under `feedback-en-1.3` and `feedback-ja-1.2`.
+**Why:** `feedback-en-1.2` and `feedback-ja-1.1` read one answer per prompt, labelled by position; a
+second answer to the same question is something neither prompt has a word for, and findings written
+over both would say which was better — the comparison `10` §15 refuses. It also keeps `complete`'s
+60 s wait off a retry sent a moment before the round ended when an original scored. **Rejected:** sending retries as extra `answer N` blocks (the model would read two
+answers to one question as two questions); replacing the first answer with the latest retry in the
+input (findings about an answer the Progress chart will never plot, and the first answer's flags
+disappear from the round). The fallback labels retries explicitly and uses new prompt versions.
+
+### [2026-10-06] Known limitation: a later re-score moves the CV regions off the retries the findings describe
+
+Screen 8 decides which answers its round-level regions read from the scores as they are now, not
+from what the stored `round_feedback` row was written from. So when a practice round's feedback was
+written from retries, because no original scored, and a failed original is later re-scored from
+History and lands `ok`, the round-level CV regions follow the originals while the stored findings
+beside them still describe the answers given again. Nothing is lost or mis-stored. **Why it stays:**
+it needs every original to fail, a retry to score, and a History re-score afterward; the owner chose
+to record it rather than change code for it. **The known fix:** pin the regions to the set the
+stored row used, by its `prompt_version` (`feedback-en-1.3` and `feedback-ja-1.2` are the retry
+versions). Tracked with the region's scope in
+[#85](https://github.com/yutaasakura96/suburi/issues/85).
+
+### [2026-10-04] Practice's screens are `10` §15: a per-answer frame after every commit
+
+Specified from `05` components before any was built, as §13 was; there is no artboard. **The scores
+get a frame of their own** — the answer's rows, its flags, what the round asks next ready beside
+them, and `Answer again` — rather than a strip on the next question's record frame. **Why:** the
+score lands about seven seconds after the commit (`03` §4), which on the next record frame is while
+the user is reading or already answering the next question; and "answer again" needs somewhere to
+stand that is about the answer just given. The frame states `Not scored yet` in words and nothing on
+it waits, so going on is never held behind a score (invariant 2's spirit, in a mode it does not bind).
+It also absorbs §6's "after the commit" frame: a missing or not-yet-stored follow-up is said there.
+Setup now offers the mode, and shows no time estimate for practice — its cap is the runaway guard,
+not a pace. **Rejected:** scores inline on the next record frame (above); a dialog over the round (a
+second layer for something that is the round's main content in this mode).
+
+### [2026-10-04] A practice take is uploaded when it stops, and transcribed when the user says so
+
+Realistic's `Stop and transcribe` is one control because the take is final. In practice stopping
+opens the slot and uploads the take, and the frame holds it: `Transcribe this take`, or `Record
+again`. **Why:** `07` §5.6 makes the re-take a property of the server — the same row and the same
+object key until `transcript_raw` is set — and a take held only in the tab would make that rule
+something no request ever exercised. Transcribing is the commit, and the frame says so before it is
+pressed. **A reload on a held take asks for the question again**: the upload is in the bucket, but the
+page cannot play it back, and offering to transcribe a take the user cannot check is worse than a
+re-take. **Rejected:** transcribing at stop as realistic does (nothing left to re-take: §5.7's
+transcript is final); playback of the held take (a new surface the issue does not ask for).
+
+### [2026-10-04] Answer again: a retry of the original, one open at a time, refused with the codes that exist
+
+`retry_of_answer_id` on the slot call (`07` §5.6). **A retry always points at the original** — a
+retry of a retry is one more retry of the same answer — so "the answers to this prompt" is one
+`where`, not a chain to walk. **One retry is open per original**: a repeat is its re-take. **The
+round's step is neither read nor moved**, so `submit` on a retry returns the `next` the round already
+had and generates no follow-up (2026-10-03, #44). **Refusals use `invalid_request` and `not_found`**:
+a realistic round, an unsubmitted answer and a foreign id are requests the client never makes, the
+catalogue is closed (`07` §3), and a new code would be a Japanese and an English sentence written for
+a reader who does not exist.
+
+### [2026-10-04] A practice round reloads onto the answer sent last; this is what ends the rating it never owed
+
+#44's review found a practice round's last `submit` returning `next.kind = feedback` and the page
+then showing screen 7, whose rating the API refuses. The page had one "the round is past its last
+answer" frame, and it was the rating. **Now a practice round opens, in order, on an open
+answer-again, on the open answer to the current prompt, and otherwise on the per-answer frame of the
+answer sent last** (`10` §15), whose `Next` is read from where the round stands — so the frame after
+the last answer is the one that leads to the feedback, and `complete` is sent with no rating. A
+realistic round is unchanged. **Rejected:** skipping straight to `complete` when the page loads on a
+finished practice round (a reload would close the round without being asked, and the last answer's
+scores would never be shown).
+
+### [2026-10-04] The per-answer frame polls the round's read; nothing is cached
+
+`GET /api/rounds/{id}` is built as `07` §5.5 specified it, and the frame asks it every 2 s while the
+attempt on screen is pending, every 10 s after a minute, and stops after six (`03` §7). **Why a
+poll:** the wait is seven seconds at the median, there is one user and one frame, and the read is
+three small queries. **`state` follows the columns as §5.5 defines them, so an open slot reads
+`uploaded`** — the key is written when the slot opens — and `open` is a state no row is in; §5.5 now
+says so rather than the code inventing a fifth column to tell them apart. **Rejected:** a streamed
+response or server-sent events (a function held open per frame for a seven-second wait);
+`router.refresh()` on a timer (it re-renders the frame from the server and drops the error line and
+the go-on state it holds); a client cache library (`03` §7 names them as not added).
+
+### [2026-10-04, owner-accepted 2026-10-05] The new Japanese strings passed the native read
+
+Every Japanese string practice adds is in `docs/checklists/native-read-round.md` §13, written to
+`05` §6's rules. The owner read and accepted all 28 strings on 2026-10-05.
+The owner also accepted the numbered follow-up retry label on 2026-10-05, and on 2026-10-06 the
+numbered bank-retry heading added afterward and the two names `feedback-ja-1.2` gives an answer
+given again (`第2問の再回答`, `第2問の深掘りの再回答`).
+
+---
+
+## Deploying — `develop` migrates itself
+
+### [2026-10-06] A `develop` deploy applies its pending migrations in Vercel's build; `main` stays by hand
+
+Merging into `develop` deployed the code and nothing migrated Neon `develop`: `12` §4 made that a
+hand-run step, and on 2026-10-06 the database was found five migrations behind (`0008`–`0012`), with
+merged features erroring on the test site. **Decided:** `vercel.json`'s `buildCommand` runs
+`npm run db:migrate:deploy` before `npm run build`. The script migrates only when `VERCEL_ENV` is
+`preview` and `VERCEL_GIT_COMMIT_REF` is `develop`, with drizzle's own migrator and journal, and a
+failure fails the build, so the previous deployment keeps serving. `12` §4 has the detail. **`main` is
+unchanged:** its build runs the script, which reads no database variable there and exits `0`, and Neon
+`main` is still migrated by hand before the merge — the 2026-09-12 reason, unattended DDL on the
+measurement record, is about `main`'s rows and does not reach a synthetic seed.
+**Why the build step:** the migration and the code are then one deploy. A migration that fails stops
+the code that needs it, in the place a failed deploy is already looked for, and it needs no new secret —
+`DATABASE_URL_UNPOOLED` is already in `develop`'s Preview scope. **Rejected:** a GitHub Actions job on
+push to `develop` (it races Vercel's build, a failed migration would not stop the deploy, and it puts a
+second copy of the connection string in GitHub); spawning `drizzle-kit migrate` from the build
+(`drizzle.config.ts` validates the whole environment, and the step should need the one variable it
+reads); a Neon branch per deploy (`12` §10); migrating at boot in `instrumentation.ts` (every cold
+start would hold the direct connection, and a failure would be a running deployment that errors, not a
+deploy that never happened).
+**Two guards the build needed.** The URL's role must be `suburi_develop`, which Neon `main` refuses
+(`12` §3 step 8): a Preview variable pointed at `main` by mistake would otherwise be exactly the
+unattended migration this entry leaves out. And a Postgres advisory lock serialises two builds at once
+— drizzle reads its journal before it opens its transaction, so both would run the same migration and
+the second would fail on the first's tables.
+**And a third, for the migration drizzle skips.** Its migrator applies only the entries whose journal
+`when` is later than the newest applied one. A migration generated on a branch that merges second,
+renumbered at the merge, keeps its earlier timestamp, and the build would pass with it unapplied — the
+drift this entry exists to end. So after migrating, the step compares the rows in
+`drizzle.__drizzle_migrations` with the entries in the folder's `meta/_journal.json` and fails the
+build when the database has fewer, naming the cause and the fix: regenerate the migration so its
+timestamp is the newest. A plain `<`, so redeploying an older commit, where the database has more,
+still passes.
 
 ---
 ## Phase 6 — #74, a model answer for each question

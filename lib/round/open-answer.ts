@@ -4,8 +4,19 @@ import { z } from "zod";
 import * as s from "../../db/schema";
 import { apiError } from "../api/errors";
 import { answerAudioKey, type AudioStore } from "../audio/store";
-import { authenticate, guarded, isUuid, log, notFound, parseBody, roundAbandoned, roundIdOf, writeFailed, type RoundDeps } from "./http";
-import { answeredBefore, isAbandoned, lockRoundUser, promptAt, readRoundStep, type AnswerRow } from "./state";
+import { authenticate, guarded, isUuid, log, notFound, parseBody, roundAbandoned, roundIdOf, writeFailed, type Db, type RoundDeps } from "./http";
+import {
+  answeredBefore,
+  isAbandoned,
+  lockRoundUser,
+  openRetry,
+  promptAt,
+  roundAnswers,
+  roundFollowUps,
+  roundStep,
+  type AnswerRow,
+  type RoundRow,
+} from "./state";
 
 /**
  * `POST /api/rounds/{roundId}/answers` (07 §5.6): opens the answer slot and presigns the upload.
@@ -39,6 +50,7 @@ const requestSchema = z
     source: z.literal("typed").optional(),
     content_type: z.string().min(1).max(100).optional(),
     expected_bytes: z.int().positive().optional(),
+    retry_of_answer_id: z.uuid().optional(),
   })
   .superRefine((body, context) => {
     for (const field of ["content_type", "expected_bytes"] as const) {
@@ -49,9 +61,13 @@ const requestSchema = z
 type Opened = { answer: AnswerRow; created: boolean } | Response;
 
 /** An open slot is returned as it is while its take can still be replaced; a transcribed take is final. */
-function reopened(answer: AnswerRow): Opened {
+function reopened(answer: AnswerRow, take: boolean): Opened {
   if (answer.transcriptRaw !== null) {
     return apiError("transcript_already_final", "This answer is already transcribed; its take is final.", { answer_id: answer.id });
+  }
+  // A slot opened as typed has no key and takes none: its answer is typed (07 §5.8).
+  if (take && answer.audioS3Key === null) {
+    return apiError("unsupported_content_type", "This slot was opened for a typed answer; it takes no upload.", { answer_id: answer.id });
   }
   return { answer, created: false };
 }
@@ -63,6 +79,49 @@ export interface OpenAnswerDeps extends RoundDeps {
 }
 
 export function createOpenAnswer(deps: OpenAnswerDeps) {
+  /**
+   * "Answer again" (07 §5.6). The new row copies what the first was asked — the question or the
+   * follow-up it answered, the prompt as asked, the position — and **points at the original**: giving
+   * a retry again is one more retry of the same answer, never a retry of a retry (04 `answers`).
+   * Nothing about the first answer changes, and the round's step is not consulted: the round stays
+   * wherever it was.
+   */
+  async function answerAgain(tx: Db, round: RoundRow, answers: readonly AnswerRow[], answerId: string, take: boolean): Promise<Opened> {
+    // Realistic is one take (PRD US-5): the field is refused there, whatever it names.
+    if (round.mode !== "practice") {
+      return apiError("invalid_request", "Only an answer in a practice round can be answered again.", { fields: ["retry_of_answer_id"] });
+    }
+    const target = answers.find((answer) => answer.id === answerId);
+    if (!target) return notFound("answer", { round_id: round.id });
+    if (target.transcriptCorrected === null) {
+      return apiError("invalid_request", "Only a submitted answer can be answered again.", { fields: ["retry_of_answer_id"] });
+    }
+    const original = answers.find((answer) => answer.id === (target.retryOfAnswerId ?? target.id))!;
+    // One open retry per answer: a repeat, an expired URL or a re-take all land on it.
+    const open = openRetry(answers, original.id);
+    if (open) return reopened(open, take);
+
+    const id = randomUUID();
+    const [answer] = await tx
+      .insert(s.answers)
+      .values({
+        id,
+        roundId: round.id,
+        userId: round.userId,
+        position: original.position,
+        language: round.language,
+        audioS3Key: take ? answerAudioKey(deps.prefix, round.userId, round.id, id) : null,
+        questionId: original.questionId,
+        parentAnswerId: original.parentAnswerId,
+        promptText: original.promptText,
+        retryOfAnswerId: original.id,
+        // `is_first_attempt` stays on the original, always (PRD §9, refusal #3).
+        isFirstAttempt: false,
+      })
+      .returning();
+    return { answer, created: true };
+  }
+
   return guarded("answer_open_failed", async function POST(request: Request, roundId: string): Promise<Response> {
     const session = await authenticate(deps, request);
     if (session instanceof Response) return session;
@@ -101,7 +160,7 @@ export function createOpenAnswer(deps: OpenAnswerDeps) {
         if (await isAbandoned(tx, round)) return roundAbandoned(roundId);
 
         const answers = await roundAnswers(tx, round.id);
-        if (body.retry_of_answer_id !== undefined) return answerAgain(tx, round, answers, body.retry_of_answer_id);
+        if (body.retry_of_answer_id !== undefined) return answerAgain(tx, round, answers, body.retry_of_answer_id, take !== null);
 
         const step = roundStep(round, answers, await roundFollowUps(tx, round.id));
         if (step.kind === "follow_up_due") {
@@ -115,20 +174,7 @@ export function createOpenAnswer(deps: OpenAnswerDeps) {
         if (step.kind !== "answer") {
           return apiError("answer_already_submitted", "Every position in this round is already answered.", { round_id: roundId });
         }
-        if (step.answer) {
-          if (step.answer.transcriptRaw !== null) {
-            return apiError("transcript_already_final", "This answer is already transcribed; its take is final.", {
-              answer_id: step.answer.id,
-            });
-          }
-          // A slot opened as typed has no key and takes none: its answer is typed (07 §5.8).
-          if (take && step.answer.audioS3Key === null) {
-            return apiError("unsupported_content_type", "This slot was opened for a typed answer; it takes no upload.", {
-              answer_id: step.answer.id,
-            });
-          }
-          return { answer: step.answer, created: false };
-        }
+        if (step.answer) return reopened(step.answer, take !== null);
 
         const id = randomUUID();
         const slot = {

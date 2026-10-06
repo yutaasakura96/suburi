@@ -122,11 +122,14 @@ export function openRetry(answers: readonly AnswerRow[], originalId?: string): A
     .reduce<AnswerRow | null>((newest, answer) => (newest === null || answer.createdAt > newest.createdAt ? answer : newest), null);
 }
 
-/** `state` in the round's read (07 §5.5): derived from which of the answer's columns are filled, never stored. */
-export function answerState(answer: Pick<AnswerRow, "audioS3Key" | "transcriptRaw" | "transcriptCorrected">) {
+/**
+ * `state` in the round's read (07 §5.5): derived from the persisted upload confirmation and the
+ * transcripts, never stored. A reserved key never proves the PUT landed.
+ */
+export function answerState(answer: Pick<AnswerRow, "audioUploadedAt" | "transcriptRaw" | "transcriptCorrected">) {
   if (answer.transcriptCorrected !== null) return "submitted";
   if (answer.transcriptRaw !== null) return "transcribed";
-  return answer.audioS3Key !== null ? "uploaded" : "open";
+  return answer.audioUploadedAt !== null ? "uploaded" : "open";
 }
 
 /** `roundStep` from the stored rows, for a handler inside its transaction or a page outside one. */

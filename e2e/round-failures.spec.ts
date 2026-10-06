@@ -131,11 +131,11 @@ test.beforeEach(() => {
   projectSpent = false;
 });
 
-async function startRound(page: Page, language: "ja" | "en" = "en") {
+async function startRound(page: Page, language: "ja" | "en" = "en", mode: "realistic" | "practice" = "realistic") {
   const context = await page.request.post("/api/role-contexts", { data: { kind: "general" } });
   expect(context.ok()).toBe(true);
   const round = await page.request.post("/api/rounds", {
-    data: { round_type: "behavioural", language, mode: "realistic", length: 3, role_context_id: (await context.json()).id },
+    data: { round_type: "behavioural", language, mode, length: 3, role_context_id: (await context.json()).id },
   });
   expect(round.status()).toBe(201);
   const roundId = (await round.json()).round.id as string;
@@ -291,6 +291,39 @@ test("an upload that fails is held on this device, survives a reload, and the re
   expect(s3.objects.get(slot.audioS3Key!)?.bytes).toBe(held.bytes);
   expect(await heldTakes(page)).toEqual([]);
   expect(await warnsBeforeUnload(page)).toBe(false);
+});
+
+test("a practice take whose upload fails is held like any other, and the retry lands on the frame that keeps it or records again", async ({ page }) => {
+  await signIn(page);
+  const roundId = await startRound(page, "en", "practice");
+  let uploadsFail = true;
+  await page.route(`${MOCK_S3_ENDPOINT}/**`, (route) => (uploadsFail ? route.abort("failed") : route.continue()));
+  page.on("dialog", (dialog) => void dialog.accept());
+
+  await page.goto(`/round/${roundId}`);
+  await page.getByRole("button", { name: "Start recording" }).click();
+  // The waveform scrolls a bar a second; the second bar is a take with a second of sound in it.
+  await expect(page.getByTestId("waveform").locator("span > span").nth(1)).toBeAttached({ timeout: 5_000 });
+  await page.getByRole("button", { name: "Stop recording" }).click();
+
+  await expect(page.getByTestId("take-notice")).toHaveText(HELD);
+  expect(await heldTakes(page)).toMatchObject([{ roundId, position: 1 }]);
+  await page.reload();
+  await expect(page.getByTestId("take-notice")).toHaveText(HELD);
+
+  uploadsFail = false;
+  await page.getByRole("button", { name: "Try again" }).click();
+  // The PUT landed: practice's own frame, with the take in the bucket and no copy left on the device.
+  await expect(page.getByTestId("take-held")).toHaveText("Take recorded — not transcribed yet");
+  await expect(page.getByRole("button", { name: "Record again" })).toBeVisible();
+  const [slot] = await answersOf(roundId);
+  expect(s3.objects.get(slot.audioS3Key!)?.bytes).toBeGreaterThan(0);
+  expect(await heldTakes(page)).toEqual([]);
+  expect(await warnsBeforeUnload(page)).toBe(false);
+
+  await page.getByRole("button", { name: "Transcribe this take" }).click();
+  await expect(page.getByTestId("raw-transcript")).toHaveText(RAW);
+  expect(await answersOf(roundId)).toHaveLength(1);
 });
 
 test("an audio-missing response keeps the original take for upload retry", async ({ page }) => {

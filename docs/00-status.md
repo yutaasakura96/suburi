@@ -47,7 +47,11 @@ pinned model and its replacement deadline are in `03` §4.
 **#50, History, is built (2026-10-04), on `fm/suburi-50`** (Next).
 **#48, failure paths, is built (2026-10-04), on `fm/suburi-48`** (Next).
 **#74, a model answer for each question, is built (2026-10-04), on `fm/suburi-74`** (Next).
-**Updated:** 2026-10-06 (#50's catalogue string read; #43, #44, #45, #46, #47, #48, #50 and #74 built; #42 closed; #55 and #56 on 2026-09-30)
+**#49, practice mode, is built (2026-10-04), on `fm/suburi-49`:** Setup's mode, the re-take, the
+per-answer frame, answer again, and a round that ends with no rating; its original 28 strings and
+numbered follow-up label passed the native read, and so did the bank-retry heading (Next).
+**Updated:** 2026-10-06 (#49's Japanese strings all accepted; #50's
+catalogue string read; #43, #44, #45, #46, #47, #48, #49, #50 and #74 built; #42 closed; #55 and #56 on 2026-09-30)
 
 ## Done
 - Phase 1 — `docs/01-project-brief.md`, `docs/02-product-requirements.md`, `docs/06-decision-log.md`.
@@ -434,7 +438,7 @@ named with its fix; the earlier-day abandonment's own sentence; and a spent Open
 its code and never retried. **Tested:** the routes `11` §3.16 lists failed at each database call in turn,
 the sentinel walk over their refusals (`11` §3.10, §3.16), and Playwright for each failure path
 (`11` §4). **The owner read and accepted all nine new Japanese strings on 2026-10-05**
-(`docs/checklists/native-read-round.md` §13); **the two refused-take sentences added after them were read and accepted by the owner the same day.** **Not done here:** whether a spent project refuses the preflight's probe
+(`docs/checklists/native-read-round.md` §14); **the two refused-take sentences added after them were read and accepted by the owner the same day.** **Not done here:** whether a spent project refuses the preflight's probe
 is unverified (`12` §6); and "excluded from Progress" for a typed answer is the mark only — the
 exclusion is #51's. Decisions in `06`, "Phase 6 — #48".
 
@@ -455,8 +459,7 @@ tokens in the week's spend. Tests: `11` §3.21, three rows in §3.1, and two Pla
 `after()`; about $0.22 and $0.35 a three-question round. **Not done here:** every reading is synthetic — no model
 answer has been written from the real CV, and none of its output has been read by a native speaker.
 Figures are checked independently against the CV text and the candidate's own answer (`06`, 2026-10-05).
-**The user's steps:** `npm run
-db:migrate` against Neon `develop` before the merge is verified there (`12` §4); open the 2026-10-03
+**The user's steps:** open the 2026-10-03
 round's feedback on `develop` and press `Write the model answers`, or run a new round, and read what
 comes back against `11` §5's checklist item; and the read of the Japanese prompt's output
 (`docs/checklists/native-read-round.md` §12). The owner accepted all ten Japanese strings and raised

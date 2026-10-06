@@ -10,7 +10,7 @@ import { pickUntouched } from "./grounding";
 import { citableClaimsOf } from "./run-scoring";
 import { authenticate, guarded, isUuid, log, notFound, parseBody, pgErrorClass, roundAbandoned, roundIdOf, writeFailed, type Db, type RoundDeps } from "./http";
 import { startModelAnswers, type CompleteModelAnswerDeps } from "./model-answers";
-import { isAbandoned, latestAttempts, lockRoundUser, noScores, readRoundStep, roundAnswers, scoringCounts, type RoundRow } from "./state";
+import { isAbandoned, latestAttempts, lockRoundUser, noScores, readRoundStep, roundAnswers, scoringCounts, type AnswerRow, type RoundRow } from "./state";
 
 /**
  * `POST /api/rounds/{roundId}/complete` ⚡ (07 §5.12) and its retry, `POST …/feedback` (§5.16).
@@ -256,8 +256,9 @@ function completedView(round: RoundRow, feedback: FeedbackRow | null, counts: Re
 }
 
 async function roundScoringCounts(db: Db, roundId: string) {
-  const answers = (await roundAnswers(db, roundId)).filter((answer) => answer.transcriptCorrected !== null);
-  return scoringCounts((await latestAttempts(db, answers.map((answer) => answer.id))).values());
+  const answers = await roundAnswers(db, roundId);
+  const attempts = await latestAttempts(db, answers.map((answer) => answer.id));
+  return scoringCounts(feedbackAnswers(answers, attempts).flatMap((answer) => attempts.get(answer.id) ?? []));
 }
 
 export function createComplete(deps: CompleteDeps) {

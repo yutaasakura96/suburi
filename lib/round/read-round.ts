@@ -1,7 +1,8 @@
 import { asc, eq, inArray } from "drizzle-orm";
 import * as s from "../../db/schema";
+import { apiError } from "../api/errors";
 import type { Rubric } from "../rubric/types";
-import { authenticate, isUuid, notFound, type Db, type RoundDeps } from "./http";
+import { authenticate, guarded, isUuid, notFound, roundIdOf, type Db, type RoundDeps } from "./http";
 import {
   answerState,
   getRound,
@@ -13,13 +14,17 @@ import {
   roundStep,
   type AnswerRow,
   type RoundRow,
+  type RoundStep,
 } from "./state";
 import { roundStatus } from "./status";
 import { nextPrompt } from "./submit";
 
 /**
- * `GET /api/rounds/{roundId}` (07 §5.5): where the round is and what it is asking, from stored rows —
- * nothing here selects, generates or writes.
+ * `GET /api/rounds/{roundId}` (07 §5.5): resume. Where the round is and what it is asking, from stored
+ * rows — nothing here selects, generates or writes, and `resume.at` names which call comes next.
+ *
+ * **Only the newest open round started today — the user's day, Asia/Tokyo — resumes.** An abandoned
+ * round, like a complete one, returns `resume: null` and no prompt: it is read-only.
  *
  * **Scores in the read, practice only** (06, 2026-09-27). A practice round's submitted answers carry
  * their scores, flags and answered language once `ok`: what practice's per-answer frame shows, and
@@ -92,17 +97,39 @@ export async function scoringReads(
 
 const kindOf = (answer: Pick<AnswerRow, "questionId">) => (answer.questionId === null ? "follow_up" : "question");
 
-/** Which of the answer's calls comes next (07 §5.5): the slot again, `transcribe`, or `submit`. */
-function resumeAt(answer: AnswerRow) {
-  const state = answerState(answer);
-  return { at: state === "transcribed" ? "submit" : state === "uploaded" ? "transcribe" : "answers", answer_id: answer.id };
+export type Resume =
+  | { readonly at: "answers" }
+  | { readonly at: "upload" | "transcribe" | "transcript" | "submit"; readonly answer_id: string }
+  | { readonly at: "complete" };
+
+/**
+ * Which of an open answer's calls comes next (07 §5.5). A slot opened as typed has no key and takes
+ * no upload, so it resumes at `transcript`; a reserved key never proves the PUT landed.
+ */
+function answerResume(answer: AnswerRow): Resume {
+  if (answer.transcriptRaw !== null) return { at: "submit", answer_id: answer.id };
+  if (answer.audioS3Key === null) return { at: "transcript", answer_id: answer.id };
+  return { at: answer.audioUploadedAt === null ? "upload" : "transcribe", answer_id: answer.id };
+}
+
+/** Which call the round is waiting for. A submitted answer whose follow-up is not stored resumes at `submit`. */
+export function resumeAt(step: RoundStep): Resume | null {
+  if (step.kind === "complete") return null;
+  if (step.kind === "follow_up_due") return { at: "submit", answer_id: step.parent.id };
+  if (step.kind !== "answer") return { at: "complete" };
+  return step.answer ? answerResume(step.answer) : { at: "answers" };
 }
 
 export function createGetRound(deps: Pick<RoundDeps, "auth" | "db">) {
-  return async function GET(request: Request, roundId: string): Promise<Response> {
+  return guarded("round_read_failed", async function GET(request: Request, roundId: string): Promise<Response> {
     const session = await authenticate(deps, request);
     if (session instanceof Response) return session;
     if (!isUuid(roundId)) return notFound("round");
+    // The read takes no parameters, and an unknown one is refused, not ignored (07 §4).
+    const parameters = [...new Set(new URL(request.url).searchParams.keys())];
+    if (parameters.length > 0) {
+      return apiError("invalid_request", "This route takes no query parameters.", { fields: parameters });
+    }
     const round = await getRound(deps.db, session.userId, roundId);
     if (!round) return notFound("round");
 
@@ -116,9 +143,17 @@ export function createGetRound(deps: Pick<RoundDeps, "auth" | "db">) {
 
     // Only the newest open round started today resumes; an abandoned or complete one is read-only.
     let prompt: object | null = null;
-    let resume: { at: string; answer_id: string | null } | null = null;
+    let progress: object | null = null;
+    let resume: Resume | null = null;
     if (status === "in_progress") {
       const step = roundStep(round, answers, followUps);
+      // Submitted, and its follow-up is not a row yet: `submit`, sent again, writes it (07 §5.9).
+      if (step.kind !== "follow_up_due" && step.kind !== "complete") {
+        const asked = await nextPrompt(deps.db, round, step);
+        prompt = asked.next.kind === "question" || asked.next.kind === "follow_up" ? asked.next : null;
+        progress = asked.progress;
+      }
+      resume = resumeAt(step);
       const again = openRetry(answers);
       if (again) {
         // An answer-again that is open is what the client was doing: the same prompt, asked again.
@@ -131,15 +166,7 @@ export function createGetRound(deps: Pick<RoundDeps, "auth" | "db">) {
           text: again.promptText,
           speak: false,
         };
-        resume = resumeAt(again);
-      } else if (step.kind === "follow_up_due") {
-        // Submitted, and its follow-up is not a row yet: `submit`, sent again, writes it (07 §5.9).
-        resume = { at: "submit", answer_id: step.parent.id };
-      } else if (step.kind === "answer") {
-        prompt = (await nextPrompt(deps.db, round, step)).next;
-        resume = step.answer ? resumeAt(step.answer) : { at: "answers", answer_id: null };
-      } else {
-        resume = { at: "complete", answer_id: null };
+        resume = answerResume(again);
       }
     }
 
@@ -165,10 +192,11 @@ export function createGetRound(deps: Pick<RoundDeps, "auth" | "db">) {
           ...(scoring.has(answer.id) ? { scoring: scoring.get(answer.id) } : {}),
         })),
         prompt,
+        progress,
         resume,
       },
       // Polled by practice's per-answer frame: never a stored copy.
       { headers: { "cache-control": "no-store" } },
     );
-  };
+  }, roundIdOf);
 }

@@ -234,10 +234,16 @@ export async function roundFrame(db: Db, userId: string, round: RoundRow): Promi
   // The stamp a follow-up's answer carries: the version of the `follow_ups` row it answers.
   const followUpVersionOf = (answer: AnswerRow) =>
     followUps.find((row) => row.parentAnswerId === answer.parentAnswerId)?.promptVersion ?? null;
-  const transcriptOf = (answer: AnswerRow | null) =>
-    answer?.transcriptRaw != null
-      ? { answerId: answer.id, raw: answer.transcriptRaw, durationMs: answer.audioDurationMs, wpm: answer.wordsPerMinute }
-      : null;
+  // What the open slot holds: its transcript, or where its take stands (07 §5.5).
+  const slotOf = (open: AnswerRow | null) => ({
+    transcript:
+      open?.transcriptRaw != null
+        ? { answerId: open.id, raw: open.transcriptRaw, durationMs: open.audioDurationMs, wpm: open.wordsPerMinute }
+        : null,
+    openAnswerId: open && open.transcriptRaw === null ? open.id : null,
+    uploadConfirmed: open?.audioUploadedAt != null,
+    typedSlot: open !== null && open.transcriptRaw === null && open.audioS3Key === null,
+  });
 
   if (round.mode === "practice") {
     // 10 §15's resume order: an open answer-again, then the open answer to the current prompt, then
@@ -252,7 +258,7 @@ export async function roundFrame(db: Db, userId: string, round: RoundRow): Promi
           text: again.promptText,
           followUpVersion: followUpVersionOf(again),
           again: again.retryOfAnswerId,
-          transcript: transcriptOf(again),
+          ...slotOf(again),
         },
       };
     }
@@ -314,13 +320,8 @@ export async function roundFrame(db: Db, userId: string, round: RoundRow): Promi
       position: step.position,
       text: step.followUp ? step.followUp.row.promptText : ((await promptAt(db, round.id, step.position))?.text ?? ""),
       followUpVersion: step.followUp?.row.promptVersion ?? null,
-      transcript:
-        open?.transcriptRaw != null
-          ? { answerId: open.id, raw: open.transcriptRaw, durationMs: open.audioDurationMs, wpm: open.wordsPerMinute }
-          : null,
-      openAnswerId: open && open.transcriptRaw === null ? open.id : null,
-      uploadConfirmed: open?.audioUploadedAt !== null && open?.audioUploadedAt !== undefined,
-      typedSlot: open !== null && open.transcriptRaw === null && open.audioS3Key === null,
+      again: null,
+      ...slotOf(step.answer),
     },
   };
 }

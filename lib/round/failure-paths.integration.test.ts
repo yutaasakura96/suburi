@@ -27,7 +27,7 @@ import { createAuth } from "../auth/auth";
 import { mintSessionCookie } from "../auth/test/session";
 import { getConfig } from "../config";
 import { createComplete, createFeedbackRetry } from "./complete";
-import { createGetRound } from "./get-round";
+import { createGetRound } from "./read-round";
 import { createModelAnswersRetry } from "./model-answers";
 import { createOpenAnswer } from "./open-answer";
 import { createPostRound } from "./post-round";
@@ -298,7 +298,7 @@ describe("GET /api/rounds/{id} — resume (07 §5.5)", () => {
 
       const answerId = await world.upload(roundId);
       const uploaded = await world.read(roundId);
-      expect(uploaded.json.answers).toEqual([{ id: answerId, position: 1, kind: "question", state: "open" }]);
+      expect(uploaded.json.answers).toEqual([{ id: answerId, position: 1, kind: "question", state: "open", retry_of_answer_id: null }]);
       expect(uploaded.json.resume).toEqual({ at: "upload", answer_id: answerId });
       // The same prompt on every read: it was fixed when the round started.
       expect(uploaded.json.prompt.text).toBe(asked);

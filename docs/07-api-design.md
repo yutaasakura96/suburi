@@ -656,13 +656,11 @@ response is what makes that structural rather than a client courtesy.
   corrected text, never a quote**: the page that shows it slices its own copy of the answer. A
   `pending` or `failed` attempt carries its status alone, and no justification, citation or answer
   text is in the read at all.
-- `resume.at` is one of `answers` (open the slot, with `answer_id` null, or record over the open one),
-  `transcribe`, `submit` and `complete`. **The key is written when the slot opens (§5.6), so an open
-  slot already reads `uploaded`** and `open` is a state no row is in today; `transcribe` on a slot whose
-  take never reached the bucket answers `audio_missing`, and the client records again.
+- `state` and `resume.at` are #48's, above (`06`, 2026-10-06): the key is written when the slot opens
+  (§5.6), and the slot reads `open` and resumes at `upload` until `audio_uploaded_at` is set.
 - **An answer-again that is open is what the round resumes on**: `prompt` is the same prompt asked
-  again, carrying `retry_of_answer_id` and `speak: false`, and `resume` names that row. With none
-  open, `prompt` and `resume` follow the round's step.
+  again, carrying `retry_of_answer_id` and `speak: false`, and `resume` names that row by the same
+  rule as any open slot. With none open, `prompt` and `resume` follow the round's step.
 - `cache-control: no-store`: practice's per-answer frame polls this read while a score is pending
   (`03` §7), and a stored copy would be the one thing it must not get.
 - `401 unauthenticated`; `404 not_found` for no such round, or another user's.
@@ -681,7 +679,8 @@ Opens an answer slot and presigns the upload. Creates the `answers` row. **Calle
 exists** — after recording, before the upload (`06`, 2026-09-27). When this route refuses a recorded
 take (`upload_too_large`, `unsupported_content_type`) no row exists yet: `{ "source": "typed" }`,
 alone, opens the same current slot with `audio_s3_key` null and returns only `answer_id`, and the
-client sends the typed transcript through §5.8 (`06`, 2026-10-05). It is idempotent like the take's
+client sends the typed transcript through §5.8 (`06`, 2026-10-05). With `retry_of_answer_id` beside
+it, the slot it opens is the answer-again's (`06`, 2026-10-06). It is idempotent like the take's
 form. A slot opened this way stays typed: a take sent to it afterwards is refused as
 `422 unsupported_content_type`, so the page keeps the take and offers typing again. A body that is neither form is a
 `400` naming the fields.
@@ -1165,6 +1164,11 @@ shows every score that landed and a pending round-level note, and generation is 
 - `mode = 'practice'` and a `felt_pressure` → `422 pressure_not_applicable`. The check constraint is
   the backstop. **A practice round is completed the same way, without a rating**, and gets the same
   round feedback (`06`, 2026-09-27).
+- **The feedback is written from the answers the round asked for** — each question's first answer and
+  its follow-up's (#49, `06`, 2026-10-04). An answer given again in practice (§5.6) is scored and
+  shown on its own. When an original answer scored, retries are not waited for, counted or sent to
+  the feedback call. When none scored, scored retries are used instead, with prompt versions
+  `feedback-en-1.3` and `feedback-ja-1.2`.
 - Already complete → **`200` with the same completed result**: the round as it was completed, its
   stored rating whatever this call sent, the feedback if it is written and `feedback: null` if it is
   still pending. The call is idempotent, never `409 round_already_complete`, and makes no model call
