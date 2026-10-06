@@ -431,8 +431,8 @@ warning and the frame a reload returns to; a take the slot route refuses kept on
 answered by typing (`06`, 2026-10-05); the transcription-failed frame, with retry and typing; a
 resumed round that transcribes the uploaded take instead of asking for another; a denied microphone
 named with its fix; the earlier-day abandonment's own sentence; and a spent OpenAI project classed by
-its code and never retried. **Tested:** every round route failed at each database call in turn
-(`11` §3.16), the sentinel walk over every refusal (`11` §3.10), and Playwright for each failure path
+its code and never retried. **Tested:** the routes `11` §3.16 lists failed at each database call in turn,
+the sentinel walk over their refusals (`11` §3.10, §3.16), and Playwright for each failure path
 (`11` §4). **The owner read and accepted all nine new Japanese strings on 2026-10-05**
 (`docs/checklists/native-read-round.md` §13); **the two refused-take sentences added after them were read and accepted by the owner the same day.** **Not done here:** whether a spent project refuses the preflight's probe
 is unverified (`12` §6); and "excluded from Progress" for a typed answer is the mark only — the
