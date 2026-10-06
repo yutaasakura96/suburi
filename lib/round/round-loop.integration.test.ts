@@ -537,7 +537,7 @@ describe("an abandoned round takes no more writes (07 §5.5, §5.12)", () => {
       const [row] = await db.select().from(s.rounds).where(eq(s.rounds.id, roundId));
       const frame = await roundFrame(db, world.userId, row);
       expect(frame).not.toBe("complete");
-      expect(frame !== "complete" && frame.start).toEqual({ kind: "abandoned", answered: 1 });
+      expect(frame !== "complete" && frame.start).toEqual({ kind: "abandoned", answered: 1, byDay: false });
     }));
 
   it("refuses a round started on an earlier Asia/Tokyo day the same way", () =>
@@ -960,8 +960,9 @@ describe("POST /api/rounds/{id}/complete (11 §3.14)", () => {
       expect(await count(db, s.roundFeedback)).toBe(1);
 
       const again = await world.call(world.handlers.complete, roundId, { felt_pressure: 2 });
-      expect(again.status).toBe(409);
-      expect(again.json.error).toMatchObject({ code: "round_already_complete", detail: { has_feedback: true } });
+      expect(again.status).toBe(200);
+      // The repeat makes no model call, so it carries no count of model answers written.
+      expect(again.json).toEqual({ ...response.json, model_answers: undefined });
       const [round] = await db.select().from(s.rounds).where(eq(s.rounds.id, roundId));
       expect(round.feltPressure).toBe(4);
     }));
@@ -1669,6 +1670,9 @@ describe("follow-ups: one per answer, written by submit (07 §5.9, 11 §3.1)", (
           followUpVersion: "follow-up-en-fake",
           again: null,
           transcript: null,
+          openAnswerId: null,
+          uploadConfirmed: false,
+          typedSlot: false,
         });
         expect(frame !== "complete" && frame.followUpVersions).toEqual(["follow-up-en-fake"]);
       }

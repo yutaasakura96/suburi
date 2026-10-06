@@ -3,6 +3,226 @@
 Newest first. Every entry records what was chosen, why, and what was rejected.
 
 ---
+## Phase 6 — #48, failure paths
+
+What a round does when a recording, an upload, a transcription, a score or a database call fails, and
+how it resumes. The behaviour was settled on 2026-09-12, 2026-09-27 and 2026-09-28 (below); these are
+the choices the build needed.
+
+### [2026-10-06] Merged after #73: the wait line is the take's way, and the stuck frames are where it ends
+
+#73 merged first and replaced the record frame's two status sentences with the wait line (`10`, between
+4 and 5). The take's screen carries #73's `step` — `upload` or `transcribe` — in place of #48's
+`uploaded`: the tab-close warning stands while the step is `upload`, and a page loaded onto a confirmed
+slot opens on the wait line at `transcribe`, its first segment already done.
+
+- **A failed upload, a refused take and a failed transcription still leave for #48's frames** (`10`
+  4–5, when it fails). #73's "the record button comes back disabled, with the sentence and
+  `もう一度試す`" is what any other failure of the two calls shows.
+- **No string was added or reworded.** #73 retired `録音をアップロードして、文字起こしをしています。` and
+  #49's `文字起こしをしています。`; the screens show #73's two sentences for them, which are unread
+  (`native-read-round.md` §14).
+- The checklist's #48 section moved to `native-read-round.md` §15, behind #73's §14. No migration
+  moved: #73 added none.
+
+### [2026-10-06] Merged after #49: one round read, and practice's kept take beside the held one
+
+#49 merged first and built `GET /api/rounds/{roundId}` too, as `lib/round/read-round.ts`. There is one
+route and one module, #49's file, carrying both: #49's scores, `retry_of_answer_id`, open answer-again
+and `no-store`; #48's guard, its refusal of query parameters, `progress`, and **#48's `state` and
+`resume`** — `open` until `audio_uploaded_at` is set, and `resume.at` one of `answers`, `upload`,
+`transcribe`, `transcript`, `submit`, `complete`, with `answer_id` only where a row is waited on. That
+supersedes #49's "an open slot already reads `uploaded`" and its `answer_id: null`: a reserved key does
+not confirm an upload (2026-10-04, above). An open answer-again resumes by the same rule as any slot.
+
+- **A practice take is held in IndexedDB until its PUT lands**, then let go: from there #49's frame
+  keeps it or records again, and a reload shows the question again as #49 decided (2026-10-04, below).
+  A practice upload that fails is held and retried like a realistic one.
+- **`{ "source": "typed" }` takes `retry_of_answer_id`**, so an answer given again whose take the route
+  refuses is typed like any other; a typed retry slot refuses a take as a typed slot does.
+- **A failed transcription in practice opens the retry-or-type frame**, as in realistic. #49 returned
+  to the kept take with a retry; the take is final once the server has read it, and typing is the way out.
+- **A repeated `complete` counts the same answers the first did** — #49's feedback answers.
+- **One sentence for "Transcribing the take."**: #49's `文字起こしをしています。`. #48's
+  `録音の文字起こしをしています。` had the same English and the same key; no string was added or reworded.
+- The checklist's #48 section moved to `native-read-round.md` §14, behind #49's §13. No migration
+  moved: #49 added none.
+
+Rejected: keeping both read modules behind one route, and keeping #49's `uploaded`-on-open beside
+`audio_uploaded_at` — two answers to "did the take land".
+
+### [2026-10-06] On a reload, a held practice take wins over an older confirmed upload
+
+The owner's ruling: a round cannot lose an answer, so the newest take is never dropped silently.
+`answers.audio_uploaded_at` is set once and says nothing of a later re-take. In practice a take is let
+go from the device as soon as its PUT lands, so a take still held beside a confirmed upload is a newer
+one that never reached S3: take 1 uploaded and confirmed, its transcription unanswered, take 2 recorded
+instead and its PUT failed. On a reload onto that prompt the held take is sent again, onto the same
+slot and object, and that is what is transcribed. Rejected: resuming at `transcribe`, which reads take
+1 and then releases take 2. A realistic round is unchanged: it has one take, the held copy is the
+confirmed object, and it still resumes at `transcribe` with no second upload.
+
+### [2026-10-06] Known limitation: an answer-again take held with no server row is not offered after a reload
+
+Practice only. A held take is found on load by the prompt the page opens on. When an answer is given
+again and `POST …/answers` never reaches the server, no answer-again row exists, so a reload opens on
+the round's current prompt or the last per-answer frame and the take is not offered again. It stays on
+the device until the round completes. Where the slot did open and only the PUT failed, the reload
+resumes on the answer-again row and finds it. Not fixed here: it needs the page to remember which
+answer was being given again, which is new client state for #49's answer-again and outside #48;
+follow-up work is filed separately.
+
+### [2026-10-06] Review correction: only the project's spend limit is mapped
+
+This corrects the 2026-10-04 entry "A spent project is classed by its code, and the organization's
+limit with it", whose second half no longer describes the code. `lib/ai/upstream.ts` classes only a
+`429` whose code is `project_spend_limit_exceeded` as that code and marks it not retryable. A `429
+organization_spend_limit_exceeded` is classed `upstream_429` and retried like any rate limit. The
+issue's criterion names the project code alone, and the "Review correction: reserved keys do not
+confirm upload" entry of 2026-10-04 narrowed the mapping to it; this entry states the consequence for
+the organization code, which that one left unsaid. Rejected: mapping the organization code as well,
+which is a path #48 does not ask for.
+
+### [2026-10-06] Merged after #74: upload confirmation is migration `0014`
+
+#74 merged first and took `0013` for model answers, so `answers.audio_uploaded_at` is
+`0014_upload-confirmation`, regenerated by `drizzle-kit generate` against #74's snapshot; the SQL is
+the same statement. The checklist's #48 section moved with it, to `native-read-round.md` §13, behind
+#74's §12; no string changed. `complete` keeps both: #74's model answers start once step 1 commits
+and are settled whether or not the feedback was written, and a repeated `complete` starts none — the
+ones a round lacks are `POST …/model-answers`' (`07` §5.19). This supersedes the entry below on both
+numbers.
+
+### [2026-10-06] Merged after #50: upload confirmation is migration `0013`
+
+#50 merged first and took `0012` for History, so `answers.audio_uploaded_at` is
+`0013_upload-confirmation`, regenerated by `drizzle-kit generate` against #50's snapshot; the SQL is
+the same statement. The checklist's #48 section moved with it, to `native-read-round.md` §12, behind
+#50's §11; no string changed. This supersedes the entry below on both numbers.
+
+### [2026-10-06] Merged after #45: upload confirmation is migration `0012`
+
+#45 merged first and took `0011` for the speech route's bucket, so `answers.audio_uploaded_at` is
+`0012_upload-confirmation`, regenerated by `drizzle-kit generate` against #45's snapshot; the SQL is
+the same statement. The checklist's #48 section moved with it, to `native-read-round.md` §11, behind
+#45's §10; no string changed.
+
+### [2026-10-05] `complete` is idempotent, and never `write_failed` once the round is complete
+
+The owner's ruling. `write_failed` promises that nothing was written and the same call resumes; after
+step 1 commits `completed_at` neither is true. So a database failure in the feedback steps answers the
+normal `201` with `feedback: null` — pending, for `POST …/feedback` to write — and **a repeated
+`complete` on a complete round answers `200` with the same completed result**, not
+`409 round_already_complete`. The stored rating stands whatever the repeat sends. A model failure or
+the score wait running out is still `502 feedback_generation_failed`, as before.
+
+### [2026-10-05] A spent project met by question generation is `503 model_unavailable`
+
+The owner's ruling. The preflight and generation run together; when the probe passes and generation
+gets `429 project_spend_limit_exceeded`, the round is refused as `503 model_unavailable` with that
+error class, exactly as when the probe meets it — not `502 question_generation_failed`.
+
+### [2026-10-05] A take the slot route refuses is kept and answered by typing
+
+The owner's ruling, superseding the build's "not held, recorded again": **a captured take is never
+deleted.** A take over the size cap, or of a type the route refuses, stays in IndexedDB marked with
+the refusal; the frame says why and to type instead in one sentence of its own, in place of the
+held rail — never "try again" or "do not close this tab", stored on the device or not — offers no
+retry, since none could succeed, and offers typing. No answer
+row exists at that point, so `POST …/answers` takes `{ "source": "typed" }` and opens the current
+slot with no `audio_s3_key`; `07` §5.8 then stores the text. **Held takes are keyed by prompt, not by
+round** — the 2026-10-04 entry below said one per round — so the refused take is not replaced by the
+next question's and stays until the round completes. A slot opened as typed stays typed: a take sent
+to it afterwards is refused (`422 unsupported_content_type`), never given a key. **Resume names
+that slot's next call as `transcript`** (`07` §5.5), and a page loaded onto it opens the typing box
+rather than the record frame — the owner's ruling, since the upload it used to name can never succeed.
+That page says `録音は残ります。` / "The take is kept." only when a take is held on the device: the
+caption is the read sentence with or without its last one, no new wording. The 20,000-character cap on typed text is
+removed with it: the fallback was specified with no limit.
+
+### [2026-10-05] Round creation and writes serialize per user
+
+Starting a round and writing to an existing round take the same `users` row lock — `for no key
+update`, so an insert carrying the user's foreign key is not made to wait behind it — before checking
+whether the old round is still writable. A creation that waits for the lock stamps `started_at` at
+insertion time, so the newest round follows commit order. This closes the two-tab gap where a new
+round could commit after an old answer checked its status but before that answer wrote.
+
+### [2026-10-04] Review correction: reserved keys do not confirm upload
+
+The uploaded state and `transcribe` resume now require `answers.audio_uploaded_at`, recorded after
+the server reads the object. Until then, the take remains on the device and resume names `upload`.
+Typed transcript writes check the round status in their transaction. Spend-limit handling recognizes
+only `project_spend_limit_exceeded`; held takes for other rounds are left alone. The earlier #48
+entries below record the build's first behavior and are superseded on these points.
+
+### [2026-10-04] Every round route is wrapped: whatever throws leaves as `write_failed`
+
+2026-09-28 made `write_failed` the answer to a failed write. Failing each route at every database
+call it makes, one at a time, found the calls that were not writes: the session read, the limiter's
+upsert, the reads before and between transactions, and the whole read route. Each left as a bare
+`500`. **One guard in `lib/round/http.ts` now wraps every round handler** and answers the same
+envelope, with `pg_<SQLSTATE>` when the driver gave one and `unexpected` when it did not. Two things
+the same test found and fixed: `POST /api/rounds` read its first question after committing, so a
+failure there refused a round that existed — the read is inside the transaction now; and a failed
+read while preparing question generation was reported as `502 question_generation_failed`, which
+names the model for the database's failure — it reaches the guard now. **Rejected:** a second code
+for a failed read. The user's recourse is the same sentence and the same retry, and the catalogue
+would gain a distinction no screen draws.
+
+### [2026-10-04] A typed answer is marked by its missing transcriber, and the same text twice is not a refusal
+
+`07` §5.8 already stored a typed answer with `transcriber_model_id` null. **That null beside a set
+`transcript_raw` is the mark** Progress excludes on, with `words_per_minute` and `audio_duration_ms`
+null beside it: no column, no migration, and nothing that could disagree with the transcriber column.
+The take's key is kept. The route writes only while `transcript_raw` is null, so it cannot replace a
+transcript (invariant 4). **The same text sent again is a `200` with the stored row**, as `submit` and
+`transcribe` already answer a repeat, so a response lost on the way back is not an error on the
+retry; different text is `422 transcript_already_final`. Capped at 20,000 characters — a bound on the
+body, not a measured one: a four-minute answer is a few thousand.
+
+### [2026-10-04] A held take is one per round, in IndexedDB from the moment it exists
+
+`03` §5 said the blob stays in the browser and retries. **It is stored before the upload is tried,
+not after it fails**, so a tab closed mid-upload loses nothing, and removed once the PUT succeeds.
+Keyed by round, one take each, since a round asks one prompt at a time; a take held for another
+round is left for that round's own page, and dropped after two days, by when no round could take it
+(a round resumes only on its Asia/Tokyo day). **The retry is the user's**, a button, not a timer: an
+automatic retry is a spinner with a reason, and the sentence already says what to do. The browser's
+leave-page warning is on while a take has not reached S3. `03` §8 listed "key, size, attempt count"
+as logged for a failed upload: **nothing is logged from the browser** — it would have to post to a
+logging route, and Sentry's console breadcrumbs are off — so the record is the server's
+`answer_reopened` line each retry writes, with the answer id and the size.
+
+### [2026-10-04] Resume calls `transcribe` itself, and `open` is a state no row is read in
+
+A reload after the upload and before the transcript finds a slot with no transcript. **The page
+calls `transcribe` rather than asking for a new take**: the route is idempotent, so it returns the
+stored transcript, transcribes the uploaded take, or answers `404 audio_missing` — the one case in
+which the question is asked again. `07` §5.5 lists `open` (row, no audio) as an answer's first state;
+the slot is opened only after a take exists and its key is written with the row, so **every row
+reads `uploaded` from the start**. The state stays in the type for what it means; nothing depends on
+reading it.
+
+### [2026-10-04] A spent project is classed by its code, and the organization's limit with it
+
+`lib/ai/upstream.ts` classes a `429` whose code is `project_spend_limit_exceeded` as that code
+instead of `upstream_429`, marks it not retryable, and the scoring loop stops on it after one call.
+**`organization_spend_limit_exceeded` is mapped the same way**: OpenAI documents both as the same
+hard limit at two levels, and waiting out either is the mistake confirm 5 named. **Not verified:**
+whether the preflight's `GET /v1/models/{id}` is itself refused for a spent project — the guide does
+not say, and finding out means spending a project to its limit. If it is not, the limit is first met
+mid-round, where every call already fails once and says so (`12` §6).
+
+### [2026-10-04] An abandoned round says which of the two reasons left it
+
+Screen copy had one sentence, for a newer round. A round left by the day ending has **its own
+sentence**: telling the user a newer round started when none did is a wrong statement on a
+read-only screen. When both are true the newer round is named — it is the one that happened first
+from the user's side.
+
+---
+
 ## Phase 6 — #73, the round's two waits
 
 Raised by the owner after the first real English round on `develop` (2026-10-03): after stopping a

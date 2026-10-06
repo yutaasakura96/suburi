@@ -1,6 +1,6 @@
 import { and, asc, eq, sql } from "drizzle-orm";
 import * as s from "../../db/schema";
-import { ModelCallFailed } from "../ai/upstream";
+import { ModelCallFailed, SPEND_LIMIT_CLASSES } from "../ai/upstream";
 import type { AnswerScorer } from "../ai/score";
 import type { Rubric } from "../rubric/types";
 import { citableClaims, locateUnsupported, resolveCitations, type CitableClaim } from "./grounding";
@@ -30,7 +30,8 @@ import { log, pgErrorClass, type Db } from "./http";
  *
  * **Three retries with exponential backoff, inside the invocation's 300 s** — the whole invocation,
  * shared with the submit that scheduled it (07 §5.10). When too little of it is left for another
- * call, the attempt fails rather than run the ceiling down.
+ * call, the attempt fails rather than run the ceiling down. **A spent OpenAI budget is not retried**:
+ * it is a 429, and no wait clears it (06, 2026-09-27, confirm 5).
  */
 export interface ScoringRunDeps {
   readonly db: Db;
@@ -204,6 +205,8 @@ export async function runScoringAttempt(
     } catch (error) {
       errorClass = error instanceof ModelCallFailed ? error.errorClass : pgErrorClass(error);
       log("error", { event: "scoring_call_failed", attempt_id: attemptId, retry: attempt, error_class: errorClass });
+      // A spent budget is a 429 no backoff clears (12 §6): the attempt fails now, with the retries unspent.
+      if ((SPEND_LIMIT_CLASSES as readonly string[]).includes(errorClass)) break;
     }
   }
 

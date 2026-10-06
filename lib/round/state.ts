@@ -1,5 +1,7 @@
 import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import * as s from "../../db/schema";
+import { apiError } from "../api/errors";
+import { roundAbandoned } from "./http";
 import type { Db } from "./http";
 import { roundStatus } from "./status";
 
@@ -120,11 +122,14 @@ export function openRetry(answers: readonly AnswerRow[], originalId?: string): A
     .reduce<AnswerRow | null>((newest, answer) => (newest === null || answer.createdAt > newest.createdAt ? answer : newest), null);
 }
 
-/** `state` in the round's read (07 §5.5): derived from which of the answer's columns are filled, never stored. */
-export function answerState(answer: Pick<AnswerRow, "audioS3Key" | "transcriptRaw" | "transcriptCorrected">) {
+/**
+ * `state` in the round's read (07 §5.5): derived from the persisted upload confirmation and the
+ * transcripts, never stored. A reserved key never proves the PUT landed.
+ */
+export function answerState(answer: Pick<AnswerRow, "audioUploadedAt" | "transcriptRaw" | "transcriptCorrected">) {
   if (answer.transcriptCorrected !== null) return "submitted";
   if (answer.transcriptRaw !== null) return "transcribed";
-  return answer.audioS3Key !== null ? "uploaded" : "open";
+  return answer.audioUploadedAt !== null ? "uploaded" : "open";
 }
 
 /** `roundStep` from the stored rows, for a handler inside its transaction or a page outside one. */
@@ -165,6 +170,17 @@ export async function newerRoundExists(db: Reader, round: Pick<RoundRow, "id" | 
  */
 export async function isAbandoned(db: Reader, round: RoundRow) {
   return roundStatus(round, { newerRoundExists: await newerRoundExists(db, round), now: new Date() }) === "abandoned";
+}
+
+export async function lockRoundUser(db: Reader, userId: string) {
+  await db.select({ id: s.users.id }).from(s.users).where(eq(s.users.id, userId)).for("no key update");
+}
+
+export async function roundWriteRefusal(db: Reader, roundId: string, userId: string): Promise<Response | null> {
+  await lockRoundUser(db, userId);
+  const [round] = await db.select().from(s.rounds).where(eq(s.rounds.id, roundId)).for("update");
+  if (round.completedAt !== null) return apiError("round_already_complete", "The round is already complete.", { round_id: roundId });
+  return (await isAbandoned(db, round)) ? roundAbandoned(roundId) : null;
 }
 
 export type AttemptRow = typeof s.scoringAttempts.$inferSelect;

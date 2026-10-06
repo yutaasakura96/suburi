@@ -281,7 +281,7 @@ describe("GET /api/rounds/{id} (07 §5.5)", () => {
       });
       expect(json.answers).toEqual([]);
       expect(json.prompt).toMatchObject({ kind: "question", position: 1, question_id: first.id, speak: false });
-      expect(json.resume).toEqual({ at: "answers", answer_id: null });
+      expect(json.resume).toEqual({ at: "answers" });
     }));
 
   it("names the next call for each state of the open answer, then the follow-up, then complete", () =>
@@ -292,9 +292,9 @@ describe("GET /api/rounds/{id} (07 §5.5)", () => {
       const opened = await world.record(roundId);
       const answerId = opened.json.answer_id;
       let { json } = await world.read(roundId);
-      // The key is assigned when the slot opens, so an open slot already reads `uploaded`.
-      expect(json.answers).toEqual([{ id: answerId, position: 1, kind: "question", state: "uploaded", retry_of_answer_id: null }]);
-      expect(json.resume).toEqual({ at: "transcribe", answer_id: answerId });
+      // A reserved key does not confirm the upload: the slot reads `open` until the server has read the take.
+      expect(json.answers).toEqual([{ id: answerId, position: 1, kind: "question", state: "open", retry_of_answer_id: null }]);
+      expect(json.resume).toEqual({ at: "upload", answer_id: answerId });
 
       await world.call(world.handlers.transcribe, answerId, {});
       ({ json } = await world.read(roundId));
@@ -307,7 +307,7 @@ describe("GET /api/rounds/{id} (07 §5.5)", () => {
       expect(json.answers[0]).toMatchObject({ state: "submitted", scoring: { status: "pending" } });
       expect(json.prompt).toEqual(submitted.json.next);
       expect(json.prompt).toMatchObject({ kind: "follow_up", position: 1, parent_answer_id: answerId, text: FOLLOW_UP_TEXT });
-      expect(json.resume).toEqual({ at: "answers", answer_id: null });
+      expect(json.resume).toEqual({ at: "answers" });
 
       await world.answer(roundId);
       ({ json } = await world.read(roundId));
@@ -320,7 +320,7 @@ describe("GET /api/rounds/{id} (07 §5.5)", () => {
       ({ json } = await world.read(roundId));
       expect(json.answers.map((answer: { position: number }) => answer.position)).toEqual([1, 1, 2, 2, 3, 3]);
       expect(json.prompt).toBeNull();
-      expect(json.resume).toEqual({ at: "complete", answer_id: null });
+      expect(json.resume).toEqual({ at: "complete" });
     }));
 
   it("resumes at submit when the answer is submitted and its follow-up is not stored yet", () =>
@@ -392,7 +392,7 @@ describe("GET /api/rounds/{id} (07 §5.5)", () => {
       await world.drainAfter();
 
       const during = await world.read(roundId);
-      expect(during.json.resume).toEqual({ at: "complete", answer_id: null });
+      expect(during.json.resume).toEqual({ at: "complete" });
       expect(during.json.answers).toHaveLength(6);
       for (const answer of during.json.answers) {
         expect(answer.scoring).toEqual({ attempt_id: expect.any(String), status: "ok" });
@@ -606,7 +606,7 @@ describe("practice's answer again (07 §5.6)", () => {
 
       expect(json.answers).toEqual([
         expect.objectContaining({ id: first.answerId, position: 1, retry_of_answer_id: null, state: "submitted" }),
-        expect.objectContaining({ id: opened.json.answer_id, position: 1, retry_of_answer_id: first.answerId, state: "uploaded" }),
+        expect.objectContaining({ id: opened.json.answer_id, position: 1, retry_of_answer_id: first.answerId, state: "open" }),
       ]);
       expect(json.prompt).toMatchObject({
         kind: "question",
@@ -615,7 +615,35 @@ describe("practice's answer again (07 §5.6)", () => {
         text: (await world.rowOf(first.answerId)).promptText,
         speak: false,
       });
-      expect(json.resume).toEqual({ at: "transcribe", answer_id: opened.json.answer_id });
+      expect(json.resume).toEqual({ at: "upload", answer_id: opened.json.answer_id });
+    }));
+
+  // A take the route refused is typed (07 §5.6): given again, it is typed beside the answer it retries.
+  it("opens an answer-again as typed beside its original, and that slot takes no upload", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const roundId = await world.startRound();
+      const first = await world.answer(roundId);
+
+      const typed = await world.call(world.handlers.open, roundId, { source: "typed", retry_of_answer_id: first.answerId });
+      expect(typed.status).toBe(201);
+      expect(typed.json).toEqual({ answer_id: typed.json.answer_id });
+      expect(await world.rowOf(typed.json.answer_id)).toMatchObject({
+        retryOfAnswerId: first.answerId,
+        position: 1,
+        audioS3Key: null,
+        isFirstAttempt: false,
+      });
+
+      // The same request again is the same row, and a take sent to it afterwards is refused.
+      const repeat = await world.call(world.handlers.open, roundId, { source: "typed", retry_of_answer_id: first.answerId });
+      expect([repeat.status, repeat.json.answer_id]).toEqual([200, typed.json.answer_id]);
+      const take = await world.call(world.handlers.open, roundId, { ...TAKE, retry_of_answer_id: first.answerId });
+      expect([take.status, take.json.error.code]).toEqual([422, "unsupported_content_type"]);
+
+      const { json } = await world.read(roundId);
+      expect(json.resume).toEqual({ at: "transcript", answer_id: typed.json.answer_id });
+      expect(json.prompt).toMatchObject({ retry_of_answer_id: first.answerId });
     }));
 });
 

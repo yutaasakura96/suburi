@@ -22,7 +22,7 @@ const MAX_BAR = 28;
 type State =
   | { readonly kind: "idle" }
   | { readonly kind: "recording"; readonly elapsedMs: number; readonly bars: readonly number[] }
-  | { readonly kind: "failed"; readonly reason: "unavailable" | "recording" };
+  | { readonly kind: "failed"; readonly reason: "denied" | "unavailable" | "recording" };
 
 function preferredType(): TakeContentType {
   return typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
@@ -69,9 +69,11 @@ export function useRecorder(capSeconds: number, onTake: (take: Take) => void, { 
     let stream: MediaStream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    } catch {
-      // Denied or absent: nothing is written, and the question stays unseen (10 §4).
-      setState({ kind: "failed", reason: "unavailable" });
+    } catch (error) {
+      // Denied or absent: nothing is written, and the question stays unseen (10 §4). A refusal is the
+      // one the user can lift in the browser, so it is told apart (03 §8).
+      const denied = error instanceof DOMException && (error.name === "NotAllowedError" || error.name === "SecurityError");
+      setState({ kind: "failed", reason: denied ? "denied" : "unavailable" });
       return;
     }
     const contentType = preferredType();

@@ -433,6 +433,7 @@ export const answers = pgTable(
     language: text("language", { enum: LANGUAGES }).notNull(),
     isFirstAttempt: boolean("is_first_attempt").notNull().default(false),
     audioS3Key: text("audio_s3_key"),
+    audioUploadedAt: timestamp("audio_uploaded_at", { withTimezone: true }),
     audioDurationMs: integer("audio_duration_ms"),
     // Never discarded in favour of the correction.
     transcriptRaw: text("transcript_raw"),

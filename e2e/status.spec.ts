@@ -144,8 +144,11 @@ test("a red check puts one line on Home, and no record text reaches either page"
   expect(await page.content()).not.toContain(SENTINEL);
 
   await page.goto("/status");
-  await expect(page.getByTestId("check-spend_week_to_date_usd")).toContainText(`$${spend.toFixed(2)}`);
   await expect(page.getByTestId("check-spend_week_to_date_usd")).toContainText("Red");
+  // This row's tokens, and the cents the other specs' takes and calls cost beside them.
+  const shown = Number((await page.getByTestId("check-spend_week_to_date_usd").textContent())?.match(/\$([\d.]+)/)?.[1]);
+  expect(shown).toBeGreaterThanOrEqual(spend);
+  expect(shown).toBeLessThan(spend + 1);
   expect(await page.content()).not.toContain(SENTINEL);
 });
 

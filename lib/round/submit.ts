@@ -4,10 +4,10 @@ import * as s from "../../db/schema";
 import { apiError } from "../api/errors";
 import type { AnswerScorer } from "../ai/score";
 import { generateFollowUp, type FollowUpDeps } from "./follow-up";
-import { authenticate, isUuid, log, notFound, parseBody, roundAbandoned, writeFailed, type RoundDeps } from "./http";
+import { answerIdOf, authenticate, guarded, isUuid, log, notFound, parseBody, roundAbandoned, writeFailed, type RoundDeps } from "./http";
 import { rewriteMagnitude } from "./measures";
 import { runScoringAttempt, type ScoringRunDeps } from "./run-scoring";
-import { isAbandoned, promptAt, readRoundStep, type AnswerRow, type RoundRow, type RoundStep } from "./state";
+import { isAbandoned, lockRoundUser, promptAt, readRoundStep, type AnswerRow, type RoundRow, type RoundStep } from "./state";
 
 /**
  * `POST /api/answers/{answerId}/submit` ⚡ (07 §5.9): the commit point. Writes the corrected
@@ -92,6 +92,7 @@ export function createSubmit(deps: SubmitDeps) {
     let written: boolean | Response;
     try {
       written = await deps.transaction(async (tx): Promise<boolean | Response> => {
+        await lockRoundUser(tx, round.userId);
         await tx.select({ id: s.rounds.id }).from(s.rounds).where(eq(s.rounds.id, round.id)).for("update");
         if (await isAbandoned(tx, round)) return roundAbandoned(round.id);
         const [row] = await tx
@@ -122,7 +123,7 @@ export function createSubmit(deps: SubmitDeps) {
     return { step: settled, missing: written && outcome.status === "missing" ? { parent, errorClass: outcome.errorClass } : null };
   }
 
-  return async function POST(request: Request, answerId: string): Promise<Response> {
+  return guarded("answer_submit_failed", async function POST(request: Request, answerId: string): Promise<Response> {
     const session = await authenticate(deps, request, "submit");
     if (session instanceof Response) return session;
     const { userId } = session;
@@ -193,6 +194,7 @@ export function createSubmit(deps: SubmitDeps) {
     let attemptId: string | null | Response;
     try {
       attemptId = await deps.transaction(async (tx): Promise<string | null | Response> => {
+        await lockRoundUser(tx, round.userId);
         await tx.select({ id: s.rounds.id }).from(s.rounds).where(eq(s.rounds.id, round.id)).for("update");
         if (await isAbandoned(tx, round)) return roundAbandoned(round.id);
         const [updated] = await tx
@@ -239,5 +241,5 @@ export function createSubmit(deps: SubmitDeps) {
       rewrite_magnitude: magnitude,
     });
     return respond(magnitude, { id: attemptId, status: "pending" });
-  };
+  }, answerIdOf);
 }

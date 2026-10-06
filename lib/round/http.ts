@@ -44,6 +44,34 @@ export function writeFailed(event: string, error: unknown, ids: Record<string, s
   return apiError("write_failed", "A database write failed; nothing was written.", { ...ids, error_class: errorClass });
 }
 
+/** The id a route was called with, as its failure's `detail` — when it is one (a malformed id is a 404). */
+type Ids = Record<string, string>;
+export const roundIdOf = (_request: Request, roundId: string): Ids => (isUuid(roundId) ? { round_id: roundId } : {});
+export const answerIdOf = (_request: Request, answerId: string): Ids => (isUuid(answerId) ? { answer_id: answerId } : {});
+export const attemptIdOf = (_request: Request, attemptId: string): Ids => (isUuid(attemptId) ? { attempt_id: attemptId } : {});
+const noId = (): Ids => ({});
+
+/**
+ * Every round route's outermost line: **never a bare `500`** (07 §2). A handler turns the failures it
+ * expects into their own envelopes, and its writes into `write_failed` where the transaction is.
+ * Whatever still throws — the session read, the limiter's upsert, a read between two writes — is a
+ * database call the route did not finish, and leaves the same way: the envelope, ids and the error
+ * class, and a round that resumes at the same call.
+ */
+export function guarded<A extends [Request, ...string[]]>(
+  event: string,
+  handler: (...args: A) => Promise<Response>,
+  ids: (...args: A) => Ids = noId,
+) {
+  return async (...args: A): Promise<Response> => {
+    try {
+      return await handler(...args);
+    } catch (error) {
+      return writeFailed(event, error, ids(...args));
+    }
+  };
+}
+
 /** `409 round_abandoned` (07 §3): a newer round started, or this one is from an earlier day. */
 export function roundAbandoned(roundId: string): Response {
   return apiError("round_abandoned", "The round is abandoned; it takes no more writes.", { round_id: roundId });

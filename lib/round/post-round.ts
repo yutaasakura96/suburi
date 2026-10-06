@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import * as s from "../../db/schema";
 import { apiError } from "../api/errors";
@@ -6,11 +6,12 @@ import type { Embedder } from "../ai/embed";
 import type { QuestionGenerator } from "../ai/generate-questions";
 import type { ModelHealth } from "../ai/health";
 import type { AnswerScorer } from "../ai/score";
-import { ModelCallFailed } from "../ai/upstream";
+import { ModelCallFailed, SPEND_LIMIT_CLASSES } from "../ai/upstream";
 import { admitCandidate, lockSlice } from "../questions/near-duplicate";
 import { generateCandidates, type GeneratedCandidates } from "./generate-candidates";
-import { authenticate, log, notFound, parseBody, writeFailed, type Db, type RoundDeps } from "./http";
+import { authenticate, guarded, log, notFound, parseBody, writeFailed, type Db, type RoundDeps } from "./http";
 import { loadCandidates, planQuestions } from "./select-questions";
+import { lockRoundUser } from "./state";
 
 /**
  * `POST /api/rounds` ⚡ (07 §5.4). Preflights the model, resolves the rubric and the CV version,
@@ -49,7 +50,7 @@ export interface PostRoundDeps extends RoundDeps {
 class BankTooSmall extends Error {}
 
 export function createPostRound(deps: PostRoundDeps) {
-  return async function POST(request: Request): Promise<Response> {
+  return guarded("round_create_failed", async function POST(request: Request): Promise<Response> {
     const session = await authenticate(deps, request, "rounds");
     if (session instanceof Response) return session;
     const { userId } = session;
@@ -90,7 +91,12 @@ export function createPostRound(deps: PostRoundDeps) {
       plan.shortfall === 0
         ? null
         : generateCandidates(deps, { ...slice, cvVersionId: cv.id, roleContextId: context.id, shortfall: plan.shortfall }).catch(
-            (error: unknown) => (error instanceof ModelCallFailed ? error : new ModelCallFailed("Question generation", "unexpected")),
+            (error: unknown) => {
+              // Only a model call's failure is the generator's. A failed read of what it is shown is
+              // the database's, and goes to the route's guard as `write_failed` (07 §2).
+              if (error instanceof ModelCallFailed) return error;
+              throw error;
+            },
           ),
     ]);
     if (!health.ok) {
@@ -108,6 +114,13 @@ export function createPostRound(deps: PostRoundDeps) {
         shortfall: plan.shortfall,
         error_class: generated.errorClass,
       });
+      // A spent project (12 §6) is the model being unavailable, whichever call met it first.
+      if ((SPEND_LIMIT_CLASSES as readonly string[]).includes(generated.errorClass)) {
+        return apiError("model_unavailable", "The model's project has reached its spend limit.", {
+          model_id: deps.health.modelId,
+          error_class: generated.errorClass,
+        });
+      }
       return apiError("question_generation_failed", "The round's questions could not be generated; nothing was created.", {
         error_class: generated.errorClass,
       });
@@ -116,8 +129,11 @@ export function createPostRound(deps: PostRoundDeps) {
     const chosen = [...plan.chosen];
     const admitted = { inserted: 0, reused: 0 };
     let round: typeof s.rounds.$inferSelect;
+    let first: { id: string; body: string };
     try {
-      round = await deps.transaction(async (tx) => {
+      // The first prompt is read inside the write: nothing after the commit can fail a round that exists.
+      [round, first] = await deps.transaction(async (tx) => {
+        await lockRoundUser(tx, userId);
         if (generated) {
           await lockSlice(tx, slice);
           await fillFromCandidates(tx, generated);
@@ -134,12 +150,17 @@ export function createPostRound(deps: PostRoundDeps) {
             cvVersionId: cv.id,
             roleContextId: context.id,
             rubricVersionId: rubric.id,
+            startedAt: sql`clock_timestamp()`,
           })
           .returning();
         await tx
           .insert(s.roundQuestions)
           .values(chosen.map((questionId, index) => ({ roundId: row.id, userId, position: index + 1, questionId })));
-        return row;
+        const [question] = await tx
+          .select({ id: s.questions.id, body: s.questions.body })
+          .from(s.questions)
+          .where(eq(s.questions.id, chosen[0]));
+        return [row, question] as const;
       });
     } catch (error) {
       if (error instanceof BankTooSmall) {
@@ -184,11 +205,6 @@ export function createPostRound(deps: PostRoundDeps) {
       if (chosen.length < length) throw new BankTooSmall();
     }
 
-    const [first] = await deps.db
-      .select({ id: s.questions.id, body: s.questions.body })
-      .from(s.questions)
-      .where(eq(s.questions.id, chosen[0]));
-
     log("info", {
       event: "round_created",
       round_id: round.id,
@@ -226,8 +242,8 @@ export function createPostRound(deps: PostRoundDeps) {
         prompt: { kind: "question", position: 1, question_id: first.id, text: first.body, speak: mode === "realistic" },
         progress: { position: 1, of: length },
       },
-      // No Location: `GET /api/rounds/{id}` is the resume slice's (#48), as #14 left the CV route.
-      { status: 201 },
+      // Where the round is read back from, and resumed (07 §5.5).
+      { status: 201, headers: { Location: `/api/rounds/${round.id}` } },
     );
-  };
+  });
 }

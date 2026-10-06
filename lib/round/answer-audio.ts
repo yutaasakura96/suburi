@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import * as s from "../../db/schema";
 import { apiError } from "../api/errors";
 import type { AudioStore } from "../audio/store";
-import { authenticate, isUuid, log, notFound, type RoundDeps } from "./http";
+import { answerIdOf, authenticate, guarded, isUuid, log, notFound, type RoundDeps } from "./http";
 
 /**
  * `GET /api/answers/{answerId}/audio` (07 §5.14): mints a short-lived presigned GET at play time.
@@ -17,7 +17,7 @@ export interface AnswerAudioDeps extends RoundDeps {
 }
 
 export function createGetAnswerAudio(deps: AnswerAudioDeps) {
-  return async function GET(request: Request, answerId: string): Promise<Response> {
+  return guarded("answer_audio_failed", async function GET(request: Request, answerId: string): Promise<Response> {
     const session = await authenticate(deps, request);
     if (session instanceof Response) return session;
     if (!isUuid(answerId)) return notFound("answer");
@@ -38,5 +38,5 @@ export function createGetAnswerAudio(deps: AnswerAudioDeps) {
       log("error", { event: "audio_presign_failed", answer_id: answerId, error_class: (error as Error).name ?? "unexpected" });
       return apiError("upstream_s3", "The recording could not be reached in S3.", { answer_id: answerId });
     }
-  };
+  }, answerIdOf);
 }

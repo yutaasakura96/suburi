@@ -45,6 +45,7 @@ all ten samples, four English and six Japanese, sounded correct. **The issue sta
 follow-ups:** the route does not read #44's `follow_ups` yet, so a follow-up is asked as text. The
 pinned model and its replacement deadline are in `03` §4.
 **#50, History, is built (2026-10-04), on `fm/suburi-50`** (Next).
+**#48, failure paths, is built (2026-10-04), on `fm/suburi-48`** (Next).
 **#74, a model answer for each question, is built (2026-10-04), on `fm/suburi-74`** (Next).
 **#49, practice mode, is built (2026-10-04), on `fm/suburi-49`:** Setup's mode, the re-take, the
 per-answer frame, answer again, and a round that ends with no rating; its original 28 strings and
@@ -55,7 +56,7 @@ round closing each say what is running, with a segment per thing waited for and 
 the round-end counts read `GET /api/rounds/{roundId}`, which #49 built, and are proved against it
 (`e2e/waits.spec.ts`). Practice's round end is left on its caption, on purpose (`06`).
 **Updated:** 2026-10-06 (#73 built; #49's Japanese strings all accepted; #50's
-catalogue string read; #43, #44, #45, #46, #47, #49, #50 and #74 built; #42 closed; #55 and #56 on 2026-09-30)
+catalogue string read; #43, #44, #45, #46, #47, #48, #49, #50 and #74 built; #42 closed; #55 and #56 on 2026-09-30)
 
 ## Done
 - Phase 1 — `docs/01-project-brief.md`, `docs/02-product-requirements.md`, `docs/06-decision-log.md`.
@@ -430,6 +431,21 @@ the real model — #44 merged with #43 on 2026-10-04 and Japanese follow-ups are
 only; their output, and the Japanese follow-up strings, are unread
 (`docs/checklists/native-read-round.md` §8). Migration `0009` is **not yet applied to either Neon
 branch** (`12` §4). Decisions in `06`, "Phase 6 — #44".
+
+**#48 is built (2026-10-04), on `fm/suburi-48`.** Built, with expand-only migration `0014` for upload confirmation, not yet applied to Neon: `GET /api/rounds/{id}`,
+the resume read (`07` §5.5); `POST /api/answers/{id}/transcript`, the typed answer (`07` §5.8), stored
+with no transcriber, pace or duration; one guard around every round route, so nothing leaves as a
+bare `500`; a take held in IndexedDB from the moment it exists, with its retry, the leave-page
+warning and the frame a reload returns to; a take the slot route refuses kept on the device and
+answered by typing (`06`, 2026-10-05); the transcription-failed frame, with retry and typing; a
+resumed round that transcribes the uploaded take instead of asking for another; a denied microphone
+named with its fix; the earlier-day abandonment's own sentence; and a spent OpenAI project classed by
+its code and never retried. **Tested:** the routes `11` §3.16 lists failed at each database call in turn,
+the sentinel walk over their refusals (`11` §3.10, §3.16), and Playwright for each failure path
+(`11` §4). **The owner read and accepted all nine new Japanese strings on 2026-10-05**
+(`docs/checklists/native-read-round.md` §15); **the two refused-take sentences added after them were read and accepted by the owner the same day.** **Not done here:** whether a spent project refuses the preflight's probe
+is unverified (`12` §6); and "excluded from Progress" for a typed answer is the mark only — the
+exclusion is #51's. Decisions in `06`, "Phase 6 — #48".
 
 **#74 is built (2026-10-04), on `fm/suburi-74`.** Raised by the owner after the first real English
 round: the feedback showed the question and never how it could have been answered. Built: migration

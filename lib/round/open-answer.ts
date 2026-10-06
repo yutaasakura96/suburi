@@ -4,10 +4,11 @@ import { z } from "zod";
 import * as s from "../../db/schema";
 import { apiError } from "../api/errors";
 import { answerAudioKey, type AudioStore } from "../audio/store";
-import { authenticate, isUuid, log, notFound, parseBody, roundAbandoned, writeFailed, type Db, type RoundDeps } from "./http";
+import { authenticate, guarded, isUuid, log, notFound, parseBody, roundAbandoned, roundIdOf, writeFailed, type Db, type RoundDeps } from "./http";
 import {
   answeredBefore,
   isAbandoned,
+  lockRoundUser,
   openRetry,
   promptAt,
   roundAnswers,
@@ -22,7 +23,8 @@ import {
  * **Called once the take exists** — after recording, before the upload — so a failed or denied
  * recording writes nothing and the question stays unseen (PRD §7).
  *
- * The client sends only what it cannot know about itself: the content type and the take's size.
+ * The client sends only what it cannot know about itself: the content type and the take's size —
+ * or `source: "typed"`, for a take this route refused: the slot is opened with no key, for 07 §5.8.
  * `question_id` or `parent_answer_id`, `prompt_text`, `position`, `language`, `is_first_attempt` and
  * the key are derived here. **The prompt comes from stored rows** — `round_questions`, or the parent's
  * `follow_ups` row — so nothing is selected or generated here, and a follow-up's slot takes its
@@ -42,18 +44,30 @@ export const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 // What Chrome's MediaRecorder writes (06, 2026-09-28): the only format the transcription check verified.
 const CONTENT_TYPES = ["audio/webm", "audio/webm;codecs=opus"] as const;
 
-const requestSchema = z.strictObject({
-  content_type: z.string().min(1).max(100),
-  expected_bytes: z.int().positive(),
-  retry_of_answer_id: z.uuid().optional(),
-});
+// A take, or `source: "typed"` alone: the slot of a take the route refused, opened with no key.
+const requestSchema = z
+  .strictObject({
+    source: z.literal("typed").optional(),
+    content_type: z.string().min(1).max(100).optional(),
+    expected_bytes: z.int().positive().optional(),
+    retry_of_answer_id: z.uuid().optional(),
+  })
+  .superRefine((body, context) => {
+    for (const field of ["content_type", "expected_bytes"] as const) {
+      if ((body[field] === undefined) !== (body.source === "typed")) context.addIssue({ code: "custom", path: [field] });
+    }
+  });
 
 type Opened = { answer: AnswerRow; created: boolean } | Response;
 
 /** An open slot is returned as it is while its take can still be replaced; a transcribed take is final. */
-function reopened(answer: AnswerRow): Opened {
+function reopened(answer: AnswerRow, take: boolean): Opened {
   if (answer.transcriptRaw !== null) {
     return apiError("transcript_already_final", "This answer is already transcribed; its take is final.", { answer_id: answer.id });
+  }
+  // A slot opened as typed has no key and takes none: its answer is typed (07 §5.8).
+  if (take && answer.audioS3Key === null) {
+    return apiError("unsupported_content_type", "This slot was opened for a typed answer; it takes no upload.", { answer_id: answer.id });
   }
   return { answer, created: false };
 }
@@ -72,7 +86,7 @@ export function createOpenAnswer(deps: OpenAnswerDeps) {
    * Nothing about the first answer changes, and the round's step is not consulted: the round stays
    * wherever it was.
    */
-  async function answerAgain(tx: Db, round: RoundRow, answers: readonly AnswerRow[], answerId: string): Promise<Opened> {
+  async function answerAgain(tx: Db, round: RoundRow, answers: readonly AnswerRow[], answerId: string, take: boolean): Promise<Opened> {
     // Realistic is one take (PRD US-5): the field is refused there, whatever it names.
     if (round.mode !== "practice") {
       return apiError("invalid_request", "Only an answer in a practice round can be answered again.", { fields: ["retry_of_answer_id"] });
@@ -85,7 +99,7 @@ export function createOpenAnswer(deps: OpenAnswerDeps) {
     const original = answers.find((answer) => answer.id === (target.retryOfAnswerId ?? target.id))!;
     // One open retry per answer: a repeat, an expired URL or a re-take all land on it.
     const open = openRetry(answers, original.id);
-    if (open) return reopened(open);
+    if (open) return reopened(open, take);
 
     const id = randomUUID();
     const [answer] = await tx
@@ -96,7 +110,7 @@ export function createOpenAnswer(deps: OpenAnswerDeps) {
         userId: round.userId,
         position: original.position,
         language: round.language,
-        audioS3Key: answerAudioKey(deps.prefix, round.userId, round.id, id),
+        audioS3Key: take ? answerAudioKey(deps.prefix, round.userId, round.id, id) : null,
         questionId: original.questionId,
         parentAnswerId: original.parentAnswerId,
         promptText: original.promptText,
@@ -108,7 +122,7 @@ export function createOpenAnswer(deps: OpenAnswerDeps) {
     return { answer, created: true };
   }
 
-  return async function POST(request: Request, roundId: string): Promise<Response> {
+  return guarded("answer_open_failed", async function POST(request: Request, roundId: string): Promise<Response> {
     const session = await authenticate(deps, request);
     if (session instanceof Response) return session;
     const { userId } = session;
@@ -116,14 +130,15 @@ export function createOpenAnswer(deps: OpenAnswerDeps) {
 
     const body = await parseBody(request, requestSchema);
     if (body instanceof Response) return body;
-    const contentType = CONTENT_TYPES.find((type) => type === body.content_type.replace(/\s+/g, "").toLowerCase());
-    if (!contentType) {
+    const take = body.source === "typed" ? null : { contentType: body.content_type!, bytes: body.expected_bytes! };
+    const contentType = take && CONTENT_TYPES.find((type) => type === take.contentType.replace(/\s+/g, "").toLowerCase());
+    if (take && !contentType) {
       return apiError("unsupported_content_type", "Only audio/webm takes are accepted.", { fields: ["content_type"] });
     }
     // The take is still in the browser: nothing is opened for one the presign could never accept.
-    if (body.expected_bytes > MAX_UPLOAD_BYTES) {
+    if (take && take.bytes > MAX_UPLOAD_BYTES) {
       return apiError("upload_too_large", "The take is larger than the upload cap.", {
-        expected_bytes: body.expected_bytes,
+        expected_bytes: take.bytes,
         max_bytes: MAX_UPLOAD_BYTES,
       });
     }
@@ -131,6 +146,7 @@ export function createOpenAnswer(deps: OpenAnswerDeps) {
     let opened: Opened;
     try {
       opened = await deps.transaction(async (tx): Promise<Opened> => {
+        await lockRoundUser(tx, userId);
         // Position is assigned under a row lock on the round: two concurrent opens cannot both claim it.
         const [round] = await tx
           .select()
@@ -144,7 +160,7 @@ export function createOpenAnswer(deps: OpenAnswerDeps) {
         if (await isAbandoned(tx, round)) return roundAbandoned(roundId);
 
         const answers = await roundAnswers(tx, round.id);
-        if (body.retry_of_answer_id !== undefined) return answerAgain(tx, round, answers, body.retry_of_answer_id);
+        if (body.retry_of_answer_id !== undefined) return answerAgain(tx, round, answers, body.retry_of_answer_id, take !== null);
 
         const step = roundStep(round, answers, await roundFollowUps(tx, round.id));
         if (step.kind === "follow_up_due") {
@@ -158,7 +174,7 @@ export function createOpenAnswer(deps: OpenAnswerDeps) {
         if (step.kind !== "answer") {
           return apiError("answer_already_submitted", "Every position in this round is already answered.", { round_id: roundId });
         }
-        if (step.answer) return reopened(step.answer);
+        if (step.answer) return reopened(step.answer, take !== null);
 
         const id = randomUUID();
         const slot = {
@@ -167,7 +183,7 @@ export function createOpenAnswer(deps: OpenAnswerDeps) {
           userId,
           position: step.position,
           language: round.language,
-          audioS3Key: answerAudioKey(deps.prefix, userId, roundId, id),
+          audioS3Key: take ? answerAudioKey(deps.prefix, userId, roundId, id) : null,
         };
         if (step.followUp) {
           // Never a first attempt: a follow-up has no question id, and the column's check refuses one (04).
@@ -195,9 +211,11 @@ export function createOpenAnswer(deps: OpenAnswerDeps) {
     if (opened instanceof Response) return opened;
     const { answer, created } = opened;
 
+    if (!take || !contentType) return Response.json({ answer_id: answer.id }, { status: created ? 201 : 200 });
+
     let upload;
     try {
-      upload = await deps.store.presignPut(answer.audioS3Key!, { contentType, bytes: body.expected_bytes });
+      upload = await deps.store.presignPut(answer.audioS3Key!, { contentType, bytes: take.bytes });
     } catch (error) {
       log("error", { event: "presign_failed", answer_id: answer.id, error_class: (error as Error).name ?? "unexpected" });
       return apiError("presign_failed", "The upload could not be presigned; the slot stays open.", { answer_id: answer.id });
@@ -211,7 +229,7 @@ export function createOpenAnswer(deps: OpenAnswerDeps) {
       follow_up: answer.questionId === null,
       retry: answer.retryOfAnswerId !== null,
       is_first_attempt: answer.isFirstAttempt,
-      expected_bytes: body.expected_bytes,
+      expected_bytes: take.bytes,
     });
 
     return Response.json(
@@ -233,5 +251,5 @@ export function createOpenAnswer(deps: OpenAnswerDeps) {
       },
       { status: created ? 201 : 200 },
     );
-  };
+  }, roundIdOf);
 }

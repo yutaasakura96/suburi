@@ -8,7 +8,7 @@ import type { Span } from "../cv/spans";
 import type { Rubric, RubricLanguage } from "../rubric/types";
 import { loadRoleContext } from "./generate-candidates";
 import { locatedModelAnswer } from "./model-answer-spans";
-import { authenticate, isUuid, log, notFound, pgErrorClass, writeFailed, type RoundDeps } from "./http";
+import { authenticate, guarded, isUuid, log, notFound, pgErrorClass, roundIdOf, writeFailed, type RoundDeps } from "./http";
 import { citableClaimsOf } from "./run-scoring";
 import { roundAnswers, type RoundRow } from "./state";
 
@@ -213,7 +213,7 @@ export async function storeModelAnswers(deps: ModelAnswerDeps, generated: Genera
  * completed before model answers existed. A round that lacks none makes no model call.
  */
 export function createModelAnswersRetry(deps: ModelAnswerDeps) {
-  return async function POST(request: Request, roundId: string): Promise<Response> {
+  return guarded("model_answers_failed", async function POST(request: Request, roundId: string): Promise<Response> {
     const session = await authenticate(deps, request, "model-answers");
     if (session instanceof Response) return session;
     const { userId } = session;
@@ -244,7 +244,7 @@ export function createModelAnswersRetry(deps: ModelAnswerDeps) {
       });
     }
     return Response.json({ model_answers: stored }, { status: stored.written > 0 ? 201 : 200 });
-  };
+  }, roundIdOf);
 }
 
 export interface CompleteModelAnswerDeps extends ModelAnswerDeps {

@@ -380,9 +380,47 @@ Under the track, in both: `このままお待ちください。終わると自�
   figure, and it is a measurement.
 - **A failure ends the wait**: the wait line goes, the record button comes back disabled, and the
   failure's sentence and `もう一度試す` stand where they did. Trying again starts the wait line, and
-  its clock, again.
+  its clock, again. A take that could not be uploaded or transcribed leaves for its own frame (below).
 - **Both modes.** Practice has no clock while recording (§15); this one is not the take's, and is
   drawn in practice too.
+
+### 4–5, when it fails (#48) — no artboard
+
+Built from the record frames' own parts; nothing here was drawn. Copy is `app/(app)/round/copy.ts`,
+and its nine Japanese strings were read and accepted by the owner on 2026-10-05
+(`docs/checklists/native-read-round.md` §15); the two refused-take sentences added after them were
+read and accepted the same day.
+
+- **The microphone is denied, or the recording fails.** Screen 3 stays as it is, with one attention
+  rail under the captions. A denied microphone names the fix — allow it from the address bar, then
+  record again — and says nothing was recorded and the question stays unseen. The round is paused,
+  not ended: `録音を開始` is still there.
+- **The take could not be uploaded.** The question stays at 19px where the record frames set it, so
+  nothing moves. One attention rail — `録音をアップロードできませんでした。録音はこの端末に保存されています。このタブを閉じないでください。` —
+  and one outline control, `もう一度試す`. **No control records again:** the take is the answer. The
+  frame comes back after a reload, from IndexedDB, and leaving the page is warned against until the
+  take is in S3. If the browser could not store it, the rail says the take is only in this tab.
+  **A page loaded onto a slot already opened for typing** (`07` §5.5, `resume.at: transcript`) shows
+  that frame with the typing box open and no rail or other control: the answer is typed, and the
+  record frame is never offered for it. Its caption ends `録音は残ります。` only when a take for that
+  prompt is held on the device; with none held, the caption stops a sentence earlier (`06`, 2026-10-05).
+  A take no retry could send — over the size cap, or of a type the route refuses — stays held, and
+  the frame says so in **one rail, in place of the held one**: why this recording cannot be uploaded,
+  and to type the answer instead — `この録音はサイズが大きすぎるため、アップロードできません。回答を入力してください。`
+  or `この録音は対応していない音声形式のため、アップロードできません。回答を入力してください。`. It is the
+  same rail whether or not the browser could store the take: nothing on the frame says to try again
+  or to keep the tab open. `もう一度試す` is not offered, and `回答を入力する` opens the typing box below.
+  The take remains on this device until the round ends.
+- **The take could not be transcribed.** The same frame, with `07` §3's sentence for
+  `transcription_failed` in the rail and two outline controls: `もう一度試す` and `回答を入力する`. The
+  second opens a box under them — label `あなたの回答 — 音声ではなく入力`, 200px, the transcript's own
+  type — with a solid `入力した回答を保存する`, disabled while the box is blank, and a caption saying a
+  typed answer is recorded as typed, has no duration or pace, is not counted in progress, and that the
+  take is kept. Saving goes on to screen 5 with the typed text as the raw transcript and **no figures**:
+  there was no delivery to measure. A reload returns to this frame, not to a new take.
+- **The round is abandoned.** In place of the frames: one sentence and the way Home. Which sentence
+  depends on why — a newer round started, or the round was not finished on the Asia/Tokyo day it
+  began. No control writes anything.
 
 ### 5. Transcript back — `RecordTranscript.dc.html`
 - The question is **demoted to 14px/1.85 `--ink-5`** — it has been answered; it is now context.
@@ -1196,6 +1234,8 @@ A practice round is chosen on Setup (§2), where the mode's line already says wh
 - **A reload before the transcript** shows the question again, as §3 does: the take is uploaded, but
   the page cannot play it back (`06`, 2026-10-04).
   Recording then is a re-take onto the answer already opened.
+  A re-take still held on the device is sent on that reload and this frame shows it, even where an
+  older take's upload was confirmed (`06`, 2026-10-06).
 
 ### Transcript correction — §6 in practice
 

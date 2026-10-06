@@ -4,8 +4,9 @@ import { apiError } from "../api/errors";
 import { ModelCallFailed } from "../ai/upstream";
 import type { Transcriber } from "../ai/transcribe";
 import type { AudioStore } from "../audio/store";
-import { authenticate, isUuid, log, notFound, writeFailed, type RoundDeps } from "./http";
+import { answerIdOf, authenticate, guarded, isUuid, log, notFound, writeFailed, type RoundDeps } from "./http";
 import { pace } from "./measures";
+import { roundWriteRefusal } from "./state";
 
 /**
  * `POST /api/answers/{answerId}/transcribe` ⚡ (07 §5.7): transcribes the object the browser PUT,
@@ -31,7 +32,7 @@ function view(answer: typeof s.answers.$inferSelect) {
 }
 
 export function createTranscribe(deps: TranscribeDeps) {
-  return async function POST(request: Request, answerId: string): Promise<Response> {
+  return guarded("transcribe_failed", async function POST(request: Request, answerId: string): Promise<Response> {
     const session = await authenticate(deps, request, "transcribe");
     if (session instanceof Response) return session;
     const { userId } = session;
@@ -42,6 +43,8 @@ export function createTranscribe(deps: TranscribeDeps) {
       .from(s.answers)
       .where(and(eq(s.answers.id, answerId), eq(s.answers.userId, userId)));
     if (!answer) return notFound("answer");
+    const initialRefusal = await deps.transaction((tx) => roundWriteRefusal(tx, answer.roundId, userId));
+    if (initialRefusal) return initialRefusal;
     if (answer.transcriptRaw !== null) return Response.json(view(answer));
 
     const started = performance.now();
@@ -56,6 +59,20 @@ export function createTranscribe(deps: TranscribeDeps) {
     }
     if (audio === null) {
       return apiError("audio_missing", "No take has been uploaded for this answer.", { answer_id: answerId });
+    }
+
+    if (answer.audioUploadedAt === null) {
+      try {
+        const refusal = await deps.transaction(async (tx) => {
+          const blocked = await roundWriteRefusal(tx, answer.roundId, userId);
+          if (blocked) return blocked;
+          await tx.update(s.answers).set({ audioUploadedAt: new Date() }).where(and(eq(s.answers.id, answerId), isNull(s.answers.audioUploadedAt)));
+          return null;
+        });
+        if (refusal) return refusal;
+      } catch (error) {
+        return writeFailed("upload_confirmation_write_failed", error, { answer_id: answerId });
+      }
     }
 
     let result;
@@ -77,8 +94,10 @@ export function createTranscribe(deps: TranscribeDeps) {
     let stored;
     try {
       // Written only while still null: a concurrent call that finished first keeps its transcript.
-      [stored] = await deps.transaction((tx) =>
-        tx
+      const writeResult = await deps.transaction(async (tx) => {
+        const refusal = await roundWriteRefusal(tx, answer.roundId, userId);
+        if (refusal) return refusal;
+        const [updated] = await tx
           .update(s.answers)
           .set({
             transcriptRaw: result.text,
@@ -87,8 +106,11 @@ export function createTranscribe(deps: TranscribeDeps) {
             transcriberModelId: deps.transcriber.modelId,
           })
           .where(and(eq(s.answers.id, answerId), isNull(s.answers.transcriptRaw)))
-          .returning(),
-      );
+          .returning();
+        return updated;
+      });
+      if (writeResult instanceof Response) return writeResult;
+      stored = writeResult;
     } catch (error) {
       return writeFailed("transcript_write_failed", error, { answer_id: answerId });
     }
@@ -105,5 +127,5 @@ export function createTranscribe(deps: TranscribeDeps) {
       duration_ms: elapsed(),
     });
     return Response.json(view(stored));
-  };
+  }, answerIdOf);
 }

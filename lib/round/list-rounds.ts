@@ -2,7 +2,7 @@ import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import * as s from "../../db/schema";
 import { apiError } from "../api/errors";
-import { authenticate, failedFields, isUuid, type Db, type RoundDeps } from "./http";
+import { authenticate, failedFields, guarded, isUuid, type Db, type RoundDeps } from "./http";
 import { latestAttempts, scoringCounts } from "./state";
 import { roundStatus, type RoundStatus } from "./status";
 
@@ -160,7 +160,7 @@ function invalid(fields: readonly string[]) {
 }
 
 export function createGetRounds(deps: RoundDeps) {
-  return async function GET(request: Request): Promise<Response> {
+  return guarded("rounds_list_failed", async function GET(request: Request): Promise<Response> {
     const session = await authenticate(deps, request);
     if (session instanceof Response) return session;
 
@@ -187,5 +187,5 @@ export function createGetRounds(deps: RoundDeps) {
         new Date(),
       ),
     );
-  };
+  });
 }

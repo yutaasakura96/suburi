@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useDeferredValue, useState } from "react";
+import { useDeferredValue, useEffect, useEffectEvent, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { paceUnits, rewriteMagnitude, rewritePercent } from "@/lib/round/measures";
 import type { ScoringRead } from "@/lib/round/read-round";
@@ -12,8 +12,10 @@ import type { AnsweredView, NextView, RoundFrame } from "../load";
 import { CalloutRail, ErrorLine, RoundFooter, RoundHeader, caption, roundSectionLabel, type Failure } from "../parts";
 import { AnsweredFrame, type FrameNext } from "./answered-frame";
 import { closingWait, useScoringProgress } from "./closing-progress";
+import { heldTake, holdTake, releaseRoundTakes, releaseTake, type UploadRejection } from "./held-take";
 import { WAVEFORM_BARS, useRecorder, type Take } from "./recorder";
 import { useSpokenQuestion } from "./spoken-question";
+import { StuckTakeFrame } from "./stuck-take";
 import { WaitLine } from "./wait-line";
 
 interface Transcript {
@@ -43,13 +45,22 @@ interface Answered {
 type Screen =
   /** `back` is the frame an answer-again came from, offered until a take exists: nothing is written before one. */
   | { readonly kind: "asked"; readonly question: Question; readonly back: Answered | null }
-  /** The take is on its way (10 §3–5): `step` is which of its two calls is running. */
-  | { readonly kind: "uploading"; readonly question: Question; readonly take: Take; readonly step: "upload" | "transcribe" }
+  /** The take is on its way (10 §3–5): `step` is which of its two calls is running. It is in S3 once that is `transcribe`. */
+  | { readonly kind: "uploading"; readonly question: Question; readonly step: "upload" | "transcribe" }
+  /**
+   * The take has not reached S3 (03 §5). It is held in IndexedDB — `onDevice` — or, where that could
+   * not be written, only in this tab. `cause` is the refusal that stopped it, or null for the upload itself.
+   */
+  | { readonly kind: "held"; readonly question: Question; readonly take: Take; readonly onDevice: boolean; readonly cause: FailureCode | null }
   /**
    * Practice only: the take is uploaded and not transcribed, so it can still be recorded again
    * (07 §5.6). `transcribing` once the user has chosen to keep it.
    */
-  | { readonly kind: "held"; readonly question: Question; readonly answerId: string; readonly transcribing: boolean }
+  | { readonly kind: "retake"; readonly question: Question; readonly answerId: string; readonly transcribing: boolean }
+  /** The take is uploaded and could not be transcribed: it is kept, and the answer is retried or typed (07 §5.7–§5.8). */
+  | { readonly kind: "untranscribed"; readonly question: Question; readonly answerId: string }
+  /** The slot was opened as typed (07 §5.6) and its text is not saved yet: the answer is typed, never recorded. */
+  | { readonly kind: "typed"; readonly question: Question; readonly answerId: string; readonly takeHeld: boolean }
   | { readonly kind: "transcript"; readonly question: Question; readonly transcript: Transcript }
   | { readonly kind: "correct"; readonly question: Question; readonly transcript: Transcript }
   /**
@@ -66,7 +77,7 @@ type Screen =
     }
   | Answered
   | { readonly kind: "pressure" }
-  | { readonly kind: "abandoned"; readonly answered: number };
+  | { readonly kind: "abandoned"; readonly answered: number; readonly byDay: boolean };
 
 function initialScreen(start: RoundFrame["start"]): Screen {
   if (start.kind === "follow_up_due") {
@@ -75,7 +86,9 @@ function initialScreen(start: RoundFrame["start"]): Screen {
   }
   if (start.kind !== "question") return start;
   const question = { position: start.position, text: start.text, followUpVersion: start.followUpVersion, again: start.again };
-  return start.transcript ? { kind: "transcript", question, transcript: start.transcript } : { kind: "asked", question, back: null };
+  if (start.transcript) return { kind: "transcript", question, transcript: start.transcript };
+  if (start.openAnswerId && start.typedSlot) return { kind: "typed", question, answerId: start.openAnswerId, takeHeld: false };
+  return start.openAnswerId && start.uploadConfirmed ? { kind: "uploading", question, step: "transcribe" } : { kind: "asked", question, back: null };
 }
 
 /** The record frame for what a per-answer frame leads to: the follow-up, or the next question. */
@@ -96,6 +109,10 @@ interface Transcribed {
   words_per_minute: number | null;
 }
 
+interface Typed {
+  transcript_raw: string;
+}
+
 interface Submitted {
   rewrite_magnitude: number | null;
   scoring: ScoringRead;
@@ -105,6 +122,9 @@ interface Submitted {
     | { kind: "pressure" }
     | { kind: "feedback" };
 }
+
+const rejectionOf = (code: FailureCode | null): UploadRejection | null =>
+  code === "upload_too_large" || code === "unsupported_content_type" ? code : null;
 
 /**
  * A running round (10 §3–§7). Every step is a server call that leaves the database in a state a
@@ -175,22 +195,36 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
     setBusy(false);
   }
 
+  const slotOf = (question: Question) => ({ roundId: round.id, position: question.position, followUp: question.followUpVersion !== null });
+
   /**
-   * Open the slot after the take exists (07 §5.6) and PUT it to S3. A realistic take is transcribed
-   * at once; a practice take is held, so it can be recorded again — which lands here once more, on
-   * the same answer and the same object.
+   * Open the slot after the take exists (07 §5.6), PUT it to S3, transcribe it. **The take is held in
+   * IndexedDB before anything is sent** (03 §5), and released once it is in S3: whatever stops it on
+   * the way, a reload finds it. One the route refuses stays held, marked with the refusal, and is
+   * answered by typing. `onDevice` is passed by a retry, which need not hold it again. A realistic take
+   * is transcribed at once; a practice take waits, so it can be recorded again — which lands here once
+   * more, on the same answer and the same object.
    */
-  async function deliver(question: Question, take: Take) {
-    setScreen({ kind: "uploading", question, take, step: "upload" });
+  async function deliver(question: Question, take: Take, onDevice?: boolean) {
+    setScreen({ kind: "uploading", question, step: "upload" });
     setError(null);
     setBusy(true);
-    const retry = () => void deliver(question, take);
+    const held = onDevice ?? (await holdTake(slotOf(question), take));
+    const hold = (cause: FailureCode | null) => {
+      setBusy(false);
+      setScreen({ kind: "held", question, take, onDevice: held, cause });
+    };
     const opened = await postJson<OpenedAnswer>(`/api/rounds/${round.id}/answers`, {
       content_type: take.contentType,
       expected_bytes: take.blob.size,
       ...(question.again ? { retry_of_answer_id: question.again } : {}),
     });
-    if (!opened.ok) return fail(opened.code, retry);
+    if (!opened.ok) {
+      if (opened.code === "transcript_already_final" && opened.answerId) return transcribe(question, opened.answerId);
+      const rejection = rejectionOf(opened.code);
+      if (held && rejection) await holdTake(slotOf(question), take, rejection);
+      return hold(opened.code);
+    }
     try {
       const put = await fetch(opened.json.upload.url, {
         method: opened.json.upload.method,
@@ -199,29 +233,50 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
       });
       if (!put.ok) throw new Error(`upload ${put.status}`);
     } catch {
-      setError({ text: copy.uploadFailed, retry });
-      setBusy(false);
-      return;
+      return hold(null);
     }
     if (practice) {
+      // The PUT landed, and the take can be recorded again from here: the device's copy is let go.
+      await releaseTake(slotOf(question));
       setBusy(false);
-      setScreen({ kind: "held", question, answerId: opened.json.answer_id, transcribing: false });
+      setScreen({ kind: "retake", question, answerId: opened.json.answer_id, transcribing: false });
       return;
     }
-    await transcribe(question, take, opened.json.answer_id);
+    await transcribe(question, opened.json.answer_id, { take, onDevice: held });
   }
 
-  /** Transcribe the uploaded take (07 §5.7). Idempotent, so it is retried on its own. */
-  async function transcribe(question: Question, take: Take | null, answerId: string) {
-    // A held take stays held if this fails: it is kept, and can still be transcribed or recorded again.
-    setScreen(take ? { kind: "uploading", question, take, step: "transcribe" } : { kind: "held", question, answerId, transcribing: true });
+  /**
+   * Transcribe the uploaded take (07 §5.7). Idempotent, so it is retried on its own. `kept` is
+   * practice's take the user chose to keep: it stays on its frame while this runs.
+   */
+  async function transcribe(question: Question, answerId: string, local?: { take: Take; onDevice: boolean }, kept = false) {
+    setScreen(kept ? { kind: "retake", question, answerId, transcribing: true } : { kind: "uploading", question, step: "transcribe" });
     setError(null);
     setBusy(true);
     const transcribed = await postJson<Transcribed>(`/api/answers/${answerId}/transcribe`);
     if (!transcribed.ok) {
-      if (!take) setScreen({ kind: "held", question, answerId, transcribing: false });
-      return fail(transcribed.code, () => void transcribe(question, take, answerId));
+      if (transcribed.code === "transcription_failed") {
+        await releaseTake(slotOf(question));
+        // The take is kept (07 §5.7): the answer is retried, or typed.
+        setBusy(false);
+        setScreen({ kind: "untranscribed", question, answerId });
+        return;
+      }
+      if (transcribed.code === "audio_missing") {
+        const take = local?.take ?? (await heldTake(slotOf(question)));
+        if (take) {
+          setBusy(false);
+          setScreen({ kind: "held", question, take, onDevice: local?.onDevice ?? true, cause: transcribed.code });
+          return;
+        }
+        setScreen({ kind: "asked", question, back: null });
+        return fail(transcribed.code, null);
+      }
+      // A kept take stays kept if this fails: it can still be transcribed or recorded again.
+      if (kept) setScreen({ kind: "retake", question, answerId, transcribing: false });
+      return fail(transcribed.code, () => void transcribe(question, answerId, local, kept));
     }
+    await releaseTake(slotOf(question));
     setBusy(false);
     setScreen({
       kind: "transcript",
@@ -234,6 +289,70 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
       },
     });
   }
+
+  /** The typing fallback (07 §5.8): the typed text becomes the raw transcript, marked as no transcriber's. */
+  async function saveTyped(question: Question, answerId: string, text: string) {
+    setError(null);
+    setBusy(true);
+    const typed = await postJson<Typed>(`/api/answers/${answerId}/transcript`, { source: "typed", text });
+    if (!typed.ok) {
+      // A transcript landed first, and it is final: that one is shown.
+      if (typed.code === "transcript_already_final") return transcribe(question, answerId);
+      return fail(typed.code, () => void saveTyped(question, answerId, text));
+    }
+    setBusy(false);
+    setScreen({ kind: "transcript", question, transcript: { answerId, raw: typed.json.transcript_raw, durationMs: null, wpm: null } });
+  }
+
+  /** A take the route refused has no answer row: the slot is opened for typed text, then typed (07 §5.6, §5.8). */
+  async function openTyped(question: Question, text: string) {
+    setError(null);
+    setBusy(true);
+    const opened = await postJson<{ answer_id: string }>(`/api/rounds/${round.id}/answers`, {
+      source: "typed",
+      ...(question.again ? { retry_of_answer_id: question.again } : {}),
+    });
+    if (!opened.ok) {
+      // The typed text landed and its response did not: the same text again returns the stored row.
+      if (opened.code === "transcript_already_final" && opened.answerId) return saveTyped(question, opened.answerId, text);
+      return fail(opened.code, () => void openTyped(question, text));
+    }
+    await saveTyped(question, opened.json.answer_id, text);
+  }
+
+  // Once, when the page loads onto a question with no transcript: a confirmed slot resumes at
+  // `transcribe` (07 §5.5), with the take still held behind it; otherwise a take held on this device
+  // goes back on screen. Practice lets go of a take once it is in S3, so one it still holds beside a
+  // confirmed upload is a newer take that never arrived: that one is sent, not the older object.
+  const resumeTake = useEffectEvent(async () => {
+    const { start } = frame;
+    if (start.kind !== "question" || start.transcript) return;
+    const question = { position: start.position, text: start.text, followUpVersion: start.followUpVersion, again: start.again };
+    const take = await heldTake(slotOf(question));
+    if (start.typedSlot) {
+      if (take) setScreen((shown) => (shown.kind === "typed" ? { ...shown, takeHeld: true } : shown));
+      return;
+    }
+    if (start.openAnswerId && start.uploadConfirmed && !take?.rejection) {
+      if (practice && take) return deliver(question, take, true);
+      await transcribe(question, start.openAnswerId, take ? { take, onDevice: true } : undefined);
+    } else if (take) setScreen({ kind: "held", question, take, onDevice: true, cause: take.rejection ?? null });
+  });
+  const resumed = useRef(false);
+  useEffect(() => {
+    if (resumed.current) return;
+    resumed.current = true;
+    void resumeTake();
+  }, []);
+
+  // 03 §8: while a take is only in the browser, closing the tab is what would lose it.
+  const unsent = screen.kind === "held" || (screen.kind === "uploading" && screen.step === "upload");
+  useEffect(() => {
+    if (!unsent) return;
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [unsent]);
 
   /** `next` as the screens hold it. A follow-up's version joins the round's stamp when it first appears. */
   function nextOf(next: Submitted["next"]): NextView | { kind: "pressure" } {
@@ -307,10 +426,10 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
     setError(null);
     setBusy(true);
     const result = await postJson(`/api/rounds/${round.id}/complete`, value === null ? {} : { felt_pressure: value });
-    // The round is complete in all three: feedback written, feedback not ready, or completed already.
-    const completed =
-      result.ok || result.code === "feedback_generation_failed" || result.code === "round_already_complete";
+    // The round is complete in both: feedback written or still pending, or feedback not generated.
+    const completed = result.ok || result.code === "feedback_generation_failed";
     if (!completed) return fail(result.code, () => void complete(value));
+    await releaseRoundTakes(round.id);
     router.push(`/round/${round.id}/feedback`);
   }
 
@@ -340,7 +459,7 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
     case "abandoned":
       body = (
         <div className="flex flex-col gap-[14px] px-[32px] py-[36px]">
-          <p className="text-[15px] text-ink-3">{copy.abandoned}</p>
+          <p className="text-[15px] text-ink-3">{screen.byDay ? copy.abandonedByDay : copy.abandoned}</p>
           <Link href="/" className="text-[13px] text-link hover:text-link-hover hover:underline">
             {copy.home}
           </Link>
@@ -349,7 +468,7 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
       break;
     case "asked":
     case "uploading":
-    case "held":
+    case "retake":
       body = (
         <RecordFrame
           copy={copy}
@@ -365,13 +484,69 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
           }
           speechFailed={failureText("speech_failed", round.language)}
           question={screen.question}
-          delivering={screen.kind === "uploading" ? screen.step : screen.kind === "held" && screen.transcribing ? "transcribe" : null}
-          held={screen.kind === "held"}
+          delivering={screen.kind === "uploading" ? screen.step : screen.kind === "retake" && screen.transcribing ? "transcribe" : null}
+          held={screen.kind === "retake"}
           onTake={(take) => void deliver(screen.question, take)}
-          onTranscribe={screen.kind === "held" ? () => void transcribe(screen.question, null, screen.answerId) : null}
+          onTranscribe={screen.kind === "retake" ? () => void transcribe(screen.question, screen.answerId, undefined, true) : null}
           onBack={screen.kind === "asked" && screen.back ? () => setScreen(screen.back!) : null}
           error={error}
           stamp={stamp(screen.question)}
+        />
+      );
+      break;
+    case "held": {
+      const refused = rejectionOf(screen.cause);
+      body = (
+        <StuckTakeFrame
+          copy={copy}
+          language={language}
+          question={screen.question.text}
+          notices={[
+            ...(refused
+              ? [copy.uploadRefused[refused]]
+              : [
+                  ...(screen.cause === null ? [] : [failureText(screen.cause, language)]),
+                  screen.onDevice ? copy.uploadHeld : copy.uploadFailed,
+                ]),
+            ...(error ? [error.text] : []),
+          ]}
+          busy={busy}
+          stamp={stamp(screen.question)}
+          onRetry={
+            screen.cause === "round_abandoned" || refused ? null : () => void deliver(screen.question, screen.take, screen.onDevice)
+          }
+          onType={refused ? (text) => void openTyped(screen.question, text) : null}
+        />
+      );
+      break;
+    }
+    case "untranscribed":
+      body = (
+        <StuckTakeFrame
+          copy={copy}
+          language={language}
+          question={screen.question.text}
+          notices={[failureText("transcription_failed", language), ...(error ? [error.text] : [])]}
+          busy={busy}
+          stamp={stamp(screen.question)}
+          onRetry={() => void transcribe(screen.question, screen.answerId)}
+          onType={(text) => void saveTyped(screen.question, screen.answerId, text)}
+        />
+      );
+      break;
+    case "typed":
+      body = (
+        <StuckTakeFrame
+          copy={copy}
+          language={language}
+          question={screen.question.text}
+          notices={error ? [error.text] : []}
+          busy={busy}
+          stamp={stamp(screen.question)}
+          onRetry={null}
+          onType={(text) => void saveTyped(screen.question, screen.answerId, text)}
+          typingOpen
+          takeKept={screen.takeHeld}
         />
       );
       break;
@@ -612,7 +787,13 @@ function RecordFrame({
               <span>{copy.correctAfter}</span>
             </div>
           )}
-          {failed ? <CalloutRail tone="attention">{failed === "unavailable" ? copy.micUnavailable : copy.recordingFailed}</CalloutRail> : null}
+          {failed ? (
+            <div data-testid="recording-failed">
+              <CalloutRail tone="attention">
+                {failed === "denied" ? copy.micDenied : failed === "unavailable" ? copy.micUnavailable : copy.recordingFailed}
+              </CalloutRail>
+            </div>
+          ) : null}
           <ErrorLine error={error} retryLabel={copy.tryAgain} />
           {onBack ? (
             <button type="button" onClick={onBack} className="self-start text-[13px] text-link hover:text-link-hover hover:underline">
