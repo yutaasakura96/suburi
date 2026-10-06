@@ -51,6 +51,27 @@ not confirm an upload (2026-10-04, above). An open answer-again resumes by the s
 Rejected: keeping both read modules behind one route, and keeping #49's `uploaded`-on-open beside
 `audio_uploaded_at` — two answers to "did the take land".
 
+### [2026-10-06] On a reload, a held practice take wins over an older confirmed upload
+
+The owner's ruling: a round cannot lose an answer, so the newest take is never dropped silently.
+`answers.audio_uploaded_at` is set once and says nothing of a later re-take. In practice a take is let
+go from the device as soon as its PUT lands, so a take still held beside a confirmed upload is a newer
+one that never reached S3: take 1 uploaded and confirmed, its transcription unanswered, take 2 recorded
+instead and its PUT failed. On a reload onto that prompt the held take is sent again, onto the same
+slot and object, and that is what is transcribed. Rejected: resuming at `transcribe`, which reads take
+1 and then releases take 2. A realistic round is unchanged: it has one take, the held copy is the
+confirmed object, and it still resumes at `transcribe` with no second upload.
+
+### [2026-10-06] Known limitation: an answer-again take held with no server row is not offered after a reload
+
+Practice only. A held take is found on load by the prompt the page opens on. When an answer is given
+again and `POST …/answers` never reaches the server, no answer-again row exists, so a reload opens on
+the round's current prompt or the last per-answer frame and the take is not offered again. It stays on
+the device until the round completes. Where the slot did open and only the PUT failed, the reload
+resumes on the answer-again row and finds it. Not fixed here: it needs the page to remember which
+answer was being given again, which is new client state for #49's answer-again and outside #48;
+follow-up work is filed separately.
+
 ### [2026-10-06] Review correction: only the project's spend limit is mapped
 
 This corrects the 2026-10-04 entry "A spent project is classed by its code, and the organization's

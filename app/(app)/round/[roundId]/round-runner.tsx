@@ -322,7 +322,8 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
 
   // Once, when the page loads onto a question with no transcript: a confirmed slot resumes at
   // `transcribe` (07 §5.5), with the take still held behind it; otherwise a take held on this device
-  // goes back on screen.
+  // goes back on screen. Practice lets go of a take once it is in S3, so one it still holds beside a
+  // confirmed upload is a newer take that never arrived: that one is sent, not the older object.
   const resumeTake = useEffectEvent(async () => {
     const { start } = frame;
     if (start.kind !== "question" || start.transcript) return;
@@ -333,6 +334,7 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
       return;
     }
     if (start.openAnswerId && start.uploadConfirmed && !take?.rejection) {
+      if (practice && take) return deliver(question, take, true);
       await transcribe(question, start.openAnswerId, take ? { take, onDevice: true } : undefined);
     } else if (take) setScreen({ kind: "held", question, take, onDevice: true, cause: take.rejection ?? null });
   });

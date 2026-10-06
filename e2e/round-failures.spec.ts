@@ -473,6 +473,68 @@ test("a held take whose upload the server confirmed resumes at transcribe, not a
   expect(s3.objects.get(slot.audioS3Key!)?.bytes).toBe(uploaded);
 });
 
+test("a practice take recorded again and held beats the older take the server confirmed: the reload sends the held one", async ({ page }) => {
+  await signIn(page);
+  const roundId = await startRound(page, "en", "practice");
+  page.on("dialog", (dialog) => void dialog.accept());
+  const recordTake = async (start: string, bars: number) => {
+    await page.getByRole("button", { name: start }).click();
+    await expect(page.getByTestId("waveform").locator("span > span").nth(bars)).toBeAttached({ timeout: 10_000 });
+    await page.getByRole("button", { name: "Stop recording" }).click();
+  };
+
+  // Take 1 reaches S3 and is kept; the server confirms the upload, and the page is told the call failed.
+  await page.goto(`/round/${roundId}`);
+  await recordTake("Start recording", 1);
+  await expect(page.getByTestId("take-held")).toHaveText("Take recorded — not transcribed yet");
+  transcriptionFails = true;
+  await page.route("**/api/answers/*/transcribe", async (route) => {
+    await route.fetch();
+    await route.fulfill({
+      status: 500,
+      contentType: "application/json",
+      body: JSON.stringify({ error: { code: "write_failed", message: "The write failed.", detail: {} } }),
+    });
+  });
+  await page.getByRole("button", { name: "Transcribe this take" }).click();
+  await expect(page.getByRole("button", { name: "Record again" })).toBeEnabled();
+  const [slot] = await answersOf(roundId);
+  expect(slot.audioUploadedAt).not.toBeNull();
+  expect(slot.transcriptRaw).toBeNull();
+  const first = s3.objects.get(slot.audioS3Key!)!.bytes;
+  transcriptionFails = false;
+  await page.unroute("**/api/answers/*/transcribe");
+
+  // Take 2, longer, is recorded instead, and its upload fails: it is held on the device.
+  let uploadsFail = true;
+  await page.route(`${MOCK_S3_ENDPOINT}/**`, (route) => (uploadsFail ? route.abort("failed") : route.continue()));
+  await recordTake("Record again", 3);
+  await expect(page.getByTestId("take-notice")).toHaveText(HELD);
+  const [held] = await heldTakes(page);
+  expect(held).toMatchObject({ roundId, position: 1 });
+  expect(held.bytes).toBeGreaterThan(first);
+  expect(s3.objects.get(slot.audioS3Key!)?.bytes).toBe(first);
+
+  // The reload sends the held take rather than transcribing take 1, and nothing is transcribed unasked.
+  let transcribeCalls = 0;
+  await page.route("**/api/answers/*/transcribe", (route) => {
+    transcribeCalls += 1;
+    return route.continue();
+  });
+  uploadsFail = false;
+  await page.reload();
+  await expect(page.getByTestId("take-held")).toHaveText("Take recorded — not transcribed yet");
+  expect(transcribeCalls).toBe(0);
+  expect(s3.objects.get(slot.audioS3Key!)?.bytes).toBe(held.bytes);
+  expect(await heldTakes(page)).toEqual([]);
+
+  await page.getByRole("button", { name: "Transcribe this take" }).click();
+  await expect(page.getByTestId("raw-transcript")).toHaveText(RAW);
+  const answers = await answersOf(roundId);
+  expect(answers).toHaveLength(1);
+  expect(answers[0]).toMatchObject({ id: slot.id, transcriptRaw: RAW });
+});
+
 test("a retry of a held take whose answer was transcribed meanwhile shows that transcript", async ({ page }) => {
   await signIn(page);
   const roundId = await startRound(page);
