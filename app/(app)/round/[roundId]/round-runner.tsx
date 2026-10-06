@@ -1049,7 +1049,9 @@ function PressureFrame({
                 type="button"
                 role="radio"
                 aria-checked={selected}
-                onClick={() => setPicked(option.value)}
+                // The rating shown while the round closes is the one being recorded.
+                aria-disabled={busy}
+                onClick={() => !busy && setPicked(option.value)}
                 className="flex items-center gap-[18px] border-t border-rule-row py-[15px] text-left last:border-b"
               >
                 <span aria-hidden className={`h-[22px] w-[2px] ${selected ? "bg-mark" : "bg-rule-row"}`} />

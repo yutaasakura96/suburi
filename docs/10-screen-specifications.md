@@ -529,9 +529,9 @@ Three lines at 12px/1.85 `--ink-4`:
 - **Picked:** button becomes solid `--ink-1` / `#fff`; hint `緊張度4をこのラウンドに記録します。`
 - Stamp: `評価基準 v1.2・出題 v1.0・応募書類 v3`.
 - **While the round closes** (#73, `06`, 2026-10-06; no artboard): from the press until the feedback
-  screen opens, the hint under the button is replaced by a **wait line** (`05` §5.10) and the button
-  is disabled. This is where the last score lands and the feedback is written (`07` §5.12), so it
-  says which:
+  screen opens, the hint under the button is replaced by a **wait line** (`05` §5.10), the button is
+  disabled, and the five options no longer change — the rating shown is the one being recorded. This
+  is where the last score lands and the feedback is written (`07` §5.12), so it says which:
 
   | While | Sentence | Track |
   | --- | --- | --- |

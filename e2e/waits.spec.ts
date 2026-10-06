@@ -283,6 +283,10 @@ test("the round closing: answers scored N of M, then the feedback being written,
   // A segment per answer, filled for each score that landed, and one for the feedback, not started.
   expect(await segments(page, "closing-wait")).toEqual(["done", "done", "done", "done", "running", "running", "waiting"]);
   await expect(wait).not.toContainText("%");
+  // The rating shown is the one being recorded: the options no longer change.
+  await page.getByRole("radio", { name: "Very tense" }).click({ force: true });
+  await expect(page.getByRole("radio", { name: "Fairly tense" })).toBeChecked();
+  await expect(page.getByRole("radio", { name: "Very tense" })).not.toBeChecked();
   await expect(page.getByRole("button", { name: "Go to the feedback" })).toBeDisabled();
   await page.screenshot({ path: test.info().outputPath("closing-wait-scoring.png"), fullPage: true });
 
