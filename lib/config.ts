@@ -134,7 +134,11 @@ const sentrySchema = z.object({
   SENTRY_AUTH_TOKEN: z.string().min(1),
 });
 
-export type SentryEnvironment = "develop" | "production";
+// The two deployments Vercel builds (12 §1). Read from Vercel's system variables, never from a
+// variable someone sets.
+export type Deployment = "develop" | "production";
+
+export type SentryEnvironment = Deployment;
 
 export type SentryConfig = {
   dsn: string;
@@ -142,9 +146,7 @@ export type SentryConfig = {
   environment: SentryEnvironment;
 };
 
-// The environment tag comes from Vercel's system variables, never from a variable someone sets.
-// Anything that is neither production nor the develop branch's preview has no Sentry.
-function sentryEnvironment(env: Env): SentryEnvironment | undefined {
+function deployment(env: Env): Deployment | undefined {
   if (env.VERCEL_ENV === "production") return "production";
   if (env.VERCEL_ENV === "preview" && env.VERCEL_GIT_COMMIT_REF === "develop") return "develop";
   return undefined;
@@ -152,7 +154,8 @@ function sentryEnvironment(env: Env): SentryEnvironment | undefined {
 
 export function parseSentryConfig(env: Env): SentryConfig | undefined {
   if (!env.SENTRY_DSN) return undefined;
-  const environment = sentryEnvironment(env);
+  // Anything that is neither production nor the develop branch's preview has no Sentry.
+  const environment = deployment(env);
   if (!environment) return undefined;
 
   const result = sentrySchema.safeParse(env);
@@ -166,6 +169,35 @@ export function parseSentryConfig(env: Env): SentryConfig | undefined {
 
 export function getSentryConfig(): SentryConfig | undefined {
   return parseSentryConfig(process.env);
+}
+
+// The deployments whose Vercel build migrates their database before building (12 §4), each with the
+// one role its URL may carry. Production is absent: Neon main is migrated by hand. Neon main refuses
+// suburi_develop (12 §3 step 8), so a Preview variable pointed at main by mistake stops here.
+const deployMigrationRoles: Partial<Record<Deployment, string>> = { develop: "suburi_develop" };
+
+// Parsed apart from the schema above, as Sentry is: a migration needs the one URL, and must not fail
+// on a variable it never reads.
+const deployMigrationSchema = z.object({ DATABASE_URL_UNPOOLED: postgresUrl });
+
+export type DeployMigrationConfig = { deployment: Deployment; url: string };
+
+export function parseDeployMigrationConfig(env: Env): DeployMigrationConfig | undefined {
+  const target = deployment(env);
+  const role = target && deployMigrationRoles[target];
+  if (!target || !role) return undefined;
+
+  const result = deployMigrationSchema.safeParse(env);
+  if (!result.success) throw configError(result.error, env);
+  const url = result.data.DATABASE_URL_UNPOOLED;
+  if (new URL(url).username !== role) {
+    throw new ConfigError([{ name: "DATABASE_URL_UNPOOLED", problem: "malformed" }]);
+  }
+  return { deployment: target, url };
+}
+
+export function getDeployMigrationConfig(): DeployMigrationConfig | undefined {
+  return parseDeployMigrationConfig(process.env);
 }
 
 // Set by Next.js itself in instrumentation.ts's register(): which server runtime is booting.

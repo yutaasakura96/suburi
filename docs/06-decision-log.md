@@ -3,6 +3,43 @@
 Newest first. Every entry records what was chosen, why, and what was rejected.
 
 ---
+## Deploying — `develop` migrates itself
+
+### [2026-10-06] A `develop` deploy applies its pending migrations in Vercel's build; `main` stays by hand
+
+Merging into `develop` deployed the code and nothing migrated Neon `develop`: `12` §4 made that a
+hand-run step, and on 2026-10-06 the database was found five migrations behind (`0008`–`0012`), with
+merged features erroring on the test site. **Decided:** `vercel.json`'s `buildCommand` runs
+`npm run db:migrate:deploy` before `npm run build`. The script migrates only when `VERCEL_ENV` is
+`preview` and `VERCEL_GIT_COMMIT_REF` is `develop`, with drizzle's own migrator and journal, and a
+failure fails the build, so the previous deployment keeps serving. `12` §4 has the detail. **`main` is
+unchanged:** its build runs the script, which reads no database variable there and exits `0`, and Neon
+`main` is still migrated by hand before the merge — the 2026-09-12 reason, unattended DDL on the
+measurement record, is about `main`'s rows and does not reach a synthetic seed.
+**Why the build step:** the migration and the code are then one deploy. A migration that fails stops
+the code that needs it, in the place a failed deploy is already looked for, and it needs no new secret —
+`DATABASE_URL_UNPOOLED` is already in `develop`'s Preview scope. **Rejected:** a GitHub Actions job on
+push to `develop` (it races Vercel's build, a failed migration would not stop the deploy, and it puts a
+second copy of the connection string in GitHub); spawning `drizzle-kit migrate` from the build
+(`drizzle.config.ts` validates the whole environment, and the step should need the one variable it
+reads); a Neon branch per deploy (`12` §10); migrating at boot in `instrumentation.ts` (every cold
+start would hold the direct connection, and a failure would be a running deployment that errors, not a
+deploy that never happened).
+**Two guards the build needed.** The URL's role must be `suburi_develop`, which Neon `main` refuses
+(`12` §3 step 8): a Preview variable pointed at `main` by mistake would otherwise be exactly the
+unattended migration this entry leaves out. And a Postgres advisory lock serialises two builds at once
+— drizzle reads its journal before it opens its transaction, so both would run the same migration and
+the second would fail on the first's tables.
+**And a third, for the migration drizzle skips.** Its migrator applies only the entries whose journal
+`when` is later than the newest applied one. A migration generated on a branch that merges second,
+renumbered at the merge, keeps its earlier timestamp, and the build would pass with it unapplied — the
+drift this entry exists to end. So after migrating, the step compares the rows in
+`drizzle.__drizzle_migrations` with the entries in the folder's `meta/_journal.json` and fails the
+build when the database has fewer, naming the cause and the fix: regenerate the migration so its
+timestamp is the newest. A plain `<`, so redeploying an older commit, where the database has more,
+still passes.
+
+---
 ## Phase 6 — #74, a model answer for each question
 
 Raised by the owner after the first real English round on `develop` (2026-10-03): the feedback says
