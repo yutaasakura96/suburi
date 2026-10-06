@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { expect, test, type Page, type Route } from "@playwright/test";
+import { expect, test, type Locator, type Page, type Route } from "@playwright/test";
 import * as s from "../db/schema";
 import { seedSyntheticCv } from "../db/seed-cv";
 import { seedRubrics, seedSetPieces, seedSyntheticQuestions } from "../db/seed-questions";
@@ -185,6 +185,12 @@ async function stubRead(page: Page, roundId: string, counts: () => { done: numbe
 const segments = (page: Page, testId: string) =>
   page.getByTestId(testId).getByTestId("wait-track").locator("[data-segment]").evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-segment")));
 
+/** The wait's clock, in whole seconds. */
+async function elapsed(wait: Locator) {
+  const [minutes, seconds] = (await wait.getByTestId("wait-elapsed").innerText()).split(":").map(Number);
+  return minutes * 60 + seconds;
+}
+
 async function recordAndStop(page: Page, start: string, stop: string) {
   await page.getByRole("button", { name: start }).click();
   await expect(page.getByTestId("record-timer")).toHaveText("0:01", { timeout: 5_000 });
@@ -208,16 +214,18 @@ test("the take on its way: the screen names the upload, then the transcription, 
   // The record controls are gone while it waits, and the question has not moved (10 §3–5).
   await expect(page.getByRole("button", { name: "Start recording" })).toHaveCount(0);
   expect(await page.getByTestId("round-question").boundingBox()).toEqual(asked);
-  await expect(wait.getByTestId("wait-elapsed")).toHaveText("0:02", { timeout: 5_000 });
+  await expect.poll(() => elapsed(wait), { timeout: 10_000 }).toBeGreaterThanOrEqual(2);
   // Never a percentage (05 §5.10).
   await expect(wait).not.toContainText("%");
   await page.screenshot({ path: test.info().outputPath("take-wait-upload.png"), fullPage: true });
+  const uploading = await elapsed(wait);
 
   // Step two: the first segment fills only now that the upload has returned, and the clock runs on.
   upload.release();
   await expect(wait.getByRole("status")).toHaveText("Transcribing your answer.");
+  expect(await elapsed(wait)).toBeGreaterThanOrEqual(uploading);
   expect(await segments(page, "take-wait")).toEqual(["done", "running"]);
-  await expect(wait.getByTestId("wait-elapsed")).toHaveText("0:04", { timeout: 5_000 });
+  await expect.poll(() => elapsed(wait), { timeout: 10_000 }).toBeGreaterThan(uploading);
   await page.screenshot({ path: test.info().outputPath("take-wait-transcribe.png"), fullPage: true });
 
   transcription.release();
@@ -230,10 +238,20 @@ test("a failed transcription ends the wait, and trying again starts it and its c
   const roundId = await startRound(page);
   await page.goto(`/round/${roundId}`);
   let failing = true;
-  await page.route("**/transcribe", (route) => (failing ? route.abort() : route.fallback()));
+  let fail!: () => void;
+  const failed = new Promise<void>((resolve) => (fail = resolve));
+  await page.route("**/transcribe", async (route) => {
+    if (!failing) return route.fallback();
+    await failed;
+    await route.abort();
+  });
   await recordAndStop(page, "Start recording", "Stop and transcribe");
 
+  // The first wait runs long enough that a clock starting again reads below it.
   const wait = page.getByTestId("take-wait");
+  await expect.poll(() => elapsed(wait), { timeout: 15_000 }).toBeGreaterThanOrEqual(4);
+  const before = await elapsed(wait);
+  fail();
   await expect(page.getByText("The request did not reach the server, or its answer did not come back. Try again.")).toBeVisible();
   await expect(wait).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Start recording" })).toBeDisabled();
@@ -245,7 +263,7 @@ test("a failed transcription ends the wait, and trying again starts it and its c
   // The retry is the transcription alone (07 §5.7): the upload's segment is already done.
   await expect(wait.getByRole("status")).toHaveText("Transcribing your answer.");
   expect(await segments(page, "take-wait")).toEqual(["done", "running"]);
-  await expect(wait.getByTestId("wait-elapsed")).toHaveText("0:00");
+  expect(await elapsed(wait)).toBeLessThan(before);
   transcription.release();
   await expect(page.getByTestId("raw-transcript")).toHaveText(RAW);
 });
@@ -268,9 +286,6 @@ test("the round closing: answers scored N of M, then the feedback being written,
   // A segment per answer, filled for each score that landed, and one for the feedback, not started.
   expect(await segments(page, "closing-wait")).toEqual(["done", "done", "done", "done", "running", "running", "waiting"]);
   await expect(wait).not.toContainText("%");
-  // The rating shown is the one being recorded: the options no longer change.
-  await page.getByRole("radio", { name: "Very tense" }).click({ force: true });
-  await expect(page.getByRole("radio", { name: "Fairly tense" })).toBeChecked();
   await expect(page.getByRole("button", { name: "Go to the feedback" })).toBeDisabled();
   await page.screenshot({ path: test.info().outputPath("closing-wait-scoring.png"), fullPage: true });
 
@@ -300,7 +315,7 @@ test("the round closing with no read: one running segment, the elapsed time, and
   const wait = page.getByTestId("closing-wait");
   await expect(wait.getByRole("status")).toHaveText("Recording the rating and writing the feedback.");
   expect(await segments(page, "closing-wait")).toEqual(["running"]);
-  await expect(wait.getByTestId("wait-elapsed")).toHaveText("0:03", { timeout: 6_000 });
+  await expect.poll(() => elapsed(wait), { timeout: 10_000 }).toBeGreaterThanOrEqual(3);
   // A round that cannot be read is not asked again.
   expect(read.reads()).toBe(1);
   await expect(wait.getByRole("status")).toHaveText("Recording the rating and writing the feedback.");

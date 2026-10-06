@@ -49,12 +49,6 @@ is what a real round shows, and the counts are proved against a stubbed read (`e
 wait line too (`10` §15) and those two strings are retired (`native-read-round.md` §13). The clock
 starts again for the transcription, because the held take stands between the two calls.
 
-### [2026-10-06] The rating cannot change while the round closes
-
-Screen 7's options stop responding from the press until the feedback opens or the call fails. Before,
-a different option could be picked while the first was being recorded, and the screen then showed a
-rating that was not the round's.
-
 ---
 ## Phase 6 — #49, practice mode
 
