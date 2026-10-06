@@ -59,6 +59,20 @@
     --font-mono: var(--font-plex-mono), var(--font-plex-sans-jp), ui-monospace, monospace;
 }
 
+/* 05 §5.10 — the wait line's running segment: a sliver a third of the segment wide, crossing it. */
+@theme {
+    --animate-wait-travel: wait-travel 1.4s linear infinite;
+
+    @keyframes wait-travel {
+        from {
+            transform: translateX(-100%);
+        }
+        to {
+            transform: translateX(300%);
+        }
+    }
+}
+
 /* 05 §10.2 — shadcn's semantic variables alias §2 so vendored components render in this design.
    Outside components/ui/, build against 05's names (bg-surface), never these (bg-card). */
 @theme inline {

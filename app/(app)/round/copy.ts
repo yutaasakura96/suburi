@@ -149,7 +149,11 @@ const en = {
   stop: "Stop and transcribe",
   autoStop: (seconds: number) =>
     `Stops by itself at ${Math.round(seconds / 60)} minutes. What was recorded up to then is kept.`,
-  transcribing: "Uploading the take and transcribing it.",
+  // 10 §3–5, between the take and its transcript: the wait line's sentence for each of the two calls.
+  uploadingTake: "Uploading your recording.",
+  transcribingTake: "Transcribing your answer.",
+  // 05 §5.10: under every wait line.
+  keepWaiting: "Please wait. This screen moves on by itself.",
   micUnavailable: "The microphone is not available. Nothing was recorded, and the question stays unseen.",
   recordingFailed: "The recording failed. Nothing was recorded, and the question stays unseen.",
   uploadFailed: "The take could not be uploaded. It is still in this tab; try again.",
@@ -159,11 +163,9 @@ const en = {
   // 10 §15, practice's record frames: no clock, and a take that can be recorded again until it is transcribed.
   retakeUntilTranscribed: "You can record again until the take is transcribed.",
   stopRecording: "Stop recording",
-  uploading: "Uploading the take.",
   takeHeld: "Take recorded — not transcribed yet",
   transcribeTake: "Transcribe this take",
   transcribeTakeCaption: "Once it is transcribed, the take is final and cannot be recorded again.",
-  transcribingTake: "Transcribing the take.",
   recordAgain: "Record again",
   recordAgainCaption: "Recording again replaces this take.",
 
@@ -228,7 +230,10 @@ const en = {
   pickOne: "Pick one to go on to the feedback.",
   willRecord: (value: number) => `Records pressure ${value} for this round.`,
   toFeedback: "Go to the feedback",
+  // 10 §7, while the round closes: before anything is read, while a score is pending, and after.
   completing: "Recording the rating and writing the feedback.",
+  scoringAnswers: (done: number, total: number) => `Scoring your answers: ${done} of ${total} done.`,
+  scoringFinished: "Scoring is finished. Writing the feedback.",
 
   abandoned: "This round was left when a newer one started. It stays as it is.",
   home: "Home",
@@ -321,7 +326,9 @@ const ja: RoundCopy = {
   recording: "録音中",
   stop: "停止して文字起こし",
   autoStop: (seconds) => `${Math.round(seconds / 60)}分で自動的に止まります。そこまでの録音は残ります。`,
-  transcribing: "録音をアップロードして、文字起こしをしています。",
+  uploadingTake: "録音をアップロードしています。",
+  transcribingTake: "回答を文字起こししています。",
+  keepWaiting: "このままお待ちください。終わると自動で次へ進みます。",
   micUnavailable: "マイクを使えません。何も録音されておらず、この質問は未回答のままです。",
   recordingFailed: "録音に失敗しました。何も録音されておらず、この質問は未回答のままです。",
   uploadFailed: "録音をアップロードできませんでした。録音はこのタブに残っています。もう一度お試しください。",
@@ -330,11 +337,9 @@ const ja: RoundCopy = {
 
   retakeUntilTranscribed: "文字起こしをするまでは、録り直せます。",
   stopRecording: "録音を停止",
-  uploading: "録音をアップロードしています。",
   takeHeld: "録音済み — 文字起こし前",
   transcribeTake: "この録音を文字起こしする",
   transcribeTakeCaption: "文字起こしをすると、この録音で確定します。録り直しはできなくなります。",
-  transcribingTake: "文字起こしをしています。",
   recordAgain: "録り直す",
   recordAgainCaption: "録り直すと、いまの録音は置き換わります。",
 
@@ -395,6 +400,8 @@ const ja: RoundCopy = {
   willRecord: (value) => `緊張度${value}をこのラウンドに記録します。`,
   toFeedback: "講評に進む",
   completing: "緊張度を記録して、講評をまとめています。",
+  scoringAnswers: (done, total) => `回答を採点しています。${total}件中${done}件が終わりました。`,
+  scoringFinished: "採点が終わりました。講評をまとめています。",
 
   abandoned: "新しいラウンドが始まったため、このラウンドは中断されました。記録はそのまま残ります。",
   home: "ホームへ",

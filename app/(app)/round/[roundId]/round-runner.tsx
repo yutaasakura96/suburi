@@ -11,8 +11,10 @@ import { ROUND_COPY, clock, type RoundCopy, type RoundLanguage, type RoundMode }
 import type { AnsweredView, NextView, RoundFrame } from "../load";
 import { CalloutRail, ErrorLine, RoundFooter, RoundHeader, caption, roundSectionLabel, type Failure } from "../parts";
 import { AnsweredFrame, type FrameNext } from "./answered-frame";
+import { closingWait, useScoringProgress } from "./closing-progress";
 import { WAVEFORM_BARS, useRecorder, type Take } from "./recorder";
 import { useSpokenQuestion } from "./spoken-question";
+import { WaitLine } from "./wait-line";
 
 interface Transcript {
   readonly answerId: string;
@@ -41,7 +43,8 @@ interface Answered {
 type Screen =
   /** `back` is the frame an answer-again came from, offered until a take exists: nothing is written before one. */
   | { readonly kind: "asked"; readonly question: Question; readonly back: Answered | null }
-  | { readonly kind: "uploading"; readonly question: Question; readonly take: Take }
+  /** The take is on its way (10 §3–5): `step` is which of its two calls is running. */
+  | { readonly kind: "uploading"; readonly question: Question; readonly take: Take; readonly step: "upload" | "transcribe" }
   /**
    * Practice only: the take is uploaded and not transcribed, so it can still be recorded again
    * (07 §5.6). `transcribing` once the user has chosen to keep it.
@@ -178,7 +181,7 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
    * the same answer and the same object.
    */
   async function deliver(question: Question, take: Take) {
-    setScreen({ kind: "uploading", question, take });
+    setScreen({ kind: "uploading", question, take, step: "upload" });
     setError(null);
     setBusy(true);
     const retry = () => void deliver(question, take);
@@ -211,7 +214,7 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
   /** Transcribe the uploaded take (07 §5.7). Idempotent, so it is retried on its own. */
   async function transcribe(question: Question, take: Take | null, answerId: string) {
     // A held take stays held if this fails: it is kept, and can still be transcribed or recorded again.
-    setScreen(take ? { kind: "uploading", question, take } : { kind: "held", question, answerId, transcribing: true });
+    setScreen(take ? { kind: "uploading", question, take, step: "transcribe" } : { kind: "held", question, answerId, transcribing: true });
     setError(null);
     setBusy(true);
     const transcribed = await postJson<Transcribed>(`/api/answers/${answerId}/transcribe`);
@@ -362,7 +365,8 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
           }
           speechFailed={failureText("speech_failed", round.language)}
           question={screen.question}
-          phase={screen.kind === "held" ? (screen.transcribing ? "transcribing" : "held") : screen.kind === "uploading" ? "uploading" : "idle"}
+          delivering={screen.kind === "uploading" ? screen.step : screen.kind === "held" && screen.transcribing ? "transcribe" : null}
+          held={screen.kind === "held"}
           onTake={(take) => void deliver(screen.question, take)}
           onTranscribe={screen.kind === "held" ? () => void transcribe(screen.question, null, screen.answerId) : null}
           onBack={screen.kind === "asked" && screen.back ? () => setScreen(screen.back!) : null}
@@ -436,7 +440,7 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
       break;
     case "pressure":
       body = (
-        <PressureFrame copy={copy} language={language} busy={busy} error={error} stamp={roundStamp} onPick={(value) => void complete(value)} />
+        <PressureFrame copy={copy} language={language} roundId={round.id} busy={busy} error={error} stamp={roundStamp} onPick={(value) => void complete(value)} />
       );
       break;
   }
@@ -476,7 +480,8 @@ function RecordFrame({
   speechSrc,
   speechFailed,
   question,
-  phase,
+  delivering,
+  held,
   onTake,
   onTranscribe,
   onBack,
@@ -491,8 +496,10 @@ function RecordFrame({
   /** The catalogue's `speech_failed` sentence, in the round's language. */
   speechFailed: string;
   question: Question;
-  /** `held` and `transcribing` are practice's: a take uploaded, then being transcribed. */
-  phase: "idle" | "uploading" | "held" | "transcribing";
+  /** Which call the stopped take is in, or null when none is on its way. */
+  delivering: "upload" | "transcribe" | null;
+  /** Practice's: the take is uploaded and not transcribed, so it can still be recorded again. */
+  held: boolean;
   onTake: (take: Take) => void;
   onTranscribe: (() => void) | null;
   /** Back to the per-answer frame an answer-again came from, while nothing is recorded yet. */
@@ -504,9 +511,9 @@ function RecordFrame({
   const recorder = useRecorder(capSeconds, onTake, { timed });
   const recording = recorder.state.kind === "recording" ? recorder.state : null;
   const failed = recorder.state.kind === "failed" ? recorder.state.reason : null;
-  const uploading = phase === "uploading";
-  const held = phase === "held" || phase === "transcribing";
   const spoken = useSpokenQuestion(speechSrc);
+  // 10 §3–5: the wait line stands in for the record controls until the take's calls end or one fails.
+  const waiting = delivering !== null && !error;
 
   function startRecording() {
     spoken.silence();
@@ -574,31 +581,32 @@ function RecordFrame({
             {timed ? <span className={caption}>{copy.autoStop(capSeconds)}</span> : null}
           </div>
         </>
+      ) : waiting ? (
+        <WaitLine
+          testId="take-wait"
+          sentence={delivering === "upload" ? copy.uploadingTake : copy.transcribingTake}
+          hint={copy.keepWaiting}
+          segments={delivering === "upload" ? ["running", "waiting"] : ["done", "running"]}
+        />
       ) : (
         <>
           {held ? (
             <div className="flex flex-col gap-[10px]">
-              <Button onClick={() => onTranscribe?.()} disabled={phase === "transcribing"} className="self-start">
+              <Button onClick={() => onTranscribe?.()} className="self-start">
                 {copy.transcribeTake}
               </Button>
-              <p className={caption} role="status">
-                {phase === "transcribing" ? copy.transcribingTake : copy.transcribeTakeCaption}
-              </p>
+              <p className={caption}>{copy.transcribeTakeCaption}</p>
             </div>
           ) : null}
           <div className="flex items-center gap-[22px]">
-            <Button variant="outline" onClick={startRecording} disabled={uploading || phase === "transcribing"} className="gap-[12px]">
+            <Button variant="outline" onClick={startRecording} disabled={delivering !== null} className="gap-[12px]">
               <span className="size-[11px] rounded-full bg-attention-mark" aria-hidden />
               {held ? copy.recordAgain : copy.startRecording}
             </Button>
             {held ? <span className={caption}>{copy.recordAgainCaption}</span> : null}
             {timed ? <span className="font-mono text-[12px] text-ink-label">{copy.cap(capSeconds)}</span> : null}
           </div>
-          {held ? null : uploading && !error ? (
-            <p className={caption} role="status">
-              {timed ? copy.transcribing : copy.uploading}
-            </p>
-          ) : (
+          {held ? null : (
             <div className="flex flex-col gap-[9px] text-[12px] leading-[1.75] text-ink-6">
               <span>{timed ? copy.oneTake : copy.retakeUntilTranscribed}</span>
               <span>{copy.correctAfter}</span>
@@ -606,7 +614,7 @@ function RecordFrame({
           )}
           {failed ? <CalloutRail tone="attention">{failed === "unavailable" ? copy.micUnavailable : copy.recordingFailed}</CalloutRail> : null}
           <ErrorLine error={error} retryLabel={copy.tryAgain} />
-          {onBack && phase === "idle" ? (
+          {onBack ? (
             <button type="button" onClick={onBack} className="self-start text-[13px] text-link hover:text-link-hover hover:underline">
               {copy.backToScores}
             </button>
@@ -827,6 +835,7 @@ function SavedFrame({
 function PressureFrame({
   copy,
   language,
+  roundId,
   busy,
   error,
   stamp,
@@ -834,6 +843,7 @@ function PressureFrame({
 }: {
   copy: RoundCopy;
   language: RoundLanguage;
+  roundId: string;
   busy: boolean;
   error: Failure | null;
   stamp: string;
@@ -841,6 +851,8 @@ function PressureFrame({
 }) {
   const [picked, setPicked] = useState<number | null>(null);
   const sectionLabel = roundSectionLabel(language);
+  // 10 §7, while the round closes: what `complete` is waiting for, read from the round beside it.
+  const closing = closingWait(copy, useScoringProgress(roundId, busy));
   return (
     <div className="grid flex-grow grid-cols-3">
       <div className="col-span-2 flex flex-col gap-[14px] border-r border-rule-frame px-[32px] pt-[30px] pb-[32px]">
@@ -883,9 +895,13 @@ function PressureFrame({
           >
             {copy.toFeedback}
           </Button>
-          <p className={caption} role="status">
-            {busy ? copy.completing : picked === null ? copy.pickOne : copy.willRecord(picked)}
-          </p>
+          {busy ? (
+            <WaitLine testId="closing-wait" sentence={closing.sentence} hint={copy.keepWaiting} segments={closing.segments} />
+          ) : (
+            <p className={caption} role="status">
+              {picked === null ? copy.pickOne : copy.willRecord(picked)}
+            </p>
+          )}
           <p className="border-t border-rule-section pt-[12px] font-mono text-[10px] leading-[1.9] text-ink-8" data-testid="round-stamp">
             {stamp}
           </p>

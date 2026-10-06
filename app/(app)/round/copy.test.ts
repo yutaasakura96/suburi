@@ -143,6 +143,16 @@ describe("the strings 10 §3–§8 quote", () => {
     expect(ja.willRecord(4)).toBe("緊張度4をこのラウンドに記録します。");
   });
 
+  // 05 §5.10: each wait says what is running, then what to do. The counts are the round's own.
+  it("writes the two waits (10 §3–§5, §7)", () => {
+    expect(ja.uploadingTake).toBe("録音をアップロードしています。");
+    expect(ja.transcribingTake).toBe("回答を文字起こししています。");
+    expect(ja.keepWaiting).toBe("このままお待ちください。終わると自動で次へ進みます。");
+    expect(ja.completing).toBe("緊張度を記録して、講評をまとめています。");
+    expect(ja.scoringAnswers(4, 6)).toBe("回答を採点しています。6件中4件が終わりました。");
+    expect(ja.scoringFinished).toBe("採点が終わりました。講評をまとめています。");
+  });
+
   it("writes the feedback screen (10 §8)", () => {
     expect(ja.questionOf(1, 5)).toBe("第1問 / 5問");
     expect(ja.question(2)).toBe("第2問");
@@ -215,11 +225,9 @@ describe("a practice round's chrome (10 §15)", () => {
     expect(ja.practiceShown).toBe("回答ごとの採点は、済みしだい出ます。講評はラウンドの最後にまとめて出ます。");
     expect(ja.retakeUntilTranscribed).toBe("文字起こしをするまでは、録り直せます。");
     expect(ja.stopRecording).toBe("録音を停止");
-    expect(ja.uploading).toBe("録音をアップロードしています。");
     expect(ja.takeHeld).toBe("録音済み — 文字起こし前");
     expect(ja.transcribeTake).toBe("この録音を文字起こしする");
     expect(ja.transcribeTakeCaption).toBe("文字起こしをすると、この録音で確定します。録り直しはできなくなります。");
-    expect(ja.transcribingTake).toBe("文字起こしをしています。");
     expect(ja.recordAgain).toBe("録り直す");
     expect(ja.recordAgainCaption).toBe("録り直すと、いまの録音は置き換わります。");
     expect(ja.sendCaptionShown).toBe("送ると、この回答を採点します。採点が済むと、次の画面に出ます。");
@@ -268,6 +276,14 @@ describe("an English round's chrome", () => {
       "Unused — “Led the 2024 payments platform migration” “Customer negotiation in English”",
     );
     expect(en.wrongLanguage("ja")).toBe("This answer was given in Japanese. It is kept out of your English progress.");
+  });
+
+  it("writes the two waits (10 §3–§5, §7)", () => {
+    expect(en.uploadingTake).toBe("Uploading your recording.");
+    expect(en.transcribingTake).toBe("Transcribing your answer.");
+    expect(en.keepWaiting).toBe("Please wait. This screen moves on by itself.");
+    expect(en.scoringAnswers(4, 6)).toBe("Scoring your answers: 4 of 6 done.");
+    expect(en.scoringFinished).toBe("Scoring is finished. Writing the feedback.");
   });
 
   it("writes the model answer's legend (10 §8)", () => {
