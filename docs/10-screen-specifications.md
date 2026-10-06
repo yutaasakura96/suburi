@@ -359,11 +359,36 @@ countdown, no grace period, and no prompt asking whether to continue.
 answer slot and uploads; a recording that fails or a microphone that is denied writes nothing, and the
 question stays unseen (PRD §7).
 
+### Between 4 and 5 — the take is on its way (#73, `06`, 2026-10-06; no artboard)
+
+Stopping starts two calls, one after the other, and **the screen says which one is running**. The
+question stays at 19px and does not move. Below the divider, the record button and its two lines are
+replaced by one **wait line** (`05` §5.10):
+
+| While | Sentence | Track |
+| --- | --- | --- |
+| the slot is opened and the take is PUT to storage | `録音をアップロードしています。` / `Uploading your recording.` | two segments: the first running, the second not started |
+| the take is transcribed (`07` §5.7) | `回答を文字起こししています。` / `Transcribing your answer.` | the first done, the second running |
+
+Under the track, in both: `このままお待ちください。終わると自動で次へ進みます。` /
+`Please wait. This screen moves on by itself.` Beside the track, the time since the take was stopped,
+`0:07`, counting up across both steps.
+
+- **The two segments are the two calls.** One fills when its call has returned, never before and
+  never partly: the app knows which call is running and not how far through it is.
+- **No percentage, no bar that creeps, no estimate of the time left.** The elapsed clock is the only
+  figure, and it is a measurement.
+- **A failure ends the wait**: the wait line goes, the record button comes back disabled, and the
+  failure's sentence and `もう一度試す` stand where they did. Trying again starts the wait line, and
+  its clock, again. A take that could not be uploaded or transcribed leaves for its own frame (below).
+- **Both modes.** Practice has no clock while recording (§15); this one is not the take's, and is
+  drawn in practice too.
+
 ### 4–5, when it fails (#48) — no artboard
 
 Built from the record frames' own parts; nothing here was drawn. Copy is `app/(app)/round/copy.ts`,
 and its nine Japanese strings were read and accepted by the owner on 2026-10-05
-(`docs/checklists/native-read-round.md` §14); the two refused-take sentences added after them were
+(`docs/checklists/native-read-round.md` §15); the two refused-take sentences added after them were
 read and accepted the same day.
 
 - **The microphone is denied, or the recording fails.** Screen 3 stays as it is, with one attention

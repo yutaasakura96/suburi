@@ -19,7 +19,6 @@ export function StuckTakeFrame({
   question,
   notices,
   busy,
-  working,
   stamp,
   onRetry,
   onType,
@@ -32,8 +31,6 @@ export function StuckTakeFrame({
   /** What happened, plainly: each its own rail. */
   notices: readonly string[];
   busy: boolean;
-  /** What the call in flight is doing, said in place of the caption. */
-  working: string;
   stamp: string;
   /** Null when no retry could succeed: the round takes no more writes, or the route refused the take. */
   onRetry: (() => void) | null;
@@ -76,7 +73,7 @@ export function StuckTakeFrame({
         ) : null}
         {busy ? (
           <span className={caption} role="status">
-            {working}
+            {copy.savingTyped}
           </span>
         ) : null}
       </div>

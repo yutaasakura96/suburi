@@ -460,8 +460,8 @@ test("a held take whose upload the server confirmed resumes at transcribe, not a
   });
   await page.reload();
   // The take is in S3: the page says it is transcribing, not uploading, and leaving loses nothing.
-  await expect(page.getByText("Transcribing the take.")).toBeVisible();
-  await expect(page.getByText("Uploading the take and transcribing it.")).toHaveCount(0);
+  await expect(page.getByText("Transcribing your answer.")).toBeVisible();
+  await expect(page.getByText("Uploading your recording.")).toHaveCount(0);
   expect(await warnsBeforeUnload(page)).toBe(false);
   release();
   await expect(page.getByTestId("raw-transcript")).toHaveText(RAW);

@@ -149,7 +149,11 @@ const en = {
   stop: "Stop and transcribe",
   autoStop: (seconds: number) =>
     `Stops by itself at ${Math.round(seconds / 60)} minutes. What was recorded up to then is kept.`,
-  transcribing: "Uploading the take and transcribing it.",
+  // 10 §3–5, between the take and its transcript: the wait line's sentence for each of the two calls.
+  uploadingTake: "Uploading your recording.",
+  transcribingTake: "Transcribing your answer.",
+  // 05 §5.10: under every wait line.
+  keepWaiting: "Please wait. This screen moves on by itself.",
   // 03 §8: a denied microphone gets the browser-level fix, inline.
   micDenied:
     "The microphone is blocked for this site. Allow it from the icon in the address bar, then start recording again. Nothing was recorded, and the question stays unseen.",
@@ -340,7 +344,9 @@ const ja: RoundCopy = {
   recording: "録音中",
   stop: "停止して文字起こし",
   autoStop: (seconds) => `${Math.round(seconds / 60)}分で自動的に止まります。そこまでの録音は残ります。`,
-  transcribing: "録音をアップロードして、文字起こしをしています。",
+  uploadingTake: "録音をアップロードしています。",
+  transcribingTake: "回答を文字起こししています。",
+  keepWaiting: "このままお待ちください。終わると自動で次へ進みます。",
   micDenied:
     "このサイトではマイクがブロックされています。アドレスバーのアイコンからマイクを許可して、もう一度録音を開始してください。何も録音されておらず、この質問は未回答のままです。",
   micUnavailable: "マイクを使えません。何も録音されておらず、この質問は未回答のままです。",

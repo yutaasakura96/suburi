@@ -50,7 +50,12 @@ pinned model and its replacement deadline are in `03` §4.
 **#49, practice mode, is built (2026-10-04), on `fm/suburi-49`:** Setup's mode, the re-take, the
 per-answer frame, answer again, and a round that ends with no rating; its original 28 strings and
 numbered follow-up label passed the native read, and so did the bank-retry heading (Next).
-**Updated:** 2026-10-06 (#49's Japanese strings all accepted; #50's
+**#73, the round's two waits, is built (2026-10-06), on `fm/suburi-73`:** the take on its way and the
+round closing each say what is running, with a segment per thing waited for and the elapsed time
+(`10` §3–5, §7, `05` §5.10). Its five Japanese strings are unread (`native-read-round.md` §14), and
+the round-end counts read `GET /api/rounds/{roundId}`, which #49 built, and are proved against it
+(`e2e/waits.spec.ts`). Practice's round end is left on its caption, on purpose (`06`).
+**Updated:** 2026-10-06 (#73 built; #49's Japanese strings all accepted; #50's
 catalogue string read; #43, #44, #45, #46, #47, #48, #49, #50 and #74 built; #42 closed; #55 and #56 on 2026-09-30)
 
 ## Done
@@ -438,7 +443,7 @@ named with its fix; the earlier-day abandonment's own sentence; and a spent Open
 its code and never retried. **Tested:** the routes `11` §3.16 lists failed at each database call in turn,
 the sentinel walk over their refusals (`11` §3.10, §3.16), and Playwright for each failure path
 (`11` §4). **The owner read and accepted all nine new Japanese strings on 2026-10-05**
-(`docs/checklists/native-read-round.md` §14); **the two refused-take sentences added after them were read and accepted by the owner the same day.** **Not done here:** whether a spent project refuses the preflight's probe
+(`docs/checklists/native-read-round.md` §15); **the two refused-take sentences added after them were read and accepted by the owner the same day.** **Not done here:** whether a spent project refuses the preflight's probe
 is unverified (`12` §6); and "excluded from Progress" for a typed answer is the mark only — the
 exclusion is #51's. Decisions in `06`, "Phase 6 — #48".
 
