@@ -41,8 +41,25 @@ describe("scoringProgress", () => {
       expect(scoringProgress(read)).toEqual({ done: 2, total: 3 });
     });
 
-    it("is done only when the original and every retry have left pending", () => {
-      const read = { answers: [row("a", "ok"), row("a2", "pending", "a"), row("b", "ok")] };
+    // 07 §5.12: when an original scored, `complete` does not wait for a retry.
+    it("is done once its original has left pending, whatever a retry is doing", () => {
+      const originals = ["a", "b", "c", "d", "e", "f"].map((id) => row(id, "ok"));
+      expect(scoringProgress({ answers: [...originals, row("f2", "pending", "f")] })).toEqual({ done: 6, total: 6 });
+    });
+
+    it("waits on its original though a retry has scored", () => {
+      const read = { answers: [row("a", "pending"), row("a2", "ok", "a"), row("b", "ok")] };
+      expect(scoringProgress(read)).toEqual({ done: 1, total: 2 });
+    });
+
+    it("ignores a pending retry while another question's original is still to land", () => {
+      const read = { answers: [row("a", "failed"), row("a2", "pending", "a"), row("b", "pending")] };
+      expect(scoringProgress(read)).toEqual({ done: 1, total: 2 });
+    });
+
+    // 07 §5.12: with no original scored or pending, the retries are what `complete` waits for.
+    it("waits on the retries when no original has a score in or still to land", () => {
+      const read = { answers: [row("a", "failed"), row("a2", "pending", "a"), row("b", "failed")] };
       expect(scoringProgress(read)).toEqual({ done: 1, total: 2 });
     });
 

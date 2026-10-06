@@ -1291,9 +1291,12 @@ under the same hint and the elapsed clock from the press. No string is new.
   - **Each question counts once.** The practice round's read (`07` §5.5) also carries the answers
     given again, at the original's position and pointing at it by `retry_of_answer_id`. The rows are
     collapsed to the original: a question counts toward the total when any of its attempts is
-    submitted, and counts as done only when **every** one of its attempts has left `pending` — as
-    `complete` waits for them all (`07` §5.12). A question given again twice is still one segment, and
-    a retry never makes a seventh segment in a six-question round.
+    submitted, and counts as done by the answers `complete` waits for (`07` §5.12): **once its
+    original has left `pending`, whatever an answer given again is doing** — with every original
+    scored and a retry still pending, the line reads six of six. Only when no original has a score in
+    or still to land do the answers given again decide, as they do for `complete`. A question given
+    again twice is still one segment, and a retry never makes a seventh segment in a six-question
+    round.
   - Everything else in §7's list holds: the counts are read every two seconds, never estimated; a
     `failed` score counts as done; the read is status only, so no score is shown by it; a read that
     fails changes nothing; a failure ends the wait.

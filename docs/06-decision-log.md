@@ -279,14 +279,17 @@ The owner answered the question the entry below left open — "Show progress at 
 round too?" — with "Yes, and count each question once". Practice's closing screen (`10` §15) now
 shows §7's wait line in place of the caption, with its counts read from the round beside `complete`.
 The read carries the answers given again, so the rows are collapsed by `retry_of_answer_id` to the
-original: one question is one segment however many times it was answered, and it is done only when
-the original and every retry have left `pending`, since `complete` waits for all of them. Before the
+original: one question is one segment however many times it was answered, and it is done by the
+answers `complete` waits for (`07` §5.12) — once its original has left `pending`, with the answers
+given again ignored; they decide only when no original has a score in or still to land. Before the
 first read lands the sentence is `Writing the findings.` — §7's `Recording the rating…` would name a
 rating that practice never takes. No string is new.
 
 *Rejected:* counting the latest attempt per question — a retry's score landing would mark the
-question done while the original's was still being waited for; counting rows — "5 of 7" in a
-six-question round reads as a different round from the timed one.
+question done while the original's was still being waited for; waiting on every retry as well — the
+line would say a score is still running while `complete`, which does not wait for it, is already
+writing the feedback; counting rows — "5 of 7" in a six-question round reads as a different round
+from the timed one.
 
 ### [2026-10-06] Practice's round end stays on its caption — superseded by the entry above
 
