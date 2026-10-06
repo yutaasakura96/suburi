@@ -321,21 +321,28 @@ With a stubbed generator and embedder.
   never a bare `500`, with only ids and `pg_<SQLSTATE>` in `detail` — no sentinel text (§3.10).
 - Nothing the call would have written exists afterwards, and `GET /api/rounds/{id}` resumes at the
   same call.
-- **As built (#48), `lib/round/failure-paths.integration.test.ts`:** each route is run with its first
-  database call failing, then its second, and so on until a run gets through — so every call a handler
-  makes has been the one that failed, the limiter's upsert and the reads between two writes included.
-  The injected error carries sentinel text in its message, and the envelope and every log line are
-  scanned for it. A session read that throws is asserted separately: it is the envelope too, with
-  `error_class: unexpected`.
+- **As built (#48), `lib/round/failure-paths.integration.test.ts`:** each route it walks is run with
+  its first database call failing, then its second, and so on until a run gets through — so every call
+  a handler makes has been the one that failed, the limiter's upsert and the reads between two writes
+  included. The injected error carries sentinel text in its message, and the envelope and every log
+  line are scanned for it. A session read that throws is asserted separately on `GET /api/rounds/{id}`,
+  `POST …/answers` and `GET …/speech`: it is the envelope too, with `error_class: unexpected`.
+- **The routes that walk covers are ten:** `POST /api/role-contexts`, `POST /api/rounds`,
+  `GET /api/rounds/{id}`, `GET …/speech`, `POST …/answers`, `POST …/transcribe`, `POST …/transcript`,
+  `POST …/submit`, `POST …/complete` and `POST …/feedback`. The four History routes — `GET /api/rounds`,
+  `GET /api/answers/{id}/audio`, `POST /api/scoring-attempts` and `POST /api/scoring-attempts/{id}/run`
+  — carry the same guard and are in neither this walk nor the sentinel walk below; their guard is
+  covered only by the thrown session read §3.20 records.
 - **`complete` is the one route whose write can land before a later call fails.** Until
   `completed_at` commits a failure is `write_failed`; after it, the call answers `201` with
   `feedback: null`, the same call again answers `200` with that completed result, and the feedback
   route writes what was pending (`07` §5.12).
-- **§3.10's sentinel test on every round route:** one test forces the refusals the round routes give
-  a signed-in caller — invalid bodies, missing rows, an abandoned and a completed round, each `422`,
-  the upstream failures and a failed preflight — with sentinels in the transcripts, the typed answer
-  and the follow-up, and scans every envelope and log line for them and for every claim of the CV. A
-  posting's text is #47's own test (`generated-questions.integration.test.ts`).
+- **§3.10's sentinel test, on the nine of those ten routes that follow `POST /api/role-contexts`:**
+  one test forces the refusals they give a signed-in caller — invalid bodies, missing rows, an
+  abandoned and a completed round, each `422`, the upstream failures and a failed preflight — with
+  sentinels in the transcripts, the typed answer and the follow-up, and scans every envelope and log
+  line for them and for every claim of the CV. A posting's text is #47's own test
+  (`generated-questions.integration.test.ts`).
 - **A spent OpenAI project:** `429 project_spend_limit_exceeded` classes as itself, is not retryable,
   refuses the round as `503 model_unavailable` — met by the preflight, or by question generation
   after the preflight passed — and fails a mid-round score after one call, not three.
