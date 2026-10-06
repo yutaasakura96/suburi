@@ -283,6 +283,10 @@ test("the round closing: answers scored N of M, then the feedback being written,
   // A segment per answer, filled for each score that landed, and one for the feedback, not started.
   expect(await segments(page, "closing-wait")).toEqual(["done", "done", "done", "done", "running", "running", "waiting"]);
   await expect(wait).not.toContainText("%");
+  // The rating shown is the one being recorded: the options no longer change.
+  await page.getByRole("radio", { name: "Very tense" }).click({ force: true });
+  await expect(page.getByRole("radio", { name: "Fairly tense" })).toBeChecked();
+  await expect(page.getByRole("radio", { name: "Very tense" })).not.toBeChecked();
   await expect(page.getByRole("button", { name: "Go to the feedback" })).toBeDisabled();
   await page.screenshot({ path: test.info().outputPath("closing-wait-scoring.png"), fullPage: true });
 
@@ -296,6 +300,42 @@ test("the round closing: answers scored N of M, then the feedback being written,
   closing.releaseFeedback();
   await page.waitForURL(`**/round/${roundId}/feedback`);
   await expect(page.getByTestId("score-row").first()).toBeVisible();
+});
+
+test("a failed close leaves the rating changeable, and trying again sends the one picked then", async ({ page }) => {
+  await signIn(page);
+  const roundId = await startRound(page);
+  let next = "question";
+  while (next !== "pressure") next = (await answerByApi(page, roundId)).next.kind;
+  await page.goto(`/round/${roundId}`);
+  const sent: unknown[] = [];
+  let release!: () => void;
+  const released = new Promise<void>((resolve) => (release = resolve));
+  await page.route("**/complete", async (route) => {
+    sent.push(route.request().postDataJSON());
+    if (sent.length === 1) return route.abort();
+    await released;
+    await route.fallback();
+  });
+
+  await page.getByRole("radio", { name: "Fairly tense" }).click();
+  await page.getByRole("button", { name: "Go to the feedback" }).click();
+  await expect(page.getByText("The request did not reach the server, or its answer did not come back. Try again.")).toBeVisible();
+  await expect(page.getByTestId("closing-wait")).toHaveCount(0);
+
+  await page.getByRole("radio", { name: "Very tense" }).click();
+  await expect(page.getByRole("radio", { name: "Very tense" })).toBeChecked();
+  await page.getByRole("button", { name: "Try again" }).click();
+  // The rating shown while the round closes is the one this call carries.
+  await expect(page.getByTestId("closing-wait")).toBeVisible();
+  await expect(page.getByRole("radio", { name: "Very tense" })).toBeChecked();
+  await expect(page.getByRole("radio", { name: "Fairly tense" })).not.toBeChecked();
+  expect(sent).toEqual([{ felt_pressure: 3 }, { felt_pressure: 4 }]);
+
+  release();
+  await page.waitForURL(`**/round/${roundId}/feedback`);
+  const [round] = await withDb((db) => db.select({ feltPressure: s.rounds.feltPressure }).from(s.rounds).where(eq(s.rounds.id, roundId)));
+  expect(round.feltPressure).toBe(4);
 });
 
 test("a Japanese round says both waits in Japanese", async ({ page }) => {

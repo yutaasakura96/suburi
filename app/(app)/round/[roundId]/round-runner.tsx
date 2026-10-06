@@ -1034,6 +1034,8 @@ function PressureFrame({
   const sectionLabel = roundSectionLabel(language);
   // 10 §7, while the round closes: what `complete` is waiting for, read from the round beside it.
   const closing = closingWait(copy, useScoringProgress(roundId, busy));
+  // After a failed close the options change again, so trying again sends the rating picked now.
+  const failure = error?.retry && picked !== null ? { ...error, retry: () => onPick(picked) } : error;
   return (
     <div className="grid flex-grow grid-cols-3">
       <div className="col-span-2 flex flex-col gap-[14px] border-r border-rule-frame px-[32px] pt-[30px] pb-[32px]">
@@ -1049,7 +1051,9 @@ function PressureFrame({
                 type="button"
                 role="radio"
                 aria-checked={selected}
-                onClick={() => setPicked(option.value)}
+                // The rating shown while the round closes is the one being recorded.
+                aria-disabled={busy}
+                onClick={() => !busy && setPicked(option.value)}
                 className="flex items-center gap-[18px] border-t border-rule-row py-[15px] text-left last:border-b"
               >
                 <span aria-hidden className={`h-[22px] w-[2px] ${selected ? "bg-mark" : "bg-rule-row"}`} />
@@ -1068,7 +1072,7 @@ function PressureFrame({
           ))}
         </div>
         <div className="mt-auto flex flex-col gap-[10px]">
-          <ErrorLine error={error} retryLabel={copy.tryAgain} />
+          <ErrorLine error={failure} retryLabel={copy.tryAgain} />
           <Button
             onClick={() => picked !== null && onPick(picked)}
             disabled={picked === null || busy}
