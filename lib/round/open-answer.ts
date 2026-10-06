@@ -4,8 +4,18 @@ import { z } from "zod";
 import * as s from "../../db/schema";
 import { apiError } from "../api/errors";
 import { answerAudioKey, type AudioStore } from "../audio/store";
-import { authenticate, isUuid, log, notFound, parseBody, roundAbandoned, writeFailed, type RoundDeps } from "./http";
-import { answeredBefore, isAbandoned, promptAt, readRoundStep, type AnswerRow } from "./state";
+import { authenticate, isUuid, log, notFound, parseBody, roundAbandoned, writeFailed, type Db, type RoundDeps } from "./http";
+import {
+  answeredBefore,
+  isAbandoned,
+  openRetry,
+  promptAt,
+  roundAnswers,
+  roundFollowUps,
+  roundStep,
+  type AnswerRow,
+  type RoundRow,
+} from "./state";
 
 /**
  * `POST /api/rounds/{roundId}/answers` (07 §5.6): opens the answer slot and presigns the upload.
@@ -20,7 +30,12 @@ import { answeredBefore, isAbandoned, promptAt, readRoundStep, type AnswerRow } 
  *
  * **Idempotent.** An open slot at the current position is returned, with a fresh URL for the same key
  * while its transcript is still null — so an expired URL, a retried upload or a double click all land
- * on one row. Practice's "answer again" arrives with #49.
+ * on one row. **That is also practice's re-take** (06, 2026-09-27): a new take PUTs over the same
+ * object until the take is transcribed.
+ *
+ * **Practice's "answer again" is the one case that makes a second row for a prompt**:
+ * `retry_of_answer_id`, in a practice round and on a submitted answer, opens a new answer beside the
+ * first — the same prompt and position, never a first attempt, and no follow-up of its own.
  */
 export const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 
@@ -30,7 +45,18 @@ const CONTENT_TYPES = ["audio/webm", "audio/webm;codecs=opus"] as const;
 const requestSchema = z.strictObject({
   content_type: z.string().min(1).max(100),
   expected_bytes: z.int().positive(),
+  retry_of_answer_id: z.uuid().optional(),
 });
+
+type Opened = { answer: AnswerRow; created: boolean } | Response;
+
+/** An open slot is returned as it is while its take can still be replaced; a transcribed take is final. */
+function reopened(answer: AnswerRow): Opened {
+  if (answer.transcriptRaw !== null) {
+    return apiError("transcript_already_final", "This answer is already transcribed; its take is final.", { answer_id: answer.id });
+  }
+  return { answer, created: false };
+}
 
 export interface OpenAnswerDeps extends RoundDeps {
   readonly store: AudioStore;
@@ -39,6 +65,49 @@ export interface OpenAnswerDeps extends RoundDeps {
 }
 
 export function createOpenAnswer(deps: OpenAnswerDeps) {
+  /**
+   * "Answer again" (07 §5.6). The new row copies what the first was asked — the question or the
+   * follow-up it answered, the prompt as asked, the position — and **points at the original**: giving
+   * a retry again is one more retry of the same answer, never a retry of a retry (04 `answers`).
+   * Nothing about the first answer changes, and the round's step is not consulted: the round stays
+   * wherever it was.
+   */
+  async function answerAgain(tx: Db, round: RoundRow, answers: readonly AnswerRow[], answerId: string): Promise<Opened> {
+    // Realistic is one take (PRD US-5): the field is refused there, whatever it names.
+    if (round.mode !== "practice") {
+      return apiError("invalid_request", "Only an answer in a practice round can be answered again.", { fields: ["retry_of_answer_id"] });
+    }
+    const target = answers.find((answer) => answer.id === answerId);
+    if (!target) return notFound("answer", { round_id: round.id });
+    if (target.transcriptCorrected === null) {
+      return apiError("invalid_request", "Only a submitted answer can be answered again.", { fields: ["retry_of_answer_id"] });
+    }
+    const original = answers.find((answer) => answer.id === (target.retryOfAnswerId ?? target.id))!;
+    // One open retry per answer: a repeat, an expired URL or a re-take all land on it.
+    const open = openRetry(answers, original.id);
+    if (open) return reopened(open);
+
+    const id = randomUUID();
+    const [answer] = await tx
+      .insert(s.answers)
+      .values({
+        id,
+        roundId: round.id,
+        userId: round.userId,
+        position: original.position,
+        language: round.language,
+        audioS3Key: answerAudioKey(deps.prefix, round.userId, round.id, id),
+        questionId: original.questionId,
+        parentAnswerId: original.parentAnswerId,
+        promptText: original.promptText,
+        retryOfAnswerId: original.id,
+        // `is_first_attempt` stays on the original, always (PRD §9, refusal #3).
+        isFirstAttempt: false,
+      })
+      .returning();
+    return { answer, created: true };
+  }
+
   return async function POST(request: Request, roundId: string): Promise<Response> {
     const session = await authenticate(deps, request);
     if (session instanceof Response) return session;
@@ -59,7 +128,6 @@ export function createOpenAnswer(deps: OpenAnswerDeps) {
       });
     }
 
-    type Opened = { answer: AnswerRow; created: boolean } | Response;
     let opened: Opened;
     try {
       opened = await deps.transaction(async (tx): Promise<Opened> => {
@@ -75,7 +143,10 @@ export function createOpenAnswer(deps: OpenAnswerDeps) {
         }
         if (await isAbandoned(tx, round)) return roundAbandoned(roundId);
 
-        const step = await readRoundStep(tx, round);
+        const answers = await roundAnswers(tx, round.id);
+        if (body.retry_of_answer_id !== undefined) return answerAgain(tx, round, answers, body.retry_of_answer_id);
+
+        const step = roundStep(round, answers, await roundFollowUps(tx, round.id));
         if (step.kind === "follow_up_due") {
           // The answer here is submitted and its follow-up is not a row yet: `submit`, sent again,
           // writes it (07 §5.9). No slot is opened for a prompt that does not exist.
@@ -87,14 +158,7 @@ export function createOpenAnswer(deps: OpenAnswerDeps) {
         if (step.kind !== "answer") {
           return apiError("answer_already_submitted", "Every position in this round is already answered.", { round_id: roundId });
         }
-        if (step.answer) {
-          if (step.answer.transcriptRaw !== null) {
-            return apiError("transcript_already_final", "This answer is already transcribed; its take is final.", {
-              answer_id: step.answer.id,
-            });
-          }
-          return { answer: step.answer, created: false };
-        }
+        if (step.answer) return reopened(step.answer);
 
         const id = randomUUID();
         const slot = {
@@ -145,6 +209,7 @@ export function createOpenAnswer(deps: OpenAnswerDeps) {
       answer_id: answer.id,
       position: answer.position,
       follow_up: answer.questionId === null,
+      retry: answer.retryOfAnswerId !== null,
       is_first_attempt: answer.isFirstAttempt,
       expected_bytes: body.expected_bytes,
     });
@@ -156,6 +221,7 @@ export function createOpenAnswer(deps: OpenAnswerDeps) {
         kind: answer.questionId === null ? "follow_up" : "question",
         question_id: answer.questionId,
         parent_answer_id: answer.parentAnswerId,
+        retry_of_answer_id: answer.retryOfAnswerId,
         is_first_attempt: answer.isFirstAttempt,
         upload: {
           method: "PUT",

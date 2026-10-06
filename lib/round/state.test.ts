@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { questionsSubmitted, roundStep, type AnswerRow, type FollowUpRow } from "./state";
+import { answerState, openRetry, questionsSubmitted, roundStep, type AnswerRow, type FollowUpRow } from "./state";
 
 // Where a round is, from its rows alone (07 §5.5, §5.9): a position is its bank question and then
 // that answer's one follow-up. The same derivation serves the handlers and the page.
@@ -91,5 +91,42 @@ describe("questionsSubmitted", () => {
     ["at the rating", { kind: "pressure" } as const, 2],
   ])("counts the bank questions answered %s", (_, step, submitted) => {
     expect(questionsSubmitted(realistic, step)).toBe(submitted);
+  });
+});
+
+// 07 §5.6: practice's "answer again" is a row beside the first, and no step of the round.
+describe("openRetry", () => {
+  const first = answer("a1", 1, { createdAt: new Date("2026-10-04T01:00:00Z") });
+  const retry = (id: string, minute: number, fields: Partial<AnswerRow> = {}) =>
+    answer(id, 1, { retryOfAnswerId: first.id, transcriptCorrected: null, createdAt: new Date(Date.UTC(2026, 9, 4, 1, minute)), ...fields });
+
+  it("is null when nothing is being answered again", () => {
+    expect(openRetry([first, answer("a2", 2, { transcriptCorrected: null })])).toBeNull();
+  });
+
+  it("is the retry that is not sent yet, and never one that is", () => {
+    const sent = retry("r1", 1, { transcriptCorrected: "said again" });
+    const open = retry("r2", 2);
+    expect(openRetry([first, sent])).toBeNull();
+    expect(openRetry([first, sent, open])).toBe(open);
+  });
+
+  it("is the newest when more than one is open, and can be asked for one answer's alone", () => {
+    const other = answer("b1", 2);
+    const older = retry("r1", 1);
+    const newer = answer("r2", 2, { retryOfAnswerId: other.id, transcriptCorrected: null, createdAt: new Date("2026-10-04T01:05:00Z") });
+    expect(openRetry([first, older, other, newer])).toBe(newer);
+    expect(openRetry([first, older, other, newer], first.id)).toBe(older);
+  });
+});
+
+describe("answerState (07 §5.5)", () => {
+  it.each([
+    [{ audioS3Key: null, transcriptRaw: null, transcriptCorrected: null }, "open"],
+    [{ audioS3Key: "k", transcriptRaw: null, transcriptCorrected: null }, "uploaded"],
+    [{ audioS3Key: "k", transcriptRaw: "raw", transcriptCorrected: null }, "transcribed"],
+    [{ audioS3Key: "k", transcriptRaw: "raw", transcriptCorrected: "said" }, "submitted"],
+  ] as const)("derives %o as %s", (columns, state) => {
+    expect(answerState(columns)).toBe(state);
   });
 });

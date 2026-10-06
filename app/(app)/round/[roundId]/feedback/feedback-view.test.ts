@@ -43,6 +43,8 @@ describe("feedback reading language", () => {
 describe("the answer texts", () => {
   const answer: FeedbackAnswerView = {
     position: 1,
+    followUpAnswer: false,
+    again: 0,
     prompt: "これまでの経験を教えてください。",
     own: "えー、決済基盤の移行を担当しました。",
     modelAnswer: {

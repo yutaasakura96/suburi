@@ -470,6 +470,42 @@ block have unit tests of their own, and §3.1 holds `model_answers` to one row p
   (§3.10).
 - The week's spend counts `model_answers` tokens (§3.17).
 
+### 3.22 Practice mode (#49)
+
+Practice is where a second row for one prompt is written on purpose, so what it must not disturb is
+tested with it. Through the handlers, against Postgres.
+
+- **The re-take**: a second and a third slot-open for the same prompt return the same answer row and
+  presign the same object key; once the take is transcribed the next is `422
+  transcript_already_final`, with no new presign and no second transcription.
+- **Answer again** writes a new row with `retry_of_answer_id`, the original's position, question and
+  prompt text, `is_first_attempt = false`, its own key and its own scoring attempt. **The original row
+  is byte-for-byte what it was**, the round's `next` is what it was, and **no follow-up is generated
+  or stored** for the retry. A follow-up's answer can be given again, beside that answer.
+- A retry of a retry points at the original. A repeat while a retry is open returns that row and key;
+  transcribed, it is `transcript_already_final`.
+- Refused, writing nothing: in a realistic round (`400`, `retry_of_answer_id`), for an answer not yet
+  submitted (`400`), for an id that is not an answer of this round — unknown, or another round's
+  (`404`).
+- **`complete` with an empty body** closes a practice round with `felt_pressure` null and writes the
+  round feedback; a rating is still `422 pressure_not_applicable`, and a realistic round with no
+  rating is still `422 pressure_required`.
+- **The round feedback uses original answers when one scored**, omitting retries from the generator
+  input and CV region. When none scored, a scored retry produces feedback under the new prompt version.
+  Screen 8 gives both question retries and follow-up retries their own pages, numbered when repeated;
+  a retry's page reads the model answer of the answer it follows (§3.21).
+- **After the round's last answer the page opens on that answer's frame with the feedback next**,
+  never on screen 7 — the defect #44's review left for this slice.
+- The page opens, in order, on an open answer-again, the open answer to the current prompt, the frame
+  of the answer sent last (`10` §15).
+- **Practice prefers seen questions, end to end**: questions answered through the handlers in one
+  round are the first asked by the next practice round, and their practice answers are not first
+  attempts.
+- `GET /api/rounds/{id}` (§3.15): `resume.at` for each state of the open answer, `submit` when a
+  follow-up is not stored, `complete` at the end, null for an abandoned round; a `failed` attempt as
+  its status alone; **no key anywhere in the response that names a composite**, and no answer or
+  prompt text in a log line.
+
 ## 4. End-to-end, in Playwright
 
 Chromium, fake media device, S3 PUT and OpenAI intercepted. What this pass exists to catch is the
@@ -498,7 +534,10 @@ wiring between screens that no unit test sees.
 | CV grounding | The mock scorer and feedback call each return one thing the server can verify and one it cannot. Screen 8 shows one `Unsupported` rail per answer quoting the corrected text and one `Unused` rail quoting the CV; **the invented quote and the invented claim number appear nowhere.** |
 | Wrong language | A Japanese answer in an English round carries the wrong-language line on its own page of the pager and no other, is still scored, and its attempt stores `answered_language = 'ja'`. |
 | Coverage marks | After the round, `/cv` draws the cited claim with the heavier mark, the rest without, and the count line states how many were never used. |
-| Practice frame | After a practice submit, the per-answer frame states the score as pending, then shows it once scored; "answer again" writes a second answer at the same position with no follow-up. |
+| Practice frame | After a practice submit, the per-answer frame states the score as pending, then shows it once scored; "answer again" writes a second answer at the same position with no follow-up. **As built (#49), `e2e/practice.spec.ts`:** the mock holds the scoring call open while the frame is read, so "pending" is asserted, not raced; the follow-up is ready beside the pending rows. |
+| Practice re-take | Record, stop, record again: one answer row and one object key throughout, and no clock, cap line or timer on the frame. |
+| Practice ends without a rating | The last per-answer frame offers the feedback; screen 7 never renders, the round is complete with `felt_pressure` null, and the feedback call uses scored retries when no original answer scored. A round sent to its end through the API opens on the same frame. |
+| Practice asks seen questions | Setup's `Practice` starts a round whose first questions are the ones an earlier round answered, with no set piece. |
 | History's rail | Every round newest first; `Unscored — retry scoring` on the rounds with a pending or failed score, `Abandoned — not counted in progress` on the open one, no line on the scored one; the chrome English on a Japanese round; the newest open round started today offered for resuming; with no rounds, a sentence and the way to start one. After 120 older rounds are loaded, a detail refresh keeps all 120 visible, two of them a microsecond apart still in the server's order; a round started elsewhere before the refresh appears at the top and the oldest loaded round stays; and a page `Older rounds` adds while that refresh is in flight stays. |
 | History's matrix | Each question with its follow-up under it; 10 §10's sample row `4 3 4 3 4 2 3`; **the missing follow-up as a row spanning the score columns**; seven dimensions in a Japanese round and the pill renaming them without changing a score; an unreached question shown by its number alone. |
 | History's playback | Every answered row opens its raw transcript beside the correction. A stored recording loads in the `<audio>` element from a presigned URL minted on open; **a missing one and an unplayable one are each a sentence, with the transcripts still there.** |

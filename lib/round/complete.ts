@@ -10,7 +10,7 @@ import { pickUntouched } from "./grounding";
 import { citableClaimsOf } from "./run-scoring";
 import { authenticate, isUuid, log, notFound, parseBody, roundAbandoned, writeFailed, type Db, type RoundDeps } from "./http";
 import { startModelAnswers, type CompleteModelAnswerDeps } from "./model-answers";
-import { isAbandoned, latestAttempts, noScores, readRoundStep, roundAnswers, scoringCounts, type RoundRow } from "./state";
+import { isAbandoned, latestAttempts, noScores, readRoundStep, roundAnswers, scoringCounts, type AnswerRow, type RoundRow } from "./state";
 
 /**
  * `POST /api/rounds/{roundId}/complete` ⚡ (07 §5.12) and its retry, `POST …/feedback` (§5.16).
@@ -93,6 +93,19 @@ export async function neverCitedClaims(db: Db, round: Pick<RoundRow, "id" | "cvV
   return claims.filter((claim) => !used.has(claim.id));
 }
 
+/**
+ * The answers round feedback is written from, and the ones its scoring counts (07 §5.12): every
+ * submitted answer to a question or its follow-up. The answers given again stand in for them only
+ * when none of those has a score in or still to land and at least one was given again.
+ */
+export function feedbackAnswers(answers: readonly AnswerRow[], attempts: Awaited<ReturnType<typeof latestAttempts>>) {
+  const submitted = answers.filter((answer) => answer.transcriptCorrected !== null);
+  const originals = submitted.filter((answer) => answer.retryOfAnswerId === null);
+  if (originals.some((answer) => ["ok", "pending"].includes(attempts.get(answer.id)?.status ?? ""))) return originals;
+  const retries = submitted.filter((answer) => answer.retryOfAnswerId !== null);
+  return retries.length > 0 ? retries : originals;
+}
+
 type Outcome =
   | { readonly ok: true; readonly feedback: FeedbackRow; readonly counts: ReturnType<typeof scoringCounts> }
   | { readonly ok: false; readonly response: Response };
@@ -102,17 +115,20 @@ async function writeRoundFeedback(deps: FeedbackDeps, round: RoundRow): Promise<
   const sleep = deps.sleep ?? wait;
   const started = performance.now();
   const elapsed = () => Math.round(performance.now() - started);
-  const answers = (await roundAnswers(deps.db, round.id)).filter((answer) => answer.transcriptCorrected !== null);
-  const ids = answers.map((answer) => answer.id);
+  const allAnswers = await roundAnswers(deps.db, round.id);
+  const answerIds = allAnswers.map((answer) => answer.id);
 
   // Step 2: poll until no latest attempt is pending, or the bound runs out.
   const bound = deps.waitBoundMs ?? COMPLETE_WAIT_BOUND_MS;
-  let attempts = await latestAttempts(deps.db, ids);
-  while ([...attempts.values()].some((attempt) => attempt.status === "pending") && performance.now() - started < bound) {
+  let attempts = await latestAttempts(deps.db, answerIds);
+  let answers = feedbackAnswers(allAnswers, attempts);
+  while (answers.some((answer) => attempts.get(answer.id)?.status === "pending") && performance.now() - started < bound) {
     await sleep(POLL_MS);
-    attempts = await latestAttempts(deps.db, ids);
+    attempts = await latestAttempts(deps.db, answerIds);
+    answers = feedbackAnswers(allAnswers, attempts);
   }
-  const counts = scoringCounts(attempts.values());
+  const retryOnly = answers.some((answer) => answer.retryOfAnswerId !== null);
+  const counts = scoringCounts(answers.flatMap((answer) => attempts.get(answer.id) ?? []));
   const failure = (errorClass: string) => {
     log("error", { event: "feedback_generation_failed", round_id: round.id, error_class: errorClass, ...counts, duration_ms: elapsed() });
     return {
@@ -159,6 +175,7 @@ async function writeRoundFeedback(deps: FeedbackDeps, round: RoundRow): Promise<
         rubric,
         answers: scored.map(({ answer, attemptId }) => ({
           position: answer.position,
+          again: retryOnly,
           followUp: answer.questionId === null,
           prompt: answer.promptText,
           answer: answer.transcriptCorrected ?? "",
@@ -180,7 +197,7 @@ async function writeRoundFeedback(deps: FeedbackDeps, round: RoundRow): Promise<
   } catch (error) {
     return failure(error instanceof ModelCallFailed ? error.errorClass : "unexpected");
   }
-  const promptVersion = deps.generator.promptVersions[round.language];
+  const promptVersion = retryOnly ? deps.generator.retryPromptVersions[round.language] : deps.generator.promptVersions[round.language];
   if (!promptVersion) return failure("no_prompt_for_language");
   // An id is stored only if the call picked it from the never-cited set it was shown; at most three.
   const untouched = pickUntouched(neverCited, result.untouched);

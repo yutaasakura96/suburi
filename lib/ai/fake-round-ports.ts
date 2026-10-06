@@ -58,6 +58,7 @@ export function fakeFeedbackGenerator(
   const fake = {
     modelId: "fake-feedback-2026-01-01",
     promptVersions: { en: "feedback-en-fake", ja: "feedback-ja-fake" },
+    retryPromptVersions: { en: "feedback-en-retry-fake", ja: "feedback-ja-retry-fake" },
     calls: 0,
     inputs: [] as FeedbackInput[],
     async generate(input: FeedbackInput, options: CallOptions = {}) {

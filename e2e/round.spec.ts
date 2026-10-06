@@ -286,7 +286,10 @@ test("practice asks one follow-up, then moves to the next question", async ({ pa
 
   const first = await answerByApi(page, roundId);
   expect(first.next.kind).toBe("follow_up");
+  // A practice round opens on the answer sent last, with the follow-up ready beside it (10 §15).
   await page.goto(`/round/${roundId}`);
+  await expect(page.getByTestId("next-follow-up")).toContainText(FOLLOW_UP);
+  await page.getByRole("button", { name: "Answer the follow-up" }).click();
   await expect(page.getByTestId("round-step")).toHaveText("Question 1 / 3 · follow-up");
   await expect(page.getByTestId("round-question")).toHaveText(FOLLOW_UP);
   await page.screenshot({ path: test.info().outputPath("screen4-practice-follow-up.png"), fullPage: true });
@@ -294,6 +297,8 @@ test("practice asks one follow-up, then moves to the next question", async ({ pa
   const second = await answerByApi(page, roundId);
   expect(second.next.kind).toBe("question");
   await page.reload();
+  await expect(page.getByTestId("round-step")).toHaveText("Question 1 / 3 · follow-up");
+  await page.getByRole("button", { name: "Go to the next question" }).click();
   await expect(page.getByTestId("round-step")).toHaveText("Question 2 / 3");
   expect(followUpCalls().slice(followUpsBefore)).toHaveLength(1);
 });
@@ -312,17 +317,27 @@ test("Japanese practice asks its stored 深掘り at the same position", async (
 
   const first = await answerByApi(page, roundId, CORRECTED_JA);
   expect(first.next.kind).toBe("follow_up");
+  // The per-answer frame, in Japanese (10 §15): the 深掘り is beside the answer, and the same on a reload.
   await page.goto(`/round/${roundId}`);
+  await expect(page.getByTestId("round-step")).toHaveText("第1問 / 3問");
+  await expect(page.getByText("日本語・練習・3問")).toBeVisible();
+  await expect(page.getByTestId("next-follow-up")).toContainText(FOLLOW_UP_JA);
+  await expect(page.getByTestId("answered-frame")).toHaveAttribute("data-scoring", "ok", { timeout: 15_000 });
+  await expect(page.getByTestId("score-row")).toHaveCount(7);
+  await page.screenshot({ path: test.info().outputPath("ja-practice-frame.png"), fullPage: true });
+  await page.reload();
+  await expect(page.getByTestId("next-follow-up")).toContainText(FOLLOW_UP_JA);
+  expect(followUpCalls().slice(before)).toHaveLength(1);
+  await page.getByRole("button", { name: "深掘りに答える" }).click();
   await expect(page.getByTestId("round-step")).toHaveText("第1問 / 3問・深掘り");
   await expect(page.getByTestId("round-question")).toHaveText(FOLLOW_UP_JA);
-  await page.reload();
-  await expect(page.getByTestId("round-question")).toHaveText(FOLLOW_UP_JA);
-  expect(followUpCalls().slice(before)).toHaveLength(1);
+  await expect(page.getByText("回答ごとの採点は、済みしだい出ます。講評はラウンドの最後にまとめて出ます。")).toBeVisible();
   await page.screenshot({ path: test.info().outputPath("ja-practice-follow-up.png"), fullPage: true });
 
   const second = await answerByApi(page, roundId, CORRECTED_JA);
   expect(second.next.kind).toBe("question");
   await page.reload();
+  await page.getByRole("button", { name: "次の質問へ進む" }).click();
   await expect(page.getByTestId("round-step")).toHaveText("第2問 / 3問");
   expect(followUpCalls().slice(before)).toHaveLength(1);
 });

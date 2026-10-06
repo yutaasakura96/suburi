@@ -108,6 +108,25 @@ export function roundStep(
   return round.mode === "realistic" ? { kind: "pressure" } : { kind: "finish" };
 }
 
+/**
+ * A practice "answer again" that is open and not yet sent (07 §5.6): the newest unsubmitted row with
+ * `retry_of_answer_id`. It is no step of the round — `roundStep` never looks at it — but a reload
+ * resumes on it, and the slot handler returns it rather than opening a second one.
+ */
+export function openRetry(answers: readonly AnswerRow[], originalId?: string): AnswerRow | null {
+  return answers
+    .filter((answer) => answer.retryOfAnswerId !== null && answer.transcriptCorrected === null)
+    .filter((answer) => originalId === undefined || answer.retryOfAnswerId === originalId)
+    .reduce<AnswerRow | null>((newest, answer) => (newest === null || answer.createdAt > newest.createdAt ? answer : newest), null);
+}
+
+/** `state` in the round's read (07 §5.5): derived from which of the answer's columns are filled, never stored. */
+export function answerState(answer: Pick<AnswerRow, "audioS3Key" | "transcriptRaw" | "transcriptCorrected">) {
+  if (answer.transcriptCorrected !== null) return "submitted";
+  if (answer.transcriptRaw !== null) return "transcribed";
+  return answer.audioS3Key !== null ? "uploaded" : "open";
+}
+
 /** `roundStep` from the stored rows, for a handler inside its transaction or a page outside one. */
 export async function readRoundStep(db: Reader, round: RoundRow): Promise<RoundStep> {
   return roundStep(round, await roundAnswers(db, round.id), await roundFollowUps(db, round.id));

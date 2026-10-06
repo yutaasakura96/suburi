@@ -44,8 +44,12 @@ export const SETUP_COPY = {
   length: "Length",
   lengthOption: (n: number) => `${n} questions`,
   mode: "Mode",
-  realistic: "Realistic",
-  realisticExplained: "Realistic — one take. Up to 4 minutes per answer. The feedback comes together after the round.",
+  modes: { realistic: "Realistic", practice: "Practice" } as Record<RoundMode, string>,
+  // 10 §2: both modes explained at once, the chosen one in the darker ink.
+  modesExplained: {
+    realistic: "Realistic — one take. Up to 4 minutes per answer. The feedback comes together after the round.",
+    practice: "Practice — re-takes, no time limit, each answer's scores once it is scored. Not counted in progress.",
+  } as Record<RoundMode, string>,
   roleContext: "Role context",
   roleContextRequired: "Required. The two are equal.",
   posting: "Posting",
@@ -69,10 +73,18 @@ export const SETUP_COPY = {
   cancel: "Cancel",
   chooseRoleContext: "Choose a role context to start.",
   // 10 §2, PRD §6: said before the round starts, from counts the page already holds.
-  bankExhausted: (typeName: string, language: RoundLanguage, unseen: number, length: number) =>
-    `${unseen === 0 ? "There are no unseen" : unseen === 1 ? "There is 1 unseen" : `There are ${unseen} unseen`} ${typeName} ${
-      unseen === 1 ? "question" : "questions"
-    } in ${LANGUAGE_NAMES[language]}, and this round asks ${length}. The rest are written when it starts, which can take up to half a minute. If a new question turns out to match one you have already answered, it is asked as a repeat: scored, but not counted in progress.`,
+  // A practice round draws on every generated question, seen or not (07 §5.4), so its count is not
+  // "unseen", and nothing in it counts in progress for a repeat to be the exception to.
+  bankExhausted: (typeName: string, language: RoundLanguage, mode: RoundMode, supply: number, length: number) => {
+    const kind = mode === "realistic" ? "unseen " : "";
+    const have = supply === 0 ? `There are no ${kind}` : supply === 1 ? `There is 1 ${kind}` : `There are ${supply} ${kind}`;
+    const start = `${have}${typeName} ${supply === 1 ? "question" : "questions"} in ${LANGUAGE_NAMES[language]}${
+      mode === "practice" ? " to practise on" : ""
+    }, and this round asks ${length}. The rest are written when it starts, which can take up to half a minute.`;
+    return mode === "practice"
+      ? start
+      : `${start} If a new question turns out to match one you have already answered, it is asked as a repeat: scored, but not counted in progress.`;
+  },
   startingGenerating: "Writing new questions for this round. This can take up to half a minute.",
   scoredAgainst: "Scored against",
   start: "Start this round",
@@ -110,6 +122,8 @@ const en = {
   step: (position: number, of: number) => `Question ${position} / ${of}`,
   // A follow-up shares its question's position (06, 2026-09-27): the same step, named as a follow-up.
   followUpStep: (position: number, of: number) => `Question ${position} / ${of} · follow-up`,
+  // 10 §15: a prompt answered again keeps its step, and says so.
+  stepAgain: (step: string) => `${step} · again`,
   // 05 §5.9: the round's stamps, joined.
   rubricStamp: (label: string) => `Rubric ${label}`,
   stamps: (parts: readonly string[]) => parts.join(" · "),
@@ -119,6 +133,8 @@ const en = {
   goesOn:
     "The round goes on. You can correct the full text on the next screen. Neither the audio nor the uncorrected transcript is ever discarded.",
 
+  // 10 §15: a practice round promises the opposite of `withheld`, on the same footer.
+  practiceShown: "Each answer's scores appear once it is scored. The round's feedback comes at the end.",
   // 10 §3, realistic only: the speaker line, and what it becomes when the browser will not play
   // sound unasked (a reload). A failed synthesis shows the catalogue's `speech_failed` instead.
   spoken: "Read aloud. The text stays on screen.",
@@ -140,6 +156,17 @@ const en = {
   tryAgain: "Try again",
   unreachable: "The request did not reach the server, or its answer did not come back. Try again.",
 
+  // 10 §15, practice's record frames: no clock, and a take that can be recorded again until it is transcribed.
+  retakeUntilTranscribed: "You can record again until the take is transcribed.",
+  stopRecording: "Stop recording",
+  uploading: "Uploading the take.",
+  takeHeld: "Take recorded — not transcribed yet",
+  transcribeTake: "Transcribe this take",
+  transcribeTakeCaption: "Once it is transcribed, the take is final and cannot be recorded again.",
+  transcribingTake: "Transcribing the take.",
+  recordAgain: "Record again",
+  recordAgainCaption: "Recording again replaces this take.",
+
   rawTranscript: "Raw transcript — uncorrected",
   // `units` is the transcript's length as its pace counts it (lib/round/measures.ts): words here.
   takeFigures: (durationMs: number, pace: number, units: number) =>
@@ -160,6 +187,8 @@ const en = {
   // 10 §6: a question's answer makes one follow-up; a follow-up's own answer makes none.
   sendCaptionFollowUp: "Sending writes one follow-up question from the text you just corrected.",
   sendCaption: "Sending scores this answer while you go on. Nothing about it is shown until the round ends.",
+  // 10 §15: practice shows the scores, so its caption cannot promise silence.
+  sendCaptionShown: "Sending scores this answer. Its scores appear on the next screen once it is scored.",
   sendingForFollowUp: "Sending. The follow-up question is being written.",
   sending: "Sending.",
   followUpNotStored: "Your answer is saved. Its follow-up question had not been written when this page loaded.",
@@ -167,6 +196,18 @@ const en = {
   goOnCaption: "The answer above is saved and scored as it is. It cannot be changed.",
   emptyAnswer: "The answer is empty. Keep what you said, corrected.",
   takeSummary: (durationMs: number, pace: number) => `${clock(durationMs)} · ~${Math.round(pace)} wpm`,
+
+  // 10 §15, practice's per-answer frame.
+  next: "Next",
+  scoringPending: "This answer is being scored. Its scores appear here once it is scored; you can go on without waiting.",
+  scoringFailed: "This answer could not be scored. It is kept as it is.",
+  unsupportedHere: (quote: string, cvLabel: string) => `Unsupported — nothing in ${cvLabel} backs “${quote}”.`,
+  answerFollowUp: "Answer the follow-up",
+  nextQuestion: "Go to the next question",
+  finishCaption: "Closes the round and writes its feedback. Practice asks for no pressure rating.",
+  answerAgain: "Answer again",
+  answerAgainCaption: "A new answer beside this one, scored on its own, with no follow-up. This one stays as it is.",
+  backToScores: "Back to the scores",
 
   beforeFeedback: "Before the feedback",
   pressureQuestion: "How tense did this round feel?",
@@ -195,6 +236,8 @@ const en = {
   // 10 §8
   questionOf: (position: number, of: number) => `Question ${position} / ${of}`,
   question: (position: number) => `Question ${position}`,
+  // 10 §15: the pager's page for the nth time a question was answered again.
+  questionAgain: (position: number, n: number) => `Question ${position} · again${n > 1 ? ` ${n}` : ""}`,
   answers: "Answers",
   answerFigures: (durationMs: number | null, pace: number | null, rewrite: number | null) => {
     const time = durationMs === null ? null : minutesAndSeconds(durationMs);
@@ -213,10 +256,15 @@ const en = {
   followUpMissing: "The follow-up was not generated. It is recorded as a gap.",
   toFix: (n: number) => `To fix ${n}`,
   whatWorked: "What worked 1",
-  findingsNotReady:
-    "The findings for this round are not ready. The round is complete, its rating is recorded, and every score above is kept.",
-  findingsUnavailable:
-    "No answer in this round could be scored, so there are no findings for this round. The round is complete and its rating is recorded.",
+  // `rated` is false for a practice round, which records no rating to mention (10 §15).
+  findingsNotReady: (rated: boolean): string =>
+    rated
+      ? "The findings for this round are not ready. The round is complete, its rating is recorded, and every score above is kept."
+      : "The findings for this round are not ready. The round is complete, and every score above is kept.",
+  findingsUnavailable: (rated: boolean): string =>
+    rated
+      ? "No answer in this round could be scored, so there are no findings for this round. The round is complete and its rating is recorded."
+      : "No answer in this round could be scored, so there are no findings for this round. The round is complete.",
   // 10 §8, `Checked against your CV`. Every quote is the stored text, sliced by span.
   grounding: "Checked against your CV",
   unsupported: (position: number, quote: string, cvLabel: string) =>
@@ -254,12 +302,14 @@ const ja: RoundCopy = {
   meta: (mode, length) => `日本語・${JA_MODES[mode]}・${length}問`,
   step: (position, of) => `第${position}問 / ${of}問`,
   followUpStep: (position, of) => `第${position}問 / ${of}問・深掘り`,
+  stepAgain: (step) => `${step}・再回答`,
   rubricStamp: (label) => `評価基準 ${label}`,
   stamps: (parts) => parts.join("・"),
 
   withheld: "講評はラウンドが終わってからまとめて出ます。途中では何も出ません。",
   goesOn: "この先も続きます。全文は次の画面で直せます。音声も未修正の文字起こしも消えません。",
 
+  practiceShown: "回答ごとの採点は、済みしだい出ます。講評はラウンドの最後にまとめて出ます。",
   spoken: "読み上げました。文字は残します。",
   playQuestion: "質問を聞く",
 
@@ -278,6 +328,16 @@ const ja: RoundCopy = {
   tryAgain: "もう一度試す",
   unreachable: "サーバーに届かなかったか、応答が戻りませんでした。もう一度お試しください。",
 
+  retakeUntilTranscribed: "文字起こしをするまでは、録り直せます。",
+  stopRecording: "録音を停止",
+  uploading: "録音をアップロードしています。",
+  takeHeld: "録音済み — 文字起こし前",
+  transcribeTake: "この録音を文字起こしする",
+  transcribeTakeCaption: "文字起こしをすると、この録音で確定します。録り直しはできなくなります。",
+  transcribingTake: "文字起こしをしています。",
+  recordAgain: "録り直す",
+  recordAgainCaption: "録り直すと、いまの録音は置き換わります。",
+
   rawTranscript: "文字起こし — 未修正",
   takeFigures: (durationMs, pace, units) => `${clock(durationMs)}・約${Math.round(pace)}字/分・${units}字`,
   correct: "文字起こしを直す",
@@ -295,6 +355,7 @@ const ja: RoundCopy = {
   send: "この回答を送る",
   sendCaptionFollowUp: "送ると、いま直した文から深掘りが1問つくられます。",
   sendCaption: "送ると、先へ進む間にこの回答を採点します。結果はラウンドが終わるまで出ません。",
+  sendCaptionShown: "送ると、この回答を採点します。採点が済むと、次の画面に出ます。",
   sendingForFollowUp: "送っています。深掘りの質問をつくっています。",
   sending: "送っています。",
   followUpNotStored: "回答は保存されています。このページを開いた時点では、深掘りの質問がまだつくられていませんでした。",
@@ -302,6 +363,17 @@ const ja: RoundCopy = {
   goOnCaption: "上の回答はこのまま保存され、採点されます。あとから変えることはできません。",
   emptyAnswer: "回答が空です。話した内容を、直した形で残してください。",
   takeSummary: (durationMs, pace) => `${clock(durationMs)}・約${Math.round(pace)}字/分`,
+
+  next: "このあと",
+  scoringPending: "この回答を採点しています。済むとここに出ます。待たずに先へ進めます。",
+  scoringFailed: "この回答は採点できませんでした。回答はそのまま残っています。",
+  unsupportedHere: (quote, cvLabel) => `裏づけなし —「${quote}」に対応する記述が${cvLabel}にない。`,
+  answerFollowUp: "深掘りに答える",
+  nextQuestion: "次の質問へ進む",
+  finishCaption: "ラウンドを終えて、講評をまとめます。練習では緊張度を聞きません。",
+  answerAgain: "もう一度答える",
+  answerAgainCaption: "新しい回答として、この回答の横に残します。別に採点し、深掘りはつきません。この回答はそのまま残ります。",
+  backToScores: "採点に戻る",
 
   beforeFeedback: "講評の前に",
   pressureQuestion: "いまのラウンド、どのくらい緊張しましたか。",
@@ -329,6 +401,7 @@ const ja: RoundCopy = {
 
   questionOf: (position, of) => `第${position}問 / ${of}問`,
   question: (position) => `第${position}問`,
+  questionAgain: (position, n) => `第${position}問・再回答${n > 1 ? n : ""}`,
   answers: "回答",
   answerFigures: (durationMs, pace, rewrite) => {
     const time = durationMs === null ? null : minutesAndSeconds(durationMs);
@@ -347,10 +420,14 @@ const ja: RoundCopy = {
   followUpMissing: "深掘りが生成されませんでした。空欄として記録しています。",
   toFix: (n) => `直すところ ${n}件`,
   whatWorked: "良かったところ 1件",
-  findingsNotReady:
-    "このラウンドの講評はまだできていません。ラウンドは終了し、緊張度は記録され、上の採点はすべて残っています。",
-  findingsUnavailable:
-    "このラウンドには採点できた回答がないため、講評はありません。ラウンドは終了し、緊張度は記録されています。",
+  findingsNotReady: (rated) =>
+    rated
+      ? "このラウンドの講評はまだできていません。ラウンドは終了し、緊張度は記録され、上の採点はすべて残っています。"
+      : "このラウンドの講評はまだできていません。ラウンドは終了し、上の採点はすべて残っています。",
+  findingsUnavailable: (rated) =>
+    rated
+      ? "このラウンドには採点できた回答がないため、講評はありません。ラウンドは終了し、緊張度は記録されています。"
+      : "このラウンドには採点できた回答がないため、講評はありません。ラウンドは終了しています。",
   grounding: "応募書類との照合",
   unsupported: (position, quote, cvLabel) => `裏づけなし（第${position}問）—「${quote}」に対応する記述が${cvLabel}にない。`,
   nothingUnsupported: (cvLabel) => `裏づけなし — ${cvLabel}に照らして該当なし。`,

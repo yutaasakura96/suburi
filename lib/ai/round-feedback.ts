@@ -2,6 +2,8 @@ import { zodTextFormat } from "openai/helpers/zod";
 import { z } from "zod";
 import * as en from "../prompts/feedback-en-1.2.ts";
 import * as ja from "../prompts/feedback-ja-1.1.ts";
+import * as retryEn from "../prompts/feedback-en-1.3.ts";
+import * as retryJa from "../prompts/feedback-ja-1.2.ts";
 import type { Rubric, RubricLanguage } from "../rubric/types.ts";
 import { FEEDBACK_MODEL } from "./models.ts";
 import { dimensionLabel, renderClaims, type CallOptions } from "./score.ts";
@@ -25,6 +27,7 @@ import { ModelCallFailed, openAiClient, upstreamErrorClass } from "./upstream.ts
 
 export interface FeedbackAnswer {
   readonly position: number;
+  readonly again?: boolean;
   /** True for the answer to a follow-up, which shares its parent's position. */
   readonly followUp: boolean;
   readonly prompt: string;
@@ -78,6 +81,7 @@ export function translationLanguage(language: RubricLanguage): RubricLanguage | 
 export interface RoundFeedbackGenerator {
   readonly modelId: string;
   readonly promptVersions: Readonly<Partial<Record<RubricLanguage, string>>>;
+  readonly retryPromptVersions: Readonly<Partial<Record<RubricLanguage, string>>>;
   generate(input: FeedbackInput, options?: CallOptions): Promise<RoundFeedbackResult>;
 }
 
@@ -109,7 +113,7 @@ export function renderFeedbackInput({ rubric, answers, unusedClaims }: FeedbackI
     const pace = answer.pace === null ? "unknown" : `${Math.round(answer.pace)} ${paceUnit}`;
     const scores = answer.scores.map((score) => `${labels.get(score.dimension) ?? score.dimension} ${score.value}`).join(", ");
     return [
-      `=== answer ${answer.position}${answer.followUp ? ", follow-up" : ""} ===`,
+      `=== answer ${answer.position}${answer.followUp ? ", follow-up" : ""}${answer.again ? ", again" : ""} ===`,
       `question: ${answer.prompt}`,
       `duration: ${seconds}; pace: ${pace}`,
       `scores: ${scores}`,
@@ -123,6 +127,7 @@ export function renderFeedbackInput({ rubric, answers, unusedClaims }: FeedbackI
 }
 
 const PROMPTS: Partial<Record<RubricLanguage, { version: string; instructions: string }>> = { en, ja };
+const RETRY_PROMPTS: Partial<Record<RubricLanguage, { version: string; instructions: string }>> = { en: retryEn, ja: retryJa };
 
 const body = {
   to_fix: z.array(z.object({ title: z.string(), body: z.string() })),
@@ -136,9 +141,10 @@ export function openAiRoundFeedbackGenerator({ apiKey, baseURL }: { apiKey: stri
   return {
     modelId: FEEDBACK_MODEL,
     promptVersions: { en: en.version, ja: ja.version },
+    retryPromptVersions: { en: retryEn.version, ja: retryJa.version },
     async generate(input, { signal, timeoutMs } = {}) {
       const { language } = input.rubric;
-      const prompt = PROMPTS[language];
+      const prompt = input.answers.some((answer) => answer.again) ? RETRY_PROMPTS[language] : PROMPTS[language];
       if (!prompt) throw new ModelCallFailed("Round feedback", "no_prompt_for_language");
       const format = translationLanguage(language) === null ? output : outputWithTranslation;
       try {

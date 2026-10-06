@@ -46,7 +46,11 @@ follow-ups:** the route does not read #44's `follow_ups` yet, so a follow-up is 
 pinned model and its replacement deadline are in `03` §4.
 **#50, History, is built (2026-10-04), on `fm/suburi-50`** (Next).
 **#74, a model answer for each question, is built (2026-10-04), on `fm/suburi-74`** (Next).
-**Updated:** 2026-10-05 (#50's catalogue string read; #43, #44, #45, #46, #47, #50 and #74 built; #42 closed; #55 and #56 on 2026-09-30)
+**#49, practice mode, is built (2026-10-04), on `fm/suburi-49`:** Setup's mode, the re-take, the
+per-answer frame, answer again, and a round that ends with no rating; its original 28 strings and
+numbered follow-up label passed the native read, and so did the bank-retry heading (Next).
+**Updated:** 2026-10-06 (#49's Japanese strings all accepted; #50's
+catalogue string read; #43, #44, #45, #46, #47, #49, #50 and #74 built; #42 closed; #55 and #56 on 2026-09-30)
 
 ## Done
 - Phase 1 — `docs/01-project-brief.md`, `docs/02-product-requirements.md`, `docs/06-decision-log.md`.
@@ -477,6 +481,21 @@ feedback unchanged. The owner read and accepted #50's catalogue string on 2026-1
 against Neon `develop` before the merge is verified there (`12` §3 step 8);
 `11` §5's real-recording playback from History, which no fixture covers. Decisions in `06`, "Phase 6 — #50".
 
+**#49 is built (2026-10-04), on `fm/suburi-49`.** Practice's screens were specified first, in `10`
+§15, closing §12's entry. Built: Setup's `Realistic · Practice` option; `GET /api/rounds/{id}` (`07`
+§5.5), which carries a practice round's scores and flags and nothing of a realistic round's until it
+is complete; the record frames with no clock and a take that is held, re-taken and then transcribed;
+the per-answer frame, pending in words and then scored, polling that read; answer again through
+`retry_of_answer_id` on the slot call (`07` §5.6); and a practice round that opens on the answer sent
+last and completes without a rating — the defect #44's review left for this slice. **No migration:**
+`answers.retry_of_answer_id` was already there. Tests: `11` §3.22, and `e2e/practice.spec.ts` for §4's
+practice rows. **Owner-confirmed 2026-10-05:** feedback uses scored retries when no original answer
+scored, with new prompt versions; scored follow-up retries have their own page on screen 8. The
+owner read and accepted the original 28 Japanese strings and the numbered follow-up retry label in
+`docs/checklists/native-read-round.md` §13, and on 2026-10-06 the numbered bank-retry heading and
+the two names `feedback-ja-1.2` gives an answer given again. One known limitation of the fallback is
+recorded in `06`, "Phase 6 — #49", and tracked in #85.
+
 **#54, #55 and #56 are next, then #21. #20, #29 and #38 are done.** #21 is blocked by all three
 (native `blocked_by` edges, 2026-09-29), and #56 by #55. They were triaged 2026-09-29 (`06`): #54 and
 #55 are `ready-for-agent`, and #56 is ready once #55 closes. The two criteria only production could
@@ -655,8 +674,8 @@ in 4b):
 - ~~**Who sends the alert mail.**~~ **Decided 2026-09-28:** no mail. Alerts go to a private status
   page (`12` §6, `06`). Sentry, the cron routes with that page, and the daily `pg_dump` are #54, #55
   and #56, and #21 is blocked by all three. Their open points were answered 2026-09-29 (`06`).
-- **One drawn-but-unspecified screen:** practice mode's record frames differ from realistic mode's.
-  `10-screen-specifications.md` §12. **The CV screen came off this list in #12** — still no artboard,
+- ~~**One drawn-but-unspecified screen:** practice mode's record frames differ from realistic mode's.
+  `10-screen-specifications.md` §12.~~ **Specified in `10` §15 and built (#49, 2026-10-04).** **The CV screen came off this list in #12** — still no artboard,
   but specified in `10` §13 from `05` components.
 
 **The weakest link in the whole plan, named so it is not forgotten:** a real backup has never been

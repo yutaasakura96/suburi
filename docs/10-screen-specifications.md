@@ -1,8 +1,9 @@
 # Screen specifications — Suburi
 
 Nine screens, extracted from the Direction B artboards in `design/`, **and a tenth — the CV screen
-(§13) — specified from `05` components with no artboard behind it, and an eleventh, the status page
-(§14), specified the same way.** Tokens referenced here are
+(§13) — specified from `05` components with no artboard behind it, an eleventh, the status page
+(§14), specified the same way, and practice mode's frames (§15), which the artboards never drew.**
+Tokens referenced here are
 defined in [`05-design-system.md`](05-design-system.md); this document specifies **what each screen
 contains, in what state, and what it must refuse to do**.
 
@@ -160,6 +161,11 @@ other at `--ink-6`:
 `実戦 — 一発勝負。1回答 最長4分。講評はラウンド終了後にまとめて出します。` /
 `練習 — 録り直し可。時間制限なし。回答ごとに講評。`
 
+**As built (#49)**, in English (§0): `Realistic · Practice`, realistic the default, and under them
+`Realistic — one take. Up to 4 minutes per answer. The feedback comes together after the round.` /
+`Practice — re-takes, no time limit, each answer's scores once it is scored. Not counted in progress.`
+A practice round's frames are §15.
+
 **Role context is required** and labelled `必須。3つは対等です。` — three cards in a
 `repeat(3, 1fr)` grid at `gap: 24px`, each a 14px title over a 12px/1.7 detail, underlined
 `2px` selected/unselected as above:
@@ -268,6 +274,11 @@ The language named is the round's — `in Japanese` for a Japanese round, whose 
 §5.4). The two numbers are the bank's supply and the round's length; with none unseen it opens `There are no
 unseen Behavioural questions in English, and this round asks 5.` It does not offer a choice: the
 round's length is the user's, and generation is how the round keeps it.
+
+**A practice round's sentence drops `unseen` and the repeat clause** (#49): practice draws on every
+generated question, seen or not (`07` §5.4), and nothing in it counts in progress. `There are 2
+Behavioural questions in English to practise on, and this round asks 5. The rest are written when it
+starts, which can take up to half a minute.`
 
 **While the round is starting** the start button's caption reads `Fixing the questions for this
 round.`, or, when the warning is showing, `Writing new questions for this round. This can take up to
@@ -812,18 +823,13 @@ Restated from PRD §9 because a specification that omits them invites a build th
   explorations DirectionA and DirectionC included for consistent terminology, and
   `design/suburi-directions.html` was rebuilt from those working files. The three prose strings in
   the item above were re-seeded into the artboards the same way on 2026-09-27.
-- **Practice mode's screens.** Practice differs at the record frames (no timer, `録り直し可`) and
-  delivers feedback per answer as well as at round end. Only realistic mode is drawn. **Their shape is
-  decided** (`06`, 2026-09-27) and they are specified here from `05` components before they are built,
-  the way §13 was:
-  - realistic's flow, text only, no timer and no `最長` line — **built by #45 as far as the record
-    frames:** no speaker line, no clock, no limit and no one-take line, and the waveform scrolls at a
-    fixed pace with no remainder, so the 15-minute guard is never drawn (`03` §7);
-  - a **re-take** control on the record frames until the take is transcribed — it replaces the take;
-  - after each submit, a **per-answer frame**: that answer's score rows (§5.3) and flags once it is
-    scored, stated as pending until then, with the follow-up ready beside it;
-  - **answer again** on that frame — a new answer beside the first, with no follow-up of its own;
-  - **round feedback at the end**, as §8, with no felt-pressure screen before it.
+- ~~**Practice mode's screens.**~~ **Closed — specified in §15 (#49).** Practice differs at the record
+  frames (no timer, `録り直し可`) and delivers feedback per answer as well as at round end, and only
+  realistic mode is drawn. Its shape was decided on 2026-09-27 (`06`) and is now specified from `05`
+  components, the way §13 was: realistic's flow, text only and untimed; a re-take on the record
+  frames until the take is transcribed; a per-answer frame after each commit, pending until scored,
+  with the follow-up ready beside it; answer again; and round feedback at the end with no
+  felt-pressure screen before it.
 - **The four-round run.** Deferred as LATER and unshaped (decision log).
 - **The role-context picker and add form** on Setup (§2), specified by the slice that builds them.
 - **Loading, error and offline states** beyond the two History statuses and the missing-follow-up row.
@@ -1085,3 +1091,167 @@ the constant, not written.
 - **No delete, no acknowledge, no mute.** A red check clears when a later run finds it clear, and not
   otherwise.
 - **No score** of any kind (§11 refusal 1). Spend is money, not a measure of the user.
+
+---
+
+## 15. Practice mode — the round's frames, no artboard
+
+**Purpose.** The same round with the pressure taken out and the scores let in: no clock, a take that
+can be recorded again, each answer's scores as soon as they exist, a second go at the same question,
+and the round's feedback at the end with no rating asked first (PRD §2, US-5, US-8).
+
+Only realistic mode was drawn. **Practice's shape was decided on 2026-09-27 (`06`) and is specified
+here from `05` components, before it was built (#49)** — the way §13 was. Everything §3–§8 says holds
+in a practice round unless this section says otherwise, and every string is in the round's language
+(§0); the Japanese ones are in `docs/checklists/native-read-round.md` §13. The owner accepted the
+original 28 and the numbered follow-up label on 2026-10-05, and the bank-retry heading on 2026-10-06.
+
+The round header (`05` §5.2) names the mode: `English · Practice · 3 questions`, `日本語・練習・3問`.
+A practice round is chosen on Setup (§2), where the mode's line already says what it is.
+
+### What a practice round never shows
+
+- **No speaker line and no speech**: practice is text only (§3).
+- **No clock.** No `1:04 / 4:00`, no `最長` line, no `4分で自動的に止まります。` and no one-take line.
+  The 15-minute runaway guard still ends a take and keeps it (`03` §7), and is never drawn: the
+  waveform scrolls at a fixed pace and has no remainder line to fill.
+- **No felt-pressure screen** (§7), and no `緊張度` stamp on the feedback.
+- **No promise that feedback is withheld.** The record frames' footer sentence is instead
+  `Each answer's scores appear once it is scored. The round's feedback comes at the end.` /
+  `回答ごとの採点は、済みしだい出ます。講評はラウンドの最後にまとめて出ます。`
+
+### Record, with a re-take — §3–§5 in practice
+
+- **Asked.** The question at 19px, the outline `Start recording` button, and two lines at 12px/1.75
+  `--ink-6`: `You can record again until the take is transcribed.` /
+  `文字起こしをするまでは、録り直せます。`, then §3's `止めたあとに文字起こしを直せます。`
+- **Recording.** §4's status and waveform, without the timer. The outline button reads
+  `Stop recording` / `録音を停止` — stopping keeps the take and does not transcribe it — with no caption
+  beside it.
+- **Take held** — the state practice adds between §4 and §5. Stopping opens the answer slot and
+  uploads the take (`07` §5.6); while that runs the frame says `Uploading the take.` /
+  `録音をアップロードしています。` Then, with the question still at 19px and unmoved:
+  - the status line, in `--ink-label`: `Take recorded — not transcribed yet` /
+    `録音済み — 文字起こし前`;
+  - a solid primary `Transcribe this take` / `この録音を文字起こしする`, captioned
+    `Once it is transcribed, the take is final and cannot be recorded again.` /
+    `文字起こしをすると、この録音で確定します。録り直しはできなくなります。`;
+  - the outline record button, now `Record again` / `録り直す`, captioned
+    `Recording again replaces this take.` / `録り直すと、いまの録音は置き換わります。`
+- **The re-take replaces the take in the same answer** — the same row and the same object, until it is
+  transcribed (`07` §5.6). It is offered here and nowhere after: §5's transcript is final, as in
+  realistic mode. While the take is being transcribed the frame says `Transcribing the take.` /
+  `文字起こしをしています。`
+- **A reload before the transcript** shows the question again, as §3 does: the take is uploaded, but
+  the page cannot play it back (`06`, 2026-10-04).
+  Recording then is a re-take onto the answer already opened.
+
+### Transcript correction — §6 in practice
+
+Unchanged, meter included: the diff is stored in both modes (US-6). Only the commit's caption
+differs where §6's would promise silence — under a follow-up's own answer, or an answer given again:
+`Sending scores this answer. Its scores appear on the next screen once it is scored.` /
+`送ると、この回答を採点します。採点が済むと、次の画面に出ます。`
+
+### The per-answer frame — after every commit
+
+3-column grid, as §6 and §7: the answer at `span 2`, what comes next in the last column. The header's
+step is the answer's own.
+
+**The answer.**
+- The step in 11px mono `0.16em` and, right-aligned, the answer's figures — both exactly as §8's
+  per-answer region sets them.
+- The question at 15px/1.85 `--ink-2`.
+- **The rubric's score rows** (`05` §5.3), one per dimension, in the rubric's order.
+- **Until the score lands, the frame says so and does not spin**: every row reads `Not scored yet` /
+  `採点中` (§8's words), and one sentence in the information tone (`05` §5.8) sits under them:
+  `This answer is being scored. Its scores appear here once it is scored; you can go on without waiting.` /
+  `この回答を採点しています。済むとここに出ます。待たずに先へ進めます。` The frame reads the round
+  (`07` §5.5) every few seconds while the score is pending and fills the rows when it lands. Nothing
+  on the frame waits for it.
+- **A score that failed** reads `Not scored` / `未採点` on every row, with one sentence in the
+  attention tone: `This answer could not be scored. It is kept as it is.` /
+  `この回答は採点できませんでした。回答はそのまま残っています。`
+- **Its flags, once scored** — callout rails under the rows, and only for an answer that went through
+  the CV check (§8's rule):
+  - one `--attention-mark` rail per unsupported span, in the order the spans stand in the answer:
+    `Unsupported — nothing in CV v3 backs “raised the whole team's productivity”.` /
+    `裏づけなし —「チーム全体の生産性を上げた」に対応する記述が応募書類 v3にない。` — §8's sentence
+    without the question number, the quote sliced from the corrected text by its stored span;
+  - or, with none, §8's `--ink-9` rail: `Unsupported — nothing flagged against CV v3.`;
+  - and §8's wrong-language line, when the scorer read the answer in the other language.
+
+**What comes next**, under the section label `Next` / `このあと`. One solid primary, with its caption:
+
+| The round is on | Shown | Primary | Caption |
+| --- | --- | --- | --- |
+| the answer's follow-up | `└ Follow-up` / `└ 深掘り` over the follow-up's text at 13px/1.75 `--ink-2` — **ready beside the scores** | `Answer the follow-up` / `深掘りに答える` | §6's `The answer above is saved and scored as it is. It cannot be changed.` |
+| the next question | its step, `Question 2 / 3` — not its text | `Go to the next question` / `次の質問へ進む` | the same |
+| the end of the round | — | `Go to the feedback` / `講評に進む` | `Closes the round and writes its feedback. Practice asks for no pressure rating.` / `ラウンドを終えて、講評をまとめます。練習では緊張度を聞きません。` |
+| a follow-up that could not be generated | §6's `followup_generation_failed` sentence, attention tone | `Go on` / `先へ進む` | §6's caption |
+| a follow-up not stored when the page loaded | §6's plain sentence, information tone | `Go on` / `先へ進む` | §6's caption |
+
+`Go to the feedback` completes the round **without a rating** (`07` §5.12) and opens §8; while it runs
+the caption reads `Writing the findings.` / `講評をまとめています。` The two `Go on` rows are §6's
+"after the commit" frame, folded into this one: in practice the saved answer is shown with its scores.
+
+**Answer again.** Below a `--rule-section` rule, an outline button `Answer again` /
+`もう一度答える`, captioned
+`A new answer beside this one, scored on its own, with no follow-up. This one stays as it is.` /
+`新しい回答として、この回答の横に残します。別に採点し、深掘りはつきません。この回答はそのまま残ります。`
+
+The round's stamp (`05` §5.9) closes the column: this frame shows scores.
+
+### Answering again
+
+- The same prompt is asked again on the record frames above, and the header's step says so:
+  `Question 1 / 3 · again`, `第1問 / 3問・再回答` — on a follow-up, `Question 1 / 3 · follow-up · again`,
+  `第1問 / 3問・深掘り・再回答`.
+- **Nothing is written until a take exists** (§4). Until then a text link, `Back to the scores` /
+  `採点に戻る`, returns to the frame it came from.
+- It goes through record, re-take, transcript and correction like any answer, and its commit opens
+  **its own per-answer frame**, whose `Next` is wherever the round already was. It makes no follow-up,
+  and it can itself be answered again.
+- **The first answer is never touched** (§11, refusal 3): the new answer is a row beside it at the
+  same position (`04` `answers`).
+
+### Resume
+
+A practice round reloads onto, in this order: an answer-again that is open and not yet sent, on its
+own record or transcript frame; the open answer to the round's current prompt, as §3–§5; otherwise
+**the per-answer frame of the answer sent last**, with `Next` read from where the round stands. A
+round with nothing sent yet reloads onto its first question. So a reload never loses an answer's
+scores, and the frame after the last answer is the one that leads to the feedback.
+
+### Round feedback — §8 in practice
+
+§8, with these differences:
+
+- **Reached from the last per-answer frame**, never through §7. The header says `Practice` / `練習`,
+  and the footer carries no `緊張度` line.
+- **An answer given again has its own page in the pager**, straight after the answer it follows:
+  `Question 1 · again` / `第1問・再回答` — `again 2`, `再回答2` for a second one — with its own figures
+  and score rows, headed `Question 1 / 3 · again`, then `Question 1 / 3 · again 2`. It has no follow-up row. A scored retry of a
+  follow-up answer also has its own page, headed as a follow-up given again. A second retry carries
+  `again 2` / `再回答2` in its heading and pager label. Under the pager (§8, #74) its page shows what
+  was said that time beside the model answer of the answer it follows: a retry has none of its own
+  (`06`, 2026-10-04).
+- **When an original answer scored, round-level findings use the first answers and their
+  follow-ups; `Checked against your CV` lists unsupported spans from bank-question answers only.**
+  If none scored, both use scored answers given again, including follow-up retries, under the new
+  feedback prompt versions (`07` §5.12, `06`). Extending the ordinary CV region to original
+  follow-up answers is tracked in [#85](https://github.com/yutaasakura96/suburi/issues/85).
+- The two sentences that stand in for missing findings do not mention a rating:
+  `The findings for this round are not ready. The round is complete, and every score above is kept.` /
+  `このラウンドの講評はまだできていません。ラウンドは終了し、上の採点はすべて残っています。` and
+  `No answer in this round could be scored, so there are no findings for this round. The round is complete.` /
+  `このラウンドには採点できた回答がないため、講評はありません。ラウンドは終了しています。`
+
+### Refuses
+
+- **No composite**, here either: the per-answer frame is score rows, never a total or a comparison of
+  the two answers to one question.
+- **No "better" or "worse" between an answer and the one given again.** Two sets of rows, each read on
+  its own.
+- **No timer, countdown or elapsed time while recording**, and nothing that draws the guard.
+- **No discarding an answer.** Answer again adds a row; nothing removes or replaces one (§11).

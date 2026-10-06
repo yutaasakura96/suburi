@@ -178,12 +178,16 @@ test("the runaway guard fires: a practice take is kept at 15 minutes, and is nev
   await expect(frame).not.toContainText(neverATimer);
 
   await page.clock.fastForward("14:50");
-  await expect(page.getByRole("button", { name: "Stop and transcribe" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Stop recording" })).toBeVisible();
   await expect(page.getByTestId("record-timer")).toHaveCount(0);
   await expect(frame).not.toContainText(neverATimer);
 
-  // At 15:00 it behaves exactly like the cap: the take ends and is kept.
+  // At 15:00 it behaves exactly like the cap: the take ends and is kept — held, as any practice take
+  // is when it stops (10 §15), and transcribed when the user says so.
   await page.clock.fastForward("00:15");
+  await expect(page.getByTestId("take-held")).toHaveText("Take recorded — not transcribed yet");
+  await expect(frame).not.toContainText(neverATimer);
+  await page.getByRole("button", { name: "Transcribe this take" }).click();
   await expect(page.getByTestId("raw-transcript")).toHaveText(RAW);
   const takes = takesOf(await seededUserId(), round.id);
   expect(takes).toHaveLength(1);

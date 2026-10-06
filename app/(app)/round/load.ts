@@ -3,20 +3,24 @@ import * as s from "@/db/schema";
 import type { FeedbackItem, TranslatedFeedback } from "@/lib/ai/round-feedback";
 import { underlineSegments } from "@/lib/cv/segments";
 import { characterLength, sliceQuote, type Span } from "@/lib/cv/spans";
+import { feedbackAnswers } from "@/lib/round/complete";
 import type { Db } from "@/lib/round/http";
 import { rewritePercent } from "@/lib/round/measures";
 import type { TranslatedModelAnswer } from "@/lib/round/model-answers";
+import { scoringReads, type ScoringRead } from "@/lib/round/read-round";
 import { loadBankCounts } from "@/lib/round/select-questions";
 import {
   latestAttempts,
   newerRoundExists,
   noScores,
+  openRetry,
   promptAt,
   questionsSubmitted,
   roundAnswers,
   roundFollowUps,
   roundStep,
   scoringCounts,
+  type AnswerRow,
   type RoundRow,
 } from "@/lib/round/state";
 import { roundStatus } from "@/lib/round/status";
@@ -92,6 +96,35 @@ async function stampLabels(db: Db, round: RoundRow) {
   return { cvLabel: cv.label, rubric: { versionLabel: rubric.label, language: rubric.language, dimensions: rubric.dimensions } as Rubric };
 }
 
+/**
+ * A submitted answer as practice's per-answer frame shows it (10 §15): what was asked, the answer's
+ * figures, and its scoring as the round's read carries it (07 §5.5) — the frame polls that read while
+ * the score is pending, so the page and the poll hand it one shape.
+ */
+export interface AnsweredView {
+  readonly answerId: string;
+  readonly position: number;
+  readonly text: string;
+  /** Set when the answer is to a follow-up: the stamp it carries, and what the header's step names. */
+  readonly followUpVersion: string | null;
+  /** True for an answer given again: a row beside the first, at the same position. */
+  readonly again: boolean;
+  /** The corrected text, back to its owner: its flags are spans into it, and a repeated `submit` sends it. */
+  readonly corrected: string;
+  readonly durationMs: number | null;
+  readonly wpm: number | null;
+  readonly rewrite: number | null;
+  readonly scoring: ScoringRead;
+}
+
+/** What the per-answer frame leads to: where the round stands, from stored rows. */
+export type NextView =
+  | { readonly kind: "follow_up"; readonly position: number; readonly text: string; readonly promptVersion: string }
+  | { readonly kind: "question"; readonly position: number; readonly text: string }
+  | { readonly kind: "feedback" }
+  /** The follow-up is not stored yet: `submit`, sent again with the same text, writes it (07 §5.9). */
+  | { readonly kind: "follow_up_due" };
+
 export interface RoundFrame {
   readonly round: {
     readonly id: string;
@@ -103,6 +136,8 @@ export interface RoundFrame {
   };
   readonly cvLabel: string;
   readonly rubricLabel: string;
+  /** The rubric's dimensions in its own order, named in the round's language: the per-answer frame's rows. */
+  readonly dimensions: readonly { readonly key: string; readonly label: string }[];
   /** Each position's generator prompt version, for the stamp — the versions only, never a later question. */
   readonly generatorVersions: readonly string[];
   /** The prompt version of each follow-up the round has generated so far, for the round's stamp. */
@@ -119,6 +154,8 @@ export interface RoundFrame {
         readonly text: string;
         /** Set when the prompt is a follow-up: its prompt version, the stamp its answer will carry. */
         readonly followUpVersion: string | null;
+        /** Set when the prompt is being answered again (practice): the answer the new one stands beside. */
+        readonly again: string | null;
         readonly transcript: {
           readonly answerId: string;
           readonly raw: string;
@@ -138,6 +175,8 @@ export interface RoundFrame {
         readonly answerId: string;
         readonly corrected: string;
       }
+    /** Practice's per-answer frame, for the answer sent last (10 §15). */
+    | { readonly kind: "answered"; readonly answer: AnsweredView; readonly next: NextView }
     | { readonly kind: "pressure" }
     /** `answered` is how many questions were submitted before the round was abandoned, for the header. */
     | { readonly kind: "abandoned"; readonly answered: number };
@@ -168,6 +207,10 @@ export async function roundFrame(db: Db, userId: string, round: RoundRow): Promi
     },
     cvLabel,
     rubricLabel: rubric.versionLabel,
+    dimensions: rubric.dimensions.map((dimension) => ({
+      key: dimension.key as string,
+      label: round.language === "ja" ? dimension.label_ja : dimension.label_en,
+    })),
     generatorVersions: versions.map((row) => row.version),
     followUpVersions: [...new Set(followUps.filter((row) => row.status === "generated").map((row) => row.promptVersion))],
   };
@@ -176,6 +219,67 @@ export async function roundFrame(db: Db, userId: string, round: RoundRow): Promi
   if (status === "abandoned") {
     return { ...frame, start: { kind: "abandoned", answered: questionsSubmitted(round, step) } };
   }
+  // The stamp a follow-up's answer carries: the version of the `follow_ups` row it answers.
+  const followUpVersionOf = (answer: AnswerRow) =>
+    followUps.find((row) => row.parentAnswerId === answer.parentAnswerId)?.promptVersion ?? null;
+  const transcriptOf = (answer: AnswerRow | null) =>
+    answer?.transcriptRaw != null
+      ? { answerId: answer.id, raw: answer.transcriptRaw, durationMs: answer.audioDurationMs, wpm: answer.wordsPerMinute }
+      : null;
+
+  if (round.mode === "practice") {
+    // 10 §15's resume order: an open answer-again, then the open answer to the current prompt, then
+    // the per-answer frame of the answer sent last.
+    const again = openRetry(answers);
+    if (again) {
+      return {
+        ...frame,
+        start: {
+          kind: "question",
+          position: again.position,
+          text: again.promptText,
+          followUpVersion: followUpVersionOf(again),
+          again: again.retryOfAnswerId,
+          transcript: transcriptOf(again),
+        },
+      };
+    }
+    const last = answers
+      .filter((answer) => answer.transcriptCorrected !== null)
+      .reduce<AnswerRow | null>((newest, answer) => (newest === null || answer.createdAt > newest.createdAt ? answer : newest), null);
+    if (last && !(step.kind === "answer" && step.answer)) {
+      const next: NextView =
+        step.kind === "follow_up_due"
+          ? { kind: "follow_up_due" }
+          : step.kind !== "answer"
+            ? { kind: "feedback" }
+            : step.followUp
+              ? { kind: "follow_up", position: step.position, text: step.followUp.row.promptText, promptVersion: step.followUp.row.promptVersion }
+              : { kind: "question", position: step.position, text: (await promptAt(db, round.id, step.position))?.text ?? "" };
+      const scoring = (await scoringReads(db, round, [last], { scores: true })).get(last.id);
+      if (!scoring) throw new Error("a submitted answer with no scoring attempt");
+      return {
+        ...frame,
+        start: {
+          kind: "answered",
+          answer: {
+            answerId: last.id,
+            position: last.position,
+            text: last.promptText,
+            followUpVersion: followUpVersionOf(last),
+            again: last.retryOfAnswerId !== null,
+            corrected: last.transcriptCorrected ?? "",
+            durationMs: last.audioDurationMs,
+            wpm: last.wordsPerMinute,
+            rewrite: last.rewriteMagnitude === null ? null : rewritePercent(last.rewriteMagnitude),
+            scoring,
+          },
+          next,
+        },
+      };
+    }
+  }
+
   if (step.kind === "follow_up_due") {
     const { parent } = step;
     return {
@@ -191,7 +295,6 @@ export async function roundFrame(db: Db, userId: string, round: RoundRow): Promi
   }
   if (step.kind !== "answer") return { ...frame, start: { kind: "pressure" } };
 
-  const open = step.answer;
   return {
     ...frame,
     start: {
@@ -199,10 +302,8 @@ export async function roundFrame(db: Db, userId: string, round: RoundRow): Promi
       position: step.position,
       text: step.followUp ? step.followUp.row.promptText : ((await promptAt(db, round.id, step.position))?.text ?? ""),
       followUpVersion: step.followUp?.row.promptVersion ?? null,
-      transcript:
-        open?.transcriptRaw != null
-          ? { answerId: open.id, raw: open.transcriptRaw, durationMs: open.audioDurationMs, wpm: open.wordsPerMinute }
-          : null,
+      again: null,
+      transcript: transcriptOf(step.answer),
     },
   };
 }
@@ -231,6 +332,9 @@ function modelAnswerSegments(body: string, spans: readonly Span[]): ModelAnswerS
 
 export interface FeedbackAnswerView {
   readonly position: number;
+  readonly followUpAnswer: boolean;
+  /** 0 for the first answer to the question; n for the nth answer given again (practice, 10 §15). */
+  readonly again: number;
   readonly prompt: string;
   /** What the user said: the corrected transcript, as it was scored. */
   readonly own: string;
@@ -311,8 +415,13 @@ export async function feedbackScreen(db: Db, round: RoundRow): Promise<FeedbackS
     db.select().from(s.roundFeedback).where(eq(s.roundFeedback.roundId, round.id)),
   ]);
   const answered = answers.filter((answer) => answer.transcriptCorrected !== null);
-  // The pager is one bank question per position; its follow-up hangs off it as a row.
-  const submitted = answered.filter((answer) => answer.questionId !== null);
+  // The pager is one bank question per position, its follow-up hanging off it as a row — and, in a
+  // practice round, a page for each time that question was answered again, straight after it.
+  const submitted = answered.filter((answer) => answer.questionId !== null || answer.retryOfAnswerId !== null);
+  const againOf = (answer: AnswerRow) =>
+    answer.retryOfAnswerId === null
+      ? 0
+      : submitted.filter((other) => other.retryOfAnswerId === answer.retryOfAnswerId).indexOf(answer) + 1;
   // Every submitted answer's attempt, follow-ups' included: the same set `complete` reads (07 §5.12).
   const [attempts, modelAnswerRows] = await Promise.all([
     latestAttempts(db, answered.map((answer) => answer.id)),
@@ -333,7 +442,7 @@ export async function feedbackScreen(db: Db, round: RoundRow): Promise<FeedbackS
     const row = followUps.find((followUp) => followUp.parentAnswerId === answerId);
     if (!row) return null;
     if (row.status === "missing" || row.promptText === null) return { kind: "missing" };
-    const own = answered.find((answer) => answer.parentAnswerId === answerId);
+    const own = answered.find((answer) => answer.parentAnswerId === answerId && answer.retryOfAnswerId === null);
     return {
       kind: "asked",
       text: row.promptText,
@@ -344,9 +453,12 @@ export async function feedbackScreen(db: Db, round: RoundRow): Promise<FeedbackS
   };
   const okIds = [...attempts.values()].filter((attempt) => attempt.status === "ok").map((attempt) => attempt.id);
   const scoreRows = okIds.length === 0 ? [] : await db.select().from(s.scores).where(inArray(s.scores.scoringAttemptId, okIds));
-  const okAttempts = [...attempts.values()].filter((attempt) => attempt.status === "ok");
+  // The round-level regions read what the feedback call read: the answers given again only when no
+  // other answer scored (07 §5.12).
+  const roundLevelAnswers = feedbackAnswers(answered, attempts);
+  const roundLevel = roundLevelAnswers.flatMap((answer) => attempts.get(answer.id) ?? []);
   // An attempt that went through the CV check says which language it read (04 `scoring_attempts`).
-  const grounded = okAttempts.some((attempt) => attempt.answeredLanguage !== null);
+  const grounded = roundLevel.some((attempt) => attempt.status === "ok" && attempt.answeredLanguage !== null);
   const untouchedIds = findings?.untouchedClaimIds ?? [];
   const [flagRows, untouchedClaims] = await Promise.all([
     grounded
@@ -364,11 +476,12 @@ export async function feedbackScreen(db: Db, round: RoundRow): Promise<FeedbackS
           .innerJoin(s.cvVersions, eq(s.cvVersions.id, s.cvClaims.cvVersionId))
           .where(and(inArray(s.cvClaims.id, untouchedIds), eq(s.cvClaims.cvVersionId, round.cvVersionId))),
   ]);
-  const generatorVersions = submitted.length
+  const bankAnswers = submitted.filter((answer) => answer.questionId !== null);
+  const generatorVersions = bankAnswers.length
     ? await db
         .selectDistinct({ version: s.questions.generatorPromptVersion })
         .from(s.questions)
-        .where(inArray(s.questions.id, submitted.map((answer) => answer.questionId!)))
+        .where(inArray(s.questions.id, bankAnswers.map((answer) => answer.questionId!)))
     : [];
 
   const translated = (findings?.bodyTranslated ?? null) as TranslatedFeedback | null;
@@ -400,9 +513,12 @@ export async function feedbackScreen(db: Db, round: RoundRow): Promise<FeedbackS
       const status = attempt?.status ?? "pending";
       return {
         position: answer.position,
+        followUpAnswer: answer.questionId === null,
+        again: againOf(answer),
         prompt: answer.promptText,
         own: answer.transcriptCorrected ?? "",
-        modelAnswer: modelAnswerOf(answer.id),
+        // An answer given again is the same question, and reads the model answer its original has.
+        modelAnswer: modelAnswerOf(answer.retryOfAnswerId ?? answer.id),
         durationMs: answer.audioDurationMs,
         wpm: answer.wordsPerMinute,
         rewrite: answer.rewriteMagnitude === null ? null : rewritePercent(answer.rewriteMagnitude),
@@ -427,7 +543,7 @@ export async function feedbackScreen(db: Db, round: RoundRow): Promise<FeedbackS
     grounding: grounded
       ? {
           cvLabel,
-          unsupported: submitted.flatMap((answer) =>
+          unsupported: roundLevelAnswers.filter((answer) => answer.questionId !== null || answer.retryOfAnswerId !== null).flatMap((answer) =>
             flagRows
               .filter((flag) => flag.scoringAttemptId === attempts.get(answer.id)?.id)
               .map((flag) => ({
@@ -442,6 +558,6 @@ export async function feedbackScreen(db: Db, round: RoundRow): Promise<FeedbackS
           }),
         }
       : null,
-    findingsUnavailable: !findings && noScores(scoringCounts(attempts.values())),
+    findingsUnavailable: !findings && noScores(scoringCounts(roundLevel)),
   };
 }

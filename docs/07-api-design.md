@@ -617,6 +617,31 @@ what practice's per-answer frame shows. **A `realistic` round's read carries sta
 round is complete**: US-8 forbids any score, flag or hint mid-round, and leaving the fields out of the
 response is what makes that structural rather than a client courtesy.
 
+**As built (#49).** The JSON above is the shape; these are the fields.
+
+- `round`: `id`, `round_type`, `language`, `mode`, `length`, `per_answer_cap_seconds`, `started_at`,
+  `completed_at`, `status`.
+- Each of `answers`: `id`, `position`, `kind`, `state`, `retry_of_answer_id` — null for an answer the
+  round asked for, the original's id for one given again (§5.6), which stands beside it at the same
+  position — and `scoring` once the answer is submitted.
+- `scoring` is the answer's latest attempt: `attempt_id` and `status` (`pending`, `ok`, `failed`).
+  Where the read may show them — a practice round, or a completed one — an `ok` attempt also carries
+  `scores` (`[{ dimension, value }]`, in the rubric's order), `flags` (`[{ kind, span_start, span_end }]`,
+  in the order they stand in the answer) and `answered_language`. **A flag is a span into the
+  corrected text, never a quote**: the page that shows it slices its own copy of the answer. A
+  `pending` or `failed` attempt carries its status alone, and no justification, citation or answer
+  text is in the read at all.
+- `resume.at` is one of `answers` (open the slot, with `answer_id` null, or record over the open one),
+  `transcribe`, `submit` and `complete`. **The key is written when the slot opens (§5.6), so an open
+  slot already reads `uploaded`** and `open` is a state no row is in today; `transcribe` on a slot whose
+  take never reached the bucket answers `audio_missing`, and the client records again.
+- **An answer-again that is open is what the round resumes on**: `prompt` is the same prompt asked
+  again, carrying `retry_of_answer_id` and `speak: false`, and `resume` names that row. With none
+  open, `prompt` and `resume` follow the round's step.
+- `cache-control: no-store`: practice's per-answer frame polls this read while a score is pending
+  (`03` §7), and a stored copy would be the one thing it must not get.
+- `401 unauthenticated`; `404 not_found` for no such round, or another user's.
+
 **An in-flight recording is the one thing that does not survive** (`03` §7), and the UI says so before
 recording. The slot is opened only after a take exists, so a round reloaded mid-recording has no row
 for it: the question is simply asked again.
@@ -657,6 +682,23 @@ it retries** — so the round still renders in order with the retry grouped besi
 broken by `created_at`. This is why `answers (round_id, position)` is not unique in `04` §3, and it
 must not be made unique. `is_first_attempt` stays on the original, always (PRD §9, refusal #3), and
 **the retry gets no follow-up** (§5.9).
+
+**Answer again, as built (#49).** The body is the take's two fields and `retry_of_answer_id`; the
+response is the slot's, with `retry_of_answer_id` beside `parent_answer_id` — null on every other
+slot. The new row copies what the original was asked: `question_id` or `parent_answer_id`,
+`prompt_text` and `position`. So a follow-up's answer can be given again too.
+
+- **A retry always points at the original.** Naming an answer that is itself a retry opens one more
+  retry of the same original, never a retry of a retry.
+- **One open retry per original.** While one is open and not transcribed, a repeat returns that row
+  with a fresh URL for the same key — its re-take — and `422 transcript_already_final` once it is
+  transcribed.
+- **The round's step is not consulted and does not move.** The round stays wherever it was, and
+  `submit` on the retry returns the `next` the round already had (§5.9), generating nothing.
+- **Refused** with `400 invalid_request` and `detail.fields: ["retry_of_answer_id"]` in a realistic
+  round, whatever it names, and for an answer that is not submitted yet; with `404 not_found` for an
+  id that is no answer of this round. A complete or abandoned round refuses it as it refuses any slot.
+  No new error code: these are requests the client never makes (`06`, 2026-10-04).
 
 **`position` is assigned under `select … for update` on the `rounds` row.** Two concurrent opens must
 not both claim position 2.
@@ -997,6 +1039,8 @@ POST /api/rounds/77af0b13-…/complete
 findings, item for item and in the same order, in English. It is `null` on an English round, whose
 feedback is already English.
 
+**A practice round sends an empty body, `{}`**, and gets the same `201` with `felt_pressure: null`.
+
 **Why the rating and the completion are the same call:** `04` requires `felt_pressure` to be captured
 **before any feedback**, and one endpoint makes that ordering structural rather than a rule someone
 has to remember.
@@ -1075,6 +1119,11 @@ shows every score that landed and a pending round-level note, and generation is 
 - `mode = 'practice'` and a `felt_pressure` → `422 pressure_not_applicable`. The check constraint is
   the backstop. **A practice round is completed the same way, without a rating**, and gets the same
   round feedback (`06`, 2026-09-27).
+- **The feedback is written from the answers the round asked for** — each question's first answer and
+  its follow-up's (#49, `06`, 2026-10-04). An answer given again in practice (§5.6) is scored and
+  shown on its own. When an original answer scored, retries are not waited for, counted or sent to
+  the feedback call. When none scored, scored retries are used instead, with prompt versions
+  `feedback-en-1.3` and `feedback-ja-1.2`.
 - Already complete → `409 round_already_complete`, with `detail.has_feedback` saying whether the
   feedback exists. The envelope's `detail` is flat (§2), so it cannot carry the feedback itself;
   screen 8 reads it from the round (`06`, 2026-10-01).

@@ -31,7 +31,7 @@ function preferredType(): TakeContentType {
 }
 
 /**
- * A practice take has no timer (10 §12): its waveform scrolls at a fixed pace instead of filling the
+ * A practice take has no timer (10 §15): its waveform scrolls at a fixed pace instead of filling the
  * measure over the cap, because a fill would draw the runaway guard as the timer it is not (03 §7).
  */
 const SCROLLING_BAR_MS = 1_000;

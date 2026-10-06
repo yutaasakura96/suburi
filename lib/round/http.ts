@@ -51,7 +51,7 @@ export function roundAbandoned(roundId: string): Response {
 
 /** The session, or the 401 — and on a ⚡ route, the request counted before the body is read. */
 export async function authenticate(
-  deps: RoundDeps,
+  deps: Pick<RoundDeps, "auth" | "db">,
   request: Request,
   route?: RateLimitedRoute,
 ): Promise<{ userId: string; sessionId: string } | Response> {

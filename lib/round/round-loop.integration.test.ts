@@ -1108,6 +1108,7 @@ describe("POST /api/rounds/{id}/complete (11 §3.14)", () => {
       const completed = await world.call(world.handlers.complete, roundId, { felt_pressure: 3 });
       expect(completed.status).toBe(502);
       expect(completed.json.error).toMatchObject({ code: "feedback_generation_failed", detail: { error_class: "no_scores" } });
+      expect(events("feedback_generation_failed")[0]).toMatchObject({ ok: 0, pending: 0, failed: answers.length * 2 });
       const retried = await world.call(world.handlers.feedback, roundId, {});
       expect(retried.status).toBe(502);
       expect(retried.json.error.detail.error_class).toBe("no_scores");
@@ -1666,6 +1667,7 @@ describe("follow-ups: one per answer, written by submit (07 §5.9, 11 §3.1)", (
           position: 1,
           text: FOLLOW_UP_TEXT,
           followUpVersion: "follow-up-en-fake",
+          again: null,
           transcript: null,
         });
         expect(frame !== "complete" && frame.followUpVersions).toEqual(["follow-up-en-fake"]);
