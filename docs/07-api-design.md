@@ -651,11 +651,15 @@ response is what makes that structural rather than a client courtesy.
   position — and `scoring` once the answer is submitted.
 - `scoring` is the answer's latest attempt: `attempt_id` and `status` (`pending`, `ok`, `failed`).
   Where the read may show them — a practice round, or a completed one — an `ok` attempt also carries
-  `scores` (`[{ dimension, value }]`, in the rubric's order), `flags` (`[{ kind, span_start, span_end }]`,
+  `scores` (`[{ dimension, value, justification }]`, in the rubric's order), `flags` (`[{ kind, span_start, span_end }]`,
   in the order they stand in the answer) and `answered_language`. **A flag is a span into the
   corrected text, never a quote**: the page that shows it slices its own copy of the answer. A
-  `pending` or `failed` attempt carries its status alone, and no justification, citation or answer
-  text is in the read at all.
+  `pending` or `failed` attempt carries its status alone, and no citation or answer text is in the
+  read at all.
+- **`justification` is the scorer's sentence for that dimension** (`04` `scores`), null where none was
+  stored, and it is what the score row's tooltip shows (#51, `05` §7). It travels with the score and
+  under the same rule: never in a realistic round's read before the round is complete. It is model
+  output about the user's answer, so it is never logged (`12` §7).
 - `state` and `resume.at` are #48's, above (`06`, 2026-10-06): the key is written when the slot opens
   (§5.6), and the slot reads `open` and resumes at `upload` until `audio_uploaded_at` is set.
 - **An answer-again that is open is what the round resumes on**: `prompt` is the same prompt asked

@@ -116,6 +116,33 @@ has no earlier answer in that language, so seeding onto a `develop` that already
 first attempt it is not (`06`, 2026-09-27). `db:seed` is unchanged: **production never gets a
 synthetic round.** With cron off on `develop` (below), the seeded `pending` score raises no alert there.
 
+**What Progress added (#51).** `db:seed:develop` then seeds **three more synthetic rounds**
+(`SYNTHETIC_PROGRESS_ROUNDS`, the same file and the same rules), so Progress has a series on `develop`
+and shows both of the states `10` §9 exists to show:
+
+| Round | Started | What it gives Progress |
+| --- | --- | --- |
+| HR, Japanese, five questions | 2026-08-25 | Five first attempts under `synthetic-score-ja-1.0`: a trend line |
+| HR, Japanese, three questions | 2026-09-20 | Three more under **`synthetic-score-ja-1.1`**: a boundary, and the shortfall after it |
+| HR, English, three questions | 2026-09-27 | Three first attempts: dots, no trend line, `2 more for a trend line` |
+
+All three are complete, General practice, with no follow-ups. They ask the synthetic bank's HR
+questions and answer with sentences the seed already holds, so nothing new is written in Japanese and
+nothing new is said about the fictional candidate. With History's four, Home's Due list has pairs
+never practised and pairs at four different intervals.
+
+**Two things changed for every seeded round, and both only reach a database seeded after #51**, since
+a round is never rewritten:
+
+- **A seeded answer is stamped as transcribed** (`transcriber_model_id` `synthetic-fixture`). Before,
+  it was null, and a raw transcript with no transcriber is the typed mark (`04` `answers`): Progress
+  leaves a typed answer out, so History's four rounds plotted nothing. On a `develop` seeded before
+  #51 they still plot nothing, correctly by their rows; the three rounds above do, and a `develop`
+  reset from a fresh seed (never branched from `main`) has all seven.
+- **A seeded score carries a justification** that says it is the seed's — `Synthetic fixture: the seed
+  set structure to 4. No scorer read this answer.` — so the score row's tooltip (`05` §7) can be
+  checked on `develop`, and is never read as a scorer's reasoning.
+
 **Cron is off on `develop` on purpose.** The self-check alerts on pending scores and cost drift (§6);
 run against synthetic data it would fill the status page with noise, and an alert channel that cries
 wolf is one you stop reading — which is the whole failure §6 exists to prevent. The routes and the
@@ -205,7 +232,7 @@ In this order. Steps 3 and 4 are the ones that fail silently if skipped.
 6. **OpenAI:** one key per environment, each with a monthly usage cap (§6). Each key's account must be **API Tier 1 or above** for `gpt-transcribe` (§2). The local and `develop` checks are recorded in `06` (2026-09-28 and 2026-09-30).
 7. **Vercel:** import the repo. **Production branch = `main`.** Give `develop` a stable domain and point the Preview scope's `DATABASE_URL` at Neon `develop`. Populate §2 per scope. **Leave the import form's environment variables empty** — it scopes them to Production and Preview at once. A variable added after this step follows the same rule: branch-scoped in Preview, before the deploy that first reads it (`OPENAI_API_KEY`, step 8). Importing deploys `main` immediately, and that build fails without Production variables; that is expected until production is set up. Vercel's Deployment Protection is on for Preview by default and stays on: `develop` asks for a Vercel login before the app's own sign-in.
    > **Per-branch environment variables — available on Hobby** (verified 2026-09-14 against Vercel's environment-variable and environments docs). A Preview variable can be scoped to one Git branch, and it overrides the general Preview value. Assigning a stable domain to a branch, with branch-specific variables, is marked "All plans, including Hobby". Custom Environments are Pro and Enterprise only and are not needed. **So:** every §2 variable for `develop` is scoped to the `develop` branch in Preview. General Preview holds nothing; feature branches are not deployed (§1).
-8. **Neon `develop` branch:** create it as **Schema only** from `main` (Neon has no empty-branch option; this copies no rows), then give it a role and database of its own — `suburi_develop`, owning database `suburi` — because a Schema only branch copies `main`'s roles *with their passwords*. Only `suburi_develop` goes in `develop`'s URLs, and `main` refuses it (`28P01`, checked 2026-09-19). Then migrate, then run `npm run db:seed:develop` with `develop`'s own `ALLOWED_EMAIL` — never `db:seed` alone here, and never `db:seed:develop` against `main`. It seeds the user row and one synthetic CV version per language with its documents and fixture claims, and the rubrics, set pieces and synthetic bank questions §1 lists; and, since #50, the four synthetic rounds History shows. Never branch it from `main` (§1).
+8. **Neon `develop` branch:** create it as **Schema only** from `main` (Neon has no empty-branch option; this copies no rows), then give it a role and database of its own — `suburi_develop`, owning database `suburi` — because a Schema only branch copies `main`'s roles *with their passwords*. Only `suburi_develop` goes in `develop`'s URLs, and `main` refuses it (`28P01`, checked 2026-09-19). Then migrate, then run `npm run db:seed:develop` with `develop`'s own `ALLOWED_EMAIL` — never `db:seed` alone here, and never `db:seed:develop` against `main`. It seeds the user row and one synthetic CV version per language with its documents and fixture claims, and the rubrics, set pieces and synthetic bank questions §1 lists; and, since #50, the four synthetic rounds History shows, and since #51 the three Progress plots. Never branch it from `main` (§1).
    > **Adding a variable to an existing environment is the same step, later.** `OPENAI_API_KEY` joins the `develop` branch's Preview scope when CV extraction lands — branch-scoped, like every other §2 variable for `develop` (step 7). Because `lib/config.ts` validates at boot and a missing variable fails the boot loudly, the deploy that first reads it must not land before the variable does.
 9. **Seed production:** migrations, then the single `users` row, the set-piece questions, and rubric **`v1.0`** for both `ja` and `en`. *Amended 2026-09-27:* this said `v1.2`, a label from the artboards' sample data; no rubric existed (`06`). The set pieces are 自己紹介, 自己PR and 転職理由 (`hr`) and 志望動機 (`ceo`), with their English counterparts, each carrying its content version — **no 逆質問**. Both seeds are real, checked-in data (`11` §8), written by the round loop's tracer (English) and Japanese slices; this step waits for them. **The English half exists since #42** (`lib/rubric/en-1.0.ts`, `lib/questions/set-pieces.ts`) and is seeded on `develop`; `db:seed` gains it after the user's review of rubric `en` v1.0, not before. **The Japanese half exists since #43** (`lib/rubric/ja-1.0.ts`, the same `set-pieces.ts`), under the same condition for rubric `ja` v1.0. Both halves are seeded by the two functions this step will call — `seedRubrics` and `seedSetPieces` in `db/seed-questions.ts`, idempotent on `(version_label, language)` and on body and content version — and `db/seed-questions.integration.test.ts` holds what they write. The user row is inserted by the hand-run seed script from `ALLOWED_EMAIL`, with `email_verified = true` — **not by migration**, which would commit the email to a public repository. `disableSignUp: true` means it cannot be created by signing in (`08` §2).
 10. **Verify the allowlist twice:** sign in with the allowlisted account (works), and confirm a second Google account is rejected. `08` §2 deliberately has two independent mechanisms; this checks both, before there is anything to protect.

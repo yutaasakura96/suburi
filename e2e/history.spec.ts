@@ -178,7 +178,7 @@ test("the rail lists every round newest first, with the unscored and abandoned l
   await expect(rounds(page).nth(3).getByTestId("history-status-line")).toHaveText("Abandoned — not counted in progress");
 
   // The chrome is English on a Japanese round too (10 §0): only the data keeps its language.
-  await expect(page.locator("nav")).not.toContainText(/[ぁ-んァ-ン一-龯]/);
+  await expect(page.getByRole("navigation", { name: "Rounds" })).not.toContainText(/[ぁ-んァ-ン一-龯]/);
 
   await rounds(page).nth(3).getByRole("link").click();
   await expect(page).toHaveURL(`/history/${id("abandoned-en")}`);

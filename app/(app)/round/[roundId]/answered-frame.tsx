@@ -134,14 +134,18 @@ export function AnsweredFrame({
           {answer.text}
         </p>
         <div className="flex flex-col">
-          {dimensions.map((dimension) => (
-            <ScoreRow
-              key={dimension.key}
-              label={dimension.label}
-              value={scored ? (scoring.scores?.find((score) => score.dimension === dimension.key)?.value ?? null) : null}
-              unscored={scoring.status === "pending" ? copy.notScoredYet : copy.notScored}
-            />
-          ))}
+          {dimensions.map((dimension) => {
+            const score = scored ? scoring.scores?.find((candidate) => candidate.dimension === dimension.key) : undefined;
+            return (
+              <ScoreRow
+                key={dimension.key}
+                label={dimension.label}
+                value={score?.value ?? null}
+                unscored={scoring.status === "pending" ? copy.notScoredYet : copy.notScored}
+                justification={score?.justification}
+              />
+            );
+          })}
         </div>
         {scoring.status === "pending" ? (
           <div data-testid="scoring-pending">

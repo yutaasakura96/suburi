@@ -7,8 +7,10 @@ import { ImportControl, TextButton } from "@/components/import-control";
 import { Button } from "@/components/ui/button";
 import type { ImportResult } from "@/lib/cv/import/extract";
 import { characterLength } from "@/lib/cv/spans";
+import type { DueDefaults } from "@/lib/progress/due";
 import { bankSupply, type BankCounts } from "@/lib/round/bank-supply";
 import { MAX_POSTING_CHARS, MAX_POSTING_NAME_CHARS, MAX_SOURCE_FILENAME_CHARS } from "@/lib/round/limits";
+import { AppHeader } from "../../app-header";
 import { failureText, postJson, type FailureCode } from "../api";
 import {
   LANGUAGE_NAMES,
@@ -242,12 +244,21 @@ export interface SetupFacts {
   readonly bank: Readonly<Record<RoundType, BankCounts>>;
 }
 
-export function SetupForm({ facts, postings: savedPostings }: { facts: Record<RoundLanguage, SetupFacts>; postings: readonly PostingOption[] }) {
+export function SetupForm({
+  facts,
+  postings: savedPostings,
+  defaults,
+}: {
+  facts: Record<RoundLanguage, SetupFacts>;
+  postings: readonly PostingOption[];
+  /** What spacing says is due (US-3): where the four choices start, never where they must stay. */
+  defaults: DueDefaults;
+}) {
   const router = useRouter();
-  const [roundType, setRoundType] = useState<RoundType>("hr");
-  const [language, setLanguage] = useState<RoundLanguage>("en");
-  const [length, setLength] = useState<(typeof ROUND_LENGTHS)[number]>(3);
-  const [mode, setMode] = useState<RoundMode>("realistic");
+  const [roundType, setRoundType] = useState<RoundType>(defaults.roundType);
+  const [language, setLanguage] = useState<RoundLanguage>(defaults.language);
+  const [length, setLength] = useState<(typeof ROUND_LENGTHS)[number]>(defaults.length);
+  const [mode, setMode] = useState<RoundMode>(defaults.mode);
   const [postings, setPostings] = useState(savedPostings);
   // General practice is never the silent default (10 §2): nothing is chosen until the user chooses,
   // unless a posting was saved before, in which case the newest is.
@@ -304,9 +315,9 @@ export function SetupForm({ facts, postings: savedPostings }: { facts: Record<Ro
 
   return (
     <section className="border border-rule-frame bg-surface" aria-label={COPY.heading}>
-      <header className="border-b border-rule-frame px-[32px] py-[20px]">
-        <h1 className="text-[17px] font-semibold">{COPY.heading}</h1>
-      </header>
+      {/* 10 §2 draws the app header with Home current: Setup is the step Home's button opens. */}
+      <AppHeader active="home" />
+      <h1 className="sr-only">{COPY.heading}</h1>
       <div className="grid grid-cols-3">
         <div className="col-span-2 flex flex-col gap-[28px] border-r border-rule-frame px-[32px] py-[30px]">
           <Options label={COPY.roundType} options={ROUND_TYPES} value={roundType} name={(t) => ROUND_TYPE_NAMES[t]} onChange={setRoundType} />
@@ -355,6 +366,12 @@ export function SetupForm({ facts, postings: savedPostings }: { facts: Record<Ro
         </div>
 
         <div className="flex flex-col gap-[22px] px-[32px] py-[30px]">
+          <div className="flex flex-col gap-[10px]" data-testid="setup-why">
+            <p className={sectionLabel}>{COPY.whyDefaults}</p>
+            <p className="text-[13px] leading-[1.75] text-ink-3">{COPY.defaultsReason(defaults)}</p>
+            <p className="text-[12px] leading-[1.75] text-ink-label">{COPY.defaultsOverridable}</p>
+          </div>
+
           <div className="flex flex-col gap-[10px]">
             <p className={sectionLabel}>{COPY.scoredAgainst}</p>
             {cv ? (

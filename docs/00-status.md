@@ -55,7 +55,8 @@ round closing each say what is running, with a segment per thing waited for and 
 (`10` §3–5, §7, `05` §5.10). Its five Japanese strings are unread (`native-read-round.md` §14), and
 the round-end counts read `GET /api/rounds/{roundId}`, which #49 built, and are proved against it
 (`e2e/waits.spec.ts`). Practice's round end shows the same line, each question counted once (`10` §15, `06`).
-**Updated:** 2026-10-07 (follow-ups spoken; #73 built; #49's Japanese strings all accepted; #50's
+**#51, Progress, Home and spacing defaults, is built (2026-10-08), on `fm/suburi-51`** (Next).
+**Updated:** 2026-10-08 (#51 built; follow-ups spoken; #73 built; #49's Japanese strings all accepted; #50's
 catalogue string read; #43, #44, #45, #46, #47, #48, #49, #50 and #74 built; #42 closed; #55 and #56 on 2026-09-30)
 
 ## Done
@@ -501,6 +502,23 @@ feedback unchanged. The owner read and accepted #50's catalogue string on 2026-1
 (`docs/checklists/native-read-round.md` §11). **The user's remaining steps:** `npm run db:seed:develop`
 against Neon `develop` before the merge is verified there (`12` §3 step 8);
 `11` §5's real-recording playback from History, which no fixture covers. Decisions in `06`, "Phase 6 — #50".
+
+**#51 is built (2026-10-08), on `fm/suburi-51`: the last slice of the round loop.** Built:
+`/progress` — one row per dimension, a panel per language, within one round type and one of two
+context groups, with the first-attempt count against 30, no trend line under five, a labelled boundary
+at every stamp change and a trend line per segment (`10` §9); Home's Due list, first-attempt counts and
+defaults line (`10` §1); Setup's round type and language defaulted from the top of that list, with
+the reason (`10` §2); the score row's justification on hover and keyboard focus, on screen 8 and on
+practice's frame (`05` §7), with `justification` added to the round read (`07` §5.5); the app header
+on Home, Setup, Progress, History and the CV (`05` §5.1). **No migration.** The `develop` seed gains
+three HR rounds for Progress, and its answers are stamped as transcribed (`12` §1). Tests: `11` §3.5,
+§3.6 and §3.23, and `e2e/home-progress.spec.ts` for §4's five rows. **Verified by hand** on `next dev`
+against a seeded local database: Home, Setup, Progress with its tabs and its keyboard tooltip, the
+score row's tooltip on screen 8, and the header on History and the CV, with a clean console. **No new
+Japanese string.** **The user's remaining step:** `npm run db:seed:develop` against Neon `develop`
+once this is merged, so Progress has its three rounds there; History's four seeded before this stay
+off Progress until that database is reset from a fresh seed (`12` §1). Decisions in `06`, "Phase 6 —
+#51".
 
 **#49 is built (2026-10-04), on `fm/suburi-49`.** Practice's screens were specified first, in `10`
 §15, closing §12's entry. Built: Setup's `Realistic · Practice` option; `GET /api/rounds/{id}` (`07`

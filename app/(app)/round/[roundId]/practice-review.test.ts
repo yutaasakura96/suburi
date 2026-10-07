@@ -64,7 +64,7 @@ describe("practice feedback frames", () => {
 
     const complete = frame({
       ...answer.scoring,
-      scores: [{ dimension: "structure", value: 4 }],
+      scores: [{ dimension: "structure", value: 4, justification: null }],
       flags: [{ kind: "unsupported", span_start: 0, span_end: 1 }],
       answered_language: "en",
     });

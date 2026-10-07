@@ -135,6 +135,49 @@ line says the run is old and what it last found.
 Zero rounds ever: Due shows nothing to be due from. Show the four round types unsorted with `未実施`
 and no bars; First attempts shows `0 / 30` with empty tracks; the caption becomes the primary content.
 
+### As built (#51)
+
+**The chrome, in English (§0).** The artboard's strings are layout; these replace them.
+
+| Artboard | Built |
+| --- | --- |
+| `行動面接` · `日本語` | `Behavioural` · `Japanese` — the round type and language, named as on Setup |
+| `未実施` | `Never` |
+| `18d` | `18d`; a pair last practised today reads `0d` |
+| `Defaults to 行動面接 · 日本語 · realistic · 5. All four overridable.` | `Defaults to Behavioural · Japanese · realistic · 5. All four overridable.` — the pair is Setup's default (§2), so the line changes with the list |
+
+A row also says its interval in full to a reader that cannot see it: `never practised in a realistic
+round`, `last practised today`, `last practised 18 days ago`.
+
+**What is due** (`06`, 2026-10-08). The list is the eight round type × language pairs, always all
+eight once anything has been practised.
+
+- **A pair was last practised when its newest completed realistic round started.** A practice round
+  does not reset the interval (US-14 says realistic), and neither does an abandoned round or one still
+  open: neither is a sitting (PRD §7).
+- **The interval is whole days as the user's calendar counts them** — Asia/Tokyo, the difference of the
+  two dates, not of the two instants — so a round at 23:50 yesterday reads `1d` at 00:10.
+- **Order:** pairs never practised first, in the order Setup lists them (round type, then Japanese
+  before English); then the rest, the longest interval first, equal intervals in that same listed order.
+- **The spacing bar** is the interval as a share of the longest interval on the list, so the most
+  overdue pair's bar is full — the drawn `18d` (bar full), `11d` (61%), `6d` (33%). Nothing here is an
+  interval "elapsed" against a schedule: there is no schedule (`06`).
+- **The rail** steps with that share: over two thirds `--accent`, over one third `--accent-mid`,
+  otherwise `--accent-pale`; a pair never practised takes the drawn grey and no bar.
+- **The rows are not links and not controls.** The list suggests; `Start a round` is the one way in.
+
+**The empty state** is the one above, shown until the first realistic round is completed: the four
+round types in Setup's order, each `Never`, with no language and no bar — eight rows of `Never` would
+be a list of things to do, which is what the caption says this is not.
+
+**First attempts** counts, per language, the first attempts Progress plots (§9) — across every round
+type and both context groups, since the ≥30 target is per language (US-13). An answer Progress leaves
+out is not counted here either, so the two screens never disagree on the number. The track fills to
+`count / 30` and stops at full.
+
+**The app header** (`05` §5.1) is built with this screen and carried by Home, Setup, Progress, History
+and the CV. A running round keeps its own header, and no way out of it (`05` §5.2).
+
 ---
 
 ## 2. Round setup — `RoundSetup.dc.html` (800px)
@@ -155,6 +198,13 @@ at weight 500 with `border-bottom: 2px solid var(--accent)` and `padding-bottom:
 | Length | `3問 · 5問 · 7問` | 5問 |
 | Mode | `実戦 · 練習` | 実戦 |
 | Role context | equal cards — two in round one | 求人票・メモ |
+
+**As built (#51): round type and language default to the pair at the top of Home's Due list** (§1,
+US-3) — a pair never practised if there is one, otherwise the pair with the longest interval. Length
+and mode are not spacing's to choose and stay as drawn: five questions, realistic. Before the first
+realistic round is completed there is nothing to be due from, and the defaults are the table's.
+Every one is a default and nothing more: each control changes it, and nothing records that it was
+changed.
 
 **Mode carries its own explanation inline**, both modes at once, the selected one at `--ink-3` and the
 other at `--ink-6`:
@@ -290,6 +340,18 @@ half a minute.` — the measured wait (`03` §4), said before it is felt.
 - `SCORED AGAINST` → `応募書類 v3` with its date `2026-08-30` in mono.
 - Solid primary `このラウンドを始める`, then an 11px mono stamp:
   `5問＋深掘り5問・最長 約40分` / `評価基準 v1.2・出題 v1.0`.
+
+**As built (#51)**, in English (§0), at the top of the column:
+
+| State | `WHY THESE DEFAULTS` reads |
+| --- | --- |
+| The top pair was never practised | `Behavioural in English has not been practised in a realistic round yet. The defaults come from that.` |
+| Every pair has been practised | `Behavioural in Japanese was last practised 18 days ago, the longest gap of any. The defaults come from that.` — `1 day ago`, and `today` for none |
+| No realistic round completed yet | `No realistic round has been completed yet, so nothing is due. These are the starting defaults.` |
+
+then `A suggestion. All four can be changed.` at `--ink-label`. **The reason is where the defaults
+came from, so it does not change when a control does** — rewriting it as the user chose would turn it
+into a comment on the choice, which this screen refuses (below).
 
 **The duration estimate is derived, not written:** `length × (1 + follow-ups) × per-answer cap`.
 5 × 2 × 4min = 40min. Changing the length or the cap must change this string. **Practice shows no
@@ -583,7 +645,11 @@ switches to, in that language — `English`, then `日本語` — and the choice
   `3分12秒・約250字/分・書き直し 8%` — duration, pace and the rewrite figure from §6, together.
 - The question at 15px/1.85 `--ink-2`.
 - **Seven score rows** (§5.3). Sample: `構成 4 · 根拠 3 · 関連性 4 · 流暢さ 3 · 正確さ 4 ·
-  長さ・配分 2 · 敬語 3`. 長さ・配分 is the attention row.
+  長さ・配分 2 · 敬語 3`. 長さ・配分 is the attention row. **A scored row opens its justification on
+  hover or keyboard focus** (#51, `05` §7): the sentence the scorer wrote for that dimension, in the
+  `05` §5.4 tooltip, above the row. Each row is a tab stop, in order; Escape closes it. The same on
+  practice's per-answer frame (§15). A row with no score, or a score stored without a justification,
+  is not a stop and opens nothing.
 - **Follow-up row**, sharing the row rhythm but carrying no scale: `└ 深掘り` at 12px `--ink-6`, the
   question at 12px `--ink-7`, and right-aligned at 11px `--ink-label`:
   `7項目を採点。進捗には入れません。` The first sentence follows the follow-up's own scoring — scored,
@@ -732,6 +798,65 @@ abandoned rounds** (`06`). The English footer written for this screen (§0) list
 The rightmost dot of each 日本語 row is the 2026-09-12 round and **must equal the score shown on round
 feedback and in the History matrix** — `4 3 4 3 4 2 3`. The artboards agree; the build must too.
 
+### As built (#51)
+
+**Route.** `/progress` is a Server Component reading stored rows; no model is called. The view is the
+URL's — `/progress?type={round type}&context={role|general}` — so a tab is a link, the back button
+works, and a view can be reloaded. Without them it opens on Behavioural, pitched at a role; a value
+it does not know reads as the default.
+
+**The chrome, in English (§0).** Data keeps its language: a Japanese panel names its dimensions in
+Japanese, and a stored `応募書類 v3` stays `応募書類 v3`.
+
+| Artboard | Built |
+| --- | --- |
+| `日本語 12 / 30` · `English 9 / 30` | `Japanese 12 / 30` · `English 9 / 30` — the count is §1's, each language's across every tab |
+| `行動面接 · 技術面接 · HR · CEO・最終` | `Behavioural · Technical · HR · CEO / final` |
+| `ラウンド種別ごとに見ます。まとめません。` | `One round type at a time. Never combined.` |
+| `初回 8件・傾向線あり` | `8 first attempts · trend line` |
+| `4 first attempts — 1 more for a trend line` | the same; with none, `No first attempts yet — 5 for a trend line` |
+| `Register (敬語)` | `Keigo (register)` — the rubric's own English label for the dimension |
+| `2026-09-12・構成 4・第1問` | `2026-09-12 · 構成 4 · Q1` — the day in Asia/Tokyo, the dimension as its panel names it |
+| the footer | `Oldest on the left. Practice rounds, retries, follow-ups and typed answers are not plotted.` / `Nor are questions practised before a realistic round, answers in the wrong language, abandoned rounds, or scores that are pending or failed.` · `A vertical line marks where the rubric, the question generator, the set pieces, the CV, or the scoring model or its prompt changed. No trend line crosses one.` / `Hover over a dot, or focus a row and use the arrow keys, for its date and question.` |
+
+**General practice is a second row of tabs, not a footer line** (US-2, `06`, 2026-10-08): `Pitched at
+a role · General practice`, under the round types and styled as they are, with
+`General-practice rounds are counted separately.` beside it. One group is on screen at a time, as one
+round type is, and the artboard's footer sentence about it is the caption of the control that does it.
+
+**What a panel plots.** One dot per first attempt, oldest on the left, evenly spaced across
+`x=18 … 342` in the order the answers were given; a lone dot sits at the left. Exactly the answers
+`11` §3.5 lists: a realistic round that was completed, the answer the question's first, not a retry,
+not a follow-up, spoken and not typed, in the round's language, and scored — the score being the
+displayed attempt's, the newest superseding one (`04` §5).
+
+**Boundaries are per stamp, and a trend line is per segment** (`06`, 2026-10-08). A vertical line
+stands midway between two neighbouring dots whose stamps differ, and its label names what changed, as
+stored: `rubric v1.1`, `model {id}`, the CV's own label, and the generator's, the set pieces' and the
+scoring prompt's version strings as they are. Two changes at one place share a line and a label,
+` / ` between them; labels that would collide step down a lane. **The generator stamp is compared
+within its own kind** — a generated question against the last generated one, a set piece against the
+last set piece — because every realistic round asks a set piece and then generated questions, and
+comparing across the two would draw a line inside every round.
+
+**A trend line is drawn inside a segment that holds five dots for that dimension, and never across a
+boundary** (`11` §3.6). This is where the build departs from the artboard, which draws one line across
+three verticals: the header then counts from the newest boundary —
+`8 first attempts · 3 since the change — 2 more for a trend line`, or `· 6 since the change · trend
+line` — so the shortfall named is always the one that stands between the user and the next line.
+
+**The label column is 120px**, not the drawn 96: `Length and pacing` wraps at 96, and the score row
+made the same allowance (`05` §5.3). The numeral column is the newest first attempt's score on the
+dimension, `—` where the panel has no dot for it.
+
+**The tooltip is reachable without a pointer** (`05` §7). A row of dots is one tab stop — seven rows
+of thirty dots would otherwise put two hundred stops between the header and the footer. Focus opens
+the newest dot; the left and right arrows, Home and End move along the row; Escape closes it. What the
+tooltip shows is also announced.
+
+**The empty state** is PRD §6's: every row of both panels, no dots, `—` in the numeral column, and the
+count needed in each header. Never a blank chart.
+
 ---
 
 ## 10. History — `History.dc.html` (900px)
@@ -804,8 +929,8 @@ rounds` fetches the next from `GET /api/rounds` by cursor (`07` §5.13). The cou
 every round, listed yet or not. A detail refresh reads the older pages again as far as the oldest
 round loaded, including beyond the 100-round request limit, and merges them in by round id, in the
 order the server returned them: a round already listed is never dropped — not when another tab has
-started a round since, and not a page `Older rounds` adds while it is reading. Home links here until
-the navigation exists.
+started a round since, and not a page `Older rounds` adds while it is reading. The app header reaches
+it (#51, §1); the link Home carried until then is gone.
 
 **The chrome, in English (§0).** The artboard's strings are layout; these replace them. Data keeps its
 language: questions, follow-ups, transcripts and a stored `応募書類 v1` are shown as written, and a
@@ -944,7 +1069,8 @@ needed a new one, which is why no artboard was drawn.
 ### Two panels, side by side
 
 `repeat(2, 1fr)` at the standard `14px` card gap, 1280px frame, `padding: 40px 44px` like every
-screen. Left panel is the Japanese CV, right is the English one. Each is headed by a §3.3 section
+screen. **Since #51 the app header (`05` §5.1) sits above them in a card of its own**, the same gap
+away, `CV` active: the two panels are two cards, so neither can carry it. Left panel is the Japanese CV, right is the English one. Each is headed by a §3.3 section
 label — `応募書類` and `CV` — and the two panels are independent: saving on one does nothing to the
 other, and either may be empty while the other is not.
 

@@ -196,6 +196,11 @@ Artboard frames: 1280px wide throughout. Heights `760` (record states), `800` (s
 `--ink-4`; the active item takes `--ink-1` plus `border-bottom: 2px solid var(--accent)` and
 `padding-bottom: 2px`.
 
+**As built (#51).** `padding: 20px 32px`, on the card's `--rule-frame` bottom border. The four items
+are links to `/`, `/progress`, `/history` and `/cv`; the active one carries `aria-current="page"`.
+Setup has no item of its own and shows `Home` active: it is reached from Home and is where Home's one
+button leads. The wordmark is `lang="ja"`.
+
 ### 5.2 Round header (in-round screens)
 
 Replaces the app header once a round is running — there is no navigation out of a live round. Left:
@@ -242,6 +247,23 @@ The same mark, over time. A `360×40px` SVG per dimension row, label column `96p
   `--ink-3`, content `2026-09-12・構成 4・第1問`.
 - **Not-scored state:** the plot area is replaced by a 1px `--rule-hairline` line and the note
   `Not scored in English` at 11px `--ink-9`; the numeral column shows `—` in `--ink-9`.
+
+**As built (#51)** — `10` §9 has the reasons, `06` (2026-10-08) the decisions.
+
+- **The label column is `120px`**, as the score row's became: `Length and pacing` does not fit 96.
+- **A trend line per segment, not one per row.** Each run of dots between two verticals gets its own
+  least-squares line when it holds five, drawn from its first dot to its last and clamped to the 1–5
+  frame. None crosses a vertical.
+- **A vertical stands midway between the two dots it separates.** Its label is English chrome plus
+  the stamp as stored — `rubric v1.1`, `model {id}`, `応募書類 v4`, `generate-hr-ja-1.1` — not the
+  panel's language: Progress is an app-level screen (`10` §0). Labels sit in a row above the plots,
+  `13px` a lane, and one that would run into its neighbour takes the next lane down.
+- **The annotated dot is whichever one the tooltip is on**, not only the most recent. The tooltip hangs
+  `27px` above the plot, centred on its dot, and leans inwards in the outer thirds so it stays over
+  the row.
+- **The hover target is wider than the dot**: a transparent circle up to `r=9`, never more than half
+  the spacing to the next dot.
+- **One tab stop per row**, the arrow keys within it (§7).
 
 ### 5.5 Matrix (History)
 
@@ -425,6 +447,17 @@ beside it. Provenance is delivered two other ways:
 2. **On demand, per row.** Hovering or focusing a score row reveals the transcript span the score was
    read from, using the tooltip already specified in §5.4. It must be reachable by keyboard focus, not
    hover alone.
+
+   **As built (#51): what it reveals is the scorer's justification, not a span** (`06`, 2026-10-08).
+   The scorer returns one sentence per dimension and `04` stores it as `scores.justification`, "the
+   on-demand tooltip"; it returns no span per dimension, and one could not be drawn in a tooltip that
+   does not hold the transcript. The tooltip is §5.4's — `--surface` on a 1px `--tick` border,
+   `5px 9px`, mono at `0.04em` in `--ink-3` — at `11px/1.7` and at most `420px` wide, because it holds
+   a sentence where Progress's holds a stamp. It opens above the row, left-aligned to it, after
+   `150ms` of hover and at once on focus; it stays while the pointer is over it, and Escape closes it.
+   **Each scored row is a tab stop**, named by its dimension and score and described by the same
+   sentence, so a reader that cannot see the tooltip is told it too. No radius, no shadow and no
+   arrow (§4).
 
 *Why not ambient:* seven dimensions × five answers is thirty-five strings of prose per round. That is
 the parallel commentary stream decision 19 rejected Direction A for, and it would bury the three items

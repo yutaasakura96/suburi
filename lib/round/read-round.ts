@@ -40,7 +40,8 @@ import { nextPrompt } from "./submit";
 export interface ScoringRead {
   readonly attempt_id: string;
   readonly status: "pending" | "ok" | "failed";
-  readonly scores?: readonly { readonly dimension: string; readonly value: number }[];
+  /** `justification` is what the scorer wrote for the dimension (04 `scores`): the score row's tooltip (05 §7). */
+  readonly scores?: readonly { readonly dimension: string; readonly value: number; readonly justification: string | null }[];
   /** Spans into the answer's corrected text, in the order they stand in it (04 `answer_flags`). */
   readonly flags?: readonly { readonly kind: string; readonly span_start: number; readonly span_end: number }[];
   /** The language the scorer read the answer in; null on an attempt from before the CV check. */
@@ -85,7 +86,7 @@ export async function scoringReads(
       scores: scoreRows
         .filter((row) => row.scoringAttemptId === attempt.id)
         .sort((a, b) => order.indexOf(a.dimension) - order.indexOf(b.dimension))
-        .map((row) => ({ dimension: row.dimension, value: row.value })),
+        .map((row) => ({ dimension: row.dimension, value: row.value, justification: row.justification })),
       flags: flagRows
         .filter((row) => row.scoringAttemptId === attempt.id)
         .map((row) => ({ kind: row.kind, span_start: row.spanStart, span_end: row.spanEnd })),

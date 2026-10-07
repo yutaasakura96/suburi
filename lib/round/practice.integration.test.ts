@@ -360,8 +360,9 @@ describe("GET /api/rounds/{id} (07 §5.5)", () => {
         scoring: {
           attempt_id: pending.attempt_id,
           status: "ok",
-          // An array in the rubric's own order, never an object (07 §4).
-          scores: (dimensions as { key: string }[]).map((dimension) => ({ dimension: dimension.key, value: 3 })),
+          // An array in the rubric's own order, never an object (07 §4). Each carries what the scorer
+          // wrote for it: the score row's tooltip (05 §7).
+          scores: (dimensions as { key: string }[]).map((dimension) => ({ dimension: dimension.key, value: 3, justification: "fixture" })),
           flags: [{ kind: "unsupported", span_start: start, span_end: start + UNSUPPORTED.length }],
           answered_language: "en",
         },

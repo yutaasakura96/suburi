@@ -360,6 +360,8 @@ test("a realistic English round: Setup → each question and its follow-up → p
   await page.goto("/");
   await page.getByRole("link", { name: "Start a round" }).click();
   await expect(page).toHaveURL("/round/new");
+  // Setup opens on whatever is due (10 §2); this round is chosen, not inherited.
+  for (const name of ["HR", "English", "3 questions"]) await page.getByRole("radio", { name, exact: true }).click();
   // v1 seeded here, or a later version cv.spec.ts saved: whichever is current.
   await expect(page.getByTestId("setup-cv")).toContainText(/^CV v\d+/);
   await expect(page.getByTestId("setup-estimate")).toContainText("3 questions + 3 follow-ups · up to about 24 min");
@@ -842,7 +844,7 @@ test("a realistic Japanese round: Japanese throughout, seven rows, and the feedb
 
   // Setup is app-level and English (10 §0); the stored label keeps its own language.
   await page.goto("/round/new");
-  await page.getByRole("radio", { name: "Japanese" }).click();
+  for (const name of ["HR", "Japanese", "3 questions"]) await page.getByRole("radio", { name, exact: true }).click();
   await expect(page.getByTestId("setup-cv")).toContainText(/^応募書類 v\d+/);
   await expect(page.getByTestId("setup-estimate")).toContainText("Rubric v1.0");
   await page.getByRole("radio", { name: "General practice" }).click();

@@ -1,11 +1,14 @@
 import { asc, eq, inArray } from "drizzle-orm";
 import { afterAll, describe, expect, it } from "vitest";
 import { historyDetail } from "../app/(app)/history/load";
+import { dueDefaults, dueList, lastPractised } from "../lib/progress/due";
+import { firstAttemptCounts, firstAttempts, seriesOf } from "../lib/progress/first-attempts";
+import { boundaries, segments, trendLine, trendStanding } from "../lib/progress/series";
 import { listRounds } from "../lib/round/list-rounds";
 import * as s from "./schema";
 import { seedSyntheticCv } from "./seed-cv";
 import { seedRubrics, seedSyntheticQuestions } from "./seed-questions";
-import { SYNTHETIC_MODEL_ID, SYNTHETIC_ROUNDS, seedSyntheticRounds, syntheticId } from "./seed-rounds";
+import { SYNTHETIC_MODEL_ID, SYNTHETIC_PROGRESS_ROUNDS, SYNTHETIC_ROUNDS, seedSyntheticRounds, syntheticId } from "./seed-rounds";
 import { closePool, inRolledBackTransaction, type TestDb } from "./test/database";
 import { insertUser } from "./test/fixtures";
 
@@ -67,7 +70,9 @@ describe("the synthetic round seed", () => {
       expect(attempts.every((attempt) => attempt.tokensIn === null && !attempt.isSuperseding)).toBe(true);
 
       const answers = await db.select().from(s.answers).where(eq(s.answers.userId, userId));
-      expect(answers.every((answer) => answer.audioS3Key === null && answer.transcriberModelId === null)).toBe(true);
+      // Stamped as transcribed by the fixture, never left null: null beside a transcript is the typed
+      // mark (04 `answers`), which would keep every seeded answer off Progress.
+      expect(answers.every((answer) => answer.audioS3Key === null && answer.transcriberModelId === SYNTHETIC_MODEL_ID)).toBe(true);
       expect(answers.every((answer) => answer.transcriptRaw !== null && answer.transcriptCorrected !== null)).toBe(true);
       // A first attempt is a bank question's, never a follow-up's (04 `answers`).
       expect(answers.filter((answer) => answer.isFirstAttempt)).toHaveLength(10);
@@ -171,5 +176,72 @@ describe("the synthetic round seed", () => {
     inRolledBackTransaction(async (db) => {
       const userId = await insertUser(db);
       await expect(seedSyntheticRounds(db, userId)).rejects.toThrow(/must be seeded before/);
+    }));
+});
+
+// 12 §1: Progress needs a series to plot, and both of the states 10 §9 exists to show.
+describe("the synthetic rounds for Progress", () => {
+  /** Both sets, in the order `db:seed:develop` seeds them. */
+  async function seededWithRounds(db: TestDb) {
+    const userId = await seeded(db);
+    await seedSyntheticRounds(db, userId);
+    expect(await seedSyntheticRounds(db, userId, SYNTHETIC_PROGRESS_ROUNDS)).toBe(SYNTHETIC_PROGRESS_ROUNDS.length);
+    expect(await seedSyntheticRounds(db, userId, SYNTHETIC_PROGRESS_ROUNDS)).toBe(0);
+    return userId;
+  }
+
+  it("give Japanese a trend line and a boundary after it, and leave English short of one", () =>
+    inRolledBackTransaction(async (db) => {
+      const userId = await seededWithRounds(db);
+      const all = await firstAttempts(db, userId);
+
+      const ja = seriesOf(all, { language: "ja", roundType: "hr", context: "general" });
+      const bounds = boundaries(ja);
+      expect(ja).toHaveLength(8);
+      expect(bounds.map((boundary) => [boundary.before, boundary.changes])).toEqual([
+        [5, [{ kind: "scoring_prompt", to: "synthetic-score-ja-1.1" }]],
+      ]);
+      const [before, after] = segments(ja.length, bounds);
+      expect(trendLine(ja, "structure", before)).not.toBeNull();
+      expect(trendLine(ja, "structure", after)).toBeNull();
+      expect(trendStanding(ja.length, bounds)).toEqual({ count: 8, sinceChange: 3, shortfall: 2 });
+
+      const en = seriesOf(all, { language: "en", roundType: "hr", context: "general" });
+      expect(en).toHaveLength(3);
+      expect(boundaries(en)).toEqual([]);
+      expect(trendStanding(en.length, [])).toEqual({ count: 3, sinceChange: null, shortfall: 2 });
+    }));
+
+  it("leave the pending, the failed and the abandoned round's answers off Progress, and count the rest", () =>
+    inRolledBackTransaction(async (db) => {
+      const userId = await seededWithRounds(db);
+      const all = await firstAttempts(db, userId);
+
+      // Three scored in the completed Japanese round and eight here; in English, two of the pending
+      // round's three, two of the failed round's three, none of the abandoned round's, and three here.
+      expect(firstAttemptCounts(all)).toEqual({ ja: 11, en: 7 });
+      expect(seriesOf(all, { language: "en", roundType: "behavioural", context: "general" })).toEqual([]);
+      expect(all.every((attempt) => attempt.context === "general")).toBe(true);
+    }));
+
+  it("put a never-practised pair at the top of the Due list, so Setup's defaults come from it", () =>
+    inRolledBackTransaction(async (db) => {
+      const userId = await seededWithRounds(db);
+      const due = dueList(await lastPractised(db, userId), NOW);
+
+      // The abandoned round was Behavioural in English, and an abandoned round is not a sitting.
+      expect(due.slice(0, 3).map((row) => [row.roundType, row.language, row.days])).toEqual([
+        ["behavioural", "en", null],
+        ["technical", "ja", null],
+        ["ceo", "ja", null],
+      ]);
+      expect(due.slice(3).map((row) => [row.roundType, row.language, row.days])).toEqual([
+        ["ceo", "en", 43],
+        ["technical", "en", 28],
+        ["behavioural", "ja", 22],
+        ["hr", "ja", 14],
+        ["hr", "en", 7],
+      ]);
+      expect(dueDefaults(due)).toMatchObject({ roundType: "behavioural", language: "en", reason: { kind: "never" } });
     }));
 });
