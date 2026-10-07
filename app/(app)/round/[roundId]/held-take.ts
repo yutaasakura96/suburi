@@ -8,6 +8,10 @@ import type { Take, TakeContentType } from "./recorder";
 // the route refused can never reach S3: it stays, marked with the refusal, until its round ends. A
 // take held for an older round is left alone — only that round's own page may judge it.
 //
+// A take also keeps what the page cannot read back from the server while no answer row exists: the
+// prompt's text and follow-up version, and — for practice's "answer again" — the answer it is given
+// beside. A reload before the slot opened has no other record of which answer was being given again.
+//
 // Every function resolves rather than throws: where IndexedDB is unavailable the take is simply not
 // held, and the screen says it is only in the tab.
 
@@ -24,12 +28,24 @@ export interface TakeSlot {
 /** The slot route's refusals no retry can get past (07 §5.6). */
 export type UploadRejection = "upload_too_large" | "unsupported_content_type";
 
+/** What the take answers, beyond its slot: kept with it because no answer row may exist to say so. */
+export interface HeldPrompt {
+  readonly text: string;
+  /** Set for a follow-up: its prompt version. */
+  readonly followUpVersion: string | null;
+  /** Practice's "answer again" (10 §15): the answer this take is given beside. */
+  readonly again: string | null;
+}
+
 export interface StoredTake extends Take {
   /** Set when the route refused the take: it is answered by typing, not by a retry. */
   readonly rejection?: UploadRejection;
 }
 
-interface HeldTake extends TakeSlot {
+/** A held take, with the prompt it answers — what a reload offers it back as. */
+export interface HeldAnswerAgain extends StoredTake, TakeSlot, HeldPrompt {}
+
+interface HeldTake extends TakeSlot, Partial<HeldPrompt> {
   readonly id: string;
   readonly blob: Blob;
   readonly contentType: TakeContentType;
@@ -64,9 +80,9 @@ async function transact<T>(mode: IDBTransactionMode, work: (store: IDBObjectStor
 }
 
 /** Holds the take for its prompt. `false` when it could not be stored: it is then only in the tab. */
-export async function holdTake(slot: TakeSlot, take: Take, rejection?: UploadRejection): Promise<boolean> {
+export async function holdTake(slot: TakeSlot, take: Take, prompt: HeldPrompt, rejection?: UploadRejection): Promise<boolean> {
   try {
-    const held: HeldTake = { ...slot, id: keyOf(slot), blob: take.blob, contentType: take.contentType, rejection };
+    const held: HeldTake = { ...slot, ...prompt, id: keyOf(slot), blob: take.blob, contentType: take.contentType, rejection };
     await transact("readwrite", (store) => store.put(held));
     return true;
   } catch {
@@ -81,6 +97,45 @@ export async function heldTake(slot: TakeSlot): Promise<StoredTake | null> {
     return held ? { blob: held.blob, contentType: held.contentType, rejection: held.rejection } : null;
   } catch {
     return null;
+  }
+}
+
+/**
+ * The take held for the round that answers a prompt again and has no answer row yet, or null. A reload
+ * cannot find it by the prompt it opens on: the server has nothing to say it was given.
+ */
+export async function heldAnswerAgain(roundId: string): Promise<HeldAnswerAgain | null> {
+  try {
+    const all = await transact<HeldTake[]>("readonly", (store) => store.getAll(IDBKeyRange.bound(`${roundId}:`, `${roundId}:￿`)));
+    const held = (all ?? []).find((take) => take.again != null && take.text !== undefined);
+    if (!held) return null;
+    return {
+      roundId: held.roundId,
+      position: held.position,
+      followUp: held.followUp,
+      text: held.text ?? "",
+      followUpVersion: held.followUpVersion ?? null,
+      again: held.again ?? null,
+      blob: held.blob,
+      contentType: held.contentType,
+      rejection: held.rejection,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** The answer given again now has its row, so a reload opens on it: the take stays held, and no longer names the answer it is beside. */
+export async function forgetAnswerAgain(slot: TakeSlot): Promise<void> {
+  try {
+    await transact("readwrite", (store) => {
+      const request = store.get(keyOf(slot));
+      request.onsuccess = () => {
+        if (request.result) store.put({ ...request.result, again: null });
+      };
+    });
+  } catch {
+    // Nothing was held, or nothing can be: either way there is nothing to change.
   }
 }
 
