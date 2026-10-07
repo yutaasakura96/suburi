@@ -315,14 +315,14 @@ absent only from the transcript state, which substitutes:
 
 ### 3. Asked — `RecordIdle.dc.html`
 - A 15px speaker glyph (1.2 stroke, `currentColor`) in `--ink-label` with
-  `読み上げました。文字は残します。` at 12px. **Realistic mode speaks the question; the text stays
+  `読み上げました。文字は残します。` at 12px. **Realistic mode speaks the prompt; its text stays
   on screen.** Practice mode is text-only, so this line and glyph are omitted. The audio streams from
   the speech route (`07` §5.15). **When synthesis fails**, this line is replaced by a short notice —
   the catalogue's `speech_failed` copy — and the round goes on with the text (`06`, 2026-09-28).
   **When the browser will not play sound unasked** — a round opened or reloaded with no gesture yet in
   the tab — the line is a control with the same glyph, `Hear the question` in an English round and
   `質問を聞く` in a Japanese one;
-  pressing it plays the question and the line returns. Starting the recording silences a question
+  pressing it plays the prompt and the line returns. Starting the recording silences a prompt
   still being spoken, so the microphone never records it (`06`, #45).
 - **The question is the one fixed when the round started** (`round_questions`) — a reload shows the
   same one.

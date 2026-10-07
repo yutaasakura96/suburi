@@ -292,6 +292,8 @@ test("practice asks one follow-up, then moves to the next question", async ({ pa
   await page.getByRole("button", { name: "Answer the follow-up" }).click();
   await expect(page.getByTestId("round-step")).toHaveText("Question 1 / 3 · follow-up");
   await expect(page.getByTestId("round-question")).toHaveText(FOLLOW_UP);
+  const refusedSpeech = await page.request.get(`/api/rounds/${roundId}/speech?position=1&kind=follow_up`);
+  expect(refusedSpeech.status()).toBe(404);
   await page.screenshot({ path: test.info().outputPath("screen4-practice-follow-up.png"), fullPage: true });
 
   const second = await answerByApi(page, roundId);
@@ -901,6 +903,7 @@ test("a realistic Japanese round: Japanese throughout, seven rows, and the feedb
     // The 深掘り, asked on the same frame at the same position, in Japanese (10 §3, 07 §5.9).
     await expect(page.getByTestId("round-step")).toHaveText(`第${position}問 / 3問・深掘り`);
     await expect(page.getByTestId("round-question")).toHaveText(FOLLOW_UP_JA);
+    await expect(page.getByTestId("speaker-line")).toHaveText("読み上げました。文字は残します。");
     await expect(page.getByTestId("round-stamp")).toContainText("follow-up-ja-1.0・応募書類 v");
     await expect(main).not.toContainText(ENGLISH_CHROME);
     if (position === 1) await shot("3-follow-up");
@@ -1035,6 +1038,9 @@ test("a realistic Japanese round: Japanese throughout, seven rows, and the feedb
   );
   expect(followUps).toHaveLength(3);
   for (const followUp of followUps) expect(followUp).toEqual({ status: "generated", promptText: FOLLOW_UP_JA, promptVersion: "follow-up-ja-1.0" });
+  const spoken = openAi.requests.slice(requestsBefore).filter((request) => request.path === "/v1/audio/speech");
+  expect(spoken).toHaveLength(6);
+  expect(spoken.filter((_, index) => index % 2 === 1).map((request) => request.body.input)).toEqual([FOLLOW_UP_JA, FOLLOW_UP_JA, FOLLOW_UP_JA]);
 
   // A stored Japanese finding without an English translation must never offer the toggle.
   await withDb((db) => db.update(s.roundFeedback).set({ bodyTranslated: null }).where(eq(s.roundFeedback.roundId, roundId)));

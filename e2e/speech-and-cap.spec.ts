@@ -311,6 +311,7 @@ test("a failed speech request shows the notice, and the round goes on as text", 
   await expect(page.getByTestId("round-step")).toHaveText("Question 1 / 3 · follow-up");
   await expect(page.getByTestId("round-question")).toHaveText(FOLLOW_UP);
   await expect(line).toHaveText("The question could not be read aloud. It stays as text; answer it as usual.");
+  await page.screenshot({ path: test.info().outputPath("follow-up-speech-failed.png"), fullPage: true });
   expect(speech).toEqual(["question", "follow_up"].map((kind) => `/api/rounds/${round.id}/speech?position=1&kind=${kind}`));
   await page.getByRole("button", { name: "Start recording" }).click();
   await expect(page.getByTestId("record-timer")).toHaveText("0:01", { timeout: 5_000 });
@@ -320,6 +321,8 @@ test("a follow-up is spoken from its own text, at its question's position", asyn
   await signIn(page);
   const speech = speechRequestsOf(page);
   const round = await startRound(page, "realistic");
+  const premature = await page.request.get(`/api/rounds/${round.id}/speech?position=1&kind=follow_up`);
+  expect(premature.status()).toBe(404);
   await page.goto(`/round/${round.id}`);
   await page.getByRole("button", { name: "Start recording" }).click();
   await expect(page.getByTestId("record-timer")).toHaveText("0:01", { timeout: 5_000 });
@@ -330,6 +333,7 @@ test("a follow-up is spoken from its own text, at its question's position", asyn
   await expect(page.getByTestId("round-step")).toHaveText("Question 1 / 3 · follow-up");
   await expect(page.getByTestId("round-question")).toHaveText(FOLLOW_UP);
   await expect(page.getByTestId("speaker-line")).toHaveText(SPOKEN);
+  await page.screenshot({ path: test.info().outputPath("follow-up-spoken.png"), fullPage: true });
   expect(speech).toEqual(["question", "follow_up"].map((kind) => `/api/rounds/${round.id}/speech?position=1&kind=${kind}`));
   // The server read the follow-up's text from its row: the request named a position and a kind.
   // Polled: the browser's request is seen before the server's call upstream has landed.
