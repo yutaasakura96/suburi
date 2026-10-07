@@ -667,7 +667,8 @@ response is what makes that structural rather than a client courtesy.
 
 **Screen 7 reads it while `complete` is in flight** (#73, `10` §7), every two seconds, for one thing:
 how many submitted answers' `scoring.status` is no longer `pending`. It reads no score from it, and a
-read that fails is ignored.
+read that fails is ignored. Practice's per-answer frame does the same at the round's end, counting
+each question once (`10` §15).
 
 **An in-flight recording is the one thing that does not survive** (`03` §7), and the UI says so before
 recording. The slot is opened only after a take exists, so a round reloaded mid-recording has no row

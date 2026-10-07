@@ -7,6 +7,8 @@ import type { ScoringRead } from "@/lib/round/read-round";
 import { ROUND_COPY, type RoundLanguage } from "../copy";
 import type { AnsweredView, NextView, RoundFrame } from "../load";
 import { CalloutRail, ErrorLine, ScoreRow, caption, roundSectionLabel, type Failure } from "../parts";
+import { closingWait, useScoringProgress } from "./closing-progress";
+import { WaitLine } from "./wait-line";
 
 /** Where the frame leads. `missing` is a follow-up that could not be generated: said here, never skipped (US-7). */
 export type FrameNext = NextView | { readonly kind: "missing" };
@@ -114,7 +116,10 @@ export function AnsweredFrame({
         : next.kind === "feedback"
           ? copy.toFeedback
           : copy.goOn;
-  const goOnCaption = next.kind === "feedback" ? (busy ? copy.retryingFindings : copy.finishCaption) : busy ? copy.sending : copy.goOnCaption;
+  // 10 §15: closing the round is the same wait as §7's, read from the round beside `complete`.
+  const closes = next.kind === "feedback" && busy;
+  const closing = closingWait(copy, useScoringProgress(roundId, closes), false);
+  const goOnCaption = next.kind === "feedback" ? copy.finishCaption : busy ? copy.sending : copy.goOnCaption;
 
   return (
     <div className="grid flex-grow grid-cols-3" data-testid="answered-frame" data-scoring={scoring.status}>
@@ -196,9 +201,13 @@ export function AnsweredFrame({
           <Button onClick={onGoOn} disabled={busy}>
             {goOn}
           </Button>
-          <p className={caption} role="status">
-            {goOnCaption}
-          </p>
+          {closes ? (
+            <WaitLine testId="closing-wait" sentence={closing.sentence} hint={copy.keepWaiting} segments={closing.segments} />
+          ) : (
+            <p className={caption} role="status">
+              {goOnCaption}
+            </p>
+          )}
         </div>
 
         <div className="flex flex-col gap-[10px] border-t border-rule-section pt-[20px]">

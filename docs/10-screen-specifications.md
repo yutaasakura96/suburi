@@ -918,11 +918,9 @@ Restated from PRD §9 because a specification that omits them invites a build th
 - **The four-round run.** Deferred as LATER and unshaped (decision log).
 - **The role-context picker and add form** on Setup (§2), specified by the slice that builds them.
 - **Loading, error and offline states** beyond the two History statuses, the missing-follow-up row and
-  the round's two waits — the take on its way (§3–5) and the round closing (§7), specified for #73.
-  The shorter waits — a submit, a retry on screen 8 — are still said in a caption alone. So is
-  **practice's round end** (§15, `Writing the findings.` / `講評をまとめています。`), deliberately:
-  its read also carries the answers given again, and what its count means is the owner's to decide
-  (`06`, 2026-10-06).
+  the round's two waits — the take on its way (§3–5) and the round closing (§7, and practice's end,
+  §15), specified for #73 and the practice round end after it (`06`, 2026-10-06). The shorter waits —
+  a submit, a retry on screen 8 — are still said in a caption alone.
 
 ---
 
@@ -1284,7 +1282,25 @@ step is the answer's own.
 | a follow-up not stored when the page loaded | §6's plain sentence, information tone | `Go on` / `先へ進む` | §6's caption |
 
 `Go to the feedback` completes the round **without a rating** (`07` §5.12) and opens §8; while it runs
-the caption reads `Writing the findings.` / `講評をまとめています。` The two `Go on` rows are §6's
+the caption under the button is replaced by §7's wait line (`05` §5.10, #73), and the button stays
+disabled. Its three states are §7's table with one difference: **before the first read lands, the
+sentence is `Writing the findings.` / `講評をまとめています。`**, not §7's first row, because no rating
+is recorded. After it, `Scoring your answers: 4 of 6 done.` / `回答を採点しています。6件中4件が終わりました。`,
+then `Scoring is finished. Writing the feedback.` / `採点が終わりました。講評をまとめています。`,
+under the same hint and the elapsed clock from the press. No string is new.
+  - **Each question counts once.** The practice round's read (`07` §5.5) also carries the answers
+    given again, at the original's position and pointing at it by `retry_of_answer_id`. The rows are
+    collapsed to the original: a question counts toward the total when any of its attempts is
+    submitted, and counts as done by the answers `complete` waits for (`07` §5.12): **once its
+    original has left `pending`, whatever an answer given again is doing** — with every original
+    scored and a retry still pending, the line reads six of six. Only when no original has a score in
+    or still to land do the answers given again decide, as they do for `complete`. A question given
+    again twice is still one segment, and a retry never makes a seventh segment in a six-question
+    round.
+  - Everything else in §7's list holds: the counts are read every two seconds, never estimated; a
+    `failed` score counts as done; the read is status only, so no score is shown by it; a read that
+    fails changes nothing; a failure ends the wait.
+The two `Go on` rows are §6's
 "after the commit" frame, folded into this one: in practice the saved answer is shown with its scores.
 
 **Answer again.** Below a `--rule-section` rule, an outline button `Answer again` /
