@@ -273,6 +273,8 @@ sentence and one running segment. `GET /api/rounds/{roundId}` is #49's, merged b
 round shows the counts, and `e2e/waits.spec.ts` proves them against that route, with two scoring
 calls and the feedback's held open in the mock.
 
+Practice's later counting rule is in the entry below; its retries change what a count means.
+
 ### [2026-10-06] Practice's round end shows the wait line, each question counted once
 
 The owner answered the question the entry below left open — "Show progress at the end of a practice

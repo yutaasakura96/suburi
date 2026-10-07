@@ -6,7 +6,7 @@ import type { WaitSegment } from "./wait-line";
 // 10 §7, while the round closes: `complete` is one call that waits for the last scores and then
 // writes the feedback (07 §5.12), so what it is waiting for is read beside it, from the round.
 
-/** How many of the round's submitted answers are no longer waited for, of how many. */
+/** How many submitted questions have no score that `complete` waits for, of how many. */
 export interface ScoringProgress {
   readonly done: number;
   readonly total: number;
@@ -16,9 +16,9 @@ const POLL_MS = 2_000;
 
 /**
  * The counts in a round's read (07 §5.5): its questions with a submitted answer, follow-ups
- * included, and those with no attempt still `pending`. **Each question counts once** (10 §15): an
- * answer given again stands beside its original with the same `retry_of_answer_id`, so the rows are
- * collapsed to the original's id. A question is done by the answers `complete` waits for (07 §5.12):
+ * included. **Each question counts once** (10 §15): an answer given again stands beside its original
+ * with the same `retry_of_answer_id`, so the rows are collapsed to the original's id. A question is
+ * done by the answers `complete` waits for (07 §5.12):
  * its original, with the answers given again ignored — and those instead only when no original has a
  * score in or still to land. A failed score counts as done — `complete` does not wait for it. Only
  * the status is read; a score is never looked at here. `null` when the read holds no submitted answer
