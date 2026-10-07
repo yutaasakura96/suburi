@@ -362,7 +362,7 @@ Empty states are requirements.
 | **Very long answer** | A hard recording cap per answer in both modes. Hitting the cap ends the take like the timer does. |
 | **Round abandoned part-way** | Stored as abandoned with its answers intact and reviewable. **Excluded from progress data entirely** — a partial round has no pressure rating and is not comparable. A question it answered is **seen for good**. A round is abandoned when a newer round is started, or when the day it was started has passed (the user's local day, Asia/Tokyo); only the newest open round can be resumed, and only that day. |
 | **Scoring call fails after the round** | Answers are never lost. The round is stored unscored, the user is told, and scoring is retryable. *Amended 2026-09-28:* when one answer's scoring has failed for good at the round's end, round feedback is written without it, the answer shows as unscored, and it can be retried on its own. |
-| **Question cannot be spoken** (realistic mode) | The round goes on with the question as text, and a short notice says it could not be read aloud. |
+| **Prompt cannot be spoken** (realistic mode) | The round goes on with the question or follow-up as text, and a short notice says it could not be read aloud. |
 | **Saving fails mid-round** | The user is told plainly; nothing is half-saved, and the round can be resumed. |
 | **Follow-up generation fails** | The round continues. The gap is recorded as a missing follow-up rather than silently skipped. |
 | **CV re-uploaded mid-history** | New version. Old answers keep their original version reference; the progress screen marks the change like a rubric version change. |

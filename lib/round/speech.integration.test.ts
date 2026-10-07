@@ -23,7 +23,7 @@ import { getConfig } from "../config";
 import { createPostRound } from "./post-round";
 import { createPostRoleContext } from "./role-context";
 import { createSpeech } from "./speech";
-import { promptAt } from "./state";
+import { getRound, promptAt } from "./state";
 
 // The speech route (#45, 07 §5.15) through its handler, against the migrated test database, with a
 // real Better Auth session. Only the synthesizer is faked (11 §2).
@@ -39,6 +39,7 @@ vi.stubEnv("OPENAI_API_KEY", "integration-not-a-real-key");
 
 // Text a caller might try to have spoken; it must reach neither the synthesizer nor a log line.
 const SENTINEL = "ZEBRA-SENTINEL-4545";
+const FOLLOW_UP = "What did you measure to know the HERON-SENTINEL-4545 rate had halved?";
 const AUDIO = new Uint8Array([0xff, 0xfb, 0x90, 0x00, 1, 2, 3]);
 
 let logged: string[];
@@ -102,7 +103,24 @@ async function setUp(db: TestDb, respond: (input: SpeechInput) => Uint8Array = (
   }
   const speak = (roundId: string, query: string, options?: { signedIn?: boolean }) => speakWith(speech, roundId, query, options);
 
-  return { speech, startRound, speak, speakWith };
+  /** The position's bank question answered, and its follow-up stored as `submit` stores it (07 §5.9). */
+  async function storeFollowUp(roundId: string, position: number, status: "generated" | "missing" = "generated") {
+    const round = (await getRound(db, user.id, roundId))!;
+    const prompt = (await promptAt(db, roundId, position))!;
+    const [parent] = await db
+      .insert(s.answers)
+      .values({ roundId, userId: user.id, questionId: prompt.questionId, promptText: prompt.text, position, language: round.language })
+      .returning({ id: s.answers.id });
+    await db.insert(s.followUps).values({
+      parentAnswerId: parent.id,
+      userId: user.id,
+      modelId: "fixture-model-2026-01-01",
+      promptVersion: "follow-up-fixture",
+      ...(status === "generated" ? { status, promptText: FOLLOW_UP } : { status, errorClass: "upstream_timeout" }),
+    });
+  }
+
+  return { speech, startRound, speak, speakWith, storeFollowUp };
 }
 
 describe("GET /api/rounds/{id}/speech", () => {
@@ -134,6 +152,71 @@ describe("GET /api/rounds/{id}/speech", () => {
         [1, 2, 3].map(() => ["event", "first_byte_ms", "position", "round_id"]),
       );
       for (const input of speech.inputs) expect(logged.join("\n")).not.toContain(input.text);
+    }));
+
+  it("streams a follow-up from its follow_ups row, not the question it shares a position with", () =>
+    inRolledBackTransaction(async (db) => {
+      const { speech, startRound, speak, storeFollowUp } = await setUp(db);
+      const roundId = await startRound();
+      await storeFollowUp(roundId, 2);
+
+      const response = await speak(roundId, "position=2&kind=follow_up");
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toBe("audio/mpeg");
+      expect(response.headers.get("cache-control")).toBe("no-store");
+      expect(new Uint8Array(await response.arrayBuffer())).toEqual(AUDIO);
+      expect(speech.inputs).toEqual([{ text: FOLLOW_UP, language: "en" }]);
+
+      // The question at that position is still its own prompt.
+      expect((await speak(roundId, "position=2&kind=question")).status).toBe(200);
+      expect(speech.inputs.at(-1)).toEqual({ text: (await promptAt(db, roundId, 2))!.text, language: "en" });
+
+      const spoken = logged.map((line) => JSON.parse(line)).filter((line) => line.event === "question_spoken");
+      expect(spoken.map((line) => Object.keys(line).sort())).toEqual([1, 2].map(() => ["event", "first_byte_ms", "position", "round_id"]));
+      expect(logged.join("\n")).not.toContain("HERON-SENTINEL-4545");
+    }));
+
+  it("is 404 for a missing follow-up, and for a position whose follow-up is not stored: nothing is spoken", () =>
+    inRolledBackTransaction(async (db) => {
+      const { speech, startRound, speak, storeFollowUp } = await setUp(db);
+      const roundId = await startRound();
+      await storeFollowUp(roundId, 1, "missing");
+      await storeFollowUp(roundId, 2);
+      for (const position of [1, 3]) {
+        const response = await speak(roundId, `position=${position}&kind=follow_up`);
+        expect(response.status).toBe(404);
+        expect((await response.json()).error.code).toBe("not_found");
+      }
+      expect(speech.calls).toBe(0);
+    }));
+
+  it("is 404 for a practice round's follow-up: practice is text only", () =>
+    inRolledBackTransaction(async (db) => {
+      const { speech, startRound, speak, storeFollowUp } = await setUp(db);
+      const roundId = await startRound("practice");
+      await storeFollowUp(roundId, 1);
+      expect((await speak(roundId, "position=1&kind=follow_up")).status).toBe(404);
+      expect(speech.calls).toBe(0);
+    }));
+
+  it("is 502 speech_failed when a follow-up's synthesis fails, with the same envelope and log line", () =>
+    inRolledBackTransaction(async (db) => {
+      const { startRound, speak, storeFollowUp } = await setUp(db, () => {
+        throw new ModelCallFailed("Speech", "upstream_503");
+      });
+      const roundId = await startRound();
+      await storeFollowUp(roundId, 1);
+      const response = await speak(roundId, "position=1&kind=follow_up");
+      expect(response.status).toBe(502);
+      const text = await response.text();
+      expect(JSON.parse(text).error).toMatchObject({
+        code: "speech_failed",
+        detail: { round_id: roundId, position: 1, error_class: "upstream_503" },
+      });
+      expect(text).not.toContain("HERON-SENTINEL-4545");
+      const failures = logged.map((line) => JSON.parse(line)).filter((line) => line.event === "speech_failed");
+      expect(failures).toEqual([{ event: "speech_failed", round_id: roundId, position: 1, error_class: "upstream_503" }]);
+      expect(logged.join("\n")).not.toContain("HERON-SENTINEL-4545");
     }));
 
   it("takes no text from the request: a `text` parameter is a 400 and nothing is spoken (07 §1 rule 6)", () =>
@@ -168,7 +251,7 @@ describe("GET /api/rounds/{id}/speech", () => {
       expect(speech.calls).toBe(0);
     }));
 
-  it("is 404 for a position the round does not ask, a follow-up that does not exist, and no such round", () =>
+  it("is 404 for a position the round does not ask, a follow-up that is not stored, and no such round", () =>
     inRolledBackTransaction(async (db) => {
       const { speech, startRound, speak } = await setUp(db);
       const roundId = await startRound();

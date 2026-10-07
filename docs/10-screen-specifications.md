@@ -315,14 +315,14 @@ absent only from the transcript state, which substitutes:
 
 ### 3. Asked — `RecordIdle.dc.html`
 - A 15px speaker glyph (1.2 stroke, `currentColor`) in `--ink-label` with
-  `読み上げました。文字は残します。` at 12px. **Realistic mode speaks the question; the text stays
+  `読み上げました。文字は残します。` at 12px. **Realistic mode speaks the prompt; its text stays
   on screen.** Practice mode is text-only, so this line and glyph are omitted. The audio streams from
   the speech route (`07` §5.15). **When synthesis fails**, this line is replaced by a short notice —
   the catalogue's `speech_failed` copy — and the round goes on with the text (`06`, 2026-09-28).
   **When the browser will not play sound unasked** — a round opened or reloaded with no gesture yet in
   the tab — the line is a control with the same glyph, `Hear the question` in an English round and
   `質問を聞く` in a Japanese one;
-  pressing it plays the question and the line returns. Starting the recording silences a question
+  pressing it plays the prompt and the line returns. Starting the recording silences a prompt
   still being spoken, so the microphone never records it (`06`, #45).
 - **The question is the one fixed when the round started** (`round_questions`) — a reload shows the
   same one.
@@ -330,8 +330,10 @@ absent only from the transcript state, which substitutes:
   one, and nothing generates it again. It shares its question's position, so the header's step keeps
   the number and names it: `Question 2 / 3 · follow-up`, `第2問 / 3問・深掘り` in a Japanese round
   (`06`, 2026-10-03). The footer's stamp carries the follow-up prompt's version in place of the
-  question's. **A follow-up is not spoken yet**, in realistic mode either: it has no speaker line,
-  and its question's audio is not played over it (`06`, 2026-10-04).
+  question's. **A follow-up is spoken in realistic mode, as its question is** (`06`, 2026-10-07): the
+  same speaker line, the same control when the browser will not play sound unasked, and the same
+  `speech_failed` notice. The audio is the follow-up's own, asked of the speech route as
+  `kind=follow_up`; its question's is never played over it.
 - The question at **19px/1.9** in `--ink-2`, `max-width: 880px`. This is the largest reading text in
   the app and the only thing the screen is asking the user to do.
 - A `--rule-row` divider.

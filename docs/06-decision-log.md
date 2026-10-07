@@ -3,6 +3,31 @@
 Newest first. Every entry records what was chosen, why, and what was rejected.
 
 ---
+## Phase 6 — #45, the follow-up is spoken
+
+The piece #45 left open on 2026-10-04 (below): a follow-up was asked as text, in realistic mode too.
+
+### [2026-10-07] A follow-up is spoken from its `follow_ups` row, named by its question's position
+
+The speech route reads a `kind=follow_up` prompt from the `follow_ups` row of the original answer to
+the bank question at that position, and screen 3 requests it whenever a follow-up is on screen in a
+realistic round (`07` §5.15, `10` §3). Everything else is the question's: the 10 s to the first byte,
+`502 speech_failed` and its notice, the control when the browser will not play sound unasked, the
+`speech` bucket — whose 30 per 10 minutes already counted 14 prompts a round — and the log lines,
+which carry the round id, the position and the error class.
+
+- **A `missing` follow-up, or one not stored yet, is `404`.** The round never asks for either: a
+  missing follow-up is not shown, and one not stored yet is the saved-answer frame, not screen 3.
+- **Practice stays text only**, follow-ups included.
+- **Rejected:** naming the follow-up by its id or its parent answer's. Position and kind already name
+  one prompt of the round, and the query stays the two fields `07` §5.15 validates.
+- **Rejected:** a `kind` field on the log lines and the error detail. A question and its follow-up
+  share a position, so the two are not told apart there; `03` §8 fixes what those lines carry, and
+  nothing reads them per kind.
+
+No new Japanese string: the speaker line, its control and the notice are #45's own.
+
+---
 ## Phase 6 — the rating holds while the round closes
 
 ### [2026-10-06] The rating cannot change while the round closes

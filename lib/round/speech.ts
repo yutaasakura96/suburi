@@ -3,17 +3,18 @@ import { apiError } from "../api/errors";
 import { SPEECH_CONTENT_TYPE, type SpeechSynthesizer } from "../ai/tts";
 import { ModelCallFailed } from "../ai/upstream";
 import { authenticate, guarded, isUuid, log, notFound, roundIdOf, type RoundDeps } from "./http";
-import { getRound, promptAt } from "./state";
+import { followUpAt, getRound, promptAt } from "./state";
 
 /**
- * `GET /api/rounds/{roundId}/speech` ⚡ (07 §5.15): realistic mode's spoken question, streamed.
+ * `GET /api/rounds/{roundId}/speech` ⚡ (07 §5.15): realistic mode's spoken prompt, streamed.
  *
- * **The prompt is named by position and kind, never by text.** Question text is read from
- * `round_questions`, so the route can say nothing but a prompt of this user's own round on the user's
- * key (07 §1 rule 6). Every follow-up request is still a 404: the route does not read `follow_ups`
- * yet (06, 2026-10-04). A practice round is also a 404: practice is text only.
+ * **The prompt is named by position and kind, never by text.** A question's text is read from
+ * `round_questions` and a follow-up's from its `follow_ups` row, so the route can say nothing but a
+ * prompt of this user's own round on the user's key (07 §1 rule 6). A follow-up that is `missing` or
+ * not stored yet is a 404: there is nothing to say. A practice round is also a 404: practice is text
+ * only.
  *
- * **A failed synthesis is `502 speech_failed`, and the round goes on** (06, 2026-09-28): the question
+ * **A failed synthesis is `502 speech_failed`, and the round goes on** (06, 2026-09-28): the prompt
  * is already on screen as text. The audio is streamed through and not retained.
  */
 export interface SpeechDeps extends RoundDeps {
@@ -81,10 +82,12 @@ export function createSpeech(deps: SpeechDeps) {
     const round = await getRound(deps.db, userId, roundId);
     if (!round || round.mode !== "realistic") return notFound("round");
 
-    // A follow-up's text is its `follow_ups` row, which this route does not read yet (06,
-    // 2026-10-04): the 404 a `missing` one gets.
-    const prompt = query.data.kind === "question" ? await promptAt(deps.db, round.id, position) : null;
-    if (!prompt) return notFound("prompt", { round_id: round.id, position });
+    // A follow-up shares its question's position; a `missing` one has no text, and is the 404.
+    const text =
+      query.data.kind === "question"
+        ? (await promptAt(deps.db, round.id, position))?.text
+        : (await followUpAt(deps.db, round.id, position))?.promptText;
+    if (text == null) return notFound("prompt", { round_id: round.id, position });
 
     const started = performance.now();
     const abort = new AbortController();
@@ -100,7 +103,7 @@ export function createSpeech(deps: SpeechDeps) {
         }, SPEECH_TIMEOUT_MS);
       });
       const audio = await Promise.race([
-        deps.speech.synthesize({ text: prompt.text, language: round.language }, { signal: abort.signal, timeoutMs: SPEECH_TIMEOUT_MS }),
+        deps.speech.synthesize({ text, language: round.language }, { signal: abort.signal, timeoutMs: SPEECH_TIMEOUT_MS }),
         deadline,
       ]);
       reader = audio.getReader();

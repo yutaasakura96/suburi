@@ -41,9 +41,9 @@ answer in both modes and both languages, written by `submit` or recorded as miss
 **#45, the spoken question, the cap and one take, is built (2026-10-03), on `fm/suburi-45`:** the
 speech route, screen 3's speaker line in both languages, and practice's guard, stored and never
 drawn. Its one step of the user's, `11` §5's ear check (`npm run ear-check`), was done on 2026-10-03:
-all ten samples, four English and six Japanese, sounded correct. **The issue stays open for speaking
-follow-ups:** the route does not read #44's `follow_ups` yet, so a follow-up is asked as text. The
-pinned model and its replacement deadline are in `03` §4.
+all ten samples, four English and six Japanese, sounded correct. **Follow-ups are spoken too
+(2026-10-07, on `fm/suburi-45-followup-speech`):** the route reads #44's `follow_ups`, and screen 3
+asks it for the follow-up on screen. The pinned model and its replacement deadline are in `03` §4.
 **#50, History, is built (2026-10-04), on `fm/suburi-50`** (Next).
 **#48, failure paths, is built (2026-10-04), on `fm/suburi-48`** (Next).
 **#74, a model answer for each question, is built (2026-10-04), on `fm/suburi-74`** (Next).
@@ -55,7 +55,7 @@ round closing each say what is running, with a segment per thing waited for and 
 (`10` §3–5, §7, `05` §5.10). Its five Japanese strings are unread (`native-read-round.md` §14), and
 the round-end counts read `GET /api/rounds/{roundId}`, which #49 built, and are proved against it
 (`e2e/waits.spec.ts`). Practice's round end shows the same line, each question counted once (`10` §15, `06`).
-**Updated:** 2026-10-06 (#73 built; #49's Japanese strings all accepted; #50's
+**Updated:** 2026-10-07 (follow-ups spoken; #73 built; #49's Japanese strings all accepted; #50's
 catalogue string read; #43, #44, #45, #46, #47, #48, #49, #50 and #74 built; #42 closed; #55 and #56 on 2026-09-30)
 
 ## Done

@@ -35,7 +35,7 @@ code. They are endpoints anyway, for the uniformity.
 | `GET /api/rounds/{roundId}` | Resume after a refresh mid-round; the client reconciles its own state against it. In a practice round, also practice's per-answer frame (§5.5). |
 | `GET /api/rounds` | History's cursor-paginated list. |
 | `GET /api/answers/{answerId}/audio` | Mints a short-lived credential on demand, at play time. |
-| `GET /api/rounds/{roundId}/speech` ⚡ | Streams the synthesised question audio at ask time (§5.15). |
+| `GET /api/rounds/{roundId}/speech` ⚡ | Streams the prompt on screen (§5.15). |
 
 Everything else — Home's intervals, Progress's trends, History detail, the feedback screen — is a
 Server Component reading Postgres directly. **The feedback screen in particular is a read** (`03` §3):
@@ -166,7 +166,7 @@ that asserts the two lists match.
 | `feedback_generation_failed` | 502 | `complete`, `feedback` | screen 8 — the round is complete and its scores show; the round-level note is pending and retryable, unless `detail.error_class` is `no_scores`, which no retry can fix (§5.12) |
 | `model_answer_generation_failed` | 502 | `model-answers` | screen 8 — under the question whose model answer is not written; the round, its scores and its feedback are untouched, and the retry stays (§5.19) |
 | `role_context_too_large` | 422 | `POST /api/role-contexts` | Setup's add form — before anything is saved. The cap is measured (§5.3) |
-| `speech_failed` | 502 | `speech` | screen 3 — a short notice; the question stays as text and the round goes on (§5.15) |
+| `speech_failed` | 502 | `speech` | screen 3 — a short notice; the prompt stays as text and the round goes on (§5.15) |
 | `write_failed` | 500 | every round route | the screen that made the call — nothing half-written; the round stays resumable |
 | `cv_unchanged` | 422 | `POST /api/cv-versions` | CV screen — the save is refused, nothing written |
 | `cv_too_large` | 422 | `POST /api/cv-versions` | CV screen — before any model call |
@@ -1279,7 +1279,7 @@ upload — is handled by the control, which says the recording could not be play
 
 ### 5.15 `GET /api/rounds/{roundId}/speech` ⚡
 
-Realistic mode's spoken question (`06`, 2026-09-27). Streams audio synthesised by the pinned TTS model
+Realistic mode's spoken question, and its spoken follow-up (`06`, 2026-09-27, 2026-10-07). Streams audio synthesised by the pinned TTS model
 for **one prompt of this round**, named by position and kind — never by text.
 
 ```
@@ -1291,12 +1291,12 @@ Content-Type: audio/mpeg
 <streamed audio>
 ```
 
-**The server reads question text** from `round_questions` at that position; the client sends none, so
-the route cannot be used to synthesise anything else on the user's key (§1 rule 6). A `practice` round
-or a position with no prompt is `404`. **Every `follow_up` request is still `404`:** #44's
-`follow_ups` exists, and the route does not read it yet (`06`, 2026-10-04), so screen 3 asks for no
-audio while a follow-up is on screen. When it does, it reads the text from the parent's `follow_ups`
-row, with a `missing` one still `404`. Question audio is well under the 4.5 MB body cap, so it crosses the function; it is **not
+**The server reads the text**: a `question`'s from `round_questions` at that position, a `follow_up`'s
+from the `follow_ups` row of that position's answer (`06`, 2026-10-07). The client sends none, so
+the route cannot be used to synthesise anything else on the user's key (§1 rule 6). A follow-up shares
+its question's position, so `kind` is what tells the two apart. A `practice` round or a position with
+no prompt is `404`, and so is a follow-up that is `missing` or not stored yet: there is nothing to
+say. Prompt audio is well under the 4.5 MB body cap, so it crosses the function; it is **not
 retained** (`03` §4), and the response is `Cache-Control: no-store` so the browser keeps none either.
 
 **The query is validated like a body** (§1 rule 3). `position` is 1–7 and `kind` is `question` or
@@ -1306,7 +1306,7 @@ retained** (`03` §4), and the response is `Cache-Control: no-store` so the brow
 Synthesis has 10 s to reach its first byte.
 
 **When synthesis fails, the round goes on** (`06`, 2026-09-28). The route returns `502
-speech_failed`; screen 3 shows that code's copy as a short notice, and the question, already on screen
+speech_failed`; screen 3 shows that code's copy as a short notice, and the prompt, already on screen
 as text, is answered as usual. The failure is logged with the round id, position and error class. A
 realistic round is never stopped for want of a voice. The route reads the first audio byte before it
 answers, so a stream that fails or stalls before that byte is still the `502`; one that breaks after

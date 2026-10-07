@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-// Realistic mode's spoken question (10 §3): the speech route's stream, played once as the question is
-// asked. The text is already on screen, so nothing here ever stands between the user and the round —
+// Realistic mode's spoken prompt (10 §3): the speech route's stream, played once as the question or
+// follow-up is asked. The text is already on screen, so nothing here delays the round —
 // a failed synthesis is a notice, and the answer is recorded as usual (06, 2026-09-28).
 
 /**
@@ -17,7 +17,7 @@ export type SpokenStatus = "asked" | "blocked" | "failed";
 /** `src` is the speech route's URL for the prompt on screen, or null where nothing is spoken. */
 export function useSpokenQuestion(src: string | null) {
   const element = useRef<HTMLAudioElement | null>(null);
-  // Kept with the prompt it is about, so the next question starts as `asked`, not as the last one's.
+  // Kept with the prompt it is about, so the next prompt starts as `asked`, not as the last one's.
   const [outcome, setOutcome] = useState<{ src: string; status: SpokenStatus } | null>(null);
 
   useEffect(() => {
@@ -36,7 +36,7 @@ export function useSpokenQuestion(src: string | null) {
     return () => {
       current = false;
       audio.pause();
-      // Dropping the source ends the request: the audio is not kept past the question (03 §4).
+      // Dropping the source ends the request: the audio is not kept past the prompt (03 §4).
       audio.removeAttribute("src");
       audio.load();
       element.current = null;
@@ -53,7 +53,7 @@ export function useSpokenQuestion(src: string | null) {
     });
   }, [src]);
 
-  /** Recording starts: the microphone must not hear the question. */
+  /** Recording starts: the microphone must not hear the prompt. */
   const silence = useCallback(() => element.current?.pause(), []);
 
   const status: SpokenStatus | null = src === null ? null : outcome?.src === src ? outcome.status : "asked";

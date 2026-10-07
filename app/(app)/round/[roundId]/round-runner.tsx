@@ -474,12 +474,11 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
           copy={copy}
           mode={round.mode}
           capSeconds={round.capSeconds}
-          // Named by position, never by text: the server reads what it says (07 §5.15). A follow-up
-          // shares its question's position and the route does not speak `follow_ups` yet, so it is
-          // asked as text rather than with its question's audio.
+          // Named by position and kind, never by text: the server reads what it says (07 §5.15). A
+          // follow-up shares its question's position, so the kind is what tells the two apart.
           speechSrc={
-            round.mode === "realistic" && screen.question.followUpVersion === null
-              ? `/api/rounds/${round.id}/speech?position=${screen.question.position}&kind=question`
+            round.mode === "realistic"
+              ? `/api/rounds/${round.id}/speech?position=${screen.question.position}&kind=${screen.question.followUpVersion === null ? "question" : "follow_up"}`
               : null
           }
           speechFailed={failureText("speech_failed", round.language)}

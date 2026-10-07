@@ -292,6 +292,8 @@ test("practice asks one follow-up, then moves to the next question", async ({ pa
   await page.getByRole("button", { name: "Answer the follow-up" }).click();
   await expect(page.getByTestId("round-step")).toHaveText("Question 1 / 3 · follow-up");
   await expect(page.getByTestId("round-question")).toHaveText(FOLLOW_UP);
+  const refusedSpeech = await page.request.get(`/api/rounds/${roundId}/speech?position=1&kind=follow_up`);
+  expect(refusedSpeech.status()).toBe(404);
   await page.screenshot({ path: test.info().outputPath("screen4-practice-follow-up.png"), fullPage: true });
 
   const second = await answerByApi(page, roundId);
@@ -382,9 +384,8 @@ test("a realistic English round: Setup → each question and its follow-up → p
     // The one follow-up, generated from what was just sent, at the same position (07 §5.9).
     await expect(page.getByTestId("round-step")).toHaveText(`Question ${position} / 3 · follow-up`);
     await expect(page.getByTestId("round-question")).toHaveText(FOLLOW_UP);
-    // A follow-up is asked as text: the route does not speak `follow_ups` yet, and its question's
-    // audio, which shares the position, must not play over it.
-    await expect(page.getByTestId("speaker-line")).toBeEmpty();
+    // …and spoken too, as its own prompt: it shares its question's position, not its audio.
+    await expect(page.getByTestId("speaker-line")).toHaveText("Read aloud. The text stays on screen.");
     if (position === 2) {
       // A reload asks the stored follow-up again; nothing generates it a second time (07 §5.5).
       const generated = followUpCalls().length;
@@ -497,12 +498,21 @@ test("a realistic English round: Setup → each question and its follow-up → p
     expect(s3.objects.get(key)!.bytes).toBeGreaterThan(0);
     expect(s3.objects.get(key)!.contentType).toMatch(/^audio\/webm/);
   }
-  // Each prompt was spoken once, by the pinned model and voice, from the text the server holds for
-  // that position — the browser named a position and sent no text (07 §5.15).
+  // Each prompt was spoken as it was asked — the question, then its follow-up, and position 2's
+  // follow-up again on the reload — by the pinned model and voice, from the text the server holds for
+  // that position and kind: the browser named them and sent no text (07 §5.15).
   const speech = openAi.requests.slice(requestsBefore).filter((request) => request.path === "/v1/audio/speech");
-  expect(speech.map((request) => request.body.input)).toEqual(questions);
+  expect(speech.map((request) => request.body.input)).toEqual(
+    questions.flatMap((question, index) => [question, ...Array.from({ length: index === 1 ? 2 : 1 }, () => FOLLOW_UP)]),
+  );
   for (const request of speech) expect(request.body).toMatchObject({ model: TTS_MODEL, voice: TTS_VOICE, response_format: "mp3" });
-  expect(speechRequests).toEqual([1, 2, 3].map((position) => `/api/rounds/${roundId}/speech?position=${position}&kind=question`));
+  const speechOf = (position: number, kind: string) => `/api/rounds/${roundId}/speech?position=${position}&kind=${kind}`;
+  expect(speechRequests).toEqual(
+    [1, 2, 3].flatMap((position) => [
+      speechOf(position, "question"),
+      ...Array.from({ length: position === 2 ? 2 : 1 }, () => speechOf(position, "follow_up")),
+    ]),
+  );
 
   // The scorer read the corrected text, never the raw one (03 §4).
   const scoring = openAi.requests.slice(requestsBefore).filter((request) => formatOf(request.body) === "answer_scores");
@@ -893,6 +903,7 @@ test("a realistic Japanese round: Japanese throughout, seven rows, and the feedb
     // The 深掘り, asked on the same frame at the same position, in Japanese (10 §3, 07 §5.9).
     await expect(page.getByTestId("round-step")).toHaveText(`第${position}問 / 3問・深掘り`);
     await expect(page.getByTestId("round-question")).toHaveText(FOLLOW_UP_JA);
+    await expect(page.getByTestId("speaker-line")).toHaveText("読み上げました。文字は残します。");
     await expect(page.getByTestId("round-stamp")).toContainText("follow-up-ja-1.0・応募書類 v");
     await expect(main).not.toContainText(ENGLISH_CHROME);
     if (position === 1) await shot("3-follow-up");
@@ -1027,6 +1038,9 @@ test("a realistic Japanese round: Japanese throughout, seven rows, and the feedb
   );
   expect(followUps).toHaveLength(3);
   for (const followUp of followUps) expect(followUp).toEqual({ status: "generated", promptText: FOLLOW_UP_JA, promptVersion: "follow-up-ja-1.0" });
+  const spoken = openAi.requests.slice(requestsBefore).filter((request) => request.path === "/v1/audio/speech");
+  expect(spoken).toHaveLength(6);
+  expect(spoken.filter((_, index) => index % 2 === 1).map((request) => request.body.input)).toEqual([FOLLOW_UP_JA, FOLLOW_UP_JA, FOLLOW_UP_JA]);
 
   // A stored Japanese finding without an English translation must never offer the toggle.
   await withDb((db) => db.update(s.roundFeedback).set({ bodyTranslated: null }).where(eq(s.roundFeedback.roundId, roundId)));

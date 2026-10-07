@@ -145,8 +145,8 @@ short-lived presigned URL; the function only ever handles the resulting object k
 1. **Round setup** — preflight the OpenAI health check (§5) and, in parallel, **choose every bank
    question the round will ask**, generating any the unseen pool lacks. The round and its
    `round_questions` are written in one transaction (`07` §5.4).
-2. **Ask** — the question at this position, read from `round_questions`. Realistic mode speaks it
-   through the speech route (§4, `07` §5.15).
+2. **Ask** — the question at this position from `round_questions`, or its follow-up after the
+   question's answer is submitted. Realistic mode speaks each through the speech route (§4, `07` §5.15).
 3. **Record** — `MediaRecorder` in the browser, hard-capped (§7). Blob held locally; **nothing is
    written yet.**
 4. **Open the slot, upload, transcribe** — the answer row is created once the take exists, then the
@@ -560,16 +560,16 @@ transcript is stored verbatim regardless.
 
 ### Text-to-speech
 
-Realistic mode speaks the question (decision log, Phase 2); practice mode does not. Synthesis happens
-when the question is asked and the audio is not retained — questions are stable bank rows, so
-re-synthesis is cheap and caching adds a store to invalidate for no benefit.
+Realistic mode speaks the question and its follow-up (`07` §5.15); practice mode does not. Synthesis
+happens when each prompt is asked and the audio is not retained. Both prompts are stored for the round,
+so re-synthesis is cheap and caching adds a store to invalidate for no benefit.
 
 **Through a ⚡ route that streams an OpenAI TTS model's audio** (`07` §5.15, `06`, 2026-09-27). The
-route takes a position and kind, never text; `07` §5.15 specifies which prompts it currently serves.
+route takes a position and kind, never text; `07` §5.15 specifies the prompt source.
 **The model is `gpt-4o-mini-tts-2025-12-15`, voice `marin`**, both constants in `lib/ai/models.ts`,
 pinned on 2026-10-03 after a check of OpenAI's docs (`06`, #45). It is the newest snapshot the speech
 endpoint takes and the one #42 measured above; the alias `gpt-4o-mini-tts` is never used. The model is
-steerable, so it is told to read the question exactly as written, in the round's language, and not to
+steerable, so it is told to read the prompt exactly as written, in the round's language, and not to
 answer it. The browser's `speechSynthesis` was rejected: its voice depends on the OS, it cannot be
 stamped, and its reading of 役職 is unverified. Pronunciation itself is `11` §5's ear check.
 
@@ -669,7 +669,7 @@ limit, and their waveform scrolls instead of filling toward the cap (`10` §15).
 | Transcription failed | The take is kept; offers retry or typing the answer (`07` §5.7–§5.8). A typed answer is stored as typed: no pace, no duration, not in Progress | answer id, size, error class, duration |
 | Scoring failed | Answer saved, score pending, stated on the feedback screen | answer id, model, error class |
 | A database write failed on a round route | The call's own screen says it could not be saved; nothing was half-written, and the round resumes where it was (`write_failed`, `07` §3) | route, ids, `pg_<SQLSTATE>` |
-| Text-to-speech failed | The question stays as text, with a short notice; the round goes on (`speech_failed`, `07` §5.15) | round id, position, error class |
+| Text-to-speech failed | The prompt stays as text, with a short notice; the round goes on (`speech_failed`, `07` §5.15) | round id, position, error class |
 | Round feedback failed, or the last score did not land in time | The round is complete; every landed score renders; the round-level note is pending, with a retry (`07` §5.12) | round id, model, error class, pending count |
 | Follow-up generation failed | The round continues; the hole is recorded (`follow_ups`, `missing`) | answer id, model, error class |
 | A model answer failed | The round is complete and its feedback renders; that question says no model answer is written yet, with a retry (`07` §5.19) | round id, answer id, error class |
