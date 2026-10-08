@@ -84,13 +84,13 @@ Each row: `padding: 15px 0`, `border-top: 1px solid --rule-section`, gap `20px`.
 | Urgency rail | `5×26px` | `--accent` (most due) → `--accent-mid` → `--accent-pale` → `oklch(0.90 0.004 250)` (never attempted) |
 | Round type | 168px | 15px/500 |
 | Language | 90px | 13px `--ink-4` |
-| Spacing bar | flex | `2px` tall, width = proportion of the interval elapsed, in the rail's colour. **Absent entirely when never attempted.** |
+| Spacing bar | flex | `2px` tall, width = interval divided by the longest interval on the list, in the rail's colour. **Absent entirely when never attempted.** |
 | Interval | — | 13px mono `--ink-3`, e.g. `18d`; or `未実施` in `--ink-label` when never attempted |
 
 Sample rows, in order: `CEO / final · English · 未実施`; `行動面接 · 日本語 · 18d` (bar full);
 `HR · English · 11d` (61%); `技術面接 · 日本語 · 6d` (33%).
 
-**Never-attempted sorts first and shows no bar.** A bar at 0% would read as "not due"; the point is
+**Never-practised sorts first and shows no bar.** A bar at 0% would read as "not due"; the point is
 that it has never been done at all.
 
 ### First attempts
@@ -839,9 +839,7 @@ within its own kind** — a generated question against the last generated one, a
 last set piece — because every realistic round asks a set piece and then generated questions, and
 comparing across the two would draw a line inside every round.
 
-Labels sit above the plots: one that fits starts `5px` right of its vertical, while a late label
-ends `5px` left of it so the stamp stays inside its `360px` panel and beside the change it names.
-Collision lanes use those drawn spans.
+Label placement and collision lanes follow `05` §5.4.
 
 **A trend line is drawn inside a segment that holds five dots for that dimension, and never across a
 boundary** (`11` §3.6). This is where the build departs from the artboard, which draws one line across
