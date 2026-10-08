@@ -839,6 +839,10 @@ within its own kind** — a generated question against the last generated one, a
 last set piece — because every realistic round asks a set piece and then generated questions, and
 comparing across the two would draw a line inside every round.
 
+Labels sit above the plots: one that fits starts `5px` right of its vertical, while a late label
+ends `5px` left of it so the stamp stays inside its `360px` panel and beside the change it names.
+Collision lanes use those drawn spans.
+
 **A trend line is drawn inside a segment that holds five dots for that dimension, and never across a
 boundary** (`11` §3.6). This is where the build departs from the artboard, which draws one line across
 three verticals: the header then counts from the newest boundary —

@@ -179,8 +179,8 @@ describe("trendStanding", () => {
 describe("placeLabels", () => {
   it("keeps labels that clear each other on one lane, 5px right of their line", () => {
     expect(placeLabels([{ text: "CV v2", x: 72 }, { text: "CV v3", x: 180 }])).toEqual([
-      { text: "CV v2", x: 77, lane: 0 },
-      { text: "CV v3", x: 185, lane: 0 },
+      { text: "CV v2", x: 77, width: 32.5, align: "left", lane: 0 },
+      { text: "CV v3", x: 185, width: 32.5, align: "left", lane: 0 },
     ]);
   });
 
@@ -189,15 +189,20 @@ describe("placeLabels", () => {
     expect(placed.map((label) => label.lane)).toEqual([0, 1, 0]);
   });
 
-  it("keeps late and full-width stamp labels inside the plot and separates collisions", () => {
+  it("ends late labels beside their own lines and uses their drawn boxes for lanes", () => {
     const labels = placeLabels([
+      { text: "CV v2", x: 150 },
       { text: "model gpt-5.6-sol-2026-10-01", x: 318 },
       { text: "応募書類 v4", x: 330 },
     ]);
-    expect(labels.map((label) => label.lane)).toEqual([0, 1]);
-    expect(labels[0].x).toBeLessThan(318);
-    expect(labels[1].x).toBeLessThan(330);
-    expect(labels[0].x + 28 * 6.5).toBeLessThanOrEqual(PLOT.width);
-    expect(labels[1].x + 4 * 10 + 3 * 6.5).toBeLessThanOrEqual(PLOT.width);
+    expect(labels.map((label) => label.lane)).toEqual([0, 1, 0]);
+    expect(labels[1]).toMatchObject({ x: 131, width: 182, align: "right" });
+    expect(labels[2]).toMatchObject({ x: 265.5, width: 59.5, align: "right" });
+    expect(labels[1].x + labels[1].width).toBe(318 - 5);
+    expect(labels[2].x + labels[2].width).toBe(330 - 5);
+    expect(labels.every((label) => label.x >= 0 && label.x + label.width <= PLOT.width)).toBe(true);
+
+    const long = placeLabels([{ text: "X".repeat(60), x: 300 }])[0];
+    expect(long).toMatchObject({ x: 0, width: 295, align: "right", lane: 0 });
   });
 });

@@ -257,7 +257,8 @@ The same mark, over time. A `360×40px` SVG per dimension row, label column `96p
 - **A vertical stands midway between the two dots it separates.** Its label is English chrome plus
   the stamp as stored — `rubric v1.1`, `model {id}`, `応募書類 v4`, `generate-hr-ja-1.1` — not the
   panel's language: Progress is an app-level screen (`10` §0). Labels sit in a row above the plots,
-  `13px` a lane, and one that would run into its neighbour takes the next lane down.
+  `13px` a lane. A label that fits starts `5px` right of its line; a late label ends `5px` left of
+  its line, inside the panel. Labels whose drawn spans collide take separate lanes.
 - **The annotated dot is whichever one the tooltip is on**, not only the most recent. The tooltip hangs
   `27px` above the plot, centred on its dot, and leans inwards in the outer thirds so it stays over
   the row.

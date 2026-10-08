@@ -37,6 +37,12 @@ then generated questions (`07` §5.4). Compared across kinds, the stamp changes 
 plot is a fence. Both changes `11` §3.6 names are still caught: a new generator prompt, and a new
 set-piece version.
 
+This reading was questioned in review against #51's “a boundary at every stamp change” and accepted
+on 2026-10-08 without changing the rule. `11` §3.6 requires a boundary when
+`generator_prompt_version` changes, including a set piece's content version; moving from a set piece
+to a generated question within one round is a change of kind, not a version change. A line at that
+transition would split every round and leave no trend line.
+
 - **Rejected:** treating set pieces and generated questions as two series. They are scored on one
   rubric by one scorer, and US-13 plots first attempts within round type, not within question origin.
 

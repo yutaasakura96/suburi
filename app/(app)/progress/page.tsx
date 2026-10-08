@@ -33,15 +33,14 @@ function Panel({ view }: { view: PanelView }) {
           {view.status}
         </span>
       </div>
-      {/* 05 §5.4: each boundary's label, 5px right of its line, in the row above the plots. */}
       <div className="flex gap-[18px]">
         <span className={labelColumn} />
         <div className="relative w-[360px]" style={{ height: view.lanes * 13 }}>
           {view.labels.map((label) => (
             <span
               key={`${label.x}-${label.text}`}
-              className="absolute max-w-[360px] truncate font-mono text-[9px] tracking-[0.06em] text-ink-8"
-              style={{ left: label.x, top: label.lane * 13, maxWidth: 360 - label.x }}
+              className="absolute truncate font-mono text-[9px] tracking-[0.06em] text-ink-8"
+              style={{ left: label.x, top: label.lane * 13, width: label.width, textAlign: label.align }}
               title={label.text}
               data-testid="boundary-label"
             >

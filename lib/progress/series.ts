@@ -160,24 +160,28 @@ export function trendStanding(count: number, bounds: readonly Boundary[]) {
 export interface PlacedLabel {
   readonly text: string;
   readonly x: number;
+  readonly width: number;
+  readonly align: "left" | "right";
   readonly lane: number;
 }
 
 const labelWidth = (text: string) => [...text].reduce((width, character) => width + (character.charCodeAt(0) < 128 ? 6.5 : 10), 0);
 const LABEL_GAP = 8;
-/** 05 §5.4: the label sits 5px right of its line. */
 const LABEL_OFFSET = 5;
 
-/** Each boundary's label, in the first lane where it clears the label before it. */
 export function placeLabels(labels: readonly { readonly text: string; readonly x: number }[]): PlacedLabel[] {
-  const laneEnds: number[] = [];
+  const laneBoxes: { left: number; right: number }[][] = [];
   return labels.map(({ text, x }) => {
     const width = labelWidth(text);
-    const left = Math.max(0, Math.min(x + LABEL_OFFSET, PLOT.width - width));
-    const right = left + width;
-    let lane = laneEnds.findIndex((end) => end + LABEL_GAP <= left);
-    if (lane === -1) lane = laneEnds.length;
-    laneEnds[lane] = right;
-    return { text, x: left, lane };
+    const after = x + LABEL_OFFSET;
+    const before = x - LABEL_OFFSET;
+    const align = after + width <= PLOT.width || PLOT.width - after > before ? "left" : "right";
+    const placedWidth = Math.min(width, align === "left" ? PLOT.width - after : before);
+    const left = align === "left" ? after : before - placedWidth;
+    const right = left + placedWidth;
+    let lane = laneBoxes.findIndex((boxes) => boxes.every((box) => box.right + LABEL_GAP <= left || right + LABEL_GAP <= box.left));
+    if (lane === -1) lane = laneBoxes.length;
+    (laneBoxes[lane] ??= []).push({ left, right });
+    return { text, x: left, width: placedWidth, align, lane };
   });
 }
