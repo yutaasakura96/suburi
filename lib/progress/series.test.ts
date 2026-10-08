@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  PLOT,
   boundaries,
   boundaryX,
   placeLabels,

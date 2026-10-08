@@ -352,7 +352,7 @@ test.describe("over the seeded rounds", () => {
     await signIn(page);
     await page.goto(`/round/${id("complete-ja")}/feedback`);
     const rows = page.getByTestId("score-row");
-    const justification = page.getByTestId("score-justification");
+    const justification = page.locator('[data-testid="score-justification"][data-open]');
     await expect(rows).toHaveCount(7);
     await expect(justification).toHaveCount(0);
 
@@ -397,5 +397,82 @@ test.describe("over the seeded rounds", () => {
     await nav.getByRole("link", { name: "Home" }).click();
     await expect(page).toHaveURL("/");
     await expect(current()).toHaveText("Home");
+  });
+
+  test("a late stamp label ends beside its boundary and stays inside the Japanese panel", async ({ page }) => {
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    page.on("console", (message) => {
+      if (message.type() === "error") errors.push(message.text());
+    });
+    await withDb(async (db) => {
+      const [answer] = await db
+        .select({ id: s.answers.id })
+        .from(s.answers)
+        .where(and(eq(s.answers.roundId, id("progress-hr-ja-2")), eq(s.answers.position, 3)));
+      await db
+        .update(s.scoringAttempts)
+        .set({ scoringPromptVersion: "synthetic-score-ja-late-version-2026-10-08" })
+        .where(eq(s.scoringAttempts.answerId, answer.id));
+    });
+    await signIn(page);
+    await page.goto("/progress?type=hr&context=general");
+
+    const ja = panel(page, "ja");
+    const label = ja.getByTestId("boundary-label").last();
+    await expect(label).toHaveText("synthetic-score-ja-late-version-2026-10-08");
+    const line = plotRows(ja).first().getByTestId("plot-boundary").last();
+    const { right, lineX, panelRight } = await ja.evaluate((element) => {
+      const label = [...element.querySelectorAll<HTMLElement>('[data-testid="boundary-label"]')].at(-1)!;
+      const line = [...element.querySelectorAll<SVGLineElement>('[data-testid="plot-boundary"]')].at(1)!;
+      const svg = line.ownerSVGElement!;
+      return {
+        right: label.getBoundingClientRect().right,
+        lineX: svg.getBoundingClientRect().left + Number(line.getAttribute("x1")),
+        panelRight: svg.getBoundingClientRect().right,
+      };
+    });
+    await expect(line).toHaveAttribute("x1", /318\.8/u);
+    expect(lineX - right).toBeCloseTo(5, 0);
+    expect(right).toBeLessThan(panelRight);
+    await page.screenshot({ path: test.info().outputPath("progress-late-boundary.png"), fullPage: true });
+    expect(errors).toEqual([]);
+  });
+
+  test("Progress drops retry, practised-first, wrong-language, typed and practice answers", async ({ page }) => {
+    await signIn(page);
+    await page.goto("/progress?type=hr&context=general");
+    const dots = plotRows(panel(page, "ja")).first().getByTestId("plot-dot");
+    await expect(dots).toHaveCount(8);
+
+    const answer = async (round: string, position: number) =>
+      withDb(async (db) => {
+        const [row] = await db
+          .select({ id: s.answers.id })
+          .from(s.answers)
+          .where(and(eq(s.answers.roundId, id(round)), eq(s.answers.position, position)));
+        return row.id;
+      });
+    const refreshCount = async (expected: number) => {
+      await page.reload();
+      await expect(dots).toHaveCount(expected);
+    };
+
+    const earlier = await answer("progress-hr-ja-1", 1);
+    const retry = await answer("progress-hr-ja-1", 5);
+    const practisedFirst = await answer("progress-hr-ja-1", 4);
+    const wrongLanguage = await answer("progress-hr-ja-2", 3);
+    const typed = await answer("progress-hr-ja-2", 2);
+    await withDb((db) => db.update(s.answers).set({ retryOfAnswerId: earlier }).where(eq(s.answers.id, retry)));
+    await refreshCount(7);
+    await withDb((db) => db.update(s.answers).set({ isFirstAttempt: false }).where(eq(s.answers.id, practisedFirst)));
+    await refreshCount(6);
+    await withDb((db) => db.update(s.scoringAttempts).set({ answeredLanguage: "en" }).where(eq(s.scoringAttempts.answerId, wrongLanguage)));
+    await refreshCount(5);
+    await withDb((db) => db.update(s.answers).set({ transcriberModelId: null }).where(eq(s.answers.id, typed)));
+    await refreshCount(4);
+    await withDb((db) => db.update(s.rounds).set({ mode: "practice", perAnswerCapSeconds: 900, feltPressure: null }).where(eq(s.rounds.id, id("progress-hr-ja-2"))));
+    await refreshCount(3);
+    await expect(page.getByTestId("progress-count")).toHaveText(["Japanese 6 / 30", "English 7 / 30"]);
   });
 });
