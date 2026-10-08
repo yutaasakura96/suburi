@@ -4,6 +4,7 @@ import * as s from "@/db/schema";
 import { requireSession } from "@/lib/auth/session";
 import { getDb } from "@/lib/db";
 import { listRounds, ROUNDS_PAGE_DEFAULT, ROUNDS_PAGE_MAX } from "@/lib/round/list-rounds";
+import { AppHeader } from "../app-header";
 import { HISTORY_COPY } from "./copy";
 import { HistoryRail } from "./rail";
 
@@ -28,9 +29,12 @@ export default async function HistoryLayout({ children }: LayoutProps<"/history"
   ]);
   return (
     <main className="w-[1280px] px-[44px] py-[40px]">
-      <section className="flex min-h-[820px] border border-rule-frame bg-surface" aria-label="History">
-        <HistoryRail initial={page} count={count} pageMax={ROUNDS_PAGE_MAX} />
-        <div className="flex min-w-0 flex-1 flex-col gap-[20px] px-[32px] pt-[24px] pb-[26px]">{children}</div>
+      <section className="flex min-h-[820px] flex-col border border-rule-frame bg-surface" aria-label="History">
+        <AppHeader active="history" />
+        <div className="flex flex-1">
+          <HistoryRail initial={page} count={count} pageMax={ROUNDS_PAGE_MAX} />
+          <div className="flex min-w-0 flex-1 flex-col gap-[20px] px-[32px] pt-[24px] pb-[26px]">{children}</div>
+        </div>
       </section>
     </main>
   );

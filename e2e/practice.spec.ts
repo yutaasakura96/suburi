@@ -180,6 +180,8 @@ test("a practice round: Setup's mode, a re-take, the per-answer frame pending th
   expect(seen).toHaveLength(2);
 
   await page.goto("/round/new");
+  // Setup opens on whatever is due (10 §2); this round is chosen, not inherited.
+  for (const name of ["HR", "English", "3 questions"]) await page.getByRole("radio", { name, exact: true }).click();
   await expect(page.getByTestId("setup-estimate")).toContainText("3 questions + 3 follow-ups");
   await page.getByRole("radio", { name: "Practice", exact: true }).click();
   await expect(page.getByTestId("setup-modes")).toContainText(

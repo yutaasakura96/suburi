@@ -188,7 +188,7 @@ test("the bank-exhausted warning shows before the round starts, and the round's 
   await page.goto("/round/new");
 
   // Three unseen technical questions are seeded: a round of three needs none written.
-  await page.getByRole("radio", { name: "Technical" }).click();
+  for (const name of ["Technical", "English", "3 questions"]) await page.getByRole("radio", { name, exact: true }).click();
   await expect(page.getByTestId("bank-exhausted")).toBeHidden();
   await page.getByRole("radio", { name: "5 questions" }).click();
   await expect(page.getByTestId("bank-exhausted")).toHaveText(

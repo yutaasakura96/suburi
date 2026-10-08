@@ -196,6 +196,11 @@ Artboard frames: 1280px wide throughout. Heights `760` (record states), `800` (s
 `--ink-4`; the active item takes `--ink-1` plus `border-bottom: 2px solid var(--accent)` and
 `padding-bottom: 2px`.
 
+**As built (#51).** `padding: 20px 32px`, on the card's `--rule-frame` bottom border. The four items
+are links to `/`, `/progress`, `/history` and `/cv`; the active one carries `aria-current="page"`.
+Setup has no item of its own and shows `Home` active: it is reached from Home and is where Home's one
+button leads. The wordmark is `lang="ja"`.
+
 ### 5.2 Round header (in-round screens)
 
 Replaces the app header once a round is running — there is no navigation out of a live round. Left:
@@ -225,23 +230,41 @@ absent).
 
 ### 5.4 Dot plot (Progress)
 
-The same mark, over time. A `360×40px` SVG per dimension row, label column `96px`, numeral column
+The same mark, over time. A `360×40px` SVG per dimension row, label column `120px`, numeral column
 `22px`.
 
 - Score → y: **5→4, 4→12, 3→20, 2→28, 1→36**. Eight pixels per step; the plot is bounded by 1px
   `--rule-hairline` lines at `y=4` and `y=36`, so the frame *is* the top and bottom of the scale.
 - Dots `r=4` in `--accent`. The most recent point, when it is the one being annotated, is `r=5` with a
   2px `#fff` stroke.
-- **Trend line:** a single least-squares line in `--accent-faint` at 2px with round caps, inset to
-  `x=18 … 342`. Drawn only at **≥5 first attempts** for that dimension × language × round type.
-  Below that: bare dots plus a count of how many more are needed.
+- **Trend line:** a least-squares line in `--accent-faint` at 2px with round caps, inset to
+  `x=18 … 342`. Drawn only within a segment of **≥5 first attempts** for that dimension × language ×
+  round type; no line crosses a version-change vertical. Below that: bare dots plus a count of how
+  many more are needed.
 - **Version-change verticals:** 1px `--rule-axis`, full height, with a 9px mono label at `0.06em` in
-  `--ink-8`, offset `+5px` from the line. Labels follow the panel's language (`出題 v1.0 /
-  評価基準 v1.2 / 応募書類 v3` — `gen v1.0 / rubric v1.2 / CV v3`).
-- **Tooltip:** `#fff` on a 1px `--tick` border, `padding: 5px 9px`, 10px mono at `0.04em` in
-  `--ink-3`, content `2026-09-12・構成 4・第1問`.
+  `--ink-8`. Labels use English chrome and the stored stamp, with the CV label as stored. A label
+  that fits starts `5px` right of its line; a late label ends `5px` left of its line, inside the
+  panel. Labels whose drawn spans collide take separate lanes.
+- **Tooltip:** `--surface` on a 1px `--tick` border, `padding: 5px 9px`, 10px mono at `0.04em` in
+  `--ink-3`, content `2026-09-12 · 構成 4 · Q1`.
 - **Not-scored state:** the plot area is replaced by a 1px `--rule-hairline` line and the note
   `Not scored in English` at 11px `--ink-9`; the numeral column shows `—` in `--ink-9`.
+
+**As built (#51)** — `10` §9 has the reasons, `06` (2026-10-08) the decisions.
+
+- The wider label column keeps `Length and pacing` on one line, as the score row's does.
+- Each run of dots between two verticals gets its own line when it holds five, drawn from its first
+  dot to its last and clamped to the 1–5 frame.
+- **A vertical stands midway between the two dots it separates.** Its label is English chrome plus
+  the stamp as stored — `rubric v1.1`, `model {id}`, `応募書類 v4`, `generate-hr-ja-1.1` — not the
+  panel's language: Progress is an app-level screen (`10` §0). Labels sit in a row above the plots,
+  `13px` a lane.
+- **The annotated dot is whichever one the tooltip is on**, not only the most recent. The tooltip hangs
+  `27px` above the plot, centred on its dot, and leans inwards in the outer thirds so it stays over
+  the row.
+- **The hover target is wider than the dot**: a transparent circle up to `r=9`, never more than half
+  the spacing to the next dot.
+- **One tab stop per row**, the arrow keys within it (§7).
 
 ### 5.5 Matrix (History)
 
@@ -422,9 +445,18 @@ beside it. Provenance is delivered two other ways:
    quote the user's own words back, and cite the CV. The 長さ・配分 score of 2 on `Main.dc.html` has
    its reason in that list — `第1問が3分12秒。結論を先に置き、2分以内に収める。` The score that
    mattered is already explained.
-2. **On demand, per row.** Hovering or focusing a score row reveals the transcript span the score was
-   read from, using the tooltip already specified in §5.4. It must be reachable by keyboard focus, not
-   hover alone.
+2. **On demand, per row.** Hovering or focusing a scored row reveals the scorer's justification for
+   that dimension. It must be reachable by keyboard focus, not hover alone.
+
+   **As built (#51)** (`06`, 2026-10-08). The scorer returns one sentence per dimension and `04`
+   stores it as `scores.justification`, "the on-demand tooltip". The tooltip uses §5.4's style —
+   `--surface` on a 1px `--tick` border, `5px 9px`, mono at `0.04em` in `--ink-3` — at `11px/1.7` and
+   at most `420px` wide, because it holds a sentence where Progress's holds a stamp. It opens above
+   the row, left-aligned to it, after
+   `150ms` of hover and at once on focus; it stays while the pointer is over it, and Escape closes it.
+   **Each scored row with a justification is a tab stop**, named by its dimension and score and described by the same
+   sentence, so a reader that cannot see the tooltip is told it too. No radius, no shadow and no
+   arrow (§4).
 
 *Why not ambient:* seven dimensions × five answers is thirty-five strings of prose per round. That is
 the parallel commentary stream decision 19 rejected Direction A for, and it would bury the three items
@@ -458,19 +490,6 @@ Direction C's matrix had none of these and had to caption itself. This one does 
 
 - **Practice mode's hard recording cap** (decision 23) is still undrawn. It is a runaway-recording
   guard, not a design element — settle it in Phase 4 against the storage and latency questions.
-- **The bilingual chrome question.** Progress localises its own version labels per panel
-  (`応募書類 v3` / `CV v3`), which implies chrome follows the *round's* language rather than an app
-  setting. Home's English caption names round types in Japanese (`Defaults to 行動面接 · 日本語 · …`).
-  Both are defensible; nothing yet states which rule the build follows. Phase 4.
-  **Still open.** The CV screen (`10` §13) settles it *for that screen only* — each panel's chrome is
-  in its own language, because each panel is about one language's documents. That is a local answer to
-  a local question and sets no precedent for the round screens.
-  **Decided 2026-09-27** (`06`, `10` §0): the screens inside a round follow the round's language;
-  Home, Setup, Progress and History are in English. §3.3's uppercase Latin labels stay Latin only in
-  an English round — in a Japanese round they are Japanese labels, without `text-transform`.
-  **Built 2026-10-03 (#43):** the six Japanese labels are in `10` §0, set in mono 11px at `0.16em`
-  with no transform. Their read is `docs/checklists/native-read-round.md` — all six accepted, and
-  the one rule it earned, on numeral spacing, is in §6.
 - **Hover surface and focus ring are undrawn.** §10.2 aliases shadcn's `--accent` (hover) to
   `--ground` and `--ring` (focus) to `--mark` as placeholders. §7 requires keyboard focus on score
   rows, so the focus ring is needed, not optional — it wants a design read, not a default.

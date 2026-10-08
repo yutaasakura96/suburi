@@ -1,3 +1,6 @@
+import { useId } from "react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+
 // No "use client": the round runner renders these on the client, the feedback page on the server.
 
 export const sectionLabel = "font-mono text-[11px] tracking-[0.16em] text-ink-label uppercase";
@@ -110,19 +113,64 @@ export function ErrorLine({ error, retryLabel }: { error: Failure | null; retryL
 /** A score at the low end takes the attention colour (05 §5.3): the sample's 2 does, its 3 does not. */
 export const LOW_END = 2;
 
+const scoreRow = "flex items-center gap-[18px] border-t border-rule-row py-[11px] last:border-b";
+
 /**
  * 05 §5.3: the label, a 300px five-tick scale with the dot at the score, the numeral, and an empty
  * flex spacer — **empty by design** (05 §7: no prose beside a dimension). `value` null is an unscored
  * row: no dot, and the numeral column says why.
+ *
+ * **The reason is on demand, never ambient** (05 §7): a scored row that has a stored justification
+ * shows it in 05 §5.4's tooltip when it is hovered or focused. The row is a tab stop so the keyboard
+ * reaches it, and the same sentence is the row's description for a reader that cannot see the tooltip.
  */
-export function ScoreRow({ label, value, unscored }: { label: string; value: number | null; unscored: string }) {
+export function ScoreRow({
+  label,
+  value,
+  unscored,
+  justification = null,
+}: {
+  label: string;
+  value: number | null;
+  unscored: string;
+  /** What the scorer wrote for this dimension (04 `scores`), shown as stored. */
+  justification?: string | null;
+}) {
+  const reason = useId();
+  const cells = <ScoreCells label={label} value={value} unscored={unscored} />;
+  if (value === null || !justification) {
+    return (
+      <div className={scoreRow} data-testid="score-row" data-dimension={label}>
+        {cells}
+      </div>
+    );
+  }
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        delay={150}
+        closeOnClick={false}
+        render={<div tabIndex={0} role="group" aria-label={`${label} ${value}`} aria-describedby={reason} />}
+        className={scoreRow}
+        data-testid="score-row"
+        data-dimension={label}
+      >
+        {cells}
+        <span id={reason} className="sr-only">
+          {justification}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-[420px] text-[11px] leading-[1.7]" data-testid="score-justification">
+        {justification}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+function ScoreCells({ label, value, unscored }: { label: string; value: number | null; unscored: string }) {
   const low = value !== null && value <= LOW_END;
   return (
-    <div
-      className="flex items-center gap-[18px] border-t border-rule-row py-[11px] last:border-b"
-      data-testid="score-row"
-      data-dimension={label}
-    >
+    <>
       {/* 05 §5.3 draws 100px for the Japanese labels; `Length and pacing` needs 120 to stay on one line. */}
       <span className="w-[120px] shrink-0 text-[13px] text-ink-3">{label}</span>
       <span className="relative grid h-[16px] w-[300px] shrink-0 grid-cols-5" aria-hidden>
@@ -150,6 +198,6 @@ export function ScoreRow({ label, value, unscored }: { label: string; value: num
         </span>
       )}
       <span className="flex-1" />
-    </div>
+    </>
   );
 }

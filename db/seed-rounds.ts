@@ -4,11 +4,12 @@ import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { currentCvVersion } from "../lib/cv/current-version.ts";
 import { pace, rewriteMagnitude } from "../lib/round/measures.ts";
 import * as s from "./schema.ts";
-import { SYNTHETIC_QUESTIONS_VERSION } from "./seed-questions.ts";
+import { SYNTHETIC_QUESTIONS_EN, SYNTHETIC_QUESTIONS_JA, SYNTHETIC_QUESTIONS_VERSION } from "./seed-questions.ts";
 
 // The synthetic rounds for Neon `develop` and local (docs/12-deployment.md §1): one round in each
 // state History has to show — complete and scored, complete with a score still pending, complete with
-// a failed score, and abandoned. Fixtures, never a model call, so the rows are the same every run.
+// a failed score, and abandoned — and three more that give Progress a series to plot (#51). Fixtures,
+// never a model call, so the rows are the same every run.
 // **Never seeded on `main`**: `db:seed` does not call this.
 
 type Language = "ja" | "en";
@@ -48,8 +49,10 @@ interface FixtureFeedback {
 interface FixtureRound {
   /** Names the round in its ids: changing it makes a new round, never a rewrite of a seeded one. */
   readonly name: string;
-  readonly roundType: "behavioural" | "technical" | "ceo";
+  readonly roundType: "behavioural" | "technical" | "hr" | "ceo";
   readonly language: Language;
+  /** Stamp 4's prompt half, where the round is not on the first: what draws Progress a boundary. */
+  readonly scoringPromptVersion?: string;
   /** Fixed, and in the past: an open round here is abandoned on any day the seed runs. */
   readonly startedAt: string;
   readonly feltPressure: number | null;
@@ -254,6 +257,60 @@ const ABANDONED_EN: FixtureRound = {
 /** Oldest first, so each is seeded with only its predecessors before it. */
 export const SYNTHETIC_ROUNDS: readonly FixtureRound[] = [ABANDONED_EN, FAILED_EN, PENDING_EN, COMPLETE_JA];
 
+/**
+ * A completed HR round with no follow-ups, asking the synthetic bank's HR questions from `from` on.
+ * Its answers are sentences the seed already holds, so nothing new is written about the fictional
+ * candidate, and its round-level findings are another seeded round's.
+ */
+function progressRound(
+  round: Pick<FixtureRound, "name" | "language" | "startedAt" | "feltPressure" | "scoringPromptVersion">,
+  from: number,
+  scores: readonly (readonly number[])[],
+): FixtureRound {
+  const bank = (round.language === "ja" ? SYNTHETIC_QUESTIONS_JA : SYNTHETIC_QUESTIONS_EN).filter((question) => question.roundType === "hr");
+  const like = round.language === "ja" ? COMPLETE_JA : PENDING_EN;
+  const sentences = like.questions.flatMap((question) => (question.answer ? [question.answer.corrected] : []));
+  return {
+    ...round,
+    roundType: "hr",
+    questions: scores.map((scoring, index) => ({
+      body: bank[from + index].body,
+      answer: { corrected: sentences[index % sentences.length], scoring },
+      followUp: null,
+    })),
+    feedback: like.feedback,
+  };
+}
+
+/**
+ * What Progress needs to show its two states (10 §9): a Japanese HR series long enough for a trend
+ * line, then a boundary where the scoring prompt changed and the shortfall after it; and an English
+ * one still under five. Oldest first.
+ */
+export const SYNTHETIC_PROGRESS_ROUNDS: readonly FixtureRound[] = [
+  progressRound({ name: "progress-hr-ja-1", language: "ja", startedAt: "2026-08-25T10:00:00.000Z", feltPressure: 4 }, 0, [
+    [2, 3, 3, 3, 3, 2, 3],
+    [3, 3, 3, 3, 4, 2, 3],
+    [3, 3, 4, 3, 4, 3, 3],
+    [3, 4, 4, 3, 4, 3, 4],
+    [4, 4, 4, 4, 4, 3, 4],
+  ]),
+  progressRound(
+    { name: "progress-hr-ja-2", language: "ja", startedAt: "2026-09-20T10:00:00.000Z", feltPressure: 3, scoringPromptVersion: "synthetic-score-ja-1.1" },
+    5,
+    [
+      [4, 3, 4, 4, 4, 3, 4],
+      [4, 4, 5, 4, 4, 3, 4],
+      [4, 4, 4, 4, 5, 4, 4],
+    ],
+  ),
+  progressRound({ name: "progress-hr-en-1", language: "en", startedAt: "2026-09-27T10:00:00.000Z", feltPressure: 3 }, 0, [
+    [3, 3, 4, 4, 4, 3],
+    [3, 4, 4, 4, 4, 2],
+    [4, 4, 4, 3, 5, 3],
+  ]),
+];
+
 const REALISTIC_CAP_SECONDS = 240;
 // A speaking pace to give each take a length: characters a minute in Japanese, words in English.
 const UNITS_PER_MINUTE = { ja: 300, en: 140 } as const;
@@ -278,7 +335,7 @@ function durationMs(language: Language, text: string) {
  * question has no earlier answer in that language (06, 2026-09-27), so seeding onto a `develop` that
  * already has rounds never claims a first attempt it is not.
  */
-export async function seedSyntheticRounds(tx: Db, userId: string): Promise<number> {
+export async function seedSyntheticRounds(tx: Db, userId: string, rounds: readonly FixtureRound[] = SYNTHETIC_ROUNDS): Promise<number> {
   // One general-practice context per user (04 `role_contexts`): the one a round made here would use.
   await tx.execute(sql`
     insert into role_contexts (user_id, kind) values (${userId}, 'general')
@@ -294,10 +351,10 @@ export async function seedSyntheticRounds(tx: Db, userId: string): Promise<numbe
     .where(
       inArray(
         s.rounds.id,
-        SYNTHETIC_ROUNDS.map((round) => syntheticId(userId, round.name)),
+        rounds.map((round) => syntheticId(userId, round.name)),
       ),
     );
-  const missing = SYNTHETIC_ROUNDS.filter((round) => !held.some((row) => row.id === syntheticId(userId, round.name)));
+  const missing = rounds.filter((round) => !held.some((row) => row.id === syntheticId(userId, round.name)));
 
   for (const round of missing) {
     const { language } = round;
@@ -341,7 +398,8 @@ export async function seedSyntheticRounds(tx: Db, userId: string): Promise<numbe
       rubricVersionId: rubric.id,
       feltPressure: round.feltPressure,
       startedAt: at(0),
-      completedAt: round.feedback ? at(30) : null,
+      // Six minutes after its last question was asked: 30 for a round of three.
+      completedAt: round.feedback ? at(round.questions.length * 8 + 6) : null,
     });
     await tx.insert(s.roundQuestions).values(
       questionIds.map((questionId, index) => ({ roundId, userId, position: index + 1, questionId: questionId!, createdAt: at(0) })),
@@ -382,7 +440,9 @@ export async function seedSyntheticRounds(tx: Db, userId: string): Promise<numbe
         transcriptCorrected: fixture.corrected,
         rewriteMagnitude: rewriteMagnitude(raw, fixture.corrected),
         wordsPerMinute: pace(language, raw, duration),
-        transcriberModelId: null,
+        // Stamped as transcribed: a raw transcript with no transcriber is a typed answer (04
+        // `answers`), and Progress leaves those out.
+        transcriberModelId: SYNTHETIC_MODEL_ID,
         createdAt: at(minute),
       });
 
@@ -396,7 +456,7 @@ export async function seedSyntheticRounds(tx: Db, userId: string): Promise<numbe
         rubricVersionId: rubric.id,
         generatorPromptVersion: asked.generatorPromptVersion,
         modelId: SYNTHETIC_MODEL_ID,
-        scoringPromptVersion: SYNTHETIC_PROMPT_VERSIONS.score[language],
+        scoringPromptVersion: round.scoringPromptVersion ?? SYNTHETIC_PROMPT_VERSIONS.score[language],
         answeredLanguage: status === "ok" ? language : null,
         errorClass: status === "failed" ? "upstream_timeout" : null,
         createdAt: at(minute + 1),
@@ -404,7 +464,13 @@ export async function seedSyntheticRounds(tx: Db, userId: string): Promise<numbe
       if (typeof fixture.scoring === "string") return;
       if (fixture.scoring.length !== dimensions.length) throw new Error(`${round.name}:${key} does not score every dimension.`);
       await tx.insert(s.scores).values(
-        fixture.scoring.map((value, index) => ({ scoringAttemptId: id(`${key}:attempt`), dimension: dimensions[index], value })),
+        fixture.scoring.map((value, index) => ({
+          scoringAttemptId: id(`${key}:attempt`),
+          dimension: dimensions[index],
+          value,
+          // What the score row's tooltip shows (05 §7). Said to be the seed's, so it is never read as a scorer's.
+          justification: `Synthetic fixture: the seed set ${dimensions[index]} to ${value}. No scorer read this answer.`,
+        })),
       );
     }
 
@@ -452,7 +518,7 @@ export async function seedSyntheticRounds(tx: Db, userId: string): Promise<numbe
       untouchedClaimIds: [],
       modelId: SYNTHETIC_MODEL_ID,
       promptVersion: SYNTHETIC_PROMPT_VERSIONS.feedback[language],
-      createdAt: at(30),
+      createdAt: at(round.questions.length * 8 + 6),
     });
   }
   return missing.length;

@@ -364,7 +364,13 @@ export interface FeedbackAnswerView {
   /** `ok` has a value per dimension; `failed` reads as not scored; `pending` as not scored yet. */
   readonly status: "ok" | "pending" | "failed";
   /** A dimension is named in the language the feedback is read in (PRD §4), so both names travel. */
-  readonly scores: readonly { readonly key: string; readonly labels: Record<RoundLanguage, string>; readonly value: number | null }[];
+  readonly scores: readonly {
+    readonly key: string;
+    readonly labels: Record<RoundLanguage, string>;
+    readonly value: number | null;
+    /** What the scorer wrote for the dimension, as stored: the score row's tooltip (05 §7). Never translated (06, 2026-10-03). */
+    readonly justification: string | null;
+  }[];
   /** The language the scorer read the answer in, when it is not the round's (PRD §7); otherwise null. */
   readonly answeredIn: "ja" | "en" | null;
   /**
@@ -541,14 +547,15 @@ export async function feedbackScreen(db: Db, round: RoundRow): Promise<FeedbackS
         wpm: answer.wordsPerMinute,
         rewrite: answer.rewriteMagnitude === null ? null : rewritePercent(answer.rewriteMagnitude),
         status,
-        scores: rubric.dimensions.map((dimension) => ({
-          key: dimension.key,
-          labels: { ja: dimension.label_ja, en: dimension.label_en },
-          value:
-            status === "ok"
-              ? (scoreRows.find((row) => row.scoringAttemptId === attempt!.id && row.dimension === dimension.key)?.value ?? null)
-              : null,
-        })),
+        scores: rubric.dimensions.map((dimension) => {
+          const score = status === "ok" ? scoreRows.find((row) => row.scoringAttemptId === attempt!.id && row.dimension === dimension.key) : undefined;
+          return {
+            key: dimension.key,
+            labels: { ja: dimension.label_ja, en: dimension.label_en },
+            value: score?.value ?? null,
+            justification: score?.justification ?? null,
+          };
+        }),
         answeredIn:
           status === "ok" && attempt!.answeredLanguage !== null && attempt!.answeredLanguage !== round.language
             ? attempt!.answeredLanguage

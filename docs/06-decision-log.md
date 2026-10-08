@@ -3,6 +3,154 @@
 Newest first. Every entry records what was chosen, why, and what was rejected.
 
 ---
+## Phase 6 — #51, Progress, Home and spacing defaults
+
+The last slice of the round loop: the screens that read what the others wrote. Nothing here calls a
+model or adds a table.
+
+### [2026-10-08] A trend line is per segment, and never crosses a boundary
+
+Progress draws one least-squares line inside each run of first attempts that share every stamp, when
+that run holds five dots for the dimension. `Progress.dc.html` draws a single line through three
+verticals; `11` §3.6 says no trend line is drawn across a boundary as if continuous, and the invariant
+wins over the drawing (`10` §9, `05` §5.4).
+
+- **The header counts from the newest boundary**: `8 first attempts · 3 since the change — 2 more for
+  a trend line`. The shortfall PRD §6 requires is the one between the user and the next line, which
+  after a stamp change is not `5 − total`.
+- **Rejected:** one line per row, broken at each boundary into pieces of the same fit. A fit over
+  scores made under two rubrics is the comparison refusal #5 exists to stop, however it is drawn.
+- **Rejected:** no line at all once a boundary exists. A series of thirty with one prompt change would
+  lose the only reading the screen is for.
+- **Cost, accepted:** after a stamp change the screen goes back to bare dots until five more first
+  attempts are in. That is the instrument saying what it knows.
+
+### [2026-10-08] The generator stamp is compared within its own kind
+
+A boundary is drawn where `generator_prompt_version` changes between one **generated** question and
+the last generated one, and where it changes between one **set piece** and the last set piece. The two
+are never compared with each other.
+
+*Why:* the stamp holds a generator prompt version for a generated question and a set-piece content
+version for a set piece (`04` `scoring_attempts`), and every realistic round asks one set piece and
+then generated questions (`07` §5.4). Compared across kinds, the stamp changes twice a round and every
+plot is a fence. Both changes `11` §3.6 names are still caught: a new generator prompt, and a new
+set-piece version.
+
+This reading was questioned in review against #51's “a boundary at every stamp change” and accepted
+on 2026-10-08 without changing the rule. `11` §3.6 requires a boundary when
+`generator_prompt_version` changes, including a set piece's content version; moving from a set piece
+to a generated question within one round is a change of kind, not a version change. A line at that
+transition would split every round and leave no trend line.
+
+- **Rejected:** treating set pieces and generated questions as two series. They are scored on one
+  rubric by one scorer, and US-13 plots first attempts within round type, not within question origin.
+
+### [2026-10-08] Progress plots completed rounds only, and the count is what it plots
+
+An answer is plotted when its round was completed, it is the question's first attempt in a realistic
+round, it is not a retry or a follow-up, it was spoken, it was answered in the round's language, and
+its displayed attempt — the newest superseding one — is `ok`. A round still open is left out with the
+abandoned ones: `rounds.completed_at is null` is the stored fact both share, and a score from a round
+whose feedback has not been shown is not yet a reading the user has (US-8).
+
+**The first-attempt count on Home and on Progress is the number of those answers, per language**,
+across every round type and both context groups. It is not `count(is_first_attempt)`: a first attempt
+that was typed, or whose score failed, is not on any plot, and a count that included it would promise
+a trend line the screen then does not draw.
+
+- **Rejected:** a count per tab. The ≥30 target is per language (US-13), and four counts of six would
+  hide that the instrument is nearly usable.
+
+### [2026-10-08] General practice is a second row of tabs on Progress
+
+`Pitched at a role · General practice`, under the round types, one group on screen at a time. US-2
+says General-practice rounds are grouped separately in progress data; the artboard says so in a footer
+sentence and draws no control for it.
+
+- **Rejected:** two series in one plot, in two inks. `05` has one mark colour, and two series a row is
+  how a reader starts comparing them.
+- **Rejected:** a third panel. The two panels are the two languages; a row per context inside each
+  would halve the plot's width.
+- **Rounds pitched at different postings share the role group.** Per-posting plots would rarely reach
+  five, and US-2 separates General practice from the rest, not the postings from each other.
+
+### [2026-10-08] What is due: completed realistic rounds, Tokyo days, and a bar that is a share of the longest
+
+- **A pair was last practised when its newest completed realistic round started.** US-14 says
+  realistic; an abandoned round is not a sitting (PRD §7), and counting it would let a round opened
+  and left make its pair look practised.
+- **Days are Asia/Tokyo calendar days**, the user's local day as "today" already is (2026-09-28): the list is
+  read at the start of a day, and "yesterday" should not need twenty-four hours to have passed.
+- **The spacing bar is `interval / longest interval on the list`**, and the rail steps at one third
+  and two thirds of it. `10` §1 calls the bar "the proportion of the interval elapsed", which needs a
+  target interval, and there is none: this is a single user's list of what is longest ago, not a
+  schedule (`10` §2 refuses a memory of "your usual"). The drawn rows — `18d` full, `11d` 61%, `6d`
+  33% — are this arithmetic.
+- **Never practised sorts first**, in Setup's listed order. `10` §1 requires it, and a pair with no
+  date cannot be ranked against one that has.
+- **Before the first completed realistic round, four rows, not eight**: the round types, each `Never`,
+  as `10` §1's empty state draws. After it, all eight pairs.
+
+### [2026-10-08] Setup's defaults are the top of that list, and the reason does not follow the controls
+
+Round type and language default to the Due list's first row; length and mode stay five and realistic,
+which spacing has no opinion on (US-3, `10` §2). `WHY THESE DEFAULTS` states the one fact they came
+from and is not rewritten when a control changes.
+
+- **Rejected:** remembering the last round's length or mode. `10` §2 refuses a memory of "your usual".
+- **Rejected:** a rationale that tracks the selection ("Technical in English was last practised 4 days
+  ago"). It reads as a verdict on the choice, which the same section refuses.
+- **Existing end-to-end specs that relied on `HR · English · 3` being preselected now choose them.**
+
+### [2026-10-08] A score row's tooltip shows the scorer's justification, and the round read carries it
+
+`05` §7 said the row reveals "the transcript span the score was read from". The scorer returns no
+span per dimension; it returns one sentence, which `04` stores as `scores.justification` and
+describes as "the on-demand tooltip (decision 22)". The row shows that sentence, on hover and on
+keyboard focus, on screen 8 and on practice's per-answer frame.
+
+- **Each scored row is a tab stop**, named by its dimension and score and described by the sentence.
+  Seven stops an answer is the cost of `05` §7's "reachable by keyboard focus, not hover alone".
+- **`GET /api/rounds/{id}` returns `justification` with each score** (`07` §5.5), because practice's
+  frame reads its scores from there. It is gated exactly as the score is — nothing mid-round in a
+  realistic round — and is never logged (`12` §7).
+- **Built on the vendored Base UI tooltip** (`components/ui/tooltip.tsx`), restyled to `05` §5.4:
+  square, unshadowed, no arrow.
+- **Rejected:** asking the scorer for a span per dimension. A new prompt version is a boundary on
+  every plot (the entry above), for a tooltip.
+- **Progress's dot tooltip is not this component.** A row of dots is one tab stop with the arrow keys
+  inside it, because up to thirty stops a row, seven rows a panel, would bury the footer.
+
+### [2026-10-08] The app header is built, and the CV screen carries it in a card of its own
+
+`05` §5.1's header — wordmark and `Home · Progress · History · CV` — tops Home, Setup, Progress and
+History inside their cards. `/cv` is two cards side by side with no card to hold it, so the header is
+a third card above them at the standard gap (`10` §13). Setup marks `Home` active: it has no item, and
+is where Home's button leads. The status page stays off the nav, reached from Home's status line
+(`10` §14). A running round keeps its own header and offers no way out (`05` §5.2).
+
+Home's link to History, added by #50 "until the navigation exists", is removed.
+
+### [2026-10-08] The seed marks its answers as transcribed, and adds three rounds for Progress
+
+`db/seed-rounds.ts` wrote `transcriber_model_id` null beside a transcript, which since #48 is the
+typed mark (2026-10-04), so every seeded answer was one Progress leaves out and the screen could not
+be verified on `develop`. Seeded answers are now stamped `synthetic-fixture`, seeded scores carry a
+justification that says it is the seed's, and three HR rounds give Progress a trend line, a boundary
+and a shortfall (`12` §1).
+
+- **Rounds seeded before this are not rewritten** — the seed is idempotent per round and nothing is
+  updated in place — so on the current `develop` History's four still plot nothing until that
+  database is reset from a fresh seed. The three new rounds are written by the next
+  `npm run db:seed:develop`, which is the owner's step (`12` §3).
+- **No new Japanese string.** The new rounds answer with sentences the seed already held, and the
+  justification is English because it describes the fixture, not the answer.
+
+No Japanese string is added by this slice: Home, Setup and Progress are app-level screens, written in
+English (`10` §0).
+
+---
 ## Phase 6 — #45, the follow-up is spoken
 
 The piece #45 left open on 2026-10-04 (below): a follow-up was asked as text, in realistic mode too.

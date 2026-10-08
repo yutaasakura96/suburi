@@ -431,7 +431,7 @@ describe("GET /api/rounds/{id} — resume (07 §5.5)", () => {
       const [rubric] = await db.select().from(s.rubricVersions).where(eq(s.rubricVersions.language, "en"));
       const order = (rubric.dimensions as { key: string }[]).map((dimension) => dimension.key);
       expect(scored.json.answers[0].scoring.status).toBe("ok");
-      expect(scored.json.answers[0].scoring.scores).toEqual(order.map((dimension) => ({ dimension, value: 4 })));
+      expect(scored.json.answers[0].scoring.scores).toEqual(order.map((dimension) => ({ dimension, value: 4, justification: "fixture" })));
       const start = CORRECTED.indexOf("in six months");
       expect(scored.json.answers[0].scoring.flags).toEqual([
         { kind: "unsupported", span_start: start, span_end: start + "in six months".length },

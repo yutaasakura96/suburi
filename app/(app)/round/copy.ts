@@ -2,6 +2,8 @@
 // are in the round's language, Japanese throughout a Japanese round and English throughout an English
 // one. Every Japanese string here is in docs/checklists/native-read-round.md (05 §6).
 
+import type { DueDefaults } from "../../../lib/progress/due";
+
 export type RoundType = "behavioural" | "technical" | "hr" | "ceo";
 export type RoundLanguage = "ja" | "en";
 export type RoundMode = "realistic" | "practice";
@@ -86,6 +88,17 @@ export const SETUP_COPY = {
       : `${start} If a new question turns out to match one you have already answered, it is asked as a repeat: scored, but not counted in progress.`;
   },
   startingGenerating: "Writing new questions for this round. This can take up to half a minute.",
+  // 10 §2's rationale: the interval arithmetic the defaults came from, and nothing beyond it.
+  whyDefaults: "Why these defaults",
+  defaultsReason: (defaults: Pick<DueDefaults, "roundType" | "language" | "reason">) => {
+    const pair = `${ROUND_TYPE_NAMES[defaults.roundType]} in ${LANGUAGE_NAMES[defaults.language]}`;
+    const { reason } = defaults;
+    if (reason.kind === "nothing") return "No realistic round has been completed yet, so nothing is due. These are the starting defaults.";
+    if (reason.kind === "never") return `${pair} has not been practised in a realistic round yet. The defaults come from that.`;
+    const when = reason.days === 0 ? "today" : `${reason.days} ${reason.days === 1 ? "day" : "days"} ago`;
+    return `${pair} was last practised ${when}, the longest gap of any. The defaults come from that.`;
+  },
+  defaultsOverridable: "A suggestion. All four can be changed.",
   scoredAgainst: "Scored against",
   start: "Start this round",
   starting: "Fixing the questions for this round.",

@@ -115,7 +115,7 @@ export function AnswerPager({
       <p className="text-[15px] leading-[1.85] text-ink-2">{answer.prompt}</p>
       <div className="flex flex-col">
         {answer.scores.map((score) => (
-          <ScoreRow key={score.key} label={score.labels[reading]} value={score.value} unscored={unscored} />
+          <ScoreRow key={score.key} label={score.labels[reading]} value={score.value} unscored={unscored} justification={score.justification} />
         ))}
         {/* 10 §8: the follow-up shares the row rhythm and carries no scale; its scores are History's. */}
         {answer.followUp ? (

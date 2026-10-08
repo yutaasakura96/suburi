@@ -3,6 +3,7 @@ import { requireSession } from "@/lib/auth/session";
 import { citedClaimIds } from "@/lib/cv/coverage";
 import { currentCvVersion, cvVersionHistory } from "@/lib/cv/current-version";
 import { getDb } from "@/lib/db";
+import { AppHeader } from "../app-header";
 import type { CvLanguage } from "./copy";
 import { CvPanel, type PanelData } from "./cv-panel";
 import { toPrefill, toVersionView, tokyoDate } from "./load";
@@ -39,7 +40,11 @@ export default async function CvPage() {
   const [japanese, english] = await Promise.all([load(userId, "ja"), load(userId, "en")]);
 
   return (
-    <main className="w-[1280px] px-[44px] py-[40px]">
+    <main className="flex w-[1280px] flex-col gap-[14px] px-[44px] py-[40px]">
+      {/* 05 §5.1's header, in a card of its own: the two panels below are each a card (10 §13). */}
+      <div className="border-x border-t border-rule-frame bg-surface">
+        <AppHeader active="cv" />
+      </div>
       <div className="grid grid-cols-2 items-start gap-[14px]">
         <CvPanel language="ja" data={japanese} />
         <CvPanel language="en" data={english} />

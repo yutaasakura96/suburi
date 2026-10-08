@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { pace, paceUnits } from "@/lib/round/measures";
-import { FEEDBACK_READING, ROUND_COPY, type RoundCopy } from "./copy";
+import { FEEDBACK_READING, ROUND_COPY, SETUP_COPY, type RoundCopy } from "./copy";
 
 // The round screens' chrome in the round's language (10 §0). The expected strings are 10 §3–§8's own;
 // the rules are 05 §6's mechanical ones, as lib/copy/errors.test.ts holds them over the catalogue.
@@ -307,4 +307,32 @@ describe("an English round's chrome", () => {
 // 10 §8: the pill names the language it switches the feedback to, in that language.
 it("names each reading language in itself", () => {
   expect(FEEDBACK_READING).toEqual({ ja: "日本語", en: "English" });
+});
+
+// 10 §2: the rationale beside Setup's defaults is the interval arithmetic they came from (US-14).
+describe("why Setup opens on its defaults", () => {
+  it("names the pair never practised in a realistic round", () => {
+    expect(SETUP_COPY.defaultsReason({ roundType: "ceo", language: "en", reason: { kind: "never" } })).toBe(
+      "CEO / final in English has not been practised in a realistic round yet. The defaults come from that.",
+    );
+  });
+
+  it("names the pair with the longest gap, and how long it is", () => {
+    const pair = { roundType: "behavioural", language: "ja" } as const;
+    expect(SETUP_COPY.defaultsReason({ ...pair, reason: { kind: "interval", days: 18 } })).toBe(
+      "Behavioural in Japanese was last practised 18 days ago, the longest gap of any. The defaults come from that.",
+    );
+    expect(SETUP_COPY.defaultsReason({ ...pair, reason: { kind: "interval", days: 1 } })).toContain("1 day ago");
+    expect(SETUP_COPY.defaultsReason({ ...pair, reason: { kind: "interval", days: 0 } })).toContain("last practised today");
+  });
+
+  it("says nothing is due before the first realistic round, rather than inventing a reason", () => {
+    expect(SETUP_COPY.defaultsReason({ roundType: "behavioural", language: "ja", reason: { kind: "nothing" } })).toBe(
+      "No realistic round has been completed yet, so nothing is due. These are the starting defaults.",
+    );
+  });
+
+  it("says the defaults are a suggestion", () => {
+    expect(SETUP_COPY.defaultsOverridable).toBe("A suggestion. All four can be changed.");
+  });
 });

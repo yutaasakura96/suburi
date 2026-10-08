@@ -344,7 +344,7 @@ Empty states are requirements.
 | **No CV uploaded** | Starting a round is blocked. One screen, one action: upload a CV. The app does not offer a degraded round without one — CV-grounded evaluation is a reason the project exists. |
 | **No role context for this round** | Setup presents posting and **General practice** as equal choices; AI research adds a third with US-16. General practice never silently defaults. |
 | **No rounds completed yet** | The progress screen shows the dimensions it will plot, in both languages, and states the count needed (≥30 first attempts per language). Not a blank chart. |
-| **Too few first attempts to trend** | Points are shown but no trend line is drawn below **5 first attempts** for that dimension × language × round type. The screen says how many remain. |
+| **Too few first attempts to trend** | Points are shown but no trend line is drawn below **5 first attempts** in one segment between version changes for that dimension × language × round type. The screen says how many remain in the newest segment. |
 | **Bank exhausted for a round type × language** | Setup says new questions will be written when the round starts and warns that repeats will not appear in progress data. |
 | **Story bank not yet extracted** | Feedback omits the story section entirely rather than showing an empty one. |
 | **A round with no scores yet** (scoring failed or pending) | Shown in history marked unscored, with a retry. Excluded from progress until scored. |

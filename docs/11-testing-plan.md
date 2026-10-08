@@ -186,12 +186,28 @@ an exclusion is "no measurement". Fixtures: a first-attempt set where one attemp
 - **An abandoned round contributes nothing**, though its answers keep their rows and their first-attempt flags.
 - **A typed answer contributes nothing** (PRD §7): `transcript_raw` set with `transcriber_model_id` null (`07` §5.8). #48 writes the mark and asserts it is stored with no pace and no duration; the exclusion itself is Progress's test (#51).
 
+**As built (#51), `lib/progress/first-attempts.integration.test.ts`**, against Postgres, one test to
+an exclusion: a practice round, a retry, a follow-up, a typed answer, a question practised first
+(`is_first_attempt = false`), a `pending` and a `failed` attempt, a wrong-language answer and a
+round that was never completed each contribute nothing; a superseding re-score replaces the
+first attempt's scores and a held-out one never does; `keigo` is no point in English; another user's
+rows are not read. The first-attempt count Home and Progress show is asserted from the same rows, and
+`progress/panel.test.ts` holds the row a panel draws for each case, the kept `keigo` row included.
+
 ### 3.6 Boundary lines on Progress
 
 Refusal #5. Given a fixture where `model_id` changes mid-series, then `rubric_version_id`, then
 `scoring_prompt_version`, then `cv_version_id`, then **`generator_prompt_version`** — including a set
 piece's content version: a boundary is drawn at each, and **no trend line is drawn across a boundary as
 if continuous.** *Amended 2026-09-27:* the generator stamp was missing from this list (`06`).
+
+**As built (#51).** The fixture above is one test in `lib/progress/first-attempts.integration.test.ts`:
+a boundary after each change, labelled with what changed, a set piece's version among them.
+`lib/progress/series.test.ts` holds the arithmetic — **a set piece between generated questions is not
+a boundary, and a new set-piece version is** (the stamp is compared within its kind, `06`,
+2026-10-08); two stamps changing at one place are one boundary; a trend line is drawn only inside a
+segment of five and ends before the next boundary; a dimension with four dots in a five-answer
+segment has none.
 
 ### 3.7 The near-duplicate guard
 
@@ -539,6 +555,25 @@ tested with it. Through the handlers, against Postgres.
   its status alone; **no key anywhere in the response that names a composite**, and no answer or
   prompt text in a log line.
 
+### 3.23 What is due, and Setup's defaults (#51)
+
+US-14 and US-3. `lib/progress/due.test.ts`, with the clock passed in:
+
+- **Never practised sorts first**, in the listed order, with no interval and no share of a bar; the
+  rest follow, the longest interval first, ties in the listed order.
+- The interval is **calendar days in Asia/Tokyo**: an hour that crosses midnight there is one day,
+  a round earlier the same day is none, and a round stamped after `now` is none rather than negative.
+- The bar's share is of the longest interval on the list, so the top practised row is `1`; the rail
+  steps at one third and two thirds.
+- With nothing practised the list is the empty state, and the defaults are `10` §2's with the reason
+  `nothing`; otherwise the defaults are the top row's pair, five questions, realistic, and the reason
+  is `never` or the interval — **never a pair the list does not put first.**
+
+`lib/progress/due.integration.test.ts`, against Postgres: the newest **completed realistic** round of
+a pair is when it was last practised; a practice round, an abandoned round and an open one are not;
+another user's rounds are not read. `db/seed-rounds.integration.test.ts` runs both screens' queries
+over the `develop` seed (`12` §1).
+
 ## 4. End-to-end, in Playwright
 
 Chromium, fake media device, S3 PUT and OpenAI intercepted. What this pass exists to catch is the
@@ -580,6 +615,11 @@ wiring between screens that no unit test sees.
 | History's playback | Every answered row opens its raw transcript beside the correction. A stored recording loads in the `<audio>` element from a presigned URL minted on open; **a missing one and an unplayable one are each a sentence, with the transcripts still there.** |
 | History's retry | A failed score's retry scores that answer alone: one scoring call, **no feedback call, `round_feedback` unchanged**, a new attempt beside the failed one, the rail's line cleared, and no control left on an `ok` score. A retry that fails says so on the row and stays offered. A pending score is run as it is, with no new attempt. If creation commits but its response is lost, the row refreshes to the pending attempt and remains runnable. |
 | History's answer-again | A practice round with an answer and its "answer again", inserted by the spec: the retry is the row directly under the answer it retries, labelled `Answered again`, with its own scores; **the first answer's scores are still shown beside it** (refusal #3), and each row opens its own transcript. |
+| Home (#51) | `e2e/home-progress.spec.ts`, over no rounds and then the `develop` seed. With none: the four round types, each `Never`, no bar, `0 / 30` twice, and the suggestion caption. Seeded: the three pairs never practised first with no bar — the abandoned round's pair among them — then the rest by interval, longest first, its bar the full track; `11 / 30` and `7 / 30`, which leave out the pending, the failed and the abandoned round's answers; the defaults line naming the top pair. **English throughout, and no word for a combined figure.** |
+| Setup's defaults (#51) | Round type and language are the top of the Due list, length five, realistic; the rationale says which pair and why; each of the four changes when its control is pressed, and the rationale does not. With no round completed, the starting defaults and a sentence saying nothing is due. |
+| Progress (#51) | One row per dimension in each language's panel; a Japanese series of eight with **one trend line that ends before the boundary**, the boundary labelled with the stamp that changed, and the header counting from it; an English series of three with no line and the shortfall named; `Keigo (register)` kept in English as `Not scored in English` with `—`. Round-type tabs and the two context tabs each change the URL and what is plotted; follow-ups, the pending score, the failed score and the abandoned round plot nothing. With no first attempt, every row and the count needed. **English outside the Japanese panel's data, and no word for a combined figure.** |
+| Tooltips by keyboard (#51) | Tab alone reaches a Progress row, which opens its newest dot; the arrow keys, Home and End move along it and Escape closes it; hovering a dot opens the same. Tab alone reaches a score row on screen 8, which opens its justification — also the row's accessible description — and the next Tab opens the next row's; Escape closes it; hovering opens it too (`05` §7). |
+| The app header (#51) | Home, Progress, History and the CV each reach the others, the current one marked `aria-current="page"`. |
 | No deletion surface | No delete or share control on History, a round, an answer or a score (refusals #3, #6). **As built (#50):** on every round's page with a row open, no control's name matches a delete, share or export word, every button is one of the four History has — a play toggle, the pill, `Retry scoring`, `Older rounds` — nothing takes input, and `DELETE` on a round, an answer and an attempt finds no route. |
 
 **Not in Playwright, deliberately:** any assertion about transcript *content*. The fake device
