@@ -163,8 +163,7 @@ export interface PlacedLabel {
   readonly lane: number;
 }
 
-// 9px mono at 0.06em (05 §5.4): about 5.9px a character, measured against the artboard's labels.
-const LABEL_CHARACTER_WIDTH = 5.9;
+const labelWidth = (text: string) => [...text].reduce((width, character) => width + (character.charCodeAt(0) < 128 ? 6.5 : 10), 0);
 const LABEL_GAP = 8;
 /** 05 §5.4: the label sits 5px right of its line. */
 const LABEL_OFFSET = 5;
@@ -173,8 +172,9 @@ const LABEL_OFFSET = 5;
 export function placeLabels(labels: readonly { readonly text: string; readonly x: number }[]): PlacedLabel[] {
   const laneEnds: number[] = [];
   return labels.map(({ text, x }) => {
-    const left = x + LABEL_OFFSET;
-    const right = left + [...text].length * LABEL_CHARACTER_WIDTH;
+    const width = labelWidth(text);
+    const left = Math.max(0, Math.min(x + LABEL_OFFSET, PLOT.width - width));
+    const right = left + width;
     let lane = laneEnds.findIndex((end) => end + LABEL_GAP <= left);
     if (lane === -1) lane = laneEnds.length;
     laneEnds[lane] = right;

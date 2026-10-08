@@ -188,4 +188,16 @@ describe("placeLabels", () => {
     const placed = placeLabels([{ text: "scoring score-en-1.1", x: 72 }, { text: "CV v2", x: 100 }, { text: "CV v3", x: 300 }]);
     expect(placed.map((label) => label.lane)).toEqual([0, 1, 0]);
   });
+
+  it("keeps late and full-width stamp labels inside the plot and separates collisions", () => {
+    const labels = placeLabels([
+      { text: "model gpt-5.6-sol-2026-10-01", x: 318 },
+      { text: "応募書類 v4", x: 330 },
+    ]);
+    expect(labels.map((label) => label.lane)).toEqual([0, 1]);
+    expect(labels[0].x).toBeLessThan(318);
+    expect(labels[1].x).toBeLessThan(330);
+    expect(labels[0].x + 28 * 6.5).toBeLessThanOrEqual(PLOT.width);
+    expect(labels[1].x + 4 * 10 + 3 * 6.5).toBeLessThanOrEqual(PLOT.width);
+  });
 });

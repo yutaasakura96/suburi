@@ -40,8 +40,9 @@ function Panel({ view }: { view: PanelView }) {
           {view.labels.map((label) => (
             <span
               key={`${label.x}-${label.text}`}
-              className="absolute font-mono text-[9px] tracking-[0.06em] whitespace-nowrap text-ink-8"
-              style={{ left: label.x, top: label.lane * 13 }}
+              className="absolute max-w-[360px] truncate font-mono text-[9px] tracking-[0.06em] text-ink-8"
+              style={{ left: label.x, top: label.lane * 13, maxWidth: 360 - label.x }}
+              title={label.text}
               data-testid="boundary-label"
             >
               {label.text}
