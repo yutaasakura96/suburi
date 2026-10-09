@@ -3,6 +3,109 @@
 Newest first. Every entry records what was chosen, why, and what was rejected.
 
 ---
+## Phase 6 — #104, where the time goes
+
+The owner's review of `develop` on 2026-10-09: pages feel extremely slow. Measured before anything was
+changed, on `develop` and on a production build locally.
+
+### [2026-10-10] Functions run in `sin1`, beside the database
+
+**Decided:** `vercel.json` sets `"regions": ["sin1"]`. Functions ran in `iad1`, Vercel's default,
+while both Neon branches are in `aws-ap-southeast-1` (`12` §3 step 1) and the user is in Tokyo.
+`sin1` is `ap-southeast-1` (Vercel's region list), the setting overrides the project's, and Hobby
+allows one region. Nothing else changes: no query, no route, no schema.
+
+**Measured on `develop`, 2026-10-10, from Tokyo,** through `vercel curl`, signed out — an agent
+cannot pass the Google gate there (2026-09-25), so the signed-in pages are measured locally, below:
+
+| Request | What it reaches | Time to first byte |
+| --- | --- | --- |
+| Vercel's own redirect, no bypass | the edge in Tokyo | 0.045 s |
+| `GET /api/rounds`, no cookie | the proxy, which answers `401` | 0.22 s |
+| `GET /sign-in`, warm | the proxy, then a function, no query | 0.40–0.49 s |
+| `GET /sign-in`, after 8 minutes idle | the same, on a cold instance | **3.2–3.8 s** (n = 3) |
+| `POST /api/auth/sign-in/social`, warm pool | one `insert` | 0.63 s |
+| the same, pool idle for 20 s | a new connection, then one `insert` | **2.0 s** |
+
+Every function request is routed `hnd1::iad1`. One query is 0.63 − 0.42 = **0.21 s**. A new
+connection is 1.4 s, and `pg`'s pool closes one that has been idle for 10 s, so a click after reading
+a page for ten seconds pays it again. From Tokyo straight to the same Neon branch: 77 ms a query,
+527 ms a connection — 6.8 round trips, the TCP, TLS and SCRAM exchanges — and 1.3 s for the first
+connection after five idle minutes, which is Neon's scale to zero waking (about 0.8 s). No table on
+`develop` holds 200 rows; the queries themselves are not slow.
+
+**Measured locally,** `scripts/measure-page-latency.mts`: the production build over the develop seed,
+behind a relay that holds each Postgres packet. Server time only, median of five warm requests:
+
+| Page | Queries | 0 ms | 2 ms | **215 ms** |
+| --- | --- | --- | --- | --- |
+| `/` | 8 | 12 ms | 31 ms | **1.14 s** |
+| `/round/new` | 10 | 10 ms | 25 ms | 1.11 s |
+| `/history`, both requests of its redirect | 27 | 20 ms | 60 ms | 2.43 s |
+| `/history/{roundId}` | 18 | 11 ms | 31 ms | 1.33 s |
+| `/round/{roundId}/feedback` | 13 | 11 ms | 37 ms | 1.77 s |
+| `/progress` | 5 | 9 ms | 28 ms | 1.10 s |
+| `/cv` | 12 | 9 ms | 35 ms | 1.33 s |
+| `/status` | 4 | 6 ms | 20 ms | 0.89 s |
+| `/`, pool idle for 11 s | 17, on 3 new connections | 79 ms | 149 ms | 2.47 s |
+
+A page runs some of its queries side by side, so it waits for four to eight in a row, not for all of
+them: the session read is two (`sessions`, then `users`) before the page asks anything. In Chrome
+against the same build at 215 ms, a click on the header took 1.2–2.3 s with nothing on screen
+changing, and 2.8 s after a pause; at 2 ms, 42–125 ms, and 0.28 s after a pause.
+
+**A round is worse, because its routes are longer chains.** `e2e/round.spec.ts`'s realistic English
+round — three questions and their follow-ups, OpenAI and S3 mocked, so no model time at all — run at
+0 ms and at 50 ms, the difference divided by 50:
+
+| Request | In the round | Queries in a row | At 215 ms |
+| --- | --- | --- | --- |
+| `POST /api/rounds` | 1 | 14 | 3.1 s |
+| `POST /api/rounds/{id}/answers` | 6 | 13 | 2.7 s |
+| `POST /api/answers/{id}/transcribe` | 6 | 22 | 4.8 s |
+| `POST /api/answers/{id}/submit` | 6 | 24 | 5.2 s |
+| `GET /api/rounds/{id}/speech` | 7 | 6 | 1.2 s |
+| `POST /api/rounds/{id}/complete` | 1 | 23 | 5.1 s |
+
+About 470 across the round: **100 s of a six-answer round was spent crossing the Pacific**, 13 s an
+answer, against the 2–6 s its transcription and 3 s its follow-up take (`03` §4). The test passes in
+17.7 s at 0 ms and 45.5 s at 50 ms; at 215 ms it fails on Setup, where the round takes longer to start
+than the 5 s the test allows.
+
+**Why `sin1` and not Tokyo.** In `hnd1` the user is next door and the database is 77 ms away: Home
+would wait 0.4 s and a submit 1.8 s, and an idle pool would cost 0.5 s more. In `sin1` the request crosses
+Tokyo–Singapore once and every query after it stays in one AWS region. A chain of 24 wants to be
+beside the database. **The `sin1` figures are expected, not measured:** a feature branch is not
+deployed (`12` §1), so the 2 ms column is a same-region round trip assumed, and the check is owed on
+`develop` once this is merged — the three requests of the first table again, where `x-vercel-id`
+should read `hnd1::sin1` and the `insert` should cost about what `/sign-in` does.
+
+**Rejected:** a move to Cloudflare, the issue's candidate. The host's own share is the 0.4 s floor of
+a request that took 1.5 to 5 s, and another host in the wrong place would be as far from Singapore.
+Fewer round trips in code — the session read in one query or from a signed cookie, the routes'
+chains batched: each was worth 215 ms and is now worth about 2, and a cookie-cached session changes
+when a revoked session stops working (`08`). A longer pool idle timeout, for the same reason: a
+connection in-region is seven short round trips. Moving Neon to Tokyo with the functions: the best
+arrangement on paper, and a new Neon project with both branches migrated, which is the owner's to
+decide, not a fix for a ticket.
+
+**Measured and left:**
+
+- **A cold instance, 3.2–3.8 s.** `develop` is a Preview deployment, and Vercel applies bytecode
+  caching and pre-warmed instances to production only (its Fluid compute docs). The first click after
+  a break still waits there; `main` should fare better and has not been measured.
+- **Neon's scale to zero, about 0.8 s** on the first query after five idle minutes. Fixed on the
+  Free plan (Neon's docs).
+- **The proxy, about 0.17 s a request** — the difference between the edge's own redirect and the
+  proxy's `401`. Vercel runs Routing Middleware "in fewer regions" on Hobby and does not say which;
+  whether it follows the functions to `sin1` is part of the owed check.
+- **A click shows nothing until the server answers**: no route has a loading state. With the wait
+  gone it matters less; it belongs to #115.
+- **OpenAI is now called from Singapore, not Washington.** Unmeasured. It adds a longer network leg
+  to calls of 1 to 10 s; the one a user could feel is TTS's first byte (1.0 s, `03` §4), and the
+  round's wait line shows it on the next real round.
+
+---
 ## Phase 6 — #51, Progress, Home and spacing defaults
 
 The last slice of the round loop: the screens that read what the others wrote. Nothing here calls a

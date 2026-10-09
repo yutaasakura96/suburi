@@ -56,7 +56,10 @@ round closing each say what is running, with a segment per thing waited for and 
 the round-end counts read `GET /api/rounds/{roundId}`, which #49 built, and are proved against it
 (`e2e/waits.spec.ts`). Practice's round end shows the same line, each question counted once (`10` §15, `06`).
 **#51, Progress, Home and spacing defaults, is built (2026-10-08), on `fm/suburi-51`** (Next).
-**Updated:** 2026-10-08 (#51 built; follow-ups spoken; #73 built; #49's Japanese strings all accepted; #50's
+**#104, the slow test site, is measured and its cause fixed (2026-10-10), on `fm/suburi-104`:** the
+functions ran in `iad1` and the database is in Singapore; `vercel.json` now pins them to `sin1`. The
+check on `develop` is owed once it is merged (Next).
+**Updated:** 2026-10-10 (#104 measured and fixed; #51 built; follow-ups spoken; #73 built; #49's Japanese strings all accepted; #50's
 catalogue string read; #43, #44, #45, #46, #47, #48, #49, #50 and #74 built; #42 closed; #55 and #56 on 2026-09-30)
 
 ## Done
@@ -502,6 +505,19 @@ feedback unchanged. The owner read and accepted #50's catalogue string on 2026-1
 (`docs/checklists/native-read-round.md` §11). **The user's remaining steps:** `npm run db:seed:develop`
 against Neon `develop` before the merge is verified there (`12` §3 step 8);
 `11` §5's real-recording playback from History, which no fixture covers. Decisions in `06`, "Phase 6 — #50".
+
+**#104 is measured and fixed (2026-10-10), on `fm/suburi-104`.** The owner's review of `develop` found
+every page slow. Measured there and on a production build locally (`06`, "Phase 6 — #104"): each
+query took 215 ms because the functions ran in `iad1` and Neon is in `aws-ap-southeast-1`, a page
+waits for four to eight in a row and a round for about 470, and an idle pool reconnected for 1.4 s.
+**Changed:** `vercel.json` pins the functions to `sin1` (`12` §1), and
+`scripts/measure-page-latency.mts` re-measures a page's round trips at a given distance. No query,
+route, schema or screen changed. **Left, with their numbers:** `develop`'s cold start (3.2–3.8 s, a
+Preview deployment), Neon's scale to zero (0.8 s) and the proxy's own hop (0.17 s). **The remaining
+step, on `develop` once this is merged:** the three requests of `06`'s first table again —
+`x-vercel-id` should read `hnd1::sin1` and a query should cost a few milliseconds — and a click
+through Home, History and a round. `main` picks the region up at its next promotion (`12` §4); it
+needs no migration.
 
 **#51 is built (2026-10-08), on `fm/suburi-51`: the last slice of the round loop.** Built:
 `/progress` — one row per dimension, a panel per language, within one round type and one of two

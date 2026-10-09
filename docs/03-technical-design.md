@@ -24,7 +24,7 @@ optimise the constraint away.
 | Auth | Better Auth, Google IdP only | — |
 | Object storage | AWS S3 | one bucket, one prefix |
 | Models | OpenAI, `gpt-5.6-sol` | exact string, never an alias |
-| Host | Vercel | Hobby to start |
+| Host | Vercel | Hobby to start. Functions in `sin1`, the database's region (`12` §1) |
 
 ### Why each, and what was rejected
 
