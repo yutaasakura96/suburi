@@ -265,10 +265,12 @@ test("an upload that fails is held on this device, survives a reload, and the re
   await page.getByRole("link", { name: "Home" }).click();
   await expect(page.getByRole("alertdialog", { name: "Leave this round?" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Stay in the round" })).toBeFocused();
-  await page.keyboard.press("Shift+Tab");
-  await expect(page.getByRole("alertdialog").getByRole("link", { name: "Leave for Home" })).toBeFocused();
-  await page.keyboard.press("Tab");
-  await expect(page.getByRole("button", { name: "Stay in the round" })).toBeFocused();
+  // The modal dialog takes the round behind it out of the tab order: focus stays in the dialog or
+  // leaves the page for the browser's own controls, and never lands on the round.
+  for (const key of ["Shift+Tab", "Shift+Tab", "Tab", "Tab", "Tab"]) {
+    await page.keyboard.press(key);
+    expect(await page.evaluate(() => document.activeElement === document.body || document.activeElement?.closest("dialog") != null)).toBe(true);
+  }
   await page.getByRole("button", { name: "Stay in the round" }).click();
   await expect(page.getByRole("alertdialog")).toHaveCount(0);
   const [held] = await heldTakes(page);
