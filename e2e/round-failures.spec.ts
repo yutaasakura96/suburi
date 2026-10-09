@@ -320,19 +320,23 @@ test("the round header confirms leaving for Home and the open round resumes", as
   await expect(page.getByTestId("round-question")).toBeVisible();
 });
 
-test("leaving while microphone permission is pending releases the late stream", async ({ page }) => {
+test("two starts share one pending microphone request and leaving releases its late stream", async ({ page }) => {
   await signIn(page);
   const roundId = await startRound(page);
   await page.goto(`/round/${roundId}`);
   await page.evaluate(async () => {
-    const state = window as typeof window & { pendingStream: MediaStream; grantPending?: () => void };
+    const state = window as typeof window & { pendingStream: MediaStream; grantPending?: () => void; pendingRequests: number };
     state.pendingStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    state.pendingRequests = 0;
     navigator.mediaDevices.getUserMedia = () => new Promise<MediaStream>((resolve) => {
+      state.pendingRequests += 1;
       state.grantPending = () => resolve(state.pendingStream);
     });
   });
   await page.getByRole("button", { name: "Start recording" }).click();
   await expect.poll(() => page.evaluate(() => typeof (window as typeof window & { grantPending?: () => void }).grantPending)).toBe("function");
+  await page.getByRole("button", { name: "Start recording" }).click();
+  expect(await page.evaluate(() => (window as typeof window & { pendingRequests: number }).pendingRequests)).toBe(1);
   await page.getByRole("link", { name: "Home" }).click();
   await page.getByRole("alertdialog").getByRole("link", { name: "Leave for Home" }).click();
   await expect(page).toHaveURL("/");

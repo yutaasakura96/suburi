@@ -46,6 +46,7 @@ export function useRecorder(capSeconds: number, onTake: (take: Take) => void, { 
     stopAt: number;
   } | null>(null);
   const mounted = useRef(true);
+  const acquiring = useRef(false);
   const onTakeRef = useRef(onTake);
   useEffect(() => {
     onTakeRef.current = onTake;
@@ -67,10 +68,13 @@ export function useRecorder(capSeconds: number, onTake: (take: Take) => void, { 
   }, []);
 
   const start = useCallback(async () => {
+    if (!mounted.current || acquiring.current || session.current) return;
+    acquiring.current = true;
     let stream: MediaStream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     } catch (error) {
+      acquiring.current = false;
       if (!mounted.current) return;
       // Denied or absent: nothing is written, and the question stays unseen (10 §4). A refusal is the
       // one the user can lift in the browser, so it is told apart (03 §8).
@@ -78,6 +82,7 @@ export function useRecorder(capSeconds: number, onTake: (take: Take) => void, { 
       setState({ kind: "failed", reason: denied ? "denied" : "unavailable" });
       return;
     }
+    acquiring.current = false;
     if (!mounted.current) {
       stream.getTracks().forEach((track) => track.stop());
       return;
