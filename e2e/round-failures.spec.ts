@@ -264,6 +264,11 @@ test("an upload that fails is held on this device, survives a reload, and the re
   expect(await warnsBeforeUnload(page)).toBe(true);
   await page.getByRole("link", { name: "Home" }).click();
   await expect(page.getByRole("alertdialog", { name: "Leave this round?" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Stay in the round" })).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
+  await expect(page.getByRole("alertdialog").getByRole("link", { name: "Leave for Home" })).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("button", { name: "Stay in the round" })).toBeFocused();
   await page.getByRole("button", { name: "Stay in the round" }).click();
   await expect(page.getByRole("alertdialog")).toHaveCount(0);
   const [held] = await heldTakes(page);
