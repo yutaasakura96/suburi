@@ -204,10 +204,12 @@ feedback, 404, error) shows the nav with no item current (#105).
 
 ### 5.2 Round header (in-round screens)
 
-Replaces the app header once a round is running — there is no navigation out of a live round. Left:
+Replaces the app header once a round is running. A Home link stays in this header; during a live round,
+it opens an in-page confirmation before leaving, because a recording or a take held only in the tab
+can be lost. An abandoned round goes directly Home. Left:
 title 17px/600 plus `日本語・実戦・5問` at 13px `--ink-4`. Right: the **round stepper** — one `26×2px`
 bar per question, gap `7px`, `--accent` when done and `--rule-section` when not — then
-`第1問 / 5問` in 11px mono at `0.08em`.
+`第1問 / 5問` in 11px mono at `0.08em`, then the Home link at 13px.
 
 ### 5.3 Score row — marker on a five-tick scale
 

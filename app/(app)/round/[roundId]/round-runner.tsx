@@ -137,6 +137,7 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
   const [screen, setScreen] = useState<Screen>(() => initialScreen(frame.start));
   const [error, setError] = useState<Failure | null>(null);
   const [busy, setBusy] = useState(false);
+  const [confirmHome, setConfirmHome] = useState(false);
   const [followUpVersions, setFollowUpVersions] = useState(frame.followUpVersions);
   const { round } = frame;
 
@@ -178,6 +179,12 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
       done={done}
       length={round.length}
       step={prompt?.again ? copy.stepAgain(step) : step}
+      home={copy.home}
+      onHome={(event) => {
+        if (screen.kind === "abandoned") return;
+        event.preventDefault();
+        setConfirmHome(true);
+      }}
     />
   );
   // 10 §3: the prompt's generator version and the CV version; the rubric joins them where scores are.
@@ -478,9 +485,6 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
       body = (
         <div className="flex flex-col gap-[14px] px-[32px] py-[36px]">
           <p className="text-[15px] text-ink-3">{screen.byDay ? copy.abandonedByDay : copy.abandoned}</p>
-          <Link href="/" className="text-[13px] text-link hover:text-link-hover hover:underline">
-            {copy.home}
-          </Link>
         </div>
       );
       break;
@@ -641,6 +645,18 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
     <section className="flex min-h-[680px] flex-col border border-rule-frame bg-surface" aria-label={copy.roundTypes[round.roundType]}>
       {header}
       {body}
+      {confirmHome ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-1/50">
+          <div role="alertdialog" aria-modal="true" aria-labelledby="leave-round-title" aria-describedby="leave-round-detail" className="w-[460px] border border-rule-frame bg-surface p-[32px]">
+            <h2 id="leave-round-title" className="text-[17px] font-semibold">{copy.leaveTitle}</h2>
+            <p id="leave-round-detail" className="mt-[14px] text-[13px] leading-[1.75] text-ink-4">{copy.leaveDetail}</p>
+            <div className="mt-[26px] flex gap-[20px]">
+              <button type="button" autoFocus onClick={() => setConfirmHome(false)} className="text-[13px] text-link hover:text-link-hover hover:underline">{copy.stay}</button>
+              <Link href="/" className="text-[13px] text-link hover:text-link-hover hover:underline">{copy.leaveHome}</Link>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

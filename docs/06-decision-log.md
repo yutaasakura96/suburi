@@ -5,7 +5,7 @@ Newest first. Every entry records what was chosen, why, and what was rejected.
 ---
 ## Phase 6 — #105, every page has a way back to Home
 
-### [2026-10-10] The app header goes on every screen but a live round; the status page and error pages carry it too
+### [2026-10-10] Every signed-in screen has a Home link; the status page and error pages carry the app header too
 
 The owner's review found pages with no way to Home. The header of `05` §5.1 is now on the CV version
 page (`CV` current), a round's feedback (a card above the round card, English chrome whatever the
@@ -13,12 +13,12 @@ round's language, `10` §0), the status page, a 404 anywhere, and a screen that 
 none of the four items pass `active={null}`: the nav shows, no item is current. Status is still not a
 nav item (`10` §14); it is no longer a dead end.
 
-- **A live round keeps its round header and no way out** (`05` §5.2). The issue says "every page", and
-  a live round is the one place a stray click costs a held take; the abandoned frame already links
-  Home. Reversible by adding a link to `RoundHeader` if the owner wants it there.
+- **A live round keeps its focused round header with a Home link** (`05` §5.2). The link asks for
+  confirmation in the page before leaving; an in-progress recording or a take held only in the tab
+  can be lost. The newest open round can be resumed today. An abandoned round goes Home directly.
 - **History's 404 sits inside the History layout**, which already carries the header, so it has its
   own not-found without one rather than a second nav.
-- **Sign-in is out of scope:** it is the one page with no session, and Home would only redirect to it.
+- **Sign-in has no Home link:** Home cannot be reached signed out; it redirects to sign-in.
 
 ---
 ## Phase 6 — #104, where the time goes
