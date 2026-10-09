@@ -83,6 +83,16 @@ test("before any run, Home and the status page both say self-check has never run
   await expect(page.getByText("No weekly digest has run yet.")).toBeVisible();
 });
 
+test("the status page and an unknown path both carry the nav, with a link to Home", async ({ page }) => {
+  await signIn(page);
+  await page.goto("/status");
+  await expect(page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Home" })).toHaveAttribute("href", "/");
+
+  expect((await page.goto("/no-such-screen"))?.status()).toBe(404);
+  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Home" }).click();
+  await expect(page).toHaveURL("/");
+});
+
 test("a self-check older than 48 hours is stale, on Home and first on the page", async ({ page }) => {
   await writeClearRun(new Date(Date.now() - 49 * HOUR));
   await signIn(page);

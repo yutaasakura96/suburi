@@ -227,6 +227,8 @@ test("prefilled form → edit → CV v2 with carry-forward counts; an unchanged 
     await expect(page.getByTestId("cv-version-label")).toHaveText("CV v1");
     await expect(page.locator("[data-claim]")).toHaveCount(2);
     await expect(page.getByRole("button")).toHaveCount(0);
+    // Every screen's nav, with a way back to Home (#105).
+    await expect(page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Home" })).toHaveAttribute("href", "/");
   } finally {
     await openAi.close();
   }
@@ -237,6 +239,9 @@ test("a version id that is not the user's is a 404", async ({ page }) => {
   const response = await page.goto("/cv/versions/00000000-0000-4000-8000-000000000000");
   expect(response?.status()).toBe(404);
   expect((await page.goto("/cv/versions/not-a-uuid"))?.status()).toBe(404);
+  // The 404 keeps the way back to Home (#105).
+  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Home" }).click();
+  await expect(page).toHaveURL("/");
 });
 
 // #17: import. Continues from the 応募書類 v1 the Japanese test saved. The fixtures are written by

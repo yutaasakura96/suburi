@@ -199,7 +199,8 @@ Artboard frames: 1280px wide throughout. Heights `760` (record states), `800` (s
 **As built (#51).** `padding: 20px 32px`, on the card's `--rule-frame` bottom border. The four items
 are links to `/`, `/progress`, `/history` and `/cv`; the active one carries `aria-current="page"`.
 Setup has no item of its own and shows `Home` active: it is reached from Home and is where Home's one
-button leads. The wordmark is `lang="ja"`.
+button leads. The wordmark is `lang="ja"`. A screen that is none of the four (status, a round's
+feedback, 404, error) shows the nav with no item current (#105).
 
 ### 5.2 Round header (in-round screens)
 

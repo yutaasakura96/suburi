@@ -14,9 +14,11 @@ export type NavItem = (typeof NAV)[number]["key"];
 /**
  * 05 §5.1: the wordmark and the four-item nav, the top of every app-level screen's card. A round's
  * own screens carry the round header instead (05 §5.2) — there is no navigation out of a live round.
- * The status page is reached from Home's status line and is not an item here (10 §14).
+ * The status page is reached from Home's status line and is not an item here (10 §14). A screen that
+ * is none of the four (status, a round's feedback, an error) passes `null`: the nav is still there,
+ * with no item current.
  */
-export function AppHeader({ active }: { active: NavItem }) {
+export function AppHeader({ active }: { active: NavItem | null }) {
   return (
     <header className="flex items-center justify-between border-b border-rule-frame px-[32px] py-[20px]">
       <div className="flex items-baseline gap-[14px]">

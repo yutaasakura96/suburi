@@ -3,6 +3,7 @@ import { requireSession } from "@/lib/auth/session";
 import { getDb } from "@/lib/db";
 import { loadStatus } from "@/lib/monitor/status";
 import { ROUND_COST_BASELINE_USD, SPEND_MULTIPLE } from "@/lib/monitor/thresholds";
+import { AppHeader } from "../app-header";
 import {
   CHECK_NAMES,
   LAST_WEEK_ROWS,
@@ -44,6 +45,7 @@ export default async function StatusPage() {
   return (
     <main className="w-[1280px] px-[44px] py-[40px]">
       <section aria-labelledby="status-heading" className="border border-rule-frame bg-surface">
+        <AppHeader active={null} />
         <div className="border-b border-rule-frame px-[32px] py-[20px]">
           <h1 id="status-heading" className={sectionLabel}>
             Status

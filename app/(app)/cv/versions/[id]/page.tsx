@@ -5,6 +5,7 @@ import { requireSession } from "@/lib/auth/session";
 import { citedClaimIds } from "@/lib/cv/coverage";
 import { cvVersionById } from "@/lib/cv/current-version";
 import { getDb } from "@/lib/db";
+import { AppHeader } from "../../../app-header";
 import { COPY } from "../../copy";
 import { toVersionView } from "../../load";
 import { CvVersionView, sectionLabel } from "../../version-view";
@@ -29,7 +30,11 @@ export default async function CvVersionPage(props: PageProps<"/cv/versions/[id]"
   const language = read.version.language;
   const copy = COPY[language];
   return (
-    <main className="w-[1280px] px-[44px] py-[40px]">
+    <main className="flex w-[1280px] flex-col gap-[14px] px-[44px] py-[40px]">
+      {/* The CV screen's own arrangement (10 §13): the app header in a card of its own, the version below. */}
+      <div className="border-x border-t border-rule-frame bg-surface">
+        <AppHeader active="cv" />
+      </div>
       <div className="grid grid-cols-2 items-start gap-[14px]">
         <section lang={language} aria-labelledby="cv-version-heading" className="border border-rule-frame bg-surface">
           <div className="border-b border-rule-frame px-[32px] py-[20px]">
