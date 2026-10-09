@@ -609,8 +609,9 @@ test("screen 7 cannot be skipped: the feedback URL sends an unrated round back t
   await expect(page).toHaveURL(`/round/${roundId}`);
   await expect(page.getByText("How tense did this round feel?")).toBeVisible();
   await expect(page.getByRole("button", { name: "Go to the feedback" })).toBeDisabled();
-  // Nothing on the screen leads out of the round.
-  await expect(page.getByRole("link")).toHaveCount(0);
+  // The header's Home link is the only way out of the round, and it does not lead to the feedback.
+  await expect(page.getByRole("link")).toHaveCount(1);
+  await expect(page.getByRole("link", { name: "Home", exact: true })).toHaveAttribute("href", "/");
   // Nor does the API close it without a rating.
   const refused = await page.request.post(`/api/rounds/${roundId}/complete`, { data: {} });
   expect(refused.status()).toBe(422);
@@ -935,7 +936,8 @@ test("a realistic Japanese round: Japanese throughout, seven rows, and the feedb
   // Screen 8, in Japanese: seven rows, 敬語 last.
   await expect(page).toHaveURL(`/round/${roundId}/feedback`);
   await expect(page).toHaveTitle("講評 — Suburi");
-  await expect(main).toHaveAttribute("lang", "ja");
+  // The app header above the round is app-level and English (10 §0); the round's card carries the language.
+  await expect(page.locator("main > [lang]")).toHaveAttribute("lang", "ja");
   const rows = page.getByTestId("score-row");
   await expect(rows).toHaveCount(7);
   const labels = () => rows.evaluateAll((elements) => elements.map((element) => element.getAttribute("data-dimension")));
@@ -1068,7 +1070,7 @@ test("a Japanese round whose findings are not ready says so in Japanese, and the
   await expect(page.getByTestId("findings-not-ready")).toContainText("このラウンドの講評はまだできていません。");
   await expect(page.getByTestId("score-row")).toHaveCount(7);
   await expect(page.getByTestId("pressure-stamp")).toHaveText("緊張度3を講評前に記録");
-  await expect(page.locator("main")).not.toContainText(ENGLISH_CHROME);
+  await expect(page.locator('main > [lang="ja"]')).not.toContainText(ENGLISH_CHROME);
   await page.screenshot({ path: test.info().outputPath("ja-8-not-ready.png"), fullPage: true });
 
   // The retry fails once more: the catalogue's sentence, in the round's language.
