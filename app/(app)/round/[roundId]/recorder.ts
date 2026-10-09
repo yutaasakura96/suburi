@@ -45,6 +45,7 @@ export function useRecorder(capSeconds: number, onTake: (take: Take) => void, { 
     timer: number;
     stopAt: number;
   } | null>(null);
+  const mounted = useRef(true);
   const onTakeRef = useRef(onTake);
   useEffect(() => {
     onTakeRef.current = onTake;
@@ -70,10 +71,15 @@ export function useRecorder(capSeconds: number, onTake: (take: Take) => void, { 
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     } catch (error) {
+      if (!mounted.current) return;
       // Denied or absent: nothing is written, and the question stays unseen (10 §4). A refusal is the
       // one the user can lift in the browser, so it is told apart (03 §8).
       const denied = error instanceof DOMException && (error.name === "NotAllowedError" || error.name === "SecurityError");
       setState({ kind: "failed", reason: denied ? "denied" : "unavailable" });
+      return;
+    }
+    if (!mounted.current) {
+      stream.getTracks().forEach((track) => track.stop());
       return;
     }
     const contentType = preferredType();
@@ -116,6 +122,7 @@ export function useRecorder(capSeconds: number, onTake: (take: Take) => void, { 
     };
     recorder.onstop = () => {
       release();
+      if (!mounted.current) return;
       const blob = new Blob(chunks, { type: contentType });
       if (blob.size === 0) {
         setState({ kind: "failed", reason: "recording" });
@@ -126,6 +133,7 @@ export function useRecorder(capSeconds: number, onTake: (take: Take) => void, { 
     };
     recorder.onerror = () => {
       release();
+      if (!mounted.current) return;
       setState({ kind: "failed", reason: "recording" });
     };
 
@@ -143,7 +151,13 @@ export function useRecorder(capSeconds: number, onTake: (take: Take) => void, { 
   }, [capSeconds, timed, release]);
 
   // Leaving the page mid-take releases the microphone; the take is discarded, as a failed one is.
-  useEffect(() => release, [release]);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      release();
+    };
+  }, [release]);
 
   return { state, start, stop };
 }

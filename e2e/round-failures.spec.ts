@@ -320,6 +320,28 @@ test("the round header confirms leaving for Home and the open round resumes", as
   await expect(page.getByTestId("round-question")).toBeVisible();
 });
 
+test("leaving while microphone permission is pending releases the late stream", async ({ page }) => {
+  await signIn(page);
+  const roundId = await startRound(page);
+  await page.goto(`/round/${roundId}`);
+  await page.evaluate(async () => {
+    const state = window as typeof window & { pendingStream: MediaStream; grantPending?: () => void };
+    state.pendingStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    navigator.mediaDevices.getUserMedia = () => new Promise<MediaStream>((resolve) => {
+      state.grantPending = () => resolve(state.pendingStream);
+    });
+  });
+  await page.getByRole("button", { name: "Start recording" }).click();
+  await expect.poll(() => page.evaluate(() => typeof (window as typeof window & { grantPending?: () => void }).grantPending)).toBe("function");
+  await page.getByRole("link", { name: "Home" }).click();
+  await page.getByRole("alertdialog").getByRole("link", { name: "Leave for Home" }).click();
+  await expect(page).toHaveURL("/");
+  await page.evaluate(() => (window as typeof window & { grantPending: () => void }).grantPending());
+  await expect.poll(() => page.evaluate(() =>
+    (window as typeof window & { pendingStream: MediaStream }).pendingStream.getTracks().every((track) => track.readyState === "ended"),
+  )).toBe(true);
+});
+
 test("a practice take whose upload fails is held like any other, and the retry lands on the frame that keeps it or records again", async ({ page }) => {
   await signIn(page);
   const roundId = await startRound(page, "en", "practice");
