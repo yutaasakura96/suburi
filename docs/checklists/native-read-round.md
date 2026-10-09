@@ -447,3 +447,16 @@ shown (`06`, 2026-10-06).
 **One thing to weigh in the read.** The English says the question "stays unseen", the app's own word
 for a question no answer has been recorded against. The Japanese says `未回答のまま` — still
 unanswered — because `未出題` would claim it was never asked, and it is on the screen.
+
+## 16. #105, leaving a live round for Home
+
+**Not read yet.** Four new strings in `app/(app)/round/copy.ts`, all in the confirmation the round
+header's Home link opens during a live round (`05` §5.2). The link itself is §2.4's `ホームへ`,
+unchanged.
+
+| | Japanese | Intent |
+| --- | --- | --- |
+| | ラウンドを離れますか | The confirmation's title — Leave this round? |
+| | 新しいラウンドを始めなければ、今日中は再開できます。録音中の回答や、このタブにだけ残っている録音は失われます。 | Under the title — You can resume this round today unless you start another. A recording in progress or a take held only in this tab will be lost. |
+| | ラウンドに戻る | Control that closes the confirmation — Stay in the round |
+| | ホームへ移動 | Link that leaves — Leave for Home |

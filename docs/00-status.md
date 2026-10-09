@@ -59,7 +59,11 @@ the round-end counts read `GET /api/rounds/{roundId}`, which #49 built, and are 
 **#104, the slow test site, is measured and its cause fixed (2026-10-10), on `fm/suburi-104`:** the
 functions ran in `iad1` and the database is in Singapore; `vercel.json` now pins them to `sin1`. The
 check on `develop` is owed once it is merged (Next).
-**Updated:** 2026-10-10 (#104 measured and fixed; #51 built; follow-ups spoken; #73 built; #49's Japanese strings all accepted; #50's
+**#105, every page has a way back to Home, is built (2026-10-10), on `fm/suburi-105`:** the app header
+on every signed-in screen, and a Home link in a live round's header that confirms before leaving
+(`05` §5.1–§5.2; `06`, "Phase 6 — #105"). Its four Japanese strings are unread
+(`native-read-round.md` §16).
+**Updated:** 2026-10-10 (#105 built; #104 measured and fixed; #51 built; follow-ups spoken; #73 built; #49's Japanese strings all accepted; #50's
 catalogue string read; #43, #44, #45, #46, #47, #48, #49, #50 and #74 built; #42 closed; #55 and #56 on 2026-09-30)
 
 ## Done
