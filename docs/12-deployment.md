@@ -17,6 +17,7 @@ this table supersedes it.
 | --- | --- | --- | --- |
 | Git branch | any | **`develop`** | **`main`** |
 | App | `next dev` | Vercel, `develop` — `suburi-develop.vercel.app` | Vercel, `main` — `suburi-murex.vercel.app` |
+| Functions run in | this machine | **`sin1`**, the database's region | **`sin1`** |
 | Postgres | Docker Compose, `pgvector/pgvector:pg18` | **Neon `develop` branch** | **Neon `main` branch** |
 | Object storage | **The real bucket under `dev/`**, with `develop`'s IAM user (`06`, 2026-09-28) | Real bucket, `dev/` prefix | Real bucket, `prod/` prefix |
 | Data | Synthetic seed | **Synthetic seed** | Real |
@@ -28,6 +29,17 @@ this table supersedes it.
 **The branch ↔ database mapping is one-to-one and load-bearing:** `main` → Neon `main`, `develop` → Neon
 `develop`. Nothing else is allowed to point at Neon `main`. That single rule is what keeps unfinished
 code away from the measurement record.
+
+**Functions run where the database is.** `vercel.json` sets `"regions": ["sin1"]` — Vercel's name
+for AWS `ap-southeast-1`, the region the Neon project and so both its branches are in (§3 step 1). It
+overrides the project setting, which is Vercel's default, `iad1`, and Hobby allows exactly one region.
+Until #104 the functions ran in `iad1`: every query crossed from Washington to Singapore and back,
+**215 ms measured on `develop`**, and a request makes them one after another — 5 for Home, 22 to
+transcribe a take, 24 to submit an answer, about 470 across a six-answer round. That was most of
+"the site is slow"; what it leaves is in `06`, 2026-10-10. **The two move together:** a Neon project
+never changes region, so a move is a new project (Neon's docs), and this line changes in the deploy
+that first reads the new `DATABASE_URL`. `scripts/measure-page-latency.mts` re-measures it: the round
+trips each page makes, and what they cost at a given distance.
 
 **Feature branches** are cut from `develop` and merge back into it. **They are not deployed:**
 `vercel.json` sets `git.deploymentEnabled` to `"**": false` with `main` and `develop` set `true` (a

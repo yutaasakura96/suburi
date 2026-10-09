@@ -34,7 +34,10 @@ export default defineConfig([
     // instrumentation-client.ts reads the two constants next.config.ts inlines from lib/config.ts
     // at build; the browser has no environment to read. The measurement and ear-check scripts need
     // the OpenAI key and nothing else of the app's configuration, and run where no database is.
+    // measure-page-latency.mts runs the dev:session guard first, takes its three knobs from the
+    // environment, and builds the environment the server it starts boots with.
     files: [
+      "scripts/measure-page-latency.mts",
       "scripts/measure-round-latency.mts",
       "scripts/measure-question-generation.mts",
       "scripts/measure-model-answers.mts",
