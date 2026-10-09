@@ -348,6 +348,35 @@ test("two starts share one pending microphone request and leaving releases its l
   )).toBe(true);
 });
 
+test("a round left for Home while it closes stays on Home when the close lands", async ({ page }) => {
+  await signIn(page);
+  const roundId = await startRound(page);
+  for (let answer = 1; answer <= 6; answer += 1) await answerByApi(page, roundId);
+  await page.goto(`/round/${roundId}`);
+  let release!: () => void;
+  const released = new Promise<void>((resolve) => (release = resolve));
+  await page.route("**/complete", async (route) => {
+    await released;
+    await route.fallback();
+  });
+
+  await page.getByRole("radio", { name: "Fairly tense" }).click();
+  await page.getByRole("button", { name: "Go to the feedback" }).click();
+  await expect(page.getByTestId("closing-wait")).toBeVisible();
+  await page.getByRole("link", { name: "Home" }).click();
+  await page.getByRole("alertdialog").getByRole("link", { name: "Leave for Home" }).click();
+  await expect(page).toHaveURL("/");
+
+  const closed = page.waitForResponse("**/complete");
+  release();
+  await (await closed).finished();
+  await page.waitForTimeout(1000);
+  await expect(page).toHaveURL("/");
+  // The round closed all the same: its feedback is there to go to.
+  await page.goto(`/round/${roundId}/feedback`);
+  await expect(page.getByTestId("score-row").first()).toBeVisible();
+});
+
 test("a practice take whose upload fails is held like any other, and the retry lands on the frame that keeps it or records again", async ({ page }) => {
   await signIn(page);
   const roundId = await startRound(page, "en", "practice");

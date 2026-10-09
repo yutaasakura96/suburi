@@ -138,6 +138,13 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
   const [error, setError] = useState<Failure | null>(null);
   const [busy, setBusy] = useState(false);
   const leaveDialog = useRef<HTMLDialogElement>(null);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   const [followUpVersions, setFollowUpVersions] = useState(frame.followUpVersions);
   const { round } = frame;
 
@@ -455,6 +462,7 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
     const completed = result.ok || result.code === "feedback_generation_failed";
     if (!completed) return fail(result.code, () => void complete(value));
     await releaseRoundTakes(round.id);
+    if (!mounted.current) return;
     router.push(`/round/${round.id}/feedback`);
   }
 
