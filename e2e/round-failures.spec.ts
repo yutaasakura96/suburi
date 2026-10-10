@@ -262,9 +262,21 @@ test("an upload that fails is held on this device, survives a reload, and the re
   await expect(page.getByRole("button", { name: "Start recording" })).toHaveCount(0);
   await expect(page.getByTestId("round-question")).toHaveText(question);
   expect(await warnsBeforeUnload(page)).toBe(true);
+  await page.getByRole("link", { name: "Home" }).click();
+  await expect(page.getByRole("alertdialog", { name: "Leave this round?" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Stay in the round" })).toBeFocused();
+  // The modal dialog takes the round behind it out of the tab order: focus stays in the dialog or
+  // leaves the page for the browser's own controls, and never lands on the round.
+  for (const key of ["Shift+Tab", "Shift+Tab", "Tab", "Tab", "Tab"]) {
+    await page.keyboard.press(key);
+    expect(await page.evaluate(() => document.activeElement === document.body || document.activeElement?.closest("dialog") != null)).toBe(true);
+  }
+  await page.getByRole("button", { name: "Stay in the round" }).click();
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
   const [held] = await heldTakes(page);
   expect(held).toMatchObject({ roundId, position: 1, followUp: false });
   expect(held.bytes).toBeGreaterThan(0);
+  expect(await heldTakes(page)).toEqual([held]);
   await page.screenshot({ path: test.info().outputPath("screen4-upload-held.png"), fullPage: true });
 
   // The slot is open and nothing reached the bucket: the round stands at the same call.
@@ -292,6 +304,77 @@ test("an upload that fails is held on this device, survives a reload, and the re
   expect(s3.objects.get(slot.audioS3Key!)?.bytes).toBe(held.bytes);
   expect(await heldTakes(page)).toEqual([]);
   expect(await warnsBeforeUnload(page)).toBe(false);
+});
+
+test("the round header confirms leaving for Home and the open round resumes", async ({ page }) => {
+  await signIn(page);
+  const roundId = await startRound(page);
+  await page.goto(`/round/${roundId}`);
+  await page.getByRole("link", { name: "Home" }).click();
+  await expect(page.getByRole("alertdialog", { name: "Leave this round?" })).toBeVisible();
+  await page.getByRole("button", { name: "Stay in the round" }).click();
+  await expect(page).toHaveURL(new RegExp(`/round/${roundId}$`));
+  await page.getByRole("link", { name: "Home" }).click();
+  await page.getByRole("alertdialog").getByRole("link", { name: "Leave for Home" }).click();
+  await expect(page).toHaveURL("/");
+  await page.goto(`/round/${roundId}`);
+  await expect(page.getByRole("link", { name: "Home" })).toHaveAttribute("href", "/");
+  await expect(page.getByTestId("round-question")).toBeVisible();
+});
+
+test("two starts share one pending microphone request and leaving releases its late stream", async ({ page }) => {
+  await signIn(page);
+  const roundId = await startRound(page);
+  await page.goto(`/round/${roundId}`);
+  await page.evaluate(async () => {
+    const state = window as typeof window & { pendingStream: MediaStream; grantPending?: () => void; pendingRequests: number };
+    state.pendingStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    state.pendingRequests = 0;
+    navigator.mediaDevices.getUserMedia = () => new Promise<MediaStream>((resolve) => {
+      state.pendingRequests += 1;
+      state.grantPending = () => resolve(state.pendingStream);
+    });
+  });
+  await page.getByRole("button", { name: "Start recording" }).click();
+  await expect.poll(() => page.evaluate(() => typeof (window as typeof window & { grantPending?: () => void }).grantPending)).toBe("function");
+  await page.getByRole("button", { name: "Start recording" }).click();
+  expect(await page.evaluate(() => (window as typeof window & { pendingRequests: number }).pendingRequests)).toBe(1);
+  await page.getByRole("link", { name: "Home" }).click();
+  await page.getByRole("alertdialog").getByRole("link", { name: "Leave for Home" }).click();
+  await expect(page).toHaveURL("/");
+  await page.evaluate(() => (window as typeof window & { grantPending: () => void }).grantPending());
+  await expect.poll(() => page.evaluate(() =>
+    (window as typeof window & { pendingStream: MediaStream }).pendingStream.getTracks().every((track) => track.readyState === "ended"),
+  )).toBe(true);
+});
+
+test("a round left for Home while it closes stays on Home when the close lands", async ({ page }) => {
+  await signIn(page);
+  const roundId = await startRound(page);
+  for (let answer = 1; answer <= 6; answer += 1) await answerByApi(page, roundId);
+  await page.goto(`/round/${roundId}`);
+  let release!: () => void;
+  const released = new Promise<void>((resolve) => (release = resolve));
+  await page.route("**/complete", async (route) => {
+    await released;
+    await route.fallback();
+  });
+
+  await page.getByRole("radio", { name: "Fairly tense" }).click();
+  await page.getByRole("button", { name: "Go to the feedback" }).click();
+  await expect(page.getByTestId("closing-wait")).toBeVisible();
+  await page.getByRole("link", { name: "Home" }).click();
+  await page.getByRole("alertdialog").getByRole("link", { name: "Leave for Home" }).click();
+  await expect(page).toHaveURL("/");
+
+  const closed = page.waitForResponse("**/complete");
+  release();
+  await (await closed).finished();
+  await page.waitForTimeout(1000);
+  await expect(page).toHaveURL("/");
+  // The round closed all the same: its feedback is there to go to.
+  await page.goto(`/round/${roundId}/feedback`);
+  await expect(page.getByTestId("score-row").first()).toBeVisible();
 });
 
 test("a practice take whose upload fails is held like any other, and the retry lands on the frame that keeps it or records again", async ({ page }) => {
@@ -892,6 +975,8 @@ test("resume: a reload returns to the same question with the earlier answers int
   expect(refused.status()).toBe(409);
   expect((await refused.json()).error.code).toBe("round_abandoned");
   expect(await answersOf(first)).toEqual(before);
+  await page.getByRole("link", { name: "Home" }).click();
+  await expect(page).toHaveURL("/");
 });
 
 test("resume: the newest round is abandoned too once its Asia/Tokyo day has passed, and says why", async ({ page }) => {

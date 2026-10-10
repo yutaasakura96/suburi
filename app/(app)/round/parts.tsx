@@ -1,4 +1,5 @@
 import { useId } from "react";
+import Link from "next/link";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 // No "use client": the round runner renders these on the client, the feedback page on the server.
@@ -14,13 +15,15 @@ export function roundSectionLabel(language: "ja" | "en") {
 export const caption = "text-[12px] leading-[1.75] text-ink-6";
 export const mono = "font-mono";
 
-/** 05 §5.2: replaces the app header in a round — title and meta left, the stepper right. No way out. */
+/** 05 §5.2: replaces the app header in a round — title and meta left, the stepper right. */
 export function RoundHeader({
   title,
   meta,
   done,
   length,
   step,
+  home,
+  onHome,
 }: {
   title: string;
   meta: string;
@@ -28,6 +31,8 @@ export function RoundHeader({
   done: number;
   length: number;
   step: string;
+  home: string;
+  onHome: React.MouseEventHandler<HTMLAnchorElement>;
 }) {
   return (
     <header className="flex items-baseline justify-between border-b border-rule-frame px-[32px] py-[20px]">
@@ -48,6 +53,9 @@ export function RoundHeader({
         <span className="font-mono text-[11px] tracking-[0.08em] text-ink-label" data-testid="round-step">
           {step}
         </span>
+        <Link href="/" onClick={onHome} className="text-[13px] text-link hover:text-link-hover hover:underline">
+          {home}
+        </Link>
       </div>
     </header>
   );

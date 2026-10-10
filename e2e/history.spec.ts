@@ -496,6 +496,17 @@ test("retrying a failed score scores that answer alone, and the round feedback i
   // Screen 8 still reads the feedback it was given.
   await page.getByRole("link", { name: "Round feedback" }).click();
   await expect(page.getByTestId("to-fix")).toContainText("Answer the question asked");
+  // The feedback screen has the app nav too, and Home is one click away (#105).
+  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Home" }).click();
+  await expect(page).toHaveURL("/");
+});
+
+test("a round id that is not the user's is a 404 with the nav, and the nav is not doubled", async ({ page }) => {
+  await signIn(page);
+  expect((await page.goto("/history/00000000-0000-4000-8000-000000000000"))?.status()).toBe(404);
+  await expect(page.getByRole("navigation", { name: "Main" })).toHaveCount(1);
+  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Home" }).click();
+  await expect(page).toHaveURL("/");
 });
 
 test("a score that never finished is run as it is: no new attempt", async ({ page }) => {

@@ -268,6 +268,10 @@ const en = {
   abandoned: "This round was left when a newer one started. It stays as it is.",
   abandonedByDay: "This round was not finished on the day it started, so it was left. It stays as it is.",
   home: "Home",
+  leaveTitle: "Leave this round?",
+  leaveDetail: "You can resume this round today unless you start another. A recording in progress or a take held only in this tab will be lost.",
+  stay: "Stay in the round",
+  leaveHome: "Leave for Home",
 
   // 10 §8
   questionOf: (position: number, of: number) => `Question ${position} / ${of}`,
@@ -450,6 +454,10 @@ const ja: RoundCopy = {
   abandoned: "新しいラウンドが始まったため、このラウンドは中断されました。記録はそのまま残ります。",
   abandonedByDay: "始めた日のうちに終わらなかったため、このラウンドは中断されました。記録はそのまま残ります。",
   home: "ホームへ",
+  leaveTitle: "ラウンドを離れますか",
+  leaveDetail: "新しいラウンドを始めなければ、今日中は再開できます。録音中の回答や、このタブにだけ残っている録音は失われます。",
+  stay: "ラウンドに戻る",
+  leaveHome: "ホームへ移動",
 
   questionOf: (position, of) => `第${position}問 / ${of}問`,
   question: (position) => `第${position}問`,

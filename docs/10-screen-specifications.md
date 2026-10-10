@@ -175,8 +175,8 @@ type and both context groups, since the ≥30 target is per language (US-13). An
 out is not counted here either, so the two screens never disagree on the number. The track fills to
 `count / 30` and stops at full.
 
-**The app header** (`05` §5.1) is built with this screen and carried by Home, Setup, Progress, History
-and the CV. A running round keeps its own header, and no way out of it (`05` §5.2).
+**The app header** (`05` §5.1) is built with this screen and carried by every signed-in screen but a
+running round, which keeps its own header and that header's Home link (`05` §5.2).
 
 ---
 
@@ -482,7 +482,8 @@ read and accepted the same day.
   typed answer is recorded as typed, has no duration or pace, is not counted in progress, and that the
   take is kept. Saving goes on to screen 5 with the typed text as the raw transcript and **no figures**:
   there was no delivery to measure. A reload returns to this frame, not to a new take.
-- **The round is abandoned.** In place of the frames: one sentence and the way Home. Which sentence
+- **The round is abandoned.** In place of the frames: one sentence; the way Home is the header's
+  link, which here asks nothing (`05` §5.2). Which sentence
   depends on why — a newer round started, or the round was not finished on the Asia/Tokyo day it
   began. No control writes anything.
 
@@ -624,6 +625,9 @@ surfaced on round feedback and History as `緊張度4を講評前に記録`.
 ## 8. Round feedback — `Main.dc.html` (lower card)
 
 **The screen the product exists for.** Rendered while the user is still at the machine (PRD §9).
+
+**Since #105 the app header (`05` §5.1) sits above the round's card in a card of its own**, no item
+current and in English whatever the round's language (§0).
 
 Header: `行動面接` 17px/600, `日本語・実戦・5問` 13px `--ink-4`; right, the date in 11px mono and a
 language pill (`1px --tick`, `padding: 4px 10px`, 11px `--ink-4`) reading `English` — the toggle to
@@ -1198,7 +1202,7 @@ Below the current version, in the same panel: one row per older version, newest 
 claim count — at 12px, `--ink-6`, on `--rule-hairline` separators. A row is a link to that version at
 **`/cv/versions/{id}`**, a server-rendered page in the same shape as the current-version view — stamp,
 date, count, documents with their underlines — with no new-version action and a link back to `/cv`
-(`06`, #16). An id that is not the user's, or not a version at all, is a 404. The page is also what a
+(`06`, #16), under the app header in its own card as on `/cv`, `CV` current (#105). An id that is not the user's, or not a version at all, is a 404. The page is also what a
 CV stamp on an old answer will link to.
 
 **Readable, never selectable.** There is no control that makes an older version current and none that
@@ -1236,8 +1240,8 @@ Home's status line (§1); it is **not in the app header's nav**, which stays `Ho
 
 ### Layout
 
-The standard frame, `padding: 40px 44px`, **one card** at 1280px (`05` §4): a card header holding the
-§3.3 section label `STATUS`, then the body at `26px 32px 32px`, its three blocks gapped `28px`, each
+The standard frame, `padding: 40px 44px`, **one card** at 1280px (`05` §4): the app header with no
+item current (`05` §5.1), a card header holding the §3.3 section label `STATUS`, then the body at `26px 32px 32px`, its three blocks gapped `28px`, each
 headed by a §3.3 section label.
 
 ### Staleness, first
