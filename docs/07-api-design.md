@@ -37,8 +37,8 @@ code. They are endpoints anyway, for the uniformity.
 | `GET /api/answers/{answerId}/audio` | Mints a short-lived credential on demand, at play time. |
 | `GET /api/rounds/{roundId}/speech` ⚡ | Streams the prompt on screen (§5.15). |
 
-Everything else — Home's intervals, Progress's trends, History detail, the feedback screen — is a
-Server Component reading Postgres directly. **The feedback screen in particular is a read** (`03` §3):
+Everything else — Home's intervals, Progress's trends, History detail, the study view (`10` §16), the
+feedback screen — is a Server Component reading Postgres directly. **The feedback screen in particular is a read** (`03` §3):
 by round end the scores are already rows.
 
 ### Rules that apply to every endpoint
@@ -1256,6 +1256,9 @@ what History's `Abandoned` line reads (`10` §10).
   to honour. `limit` outside 1–100, or not an integer, is a `400` too, never clamped.
 - **History's first page is read by the page itself**, as a Server Component, through the same
   function this handler calls (§1); the client calls this route for the older pages only.
+- **The study view (#75, `10` §16) pages by the same cursor and adds no route.** Each of its pages is a
+  Server Component read, and the cursor travels as the page's own `before` parameter; one this server
+  did not mint is the page's `404`, where this route answers `400`.
 
 ### 5.14 `GET /api/answers/{answerId}/audio`
 

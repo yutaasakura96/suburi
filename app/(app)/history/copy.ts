@@ -42,6 +42,8 @@ export const HISTORY_COPY = {
   inProgress: "In progress — resume",
   resume: "Resume this round",
 
+  /** The rail's way to the study view (10 §16), which reads across rounds. */
+  study: "Study past questions",
   older: "Older rounds",
   loadingOlder: "Loading older rounds.",
   empty: "No rounds yet. A round is listed here from the moment it starts.",

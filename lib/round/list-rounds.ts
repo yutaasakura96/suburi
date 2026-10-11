@@ -52,7 +52,7 @@ export interface RoundListQuery {
 }
 
 /** `{ s: started_at, i: id }`: where the previous page ended. `s` keeps Postgres's microseconds. */
-interface Cursor {
+export interface Cursor {
   readonly s: string;
   readonly i: string;
 }

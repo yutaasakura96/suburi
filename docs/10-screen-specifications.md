@@ -2,7 +2,8 @@
 
 Nine screens, extracted from the Direction B artboards in `design/`, **and a tenth — the CV screen
 (§13) — specified from `05` components with no artboard behind it, an eleventh, the status page
-(§14), specified the same way, and practice mode's frames (§15), which the artboards never drew.**
+(§14), specified the same way, practice mode's frames (§15), which the artboards never drew, and the
+study view (§16), added by #75.**
 Tokens referenced here are
 defined in [`05-design-system.md`](05-design-system.md); this document specifies **what each screen
 contains, in what state, and what it must refuse to do**.
@@ -27,7 +28,7 @@ words, the questions, and the feedback's content.
 | Screens | Chrome is in |
 | --- | --- |
 | **Inside a round** — record (§3–5, and practice's frames), transcript correction (§6), felt pressure (§7), round feedback (§8) | **The round's language.** A Japanese round is Japanese throughout; an English round is English throughout. |
-| **App-level** — Home (§1), Setup (§2), Progress (§9), History (§10), Status (§14) | **English**, one fixed app language. |
+| **App-level** — Home (§1), Setup (§2), Progress (§9), History (§10), Status (§14), Study (§16) | **English**, one fixed app language. |
 | CV (§13) | Each panel in its own language — its own rule, unchanged. |
 | `/sign-in` | Both languages side by side (§12), unchanged. |
 
@@ -936,7 +937,8 @@ every round, listed yet or not. A detail refresh reads the older pages again as 
 round loaded, including beyond the 100-round request limit, and merges them in by round id, in the
 order the server returned them: a round already listed is never dropped — not when another tab has
 started a round since, and not a page `Older rounds` adds while it is reading. The app header reaches
-it (#51, §1); the link Home carried until then is gone.
+it (#51, §1); the link Home carried until then is gone. **Under the rail's heading, one link —
+`Study past questions` — leads to the study view** (#75, §16), which reads across rounds.
 
 **The chrome, in English (§0).** The artboard's strings are layout; these replace them. Data keeps its
 language: questions, follow-ups, transcripts and a stored `応募書類 v1` are shown as written, and a
@@ -1499,3 +1501,94 @@ scores, and the frame after the last answer is the one that leads to the feedbac
   its own.
 - **No timer, countdown or elapsed time while recording**, and nothing that draws the guard.
 - **No discarding an answer.** Answer again adds a row; nothing removes or replaces one (§11).
+
+---
+
+## 16. Study — `/history/study`, no artboard
+
+**Purpose.** Before an interview, read back every question that has been asked: what was said, how it
+could have been answered, and what the round said to fix (US-18, #75). Screen 8 shows this one round
+and one question at a time, behind a pager; this is the same material across rounds, unrolled.
+
+No artboard was drawn. It is specified from `05` components and from screen 8's own card (§8), the way
+§13 was. **Part of History, not a fifth nav item**: the app header (`05` §5.1) shows `History` active,
+History's rail links to it (§10), and it carries no rail of its own, since it is not about one round.
+App-level, so its chrome is English (§0); data keeps its language.
+
+**A read, and only a read.** It is drawn from stored rows — `answers`, `model_answers`,
+`round_feedback` — and reads no score at all. Nothing is generated, scored, written or edited from
+this screen (`07` §1).
+
+### What it lists
+
+- **Rounds with a submitted answer**, newest first by `started_at`, including unfinished rounds.
+  A round still in progress or abandoned may have no model answer or findings; both are shown as
+  unavailable. A realistic round still in progress is holding its scores (US-8).
+- **Only a question an answer made seen.** A question fixed for a round and never answered is not read
+  for this screen at all (`04` `round_questions`), as History shows it by number alone (§10).
+- **Ten rounds a page**, keyset-paged by the cursor History's list uses (`07` §5.13), carried as the
+  page's `before` parameter. `Older rounds` leads on; past the first page, `Newest rounds` leads back.
+  A cursor this server did not mint, or one past the oldest round, is a 404 with the app header —
+  never the first page in its place.
+
+### Layout
+
+Cards gapped `14px` (§0). **The first** is the app header over one row: the §3.3 section label `STUDY`,
+the sentence `Every question you answered, with what you said, its available model answer and what to
+fix. Newest first.` at 12px `--ink-label`, and right, the link `Rounds in History`. **Then one card
+per round**, and **last** a card with the footer's two sentences at 12px/1.85 `--ink-6` and the page
+links.
+
+### A round's card
+
+Screen 8's card without its scores, its pager and its stamps.
+
+- **Header**, as §8's: `Behavioural` 17px/600, `Japanese · Realistic · 3 questions` 13px `--ink-4`, the
+  Asia/Tokyo date in 11px mono — named as History names them (§10). Under it, a `Scores and recordings`
+  link to History detail, plus `Round feedback` on completed rounds only. Right, the language pill,
+  when there is something for it to change (below).
+- **3-column grid**, as §8: the questions at `span 2`, the round's `To fix` in the last column.
+- **Each question**, in the order asked, a `--rule-section` line between two: `Question 1 / 3` in 11px
+  mono `0.16em` — the number the findings call it by; the question at 15px/1.85 `--ink-2`; then **§8's
+  two answer-text columns**, `Your answer` beside `Model answer`, with the same underline on each
+  stored `unsupported_spans` run and the same caption naming the round's CV stamp.
+  - **A practice answer given again** (§15) is under what was said first, labelled `Answered again`,
+    numbered from the second on (`Answered again 2`). The first answer stays above it, unchanged
+    (refusal #3); the model answer beside them is the one written for the first (`04`).
+  - **The follow-up**, under its question: `└ Follow-up` at 12px `--ink-6` and the follow-up as asked,
+    then the same two columns, labelled `Your answer to the follow-up` and `Model answer to the
+    follow-up`. A missing or unanswered follow-up is not listed.
+  - **No model answer stored** is one plain sentence in the right column: `No model answer is available
+    for this question.` **No control**: the one that writes it for a completed round is screen 8's
+    (`07` §5.19), a link away in the header.
+- **`To fix 3`** — the round's stored `to_fix` (`04` `round_feedback`), numbered, title in 500 and
+  body in `--ink-3`, as §8 draws it. It names its questions by number, so the column is `position:
+  sticky` and stays beside the questions as the round is read. A round whose findings were never
+  written says `No fixes are available for this round.`
+  `What worked` and `Checked against your CV` are screen 8's, and are not repeated here.
+- **The pill**, on a Japanese round with a stored translation — of its findings, or of any model
+  answer — reads `English`, then `日本語`, as on screen 8. It changes that round's model answers and
+  `To fix`, each from the translation stored with it; what was asked and what was said never change,
+  and neither does the chrome. The choice is that card's, and is not stored. An English round has none.
+
+### Empty
+
+With no answered question: `No answered question yet. A question appears here after you submit an answer.`
+and the link `Start a round`.
+
+### Footer
+
+`Answered questions from completed and unfinished rounds appear here. Unanswered questions stay in History.` /
+`A model answer is not a score, and nothing here compares it with what you said.`
+
+### Refuses
+
+- **No score, and no composite** (§11). No score row, numeral, scale, duration, pace or rewrite
+  figure: the per-answer figures are screen 8's and History's.
+- **No diff and no judgement** between what was said and the model answer (§8).
+- **Nothing that writes.** No `Write the model answers`, no `Retry scoring`, no regenerate, no edit,
+  delete, share or export; its only button is the pill.
+- **No raw transcript and no recording.** Those are History's, from each row (§10).
+- **No filter and no search.** Rounds are read newest first; choosing by language or round type is not
+  built (`06`, 2026-10-12).
+- **No question a round never asked.**

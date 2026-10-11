@@ -4,6 +4,7 @@
 **Status:** Phase 1 complete. **Amended 2026-09-27** by the round-loop decisions (`06`, "Phase 6 — the
 round loop"): §2, §3, US-2, US-4, US-5, US-7, US-8, US-11, US-13 and §7. **Amended 2026-10-04**
 (#74): US-17, a model answer for each question, raised by the user after the first real round.
+**Amended 2026-10-12** (#75): US-18, a study view of past questions.
 **Upstream:** `01-project-brief.md`. Decisions and their reasoning: `06-decision-log.md`.
 
 No technical decisions appear here. Stack, storage, speech engine and model choices belong to
@@ -279,6 +280,23 @@ proposed; they are the user's to confirm (`06`, 2026-10-04).
   ID, raw transcript, corrected text, diff and rewrite magnitude, audio, duration, WPM, per-dimension
   scores, pointers, follow-ups, felt-pressure rating, and all version stamps.
 - Nothing in history is editable after the round ends.
+
+**US-18 — Study past questions before an interview** `SHOULD` *(added 2026-10-12, #75)*
+> As the user, I want every question I have been asked in one place, with my answer, its model answer
+> and what to fix, so that I can read through them before an interview.
+
+Proposed by firstmate and approved by the owner to file on 2026-10-03.
+
+*Acceptance:*
+- Every question with a submitted answer is listed, newest round first, including answers from
+  unfinished rounds. An answered follow-up appears with its question; unanswered questions stay out.
+- Each shows what the user said, the model answer stored for it (US-17), and the round's things to
+  fix (US-10), as they were stored. Missing model answers and fixes are shown as unavailable.
+- **It is a read.** Nothing is scored, generated or regenerated for it, and nothing in it can be
+  edited.
+- **No score and no comparison** between the user's answer and the model answer (§9).
+- A question a round never reached is not shown: it was never asked, and reading it here would make
+  it seen before it is (US-13).
 
 **US-13 — See per-dimension progress** `MUST`
 > As the user, I want per-dimension trends on first attempts at questions I had not seen, per

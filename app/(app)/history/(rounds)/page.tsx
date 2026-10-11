@@ -4,7 +4,7 @@ import { desc, eq } from "drizzle-orm";
 import * as s from "@/db/schema";
 import { requireSession } from "@/lib/auth/session";
 import { getDb } from "@/lib/db";
-import { HISTORY_COPY } from "./copy";
+import { HISTORY_COPY } from "../copy";
 
 /** `/history` opens the newest round, as the rail lists it; with none, it says so (PRD §6). */
 export default async function HistoryPage() {

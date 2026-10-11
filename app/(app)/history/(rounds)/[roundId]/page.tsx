@@ -3,8 +3,8 @@ import { requireSession } from "@/lib/auth/session";
 import { getDb } from "@/lib/db";
 import { isUuid } from "@/lib/round/http";
 import { getRound } from "@/lib/round/state";
-import { HistoryDetailView } from "../detail";
-import { historyDetail } from "../load";
+import { HistoryDetailView } from "../../detail";
+import { historyDetail } from "../../load";
 
 /**
  * One round, exactly as it happened (US-12). A Server Component reading stored rows (07 §1): another
