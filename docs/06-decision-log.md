@@ -5,6 +5,11 @@ Newest first. Every entry records what was chosen, why, and what was rejected.
 ---
 ## Phase 6 — #75, the study view
 
+### [2026-10-12] Correction: a missing model answer is only said
+
+Study says only that no model answer is available for the question; it does not say where one can be
+written. This supersedes "says where it can be written" in the reads-and-never-writes entry below.
+
 ### [2026-10-12] Owner correction: Study omits follow-ups never asked
 
 A failed follow-up generation records a `missing` row, but no question was asked. Study shows an
