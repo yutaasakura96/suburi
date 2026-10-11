@@ -1515,7 +1515,7 @@ No artboard was drawn. It is specified from `05` components and from screen 8's 
 History's rail links to it (§10), and it carries no rail of its own, since it is not about one round.
 App-level, so its chrome is English (§0); data keeps its language.
 
-**A read, and only a read.** It is drawn from stored rows — `answers`, `follow_ups`, `model_answers`,
+**A read, and only a read.** It is drawn from stored rows — `answers`, `model_answers`,
 `round_feedback` — and reads no score at all. Nothing is generated, scored, written or edited from
 this screen (`07` §1).
 
@@ -1557,8 +1557,7 @@ Screen 8's card without its scores, its pager and its stamps.
     (refusal #3); the model answer beside them is the one written for the first (`04`).
   - **The follow-up**, under its question: `└ Follow-up` at 12px `--ink-6` and the follow-up as asked,
     then the same two columns, labelled `Your answer to the follow-up` and `Model answer to the
-    follow-up`. **A missing follow-up keeps its row**, in `--attention-ink`: `The follow-up was not
-    generated. It is recorded as a gap.` An asked but unanswered follow-up is not listed.
+    follow-up`. A missing or unanswered follow-up is not listed.
   - **No model answer stored** is one plain sentence in the right column: `No model answer is available
     for this question.` **No control**: the one that writes it for a completed round is screen 8's
     (`07` §5.19), a link away in the header.

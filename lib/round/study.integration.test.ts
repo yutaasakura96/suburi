@@ -114,7 +114,7 @@ describe("the study view's loader (10 §16)", () => {
       expect(JSON.stringify(abandoned)).not.toContain("Describe a time you had to deliver with less time than you needed.");
     }));
 
-  it("reads each question in the order asked, with what was said, its follow-up, and the hole a missing one left", () =>
+  it("reads each question in order, includes answered follow-ups, and omits missing ones", () =>
     inRolledBackTransaction(async (db) => {
       const userId = await seededUser(db);
       const [round] = (await studyPage(db, userId, null)).rounds;
@@ -124,10 +124,10 @@ describe("the study view's loader (10 §16)", () => {
         prompt: "この1年で解決した、最も難しかった問題について教えてください。",
         own: "4名のチームで在庫連携バッチを再設計し、夜間処理を6時間から2時間に短縮しました。",
         again: [],
-        followUp: { kind: "answered", prompt: "その判断は誰が下したのですか。", own: "差分連携に切り替え、処理を店舗単位で並列化しました。", again: [] },
+        followUp: { prompt: "その判断は誰が下したのですか。", own: "差分連携に切り替え、処理を店舗単位で並列化しました。", again: [] },
       });
-      expect(round.questions[1].followUp).toEqual({ kind: "missing" });
-      expect(round.questions[2].followUp).toMatchObject({ kind: "answered", own: "結果として、2023年度は遅延がゼロになりました。" });
+      expect(round.questions[1].followUp).toBeNull();
+      expect(round.questions[2].followUp).toMatchObject({ own: "結果として、2023年度は遅延がゼロになりました。" });
       // What was said is the correction that was scored; the raw transcript is History's (10 §10).
       expect(JSON.stringify(round)).not.toContain("えー、");
     }));
@@ -185,7 +185,6 @@ describe("the study view's loader (10 §16)", () => {
         ],
       });
       expect(round.questions[0].followUp).toMatchObject({
-        kind: "answered",
         modelAnswer: { segments: [{ text: "判断はチームで下しました。", unsupported: false }], translated: null },
       });
       expect(round.questions[1].modelAnswer).toBeNull();
@@ -260,7 +259,7 @@ describe("the study view's loader (10 §16)", () => {
 
       expect([...keysOf(page)].sort()).toEqual(
         [
-          "again", "body", "complete", "cvLabel", "followUp", "id", "kind", "language", "length", "mode", "modelAnswer", "older", "own",
+          "again", "body", "complete", "cvLabel", "followUp", "id", "language", "length", "mode", "modelAnswer", "older", "own",
           "position", "prompt", "questions", "roundType", "rounds", "segments", "startedAt", "text", "title", "toFix",
           "toFixTranslated", "translated", "unsupported",
         ].sort(),

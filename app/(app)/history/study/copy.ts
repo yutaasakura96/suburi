@@ -28,7 +28,6 @@ export const STUDY_COPY = {
 
   question: feedback.questionOf,
   followUp: HISTORY_COPY.followUp,
-  followUpMissing: HISTORY_COPY.followUpMissing,
   ownAnswer: feedback.ownAnswer,
   modelAnswer: feedback.modelAnswer,
   followUpOwnAnswer: feedback.followUpOwnAnswer,

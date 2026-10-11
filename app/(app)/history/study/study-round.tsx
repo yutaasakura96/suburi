@@ -73,7 +73,7 @@ function Texts({
  */
 export function StudyRoundView({ round }: { round: StudyRound }) {
   const { language } = round;
-  const answered = round.questions.flatMap((question) => (question.followUp?.kind === "answered" ? [question, question.followUp] : [question]));
+  const answered = round.questions.flatMap((question) => (question.followUp ? [question, question.followUp] : [question]));
   const translatable = language === "ja" && (round.toFixTranslated !== null || answered.some((answer) => answer.modelAnswer?.translated != null));
   const [selectedReading, setReading] = useState<RoundLanguage>(language);
   const reading = translatable ? selectedReading : language;
@@ -134,25 +134,19 @@ export function StudyRoundView({ round }: { round: StudyRound }) {
               </h3>
               <Texts round={round} reading={reading} answer={question} labels={{ own: COPY.ownAnswer, model: COPY.modelAnswer }} />
               {question.followUp ? (
-                <div className="flex flex-col gap-[14px] pt-[10px]" data-testid="study-follow-up" data-kind={question.followUp.kind}>
+                <div className="flex flex-col gap-[14px] pt-[10px]" data-testid="study-follow-up">
                   <p className="flex items-baseline gap-[18px] text-[12px] leading-[1.7]">
                     <span className="shrink-0 text-ink-6">{COPY.followUp}</span>
-                    {question.followUp.kind === "missing" ? (
-                      <span className="text-attention-ink">{COPY.followUpMissing}</span>
-                    ) : (
-                      <span className="text-[13px] leading-[1.85] text-ink-2" lang={language}>
-                        {question.followUp.prompt}
-                      </span>
-                    )}
+                    <span className="text-[13px] leading-[1.85] text-ink-2" lang={language}>
+                      {question.followUp.prompt}
+                    </span>
                   </p>
-                  {question.followUp.kind === "answered" ? (
-                    <Texts
-                      round={round}
-                      reading={reading}
-                      answer={question.followUp}
-                      labels={{ own: COPY.followUpOwnAnswer, model: COPY.followUpModelAnswer }}
-                    />
-                  ) : null}
+                  <Texts
+                    round={round}
+                    reading={reading}
+                    answer={question.followUp}
+                    labels={{ own: COPY.followUpOwnAnswer, model: COPY.followUpModelAnswer }}
+                  />
                 </div>
               ) : null}
             </article>

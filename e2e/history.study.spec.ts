@@ -213,7 +213,6 @@ test("each question shows what was said beside its stored model answer, the foll
 
   // The follow-up: asked, answered, and with no model answer stored — said, with nothing to press.
   const followUp = first.getByTestId("study-follow-up");
-  await expect(followUp).toHaveAttribute("data-kind", "answered");
   await expect(followUp).toContainText("└ Follow-up");
   await expect(followUp).toContainText("Which signal would you look at first, and why?");
   await expect(followUp.getByRole("heading", { name: "Your answer to the follow-up" })).toBeVisible();
@@ -233,7 +232,7 @@ test("each question shows what was said beside its stored model answer, the foll
   await expect(round(page, "pending-en").getByTestId("study-language")).toHaveCount(0);
 });
 
-test("a Japanese round keeps its data in Japanese under English chrome, marks what the CV does not back, and shows the hole a missing follow-up left", async ({ page }) => {
+test("a Japanese round keeps its data in Japanese under English chrome and marks what the CV does not back", async ({ page }) => {
   await signIn(page);
   await page.goto("/history/study");
 
@@ -257,10 +256,7 @@ test("a Japanese round keeps its data in Japanese under English chrome, marks wh
   }
   await expect(japanese.locator("header")).not.toContainText(JAPANESE);
 
-  // 04 `follow_ups`: a generation failure is a row, and the screen shows the hole.
-  const missing = questions(page, "complete-ja").nth(1).getByTestId("study-follow-up");
-  await expect(missing).toHaveAttribute("data-kind", "missing");
-  await expect(missing).toHaveText("└ Follow-upThe follow-up was not generated. It is recorded as a gap.");
+  await expect(questions(page, "complete-ja").nth(1).getByTestId("study-follow-up")).toHaveCount(0);
 
   await expect(japanese.getByTestId("study-to-fix").getByRole("heading")).toHaveText("To fix 2");
   await expect(japanese.getByTestId("study-to-fix").getByRole("listitem")).toHaveText([

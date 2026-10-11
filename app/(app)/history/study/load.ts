@@ -26,11 +26,7 @@ export interface StudyAnswer {
 export interface StudyQuestion extends StudyAnswer {
   readonly position: number;
   readonly prompt: string;
-  /** The answer's one follow-up: answered, or **missing** — the hole a failed generation left. */
-  readonly followUp:
-    | ({ readonly kind: "answered"; readonly prompt: string } & StudyAnswer)
-    | { readonly kind: "missing" }
-    | null;
+  readonly followUp: ({ readonly prompt: string } & StudyAnswer) | null;
 }
 
 export interface StudyRound {
@@ -106,13 +102,7 @@ export async function studyPage(db: Db, userId: string, cursor: Cursor | null): 
     db.select().from(s.roundFeedback).where(inArray(s.roundFeedback.roundId, roundIds)),
   ]);
   const answerIds = answers.map((answer) => answer.id);
-  const [followUps, modelAnswers] =
-    answerIds.length === 0
-      ? [[], []]
-      : await Promise.all([
-          db.select().from(s.followUps).where(inArray(s.followUps.parentAnswerId, answerIds)),
-          db.select().from(s.modelAnswers).where(inArray(s.modelAnswers.answerId, answerIds)),
-        ]);
+  const modelAnswers = await db.select().from(s.modelAnswers).where(inArray(s.modelAnswers.answerId, answerIds));
 
   /** An answer, with every "answer again" made of it. A retry reads its original's model answer and has none of its own. */
   function said(answer: AnswerRow): StudyAnswer {
@@ -125,11 +115,8 @@ export async function studyPage(db: Db, userId: string, cursor: Cursor | null): 
   }
 
   function followUpOf(question: AnswerRow): StudyQuestion["followUp"] {
-    const row = followUps.find((followUp) => followUp.parentAnswerId === question.id);
-    if (!row) return null;
-    if (row.status === "missing" || row.promptText === null) return { kind: "missing" };
     const answer = answers.find((candidate) => candidate.parentAnswerId === question.id && candidate.retryOfAnswerId === null);
-    return answer ? { kind: "answered", prompt: row.promptText, ...said(answer) } : null;
+    return answer ? { prompt: answer.promptText, ...said(answer) } : null;
   }
 
   return {

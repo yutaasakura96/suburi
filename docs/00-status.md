@@ -517,14 +517,14 @@ against Neon `develop` before the merge is verified there (`12` §3 step 8);
 **#75 is built (2026-10-12), on `fm/suburi-75`.** Built: the study view at `/history/study`, reached
 from History's rail and shown under `History` in the nav — rounds with submitted answers newest first, ten a page
 by History's cursor, each as screen 8's card unrolled: every answered question with what was said
-beside its stored model answer, its follow-up the same way, a practice answer-again under the first,
-the hole a missing follow-up left, and the round's stored `To fix`, with the `English` pill on a
+beside its stored model answer, its answered follow-up the same way, a practice answer-again under the first,
+and the round's stored `To fix`, with the `English` pill on a
 Japanese round. **Read-only**: it reads no score, writes nothing and calls no model; a missing model
 answer is said, and written from the round's feedback as before. History's rail layout moved into a
 route group; no URL changed. No migration. Tests: `11` §3.24 and the study view's Playwright row in
 §4. **Verified by hand** on a production build against a throwaway local database holding the seed
 and invented model answers: the rail's link, the page in both languages, the pill, the underline and
-its legend, the gap rows, and the `To fix` column staying in view; at a phone's width it is the same
+its legend, and the `To fix` column staying in view; at a phone's width it is the same
 1280px desktop canvas as History, with no breakpoint added (`10` §12). **The user's step:** read it on
 `develop` over a real round's model answers. Decisions in `06`, "Phase 6 — #75".
 

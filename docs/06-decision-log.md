@@ -5,6 +5,11 @@ Newest first. Every entry records what was chosen, why, and what was rejected.
 ---
 ## Phase 6 — #75, the study view
 
+### [2026-10-12] Owner correction: Study omits follow-ups never asked
+
+A failed follow-up generation records a `missing` row, but no question was asked. Study shows an
+answered follow-up only when its answer was submitted; History and round feedback still show the gap.
+
 ### [2026-10-12] Owner correction: submitted answers from unfinished rounds belong in Study
 
 The owner confirmed that every question they have answered includes answers in unfinished and
