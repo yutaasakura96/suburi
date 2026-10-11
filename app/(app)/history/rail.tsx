@@ -101,6 +101,9 @@ export function HistoryRail({
           {count}
         </span>
       </div>
+      <Link href="/history/study" className="self-start text-[12px] text-link hover:text-link-hover hover:underline">
+        {HISTORY_COPY.study}
+      </Link>
       <ol className="flex flex-col">
         {items.map((round) => {
           const current = round.id === selected;

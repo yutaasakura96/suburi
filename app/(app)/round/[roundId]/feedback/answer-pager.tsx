@@ -3,10 +3,8 @@
 import { useState } from "react";
 import { ROUND_COPY, type RoundLanguage } from "../../copy";
 import type { FeedbackAnswerView, ModelAnswerView } from "../../load";
-import { CalloutRail, ScoreRow, caption, roundSectionLabel } from "../../parts";
+import { CalloutRail, ModelAnswerText, ScoreRow, answerText, caption, roundSectionLabel } from "../../parts";
 import { ModelAnswersRetry } from "./model-answers-retry";
-
-const answerText = "text-[13px] leading-[1.85] whitespace-pre-wrap";
 
 /**
  * 10 §8, under the pager: what the user said beside the model answer stored for it (04
@@ -47,17 +45,7 @@ function AnswerTexts({
         <h2 className={roundSectionLabel(language)}>{labels.model}</h2>
         {modelAnswer ? (
           <>
-            <p className={`${answerText} text-ink-2`} lang={translated ? reading : language} data-testid="model-answer">
-              {segments.map((segment, index) =>
-                segment.unsupported ? (
-                  <span key={index} className="border-b border-attention-mark" data-testid="model-answer-unsupported">
-                    {segment.text}
-                  </span>
-                ) : (
-                  segment.text
-                ),
-              )}
-            </p>
+            <ModelAnswerText segments={segments} lang={translated ? reading : language} />
             <p className={caption} data-testid="model-answer-legend">
               {segments.some((segment) => segment.unsupported) ? copy.modelAnswerMarked(cvLabel) : copy.modelAnswerUnmarked(cvLabel)}
             </p>

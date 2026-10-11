@@ -1,6 +1,7 @@
 import { useId } from "react";
 import Link from "next/link";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import type { ModelAnswerSegment } from "./load";
 
 // No "use client": the round runner renders these on the client, the feedback page on the server.
 
@@ -14,6 +15,29 @@ export function roundSectionLabel(language: "ja" | "en") {
 }
 export const caption = "text-[12px] leading-[1.75] text-ink-6";
 export const mono = "font-mono";
+/** 10 §8: what was said and its model answer, as written — line breaks kept. */
+export const answerText = "text-[13px] leading-[1.85] whitespace-pre-wrap";
+
+/**
+ * A stored model answer (10 §8), run by run: **an underline is a stored span of the stored text** —
+ * what the round's CV version does not back. The caption under it says so in words, so the mark is
+ * never colour alone.
+ */
+export function ModelAnswerText({ segments, lang }: { segments: readonly ModelAnswerSegment[]; lang: "ja" | "en" }) {
+  return (
+    <p className={`${answerText} text-ink-2`} lang={lang} data-testid="model-answer">
+      {segments.map((segment, index) =>
+        segment.unsupported ? (
+          <span key={index} className="border-b border-attention-mark" data-testid="model-answer-unsupported">
+            {segment.text}
+          </span>
+        ) : (
+          segment.text
+        ),
+      )}
+    </p>
+  );
+}
 
 /** 05 §5.2: replaces the app header in a round — title and meta left, the stepper right. */
 export function RoundHeader({

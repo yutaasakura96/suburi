@@ -46,8 +46,8 @@ async function signIn(page: Page) {
 let userId: string;
 const id = (name: string) => syntheticId(userId, name);
 
-// history.spec.ts runs before this and leaves no round behind; practice.spec.ts runs after and counts
-// on the same. A throwaway database, emptied by hand: nothing in the app deletes.
+// history.spec.ts and history.study.spec.ts run before this and leave no round behind; practice.spec.ts
+// runs after and counts on the same. A throwaway database, emptied by hand: nothing in the app deletes.
 async function emptyRounds() {
   await withDb(async (db) => {
     await db.delete(s.scores);

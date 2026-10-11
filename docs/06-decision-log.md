@@ -3,6 +3,64 @@
 Newest first. Every entry records what was chosen, why, and what was rejected.
 
 ---
+## Phase 6 — #75, the study view
+
+Every question the owner has been asked, with their answer, the model answer (#74) and the fixes, to
+review before an interview. Proposed by firstmate, approved by the owner to file on 2026-10-03, and
+left open on one point: whether it is part of History. These are the choices the build made; each
+took the smallest option the existing screens allow. Specified in `10` §16.
+
+### [2026-10-12] It is part of History, on a page of its own: `/history/study`
+
+The issue said to decide once #50 was specified. **Decided:** History's second view. The app header
+shows `History` active, History's rail links to it, and it carries no rail, because it reads across
+rounds and the rail selects one. History's rail layout and its two pages moved into a route group so
+the layout wraps only them; no URL changed. **Rejected:** a fifth nav item (`05` §5.1 is four items on
+every screen, for a view reached a few times before an interview); a view inside one round's detail
+(one round's questions with their model answers and findings is screen 8, which History already links
+to); keeping the rail beside it (330px given to choosing a round on a page that lists them all).
+
+### [2026-10-12] Grouped by round, and complete rounds only
+
+"The fixes" are `round_feedback.to_fix`: stored per round, and written about that round's questions
+by number. Nothing stores a fix per question, and this screen generates nothing. So a round is the
+unit — its questions in the order asked beside its own `To fix` — which is screen 8's card with the
+pager unrolled and the scores left out. **Only complete rounds**: model answers and findings are
+written when a round completes, a realistic round in progress is holding its scores (US-8), and an
+abandoned round has neither; the footer says they are in History. **Only answered questions**: one a
+round never reached is not read at all (`04` `round_questions`). **Rejected:** one entry per bank
+question across rounds (a model answer is written for one answer, from what was said that time, and
+the findings would lose the round they describe); listing an abandoned round's answers with nothing
+beside them.
+
+### [2026-10-12] It reads and never writes: a missing model answer is said, not offered
+
+The screen is a Server Component over stored rows, and reads no score. Where no model answer is
+stored it says so and says where it can be written; the control stays on screen 8 (`07` §5.19).
+**Why:** a study page that can spend model calls is a second place for a round to be changed from,
+and the slice was scoped as a read. Its only control is the language pill, which reads stored
+translations, per round, as on screen 8. **Rejected:** repeating `Write the model answers` here.
+
+### [2026-10-12] Paged by History's cursor, as pages, with no new route
+
+Ten rounds a page — up to seven questions each, with follow-ups, said and modelled. The cursor is
+`GET /api/rounds`'s own (`07` §5.13), carried as the page's `before` parameter, so a round completed
+mid-read never repeats or skips one; a cursor this server did not mint is a 404. **Rejected:** offset
+pages (`07` §4's reason for a keyset holds here too); a "load more" appended in place (it needs a
+JSON read of every transcript and model answer, a new route for a page that is otherwise a read).
+
+### [2026-10-12] Left out on purpose
+
+No filter by language or round type, no search, no `What worked`, no `Checked against your CV`, no
+scores, figures, recordings or raw transcripts — the last four are a link away on each round's card.
+The issue asked for the question, the answer, the model answer and the fixes. A language or
+round-type filter is the first thing to add if reading newest-first proves too coarse; it would be
+tabs that are links, as Progress's are. **No Japanese string was added**: the chrome is English
+(`10` §0) and reuses screen 8's English, so no native read is owed. **The seed is unchanged**: the
+synthetic rounds have findings and no model answers (`12` §1), so on a freshly seeded `develop` they
+read as not written until one is written from a round's feedback.
+
+---
 ## Phase 6 — #105, every page has a way back to Home
 
 ### [2026-10-10] Every signed-in screen has a Home link; the status page and error pages carry the app header too

@@ -348,6 +348,15 @@ function modelAnswerSegments(body: string, spans: readonly Span[]): ModelAnswerS
   }));
 }
 
+/** A stored `model_answers` row as a screen reads it: screen 8, and the study view (10 §16). */
+export function modelAnswerView(row: typeof s.modelAnswers.$inferSelect): ModelAnswerView {
+  const translated = row.bodyTranslated as TranslatedModelAnswer | null;
+  return {
+    segments: modelAnswerSegments(row.body, row.unsupportedSpans),
+    translated: translated ? modelAnswerSegments(translated.body, translated.unsupported_spans) : null,
+  };
+}
+
 export interface FeedbackAnswerView {
   readonly position: number;
   readonly followUpAnswer: boolean;
@@ -455,12 +464,7 @@ export async function feedbackScreen(db: Db, round: RoundRow): Promise<FeedbackS
   ]);
   const modelAnswerOf = (answerId: string): ModelAnswerView | null => {
     const row = modelAnswerRows.find((candidate) => candidate.answerId === answerId);
-    if (!row) return null;
-    const translated = row.bodyTranslated as TranslatedModelAnswer | null;
-    return {
-      segments: modelAnswerSegments(row.body, row.unsupportedSpans),
-      translated: translated ? modelAnswerSegments(translated.body, translated.unsupported_spans) : null,
-    };
+    return row ? modelAnswerView(row) : null;
   };
   const followUpOf = (answerId: string): FeedbackAnswerView["followUp"] => {
     const row = followUps.find((followUp) => followUp.parentAnswerId === answerId);

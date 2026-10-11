@@ -4,9 +4,9 @@ import * as s from "@/db/schema";
 import { requireSession } from "@/lib/auth/session";
 import { getDb } from "@/lib/db";
 import { listRounds, ROUNDS_PAGE_DEFAULT, ROUNDS_PAGE_MAX } from "@/lib/round/list-rounds";
-import { AppHeader } from "../app-header";
-import { HISTORY_COPY } from "./copy";
-import { HistoryRail } from "./rail";
+import { AppHeader } from "../../app-header";
+import { HISTORY_COPY } from "../copy";
+import { HistoryRail } from "../rail";
 
 export const metadata: Metadata = {
   title: HISTORY_COPY.title,
@@ -16,6 +16,8 @@ export const metadata: Metadata = {
  * History (10 §10): the rail of rounds on the left, the selected round's matrix on the right. The rail
  * lives in the layout so the pages it has loaded survive moving between rounds; its first page is read
  * here, the rest through `GET /api/rounds` (07 §5.13). Protected here as well as in the proxy (08 §5).
+ * In a route group, so that it wraps the by-round pages and not the study view, which reads across
+ * rounds and has no rail (10 §16).
  *
  * **Read-only by construction**: nothing under this route deletes, edits or shares a round (07 §6).
  * The one thing it can start is the scoring retry of an answer that has no score.

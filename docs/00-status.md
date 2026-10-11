@@ -63,7 +63,11 @@ check on `develop` is owed once it is merged (Next).
 on every signed-in screen, and a Home link in a live round's header that confirms before leaving
 (`05` §5.1–§5.2; `06`, "Phase 6 — #105"). Its four Japanese strings are unread
 (`native-read-round.md` §16).
-**Updated:** 2026-10-10 (#105 built; #104 measured and fixed; #51 built; follow-ups spoken; #73 built; #49's Japanese strings all accepted; #50's
+**#75, the study view of past questions, is built (2026-10-12), on `fm/suburi-75`:** `/history/study`,
+part of History — every question a complete round asked, with what was said, its stored model answer
+and the round's `To fix` (`10` §16; `06`, "Phase 6 — #75"). A read over stored rows: no migration, no
+route, no model call and no new Japanese string (Next).
+**Updated:** 2026-10-12 (#75 built; #105 built; #104 measured and fixed; #51 built; follow-ups spoken; #73 built; #49's Japanese strings all accepted; #50's
 catalogue string read; #43, #44, #45, #46, #47, #48, #49, #50 and #74 built; #42 closed; #55 and #56 on 2026-09-30)
 
 ## Done
@@ -509,6 +513,20 @@ feedback unchanged. The owner read and accepted #50's catalogue string on 2026-1
 (`docs/checklists/native-read-round.md` §11). **The user's remaining steps:** `npm run db:seed:develop`
 against Neon `develop` before the merge is verified there (`12` §3 step 8);
 `11` §5's real-recording playback from History, which no fixture covers. Decisions in `06`, "Phase 6 — #50".
+
+**#75 is built (2026-10-12), on `fm/suburi-75`.** Built: the study view at `/history/study`, reached
+from History's rail and shown under `History` in the nav — complete rounds newest first, ten a page
+by History's cursor, each as screen 8's card unrolled: every answered question with what was said
+beside its stored model answer, its follow-up the same way, a practice answer-again under the first,
+the hole a missing follow-up left, and the round's stored `To fix`, with the `English` pill on a
+Japanese round. **Read-only**: it reads no score, writes nothing and calls no model; a missing model
+answer is said, and written from the round's feedback as before. History's rail layout moved into a
+route group; no URL changed. No migration. Tests: `11` §3.24 and the study view's Playwright row in
+§4. **Verified by hand** on a production build against a throwaway local database holding the seed
+and invented model answers: the rail's link, the page in both languages, the pill, the underline and
+its legend, the gap rows, and the `To fix` column staying in view; at a phone's width it is the same
+1280px desktop canvas as History, with no breakpoint added (`10` §12). **The user's step:** read it on
+`develop` over a real round's model answers. Decisions in `06`, "Phase 6 — #75".
 
 **#104 is measured and fixed (2026-10-10), on `fm/suburi-104`.** The owner's review of `develop` found
 every page slow. Measured there and on a production build locally (`06`, "Phase 6 — #104"): each
