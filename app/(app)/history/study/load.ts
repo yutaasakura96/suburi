@@ -17,7 +17,7 @@ export const STUDY_PAGE_ROUNDS = 10;
 export interface StudyAnswer {
   /** The corrected transcript, as it was scored. */
   readonly own: string;
-  /** Null when none is stored: its call failed, or the round is from before model answers existed. */
+  /** Null when none is stored: its call failed, the round never completed, or it is from before model answers existed. */
   readonly modelAnswer: ModelAnswerView | null;
   /** A practice round's answers given again, in the order they were given: rows beside the first (04 `answers`). */
   readonly again: readonly string[];
