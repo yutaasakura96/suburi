@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq, gte, lt } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { expect, test, type Page } from "@playwright/test";
 import * as s from "../db/schema";
@@ -6,6 +6,7 @@ import { createAuth } from "../lib/auth/auth";
 import { mintSessionCookie } from "../lib/auth/test/session";
 import { getConfig } from "../lib/config";
 import { spendThresholdUsd } from "../lib/monitor/thresholds";
+import { type Week, previousWeek, weekToDate } from "../lib/monitor/week";
 import { E2E_CRON_SECRET, E2E_URL } from "./database";
 
 // The monitoring jobs, the status page and Home's status line (11 §3.17, 10 §1 and §14), against the
@@ -35,6 +36,9 @@ async function seededUserId() {
     return user.id;
   });
 }
+
+const roundsStartedIn = (week: Week) =>
+  withDb((db) => db.$count(s.rounds, and(gte(s.rounds.startedAt, week.start), lt(s.rounds.startedAt, week.end))));
 
 async function signIn(page: Page) {
   await withDb(async (db) => {
@@ -105,6 +109,7 @@ test("a self-check older than 48 hours is stale, on Home and first on the page",
 
 test("an authenticated call to each route writes a run the status page shows", async ({ page, request }) => {
   const headers = { authorization: `Bearer ${E2E_CRON_SECRET}` };
+  const now = new Date();
   for (const job of ["self-check", "digest"]) {
     const response = await request.get(`/api/cron/${job}`, { headers });
     expect(response.status()).toBe(200);
@@ -117,12 +122,13 @@ test("an authenticated call to each route writes a run the status page shows", a
   await expect(page.getByTestId("job-selfCheck")).not.toContainText("Never");
   await expect(page.getByTestId("job-digest")).not.toContainText("Never");
   await expect(page.getByTestId("check-scoring_pending_over_24h")).toContainText("OK");
-  // The threshold scales with the rounds started this week, and round.spec.ts runs first. The
-  // database is fresh each run, so every round in it started this week.
-  const rounds = await withDb((db) => db.$count(s.rounds));
+  // The threshold scales with the rounds started this week, and round.spec.ts runs first. Not every
+  // round in the database is this week's: round-failures.spec.ts moves its rounds a day back, which on
+  // a Monday in Asia/Tokyo is last week.
+  const rounds = await roundsStartedIn(weekToDate(now));
   await expect(page.getByTestId("check-spend_week_to_date_usd")).toContainText(`above $${spendThresholdUsd(rounds).toFixed(2)}`);
   await expect(page.getByTestId("digest-week")).toHaveText(/^\d{4}-\d{2}-\d{2} – \d{4}-\d{2}-\d{2}$/);
-  await expect(page.getByTestId("figure-digest_rounds_started")).toHaveText("0");
+  await expect(page.getByTestId("figure-digest_rounds_started")).toHaveText(String(await roundsStartedIn(previousWeek(now))));
 });
 
 test("a red check puts one line on Home, and no record text reaches either page", async ({ page, request }) => {
