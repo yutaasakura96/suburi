@@ -5,6 +5,13 @@ Newest first. Every entry records what was chosen, why, and what was rejected.
 ---
 ## Phase 6 — #75, the study view
 
+### [2026-10-12] Owner correction: submitted answers from unfinished rounds belong in Study
+
+The owner confirmed that every question they have answered includes answers in unfinished and
+abandoned rounds. Study lists those rounds when they contain a submitted question answer, and says
+the model answer and fixes are unavailable when no row exists. Questions and follow-ups never
+answered stay out. This supersedes the complete-round restriction below.
+
 Every question the owner has been asked, with their answer, the model answer (#74) and the fixes, to
 review before an interview. Proposed by firstmate, approved by the owner to file on 2026-10-03, and
 left open on one point: whether it is part of History. These are the choices the build made; each

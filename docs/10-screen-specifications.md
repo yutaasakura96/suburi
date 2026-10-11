@@ -1521,9 +1521,9 @@ this screen (`07` §1).
 
 ### What it lists
 
-- **Complete rounds only**, newest first by `started_at`. A round still in progress has no model
-  answer and no findings yet, and a realistic one is holding its scores (US-8); an abandoned round
-  never got either. Both stay in History, and the footer says so.
+- **Rounds with a submitted answer**, newest first by `started_at`, including unfinished rounds.
+  A round still in progress or abandoned may have no model answer or findings; both are shown as
+  unavailable. A realistic round still in progress is holding its scores (US-8).
 - **Only a question an answer made seen.** A question fixed for a round and never answered is not read
   for this screen at all (`04` `round_questions`), as History shows it by number alone (§10).
 - **Ten rounds a page**, keyset-paged by the cursor History's list uses (`07` §5.13), carried as the
@@ -1534,7 +1534,7 @@ this screen (`07` §1).
 ### Layout
 
 Cards gapped `14px` (§0). **The first** is the app header over one row: the §3.3 section label `STUDY`,
-the sentence `Every question a complete round asked, with what you said, its model answer and what to
+the sentence `Every question you answered, with what you said, its available model answer and what to
 fix. Newest first.` at 12px `--ink-label`, and right, the link `Rounds in History`. **Then one card
 per round**, and **last** a card with the footer's two sentences at 12px/1.85 `--ink-6` and the page
 links.
@@ -1544,9 +1544,9 @@ links.
 Screen 8's card without its scores, its pager and its stamps.
 
 - **Header**, as §8's: `Behavioural` 17px/600, `Japanese · Realistic · 3 questions` 13px `--ink-4`, the
-  Asia/Tokyo date in 11px mono — named as History names them (§10). Under it, two links at 12px:
-  `Round feedback` (screen 8 for that round) and `Scores and recordings` (its History detail). Right,
-  the language pill, when there is something for it to change (below).
+  Asia/Tokyo date in 11px mono — named as History names them (§10). Under it, a `Scores and recordings`
+  link to History detail, plus `Round feedback` on completed rounds only. Right, the language pill,
+  when there is something for it to change (below).
 - **3-column grid**, as §8: the questions at `span 2`, the round's `To fix` in the last column.
 - **Each question**, in the order asked, a `--rule-section` line between two: `Question 1 / 3` in 11px
   mono `0.16em` — the number the findings call it by; the question at 15px/1.85 `--ink-2`; then **§8's
@@ -1558,14 +1558,14 @@ Screen 8's card without its scores, its pager and its stamps.
   - **The follow-up**, under its question: `└ Follow-up` at 12px `--ink-6` and the follow-up as asked,
     then the same two columns, labelled `Your answer to the follow-up` and `Model answer to the
     follow-up`. **A missing follow-up keeps its row**, in `--attention-ink`: `The follow-up was not
-    generated. It is recorded as a gap.` One asked and never answered shows its text and `Not answered`.
-  - **No model answer stored** is one plain sentence in the right column: `No model answer is written
-    for this question yet. It can be written from the round's feedback.` **No control**: the one that
-    writes it is screen 8's (`07` §5.19), a link away in the header.
+    generated. It is recorded as a gap.` An asked but unanswered follow-up is not listed.
+  - **No model answer stored** is one plain sentence in the right column: `No model answer is available
+    for this question.` **No control**: the one that writes it for a completed round is screen 8's
+    (`07` §5.19), a link away in the header.
 - **`To fix 3`** — the round's stored `to_fix` (`04` `round_feedback`), numbered, title in 500 and
   body in `--ink-3`, as §8 draws it. It names its questions by number, so the column is `position:
   sticky` and stays beside the questions as the round is read. A round whose findings were never
-  written says `The findings for this round are not written. The round's feedback says why.`
+  written says `No fixes are available for this round.`
   `What worked` and `Checked against your CV` are screen 8's, and are not repeated here.
 - **The pill**, on a Japanese round with a stored translation — of its findings, or of any model
   answer — reads `English`, then `日本語`, as on screen 8. It changes that round's model answers and
@@ -1574,12 +1574,12 @@ Screen 8's card without its scores, its pager and its stamps.
 
 ### Empty
 
-With no complete round: `No complete round yet. A round's questions are listed here once it ends.`
+With no answered question: `No answered question yet. A question appears here after you submit an answer.`
 and the link `Start a round`.
 
 ### Footer
 
-`Complete rounds only. A round in progress, or an abandoned one, is in History.` /
+`Answered questions from completed and unfinished rounds appear here. Unanswered questions stay in History.` /
 `A model answer is not a score, and nothing here compares it with what you said.`
 
 ### Refuses

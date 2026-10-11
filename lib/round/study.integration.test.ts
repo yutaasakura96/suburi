@@ -98,16 +98,20 @@ function keysOf(value: unknown): Set<string> {
 }
 
 describe("the study view's loader (10 §16)", () => {
-  it("lists complete rounds only, newest first: an abandoned round stays in History", () =>
+  it("lists rounds with submitted answers newest first, including an abandoned round", () =>
     inRolledBackTransaction(async (db) => {
       const userId = await seededUser(db);
+      const unanswered = await insertCompleteRound(db, userId, { startedAt: new Date("2026-10-02T10:00:00.000Z") });
       const page = await studyPage(db, userId, null);
 
-      expect(page.rounds.map((round) => round.id)).toEqual(["complete-ja", "pending-en", "failed-en"].map((name) => syntheticId(userId, name)));
+      expect(page.rounds.map((round) => round.id)).toEqual(["complete-ja", "pending-en", "failed-en", "abandoned-en"].map((name) => syntheticId(userId, name)));
+      expect(page.rounds.some((round) => round.id === unanswered.id)).toBe(false);
       expect(page.older).toBeNull();
       expect(page.rounds[0]).toMatchObject({ roundType: "behavioural", language: "ja", mode: "realistic", length: 3, cvLabel: "応募書類 v1" });
-      // The follow-up the abandoned round asked and left is that round's, and it is not here.
-      expect(JSON.stringify(page)).not.toContain("What was the hardest part of those six weeks?");
+      const abandoned = page.rounds[3];
+      expect(abandoned).toMatchObject({ complete: false, toFix: null, questions: [{ own: "The hardest was the database migration. We ran dual writes for six weeks and cut over in eleven minutes.", modelAnswer: null, followUp: null }] });
+      expect(JSON.stringify(abandoned)).not.toContain("What was the hardest part of those six weeks?");
+      expect(JSON.stringify(abandoned)).not.toContain("Describe a time you had to deliver with less time than you needed.");
     }));
 
   it("reads each question in the order asked, with what was said, its follow-up, and the hole a missing one left", () =>
@@ -213,8 +217,8 @@ describe("the study view's loader (10 §16)", () => {
       const mine = (await studyPage(db, userId, null)).rounds.map((round) => round.id);
       const theirs = (await studyPage(db, other, null)).rounds.map((round) => round.id);
 
-      expect(mine).toHaveLength(3);
-      expect(theirs).toHaveLength(3);
+      expect(mine).toHaveLength(4);
+      expect(theirs).toHaveLength(4);
       expect(mine.filter((id) => theirs.includes(id))).toEqual([]);
     }));
 
@@ -228,6 +232,7 @@ describe("the study view's loader (10 §16)", () => {
         const round = await insertCompleteRound(db, userId, {
           startedAt: sql`'2026-09-30T10:00:00.000000Z'::timestamptz + ${index} * interval '1 microsecond'`,
         });
+        await insertAnswer(db, round, { position: 1, corrected: "An invented answer.", minute: 1 });
         inserted.unshift(round.id);
       }
 
@@ -238,7 +243,7 @@ describe("the study view's loader (10 §16)", () => {
       expect(cursor).not.toBeNull();
 
       const second = await studyPage(db, userId, cursor);
-      expect(second.rounds.map((round) => round.id)).toEqual(["complete-ja", "pending-en", "failed-en"].map((name) => syntheticId(userId, name)));
+      expect(second.rounds.map((round) => round.id)).toEqual(["complete-ja", "pending-en", "failed-en", "abandoned-en"].map((name) => syntheticId(userId, name)));
       expect(second.older).toBeNull();
     }));
 
@@ -255,7 +260,7 @@ describe("the study view's loader (10 §16)", () => {
 
       expect([...keysOf(page)].sort()).toEqual(
         [
-          "again", "body", "cvLabel", "followUp", "id", "kind", "language", "length", "mode", "modelAnswer", "older", "own",
+          "again", "body", "complete", "cvLabel", "followUp", "id", "kind", "language", "length", "mode", "modelAnswer", "older", "own",
           "position", "prompt", "questions", "roundType", "rounds", "segments", "startedAt", "text", "title", "toFix",
           "toFixTranslated", "translated", "unsupported",
         ].sort(),
@@ -266,6 +271,6 @@ describe("the study view's loader (10 §16)", () => {
     inRolledBackTransaction(async (db) => {
       const userId = await seededUser(db);
       await db.execute(sql`set transaction read only`);
-      expect((await studyPage(db, userId, null)).rounds).toHaveLength(3);
+      expect((await studyPage(db, userId, null)).rounds).toHaveLength(4);
     }));
 });

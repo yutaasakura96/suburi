@@ -64,7 +64,7 @@ on every signed-in screen, and a Home link in a live round's header that confirm
 (`05` §5.1–§5.2; `06`, "Phase 6 — #105"). Its four Japanese strings are unread
 (`native-read-round.md` §16).
 **#75, the study view of past questions, is built (2026-10-12), on `fm/suburi-75`:** `/history/study`,
-part of History — every question a complete round asked, with what was said, its stored model answer
+part of History — every answered question, including from unfinished rounds, with what was said, its stored model answer
 and the round's `To fix` (`10` §16; `06`, "Phase 6 — #75"). A read over stored rows: no migration, no
 route, no model call and no new Japanese string (Next).
 **Updated:** 2026-10-12 (#75 built; #105 built; #104 measured and fixed; #51 built; follow-ups spoken; #73 built; #49's Japanese strings all accepted; #50's
@@ -515,7 +515,7 @@ against Neon `develop` before the merge is verified there (`12` §3 step 8);
 `11` §5's real-recording playback from History, which no fixture covers. Decisions in `06`, "Phase 6 — #50".
 
 **#75 is built (2026-10-12), on `fm/suburi-75`.** Built: the study view at `/history/study`, reached
-from History's rail and shown under `History` in the nav — complete rounds newest first, ten a page
+from History's rail and shown under `History` in the nav — rounds with submitted answers newest first, ten a page
 by History's cursor, each as screen 8's card unrolled: every answered question with what was said
 beside its stored model answer, its follow-up the same way, a practice answer-again under the first,
 the hole a missing follow-up left, and the round's stored `To fix`, with the `English` pill on a

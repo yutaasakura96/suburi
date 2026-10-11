@@ -63,7 +63,7 @@ function Texts({
 }
 
 /**
- * One complete round of the study view (10 §16): every question it asked, unrolled — what was said,
+ * One round of the study view (10 §16): every answered question, unrolled — what was said,
  * the model answer, the follow-up the same way — beside the round's stored `To fix`. Screen 8's card
  * without its scores and without its pager.
  *
@@ -96,9 +96,11 @@ export function StudyRoundView({ round }: { round: StudyRound }) {
             <span className="font-mono text-[11px] text-ink-label">{COPY.date(round.startedAt)}</span>
           </div>
           <div className="flex gap-[18px]">
-            <Link href={`/round/${round.id}/feedback`} className={link}>
-              {COPY.feedbackLink}
-            </Link>
+            {round.complete ? (
+              <Link href={`/round/${round.id}/feedback`} className={link}>
+                {COPY.feedbackLink}
+              </Link>
+            ) : null}
             <Link href={`/history/${round.id}`} className={link}>
               {COPY.historyLink}
             </Link>
@@ -151,7 +153,6 @@ export function StudyRoundView({ round }: { round: StudyRound }) {
                       labels={{ own: COPY.followUpOwnAnswer, model: COPY.followUpModelAnswer }}
                     />
                   ) : null}
-                  {question.followUp.kind === "unanswered" ? <p className={caption}>{COPY.followUpUnanswered}</p> : null}
                 </div>
               ) : null}
             </article>

@@ -288,9 +288,10 @@ proposed; they are the user's to confirm (`06`, 2026-10-04).
 Proposed by firstmate and approved by the owner to file on 2026-10-03.
 
 *Acceptance:*
-- Every question a **complete** round asked is listed, newest round first, its follow-up with it.
+- Every question with a submitted answer is listed, newest round first, including answers from
+  unfinished rounds. An answered follow-up appears with its question; unanswered questions stay out.
 - Each shows what the user said, the model answer stored for it (US-17), and the round's things to
-  fix (US-10), as they were stored.
+  fix (US-10), as they were stored. Missing model answers and fixes are shown as unavailable.
 - **It is a read.** Nothing is scored, generated or regenerated for it, and nothing in it can be
   edited.
 - **No score and no comparison** between the user's answer and the model answer (§9).

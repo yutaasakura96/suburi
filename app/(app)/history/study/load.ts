@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, exists, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import * as s from "@/db/schema";
 import type { FeedbackItem, TranslatedFeedback } from "@/lib/ai/round-feedback";
 import type { Db } from "@/lib/round/http";
@@ -26,16 +26,16 @@ export interface StudyAnswer {
 export interface StudyQuestion extends StudyAnswer {
   readonly position: number;
   readonly prompt: string;
-  /** The answer's one follow-up: answered, asked and left, or **missing** — the hole a failed generation left. */
+  /** The answer's one follow-up: answered, or **missing** — the hole a failed generation left. */
   readonly followUp:
     | ({ readonly kind: "answered"; readonly prompt: string } & StudyAnswer)
-    | { readonly kind: "unanswered"; readonly prompt: string }
     | { readonly kind: "missing" }
     | null;
 }
 
 export interface StudyRound {
   readonly id: string;
+  readonly complete: boolean;
   readonly roundType: RoundType;
   readonly language: RoundLanguage;
   readonly mode: RoundMode;
@@ -58,9 +58,8 @@ export interface StudyPage {
 }
 
 /**
- * One page of the study view: **complete rounds only**, newest first, keyset-paged as History's list
- * is (07 §4). A round still open has no model answer and no findings, and a realistic one is holding
- * its scores (US-8); an abandoned one never got either. Both stay in History.
+ * One page of the study view: rounds with a submitted answer, newest first, keyset-paged as
+ * History's list is (07 §4). Open rounds can have answers without model answers or findings.
  *
  * **Only an answer puts a question here.** A question fixed for a round and never answered is not
  * read at all (04 `round_questions`), so this page cannot make it seen.
@@ -78,7 +77,14 @@ export async function studyPage(db: Db, userId: string, cursor: Cursor | null): 
     .where(
       and(
         eq(s.rounds.userId, userId),
-        isNotNull(s.rounds.completedAt),
+        exists(
+          db.select({ id: s.answers.id }).from(s.answers).where(and(
+            eq(s.answers.roundId, s.rounds.id),
+            isNotNull(s.answers.transcriptCorrected),
+            isNotNull(s.answers.questionId),
+            isNull(s.answers.retryOfAnswerId),
+          )),
+        ),
         cursor ? sql`(${s.rounds.startedAt}, ${s.rounds.id}) < (${cursor.s}::timestamptz, ${cursor.i}::uuid)` : undefined,
       ),
     )
@@ -123,7 +129,7 @@ export async function studyPage(db: Db, userId: string, cursor: Cursor | null): 
     if (!row) return null;
     if (row.status === "missing" || row.promptText === null) return { kind: "missing" };
     const answer = answers.find((candidate) => candidate.parentAnswerId === question.id && candidate.retryOfAnswerId === null);
-    return answer ? { kind: "answered", prompt: row.promptText, ...said(answer) } : { kind: "unanswered", prompt: row.promptText };
+    return answer ? { kind: "answered", prompt: row.promptText, ...said(answer) } : null;
   }
 
   return {
@@ -132,6 +138,7 @@ export async function studyPage(db: Db, userId: string, cursor: Cursor | null): 
       const translated = (stored?.bodyTranslated ?? null) as TranslatedFeedback | null;
       return {
         id: round.id,
+        complete: round.completedAt !== null,
         roundType: round.roundType,
         language: round.language,
         mode: round.mode,

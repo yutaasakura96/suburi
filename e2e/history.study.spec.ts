@@ -117,13 +117,13 @@ test("/history/study without a session lands on /sign-in", async ({ page }) => {
   await expect(page).toHaveURL("/sign-in");
 });
 
-test("with no complete round, it says so and offers to start one", async ({ page }) => {
+test("with no answered question, it says so and offers to start one", async ({ page }) => {
   await signIn(page);
   await page.goto("/history/study");
 
   await expect(page).toHaveTitle("Study — Suburi");
   await expect(page.getByRole("heading", { level: 1, name: "Study" })).toBeVisible();
-  await expect(page.getByTestId("study-empty")).toContainText("No complete round yet.");
+  await expect(page.getByTestId("study-empty")).toContainText("No answered question yet.");
   await expect(page.getByTestId("study-round")).toHaveCount(0);
   await page.getByTestId("study-empty").getByRole("link", { name: "Start a round" }).click();
   await expect(page).toHaveURL("/round/new");
@@ -164,18 +164,23 @@ test("History's rail leads to it, the nav marks History, and Home is one link aw
   await expect(page).toHaveURL("/");
 });
 
-test("it lists every complete round newest first, and leaves the abandoned one to History", async ({ page }) => {
+test("it lists every round with submitted answers newest first, including the abandoned one", async ({ page }) => {
   await signIn(page);
   await page.goto("/history/study");
 
-  await expect(page.getByTestId("study-round")).toHaveCount(3);
+  await expect(page.getByTestId("study-round")).toHaveCount(4);
   expect(await page.getByTestId("study-round").evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-round")))).toEqual(
-    ["complete-ja", "pending-en", "failed-en"].map(id),
+    ["complete-ja", "pending-en", "failed-en", "abandoned-en"].map(id),
   );
-  await expect(round(page, "abandoned-en")).toHaveCount(0);
-  // What the abandoned round asked is that round's: it is in History, not here.
+  const abandoned = round(page, "abandoned-en");
+  await expect(abandoned.getByTestId("study-question")).toHaveCount(1);
+  await expect(abandoned.getByTestId("own-answer")).toContainText("The hardest was the database migration.");
+  await expect(abandoned.getByTestId("model-answer-not-written")).toBeVisible();
+  await expect(abandoned.getByTestId("study-no-findings")).toBeVisible();
+  await expect(abandoned.getByRole("link", { name: "Round feedback" })).toHaveCount(0);
   await expect(page.locator("main")).not.toContainText("What was the hardest part of those six weeks?");
-  await expect(page.getByTestId("study-footer")).toContainText("Complete rounds only.");
+  await expect(page.locator("main")).not.toContainText("Describe a time you had to deliver with less time than you needed.");
+  await expect(page.getByTestId("study-footer")).toContainText("Answered questions from completed and unfinished rounds");
 
   const japanese = round(page, "complete-ja");
   await expect(japanese.getByRole("heading", { level: 2 })).toHaveText("Behavioural");
@@ -216,7 +221,7 @@ test("each question shows what was said beside its stored model answer, the foll
     "The p95 latency per endpoint, because it shows where the time goes before I guess at a cause.",
   );
   await expect(followUp.getByTestId("model-answer-not-written")).toHaveText(
-    "No model answer is written for this question yet. It can be written from the round's feedback.",
+    "No model answer is available for this question.",
   );
 
   await expect(round(page, "pending-en").getByTestId("study-to-fix").getByRole("heading")).toHaveText("To fix 2");
@@ -305,7 +310,7 @@ test("it shows no score and no combined figure, has nothing to press but the pil
 
   await signIn(page);
   await page.goto("/history/study");
-  await expect(page.getByTestId("study-round")).toHaveCount(3);
+  await expect(page.getByTestId("study-round")).toHaveCount(4);
 
   const main = page.locator("main");
   await expect(main).not.toContainText(COMPOSITE);
@@ -334,7 +339,7 @@ test("it shows no score and no combined figure, has nothing to press but the pil
 });
 
 test("older rounds are a page away by cursor, a practice answer-again sits beside the first answer, and a round with no findings says so", async ({ page }) => {
-  // Ten newer complete rounds fill the first page, so the seeded three are the second. The newest is
+  // Ten newer answered rounds fill the first page, so the seeded four are the second. The newest is
   // a practice round whose one question was answered twice, with no findings written.
   const practiceId = await withDb(async (db) => {
     const [like] = await db.select().from(s.rounds).where(eq(s.rounds.id, id("pending-en")));
@@ -363,8 +368,8 @@ test("older rounds are a page away by cursor, a practice answer-again sits besid
       )
       .returning();
     const newest = inserted.at(-1)!;
-    const answer = (corrected: string, minute: number, retryOf: string | null) => ({
-      roundId: newest.id,
+    const answer = (roundId: string, corrected: string, minute: number, retryOf: string | null) => ({
+      roundId,
       userId,
       questionId: question.id,
       promptText: question.body,
@@ -375,8 +380,9 @@ test("older rounds are a page away by cursor, a practice answer-again sits besid
       retryOfAnswerId: retryOf,
       createdAt: new Date(newest.startedAt.getTime() + minute * 60_000),
     });
-    const [first] = await db.insert(s.answers).values(answer("An invented first answer.", 1, null)).returning();
-    await db.insert(s.answers).values(answer("An invented second answer.", 5, first.id));
+    await db.insert(s.answers).values(inserted.slice(0, -1).map((round) => answer(round.id, "An invented answer.", 1, null)));
+    const [first] = await db.insert(s.answers).values(answer(newest.id, "An invented first answer.", 1, null)).returning();
+    await db.insert(s.answers).values(answer(newest.id, "An invented second answer.", 5, first.id));
     await db.insert(s.modelAnswers).values({ answerId: first.id, userId, body: "An invented model answer.", modelId: SYNTHETIC_MODEL_ID, promptVersion: "synthetic-model-answer-1.0" });
     return newest.id;
   });
@@ -393,14 +399,14 @@ test("older rounds are a page away by cursor, a practice answer-again sits besid
   await expect(practice.getByTestId("own-answer")).toHaveText("An invented first answer.");
   await expect(practice.getByTestId("answered-again")).toHaveText("Answered againAn invented second answer.");
   await expect(practice.getByTestId("model-answer")).toHaveText("An invented model answer.");
-  await expect(practice.getByTestId("study-no-findings")).toHaveText("The findings for this round are not written. The round's feedback says why.");
+  await expect(practice.getByTestId("study-no-findings")).toHaveText("No fixes are available for this round.");
 
   const pages = page.getByRole("navigation", { name: "Pages" });
   await expect(pages.getByRole("link", { name: "Newest rounds" })).toHaveCount(0);
   await pages.getByRole("link", { name: "Older rounds" }).click();
   await expect(page).toHaveURL(/\/history\/study\?before=/);
   expect(await page.getByTestId("study-round").evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-round")))).toEqual(
-    ["complete-ja", "pending-en", "failed-en"].map(id),
+    ["complete-ja", "pending-en", "failed-en", "abandoned-en"].map(id),
   );
   await expect(pages.getByRole("link", { name: "Older rounds" })).toHaveCount(0);
   await pages.getByRole("link", { name: "Newest rounds" }).click();

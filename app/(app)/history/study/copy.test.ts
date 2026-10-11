@@ -25,8 +25,8 @@ describe("the study view's copy", () => {
     expect(STUDY_COPY.modelAnswerUnmarked("CV v2")).toBe("Written from CV v2 and what you said. Nothing in it is underlined as going beyond CV v2.");
   });
 
-  it("says where a missing model answer can be written, since this screen writes nothing", () => {
-    expect(STUDY_COPY.modelAnswerNotWritten).toBe("No model answer is written for this question yet. It can be written from the round's feedback.");
+  it("states when a model answer is unavailable", () => {
+    expect(STUDY_COPY.modelAnswerNotWritten).toBe("No model answer is available for this question.");
   });
 
   it("has no Japanese chrome, and no word for a combined figure", () => {

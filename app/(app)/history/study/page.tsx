@@ -17,7 +17,7 @@ export const metadata: Metadata = {
 const link = "text-[13px] text-link hover:text-link-hover hover:underline";
 
 /**
- * The study view (10 §16, US-18): every question a complete round asked, with what was said, the
+ * The study view (10 §16, US-18): every answered question, with what was said, the
  * model answer stored for it and the round's `To fix`, to read through before an interview. Part of
  * History — the app header marks it so, and History's rail is the way here — without the rail, since
  * it reads across rounds.

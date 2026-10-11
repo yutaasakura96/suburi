@@ -11,11 +11,11 @@ const feedback = ROUND_COPY.en;
 export const STUDY_COPY = {
   title: "Study — Suburi",
   heading: "Study",
-  purpose: "Every question a complete round asked, with what you said, its model answer and what to fix. Newest first.",
+  purpose: "Every question you answered, with what you said, its available model answer and what to fix. Newest first.",
   /** The way back to History's rail; the way here is the rail's own link (`HISTORY_COPY.study`). */
   rounds: "Rounds in History",
 
-  empty: "No complete round yet. A round's questions are listed here once it ends.",
+  empty: "No answered question yet. A question appears here after you submit an answer.",
   start: HISTORY_COPY.start,
 
   roundType: HISTORY_COPY.roundType,
@@ -29,7 +29,6 @@ export const STUDY_COPY = {
   question: feedback.questionOf,
   followUp: HISTORY_COPY.followUp,
   followUpMissing: HISTORY_COPY.followUpMissing,
-  followUpUnanswered: HISTORY_COPY.notAnswered,
   ownAnswer: feedback.ownAnswer,
   modelAnswer: feedback.modelAnswer,
   followUpOwnAnswer: feedback.followUpOwnAnswer,
@@ -38,18 +37,17 @@ export const STUDY_COPY = {
   answeredAgain: (n: number) => (n > 1 ? `Answered again ${n}` : "Answered again"),
   modelAnswerMarked: feedback.modelAnswerMarked,
   modelAnswerUnmarked: feedback.modelAnswerUnmarked,
-  // This screen writes nothing: the control that writes a missing model answer is screen 8's (07 §5.19).
-  modelAnswerNotWritten: `${feedback.modelAnswerNotWritten} It can be written from the round's feedback.`,
+  modelAnswerNotWritten: "No model answer is available for this question.",
 
   toFix: feedback.toFix,
-  noFindings: "The findings for this round are not written. The round's feedback says why.",
+  noFindings: "No fixes are available for this round.",
 
   pages: "Pages",
   newest: "Newest rounds",
   older: HISTORY_COPY.older,
 
   footer: [
-    "Complete rounds only. A round in progress, or an abandoned one, is in History.",
+    "Answered questions from completed and unfinished rounds appear here. Unanswered questions stay in History.",
     "A model answer is not a score, and nothing here compares it with what you said.",
   ],
 } as const;
