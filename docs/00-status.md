@@ -67,7 +67,10 @@ on every signed-in screen, and a Home link in a live round's header that confirm
 part of History — every answered question, including from unfinished rounds, with what was said, its stored model answer
 and the round's `To fix` (`10` §16; `06`, "Phase 6 — #75"). A read over stored rows: no migration, no
 route, no model call and no new Japanese string (Next).
-**Updated:** 2026-10-12 (#75 built; #105 built; #104 measured and fixed; #51 built; follow-ups spoken; #73 built; #49's Japanese strings all accepted; #50's
+**#83, one take after a failed transcription, is checked (2026-10-14), on `fm/suburi-83`:** reproduced
+in a browser, `Start recording` is not on the failed-transcription frame in either mode, so no code
+changed; an end-to-end assertion and `10`'s sentence were added (`06`, "Phase 6 — #83").
+**Updated:** 2026-10-14 (#83 checked; #75 built; #105 built; #104 measured and fixed; #51 built; follow-ups spoken; #73 built; #49's Japanese strings all accepted; #50's
 catalogue string read; #43, #44, #45, #46, #47, #48, #49, #50 and #74 built; #42 closed; #55 and #56 on 2026-09-30)
 
 ## Done
