@@ -3,6 +3,34 @@
 Newest first. Every entry records what was chosen, why, and what was rejected.
 
 ---
+## Phase 6 — #83, one take after a failed transcription
+
+### [2026-10-14] Reproduced on `develop`: no control records again, and nothing was changed
+
+#83 asked whether a realistic round's `Start recording` is enabled after `transcription_failed`, and
+whether pressing it records a second take. Driven by hand in a browser against a production build,
+with the transcriber answering an empty transcript (`empty_transcript`, the class #83 saw): **the
+button is not on the screen.** The frame is #48's (`10`, 4–5, when it fails) — the catalogue sentence,
+`Try again` and `Type the answer instead` — and a failed retry and a reload both return to it. The
+retry transcribed the take that was kept, on the same row; the typed answer saved onto the slot the
+take opened. Neither reading in the issue describes `develop`: #83 was filed against #82's record
+frame, where the screen stayed in its uploading state and the button was rendered `disabled` — by that
+commit's code, which is the issue's own code reading; that commit was not run again. #48 replaced the
+frame before #83 was picked up. **No code changed**; what #83 adds is the assertion, for the class it
+saw (`e2e/round-failures.spec.ts`, `11` §4).
+
+### [2026-10-14] Practice is the same on this frame, and stays so
+
+Practice's re-take is allowed until the take is transcribed (`07` §5.6), and the route would still
+accept one after a failed transcription. The screen does not offer it: `Record again` is on the
+take-held frame and nowhere after (`10` §15), and pressing `Transcribe this take` is where the user
+gave it up. So the two modes do not differ here, and `10` says so. **Rejected:** offering `Record
+again` on the failed frame in practice — a third control beside the two that already answer the
+failure, for a take the user chose to keep. **Not closed here:** the route's re-presign of an open,
+untranscribed slot is mode-blind, because a held take's upload retry needs it; no screen reaches it
+as a second realistic take.
+
+---
 ## Phase 6 — #75, the study view
 
 ### [2026-10-12] Correction: a missing model answer is only said

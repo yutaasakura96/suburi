@@ -504,6 +504,85 @@ test("a take that cannot be transcribed at first is transcribed by the retry, wi
   expect(s3.objects.get(slot.audioS3Key!)?.bytes).toBe(uploaded);
 });
 
+// #83: what was seen was `empty_transcript` — the transcriber answering with no text — in a realistic
+// round. One take stays one take: the frame has no control that records, here or after a reload.
+test("realistic stays one take after an empty transcript: nothing records again, and the retry and the typed answer still work", async ({ page }) => {
+  const recorders = page.getByRole("button", { name: /record/i });
+  await signIn(page);
+  const roundId = await startRound(page);
+  heard = { text: "", seconds: 3 };
+  await page.goto(`/round/${roundId}`);
+  await record(page);
+
+  await expect(page.getByTestId("take-notice")).toHaveText(UNTRANSCRIBED);
+  await expect(recorders).toHaveCount(0);
+  const [slot] = await answersOf(roundId);
+  const uploaded = s3.objects.get(slot.audioS3Key!)?.bytes;
+  expect(uploaded).toBeGreaterThan(0);
+  await page.screenshot({ path: test.info().outputPath("screen5-empty-transcript.png"), fullPage: true });
+
+  // A retry that fails the same way and a reload both come back to this frame, never to screen 3.
+  await page.getByRole("button", { name: "Try again" }).click();
+  await expect(page.getByTestId("take-notice")).toHaveText(UNTRANSCRIBED);
+  await expect(recorders).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByTestId("take-notice")).toHaveText(UNTRANSCRIBED);
+  await expect(recorders).toHaveCount(0);
+
+  // The retry transcribes the take that was kept: the same row, the same object.
+  heard = { text: RAW, seconds: 18 };
+  await page.getByRole("button", { name: "Try again" }).click();
+  await expect(page.getByTestId("raw-transcript")).toHaveText(RAW);
+  expect(await answersOf(roundId)).toMatchObject([{ id: slot.id, transcriptRaw: RAW }]);
+  expect(s3.objects.get(slot.audioS3Key!)?.bytes).toBe(uploaded);
+  await page.getByRole("button", { name: "Correct the transcript" }).click();
+  await page.getByRole("button", { name: "Send this answer" }).click();
+  await expect(page.getByTestId("round-step")).toHaveText("Question 1 / 3 · follow-up");
+
+  // The follow-up's take fails the same way, and typing answers it on the slot the take opened.
+  heard = { text: "", seconds: 3 };
+  await record(page);
+  await expect(page.getByTestId("take-notice")).toHaveText(UNTRANSCRIBED);
+  await expect(recorders).toHaveCount(0);
+  await page.getByRole("button", { name: "Type the answer instead" }).click();
+  await expect(recorders).toHaveCount(0);
+  await page.getByRole("textbox").fill(TYPED);
+  await page.getByRole("button", { name: "Save the typed answer" }).click();
+  await expect(page.getByTestId("raw-transcript")).toHaveText(TYPED);
+  const stored = await answersOf(roundId);
+  expect(stored).toHaveLength(2);
+  expect(stored.find((answer) => answer.id !== slot.id)).toMatchObject({ transcriptRaw: TYPED, transcriberModelId: null });
+});
+
+// #83, decided for practice: its re-take ends where the take is sent to be transcribed (10 §15), so a
+// failed transcription leaves the same frame as realistic — `Record again` is not on it.
+test("a practice take that cannot be transcribed is retried or typed too: Record again is not offered once it was sent", async ({ page }) => {
+  const recorders = page.getByRole("button", { name: /record/i });
+  await signIn(page);
+  const roundId = await startRound(page, "en", "practice");
+  heard = { text: "", seconds: 3 };
+  await page.goto(`/round/${roundId}`);
+  await page.getByRole("button", { name: "Start recording" }).click();
+  await expect(page.getByTestId("waveform")).toBeVisible();
+  await expect(page.getByTestId("waveform").locator("span > span").nth(1)).toBeAttached({ timeout: 10_000 });
+  await page.getByRole("button", { name: "Stop recording" }).click();
+  await expect(page.getByRole("button", { name: "Record again" })).toBeEnabled();
+  await page.getByRole("button", { name: "Transcribe this take" }).click();
+
+  await expect(page.getByTestId("take-notice")).toHaveText(UNTRANSCRIBED);
+  await expect(recorders).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Type the answer instead" })).toBeVisible();
+  await page.screenshot({ path: test.info().outputPath("practice-empty-transcript.png"), fullPage: true });
+  await page.reload();
+  await expect(page.getByTestId("take-notice")).toHaveText(UNTRANSCRIBED);
+  await expect(recorders).toHaveCount(0);
+
+  heard = { text: RAW, seconds: 18 };
+  await page.getByRole("button", { name: "Try again" }).click();
+  await expect(page.getByTestId("raw-transcript")).toHaveText(RAW);
+  expect(await answersOf(roundId)).toHaveLength(1);
+});
+
 test("a held take whose upload the server confirmed resumes at transcribe, not as a failed upload", async ({ page }) => {
   await signIn(page);
   const roundId = await startRound(page);
