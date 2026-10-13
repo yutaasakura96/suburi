@@ -572,7 +572,7 @@ export async function feedbackScreen(db: Db, round: RoundRow): Promise<FeedbackS
     grounding: grounded
       ? {
           cvLabel,
-          unsupported: roundLevelAnswers.filter((answer) => answer.questionId !== null || answer.retryOfAnswerId !== null).flatMap((answer) =>
+          unsupported: roundLevelAnswers.flatMap((answer) =>
             flagRows
               .filter((flag) => flag.scoringAttemptId === attempts.get(answer.id)?.id)
               .map((flag) => ({

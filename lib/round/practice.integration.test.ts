@@ -748,8 +748,8 @@ describe("a practice round ends without a rating (07 §5.12)", () => {
       // An answer given again has no model answer of its own (11 §3.21): its page reads its question's.
       expect(await db.select().from(s.modelAnswers)).toHaveLength(6);
       expect(screen.answers.map((answer) => answer.modelAnswer !== null)).toEqual([true, true, true, true, true]);
-      // The CV region lists original bank-question spans only; follow-up spans are tracked in #85.
-      expect(screen.grounding?.unsupported.map((span) => span.position)).toEqual([1, 2, 3]);
+      // The CV region lists each original answer's spans, a follow-up's under its question's number.
+      expect(screen.grounding?.unsupported.map((span) => span.position)).toEqual([1, 1, 2, 2, 3, 3]);
     }));
 
   it("writes feedback from scored retries when every original score failed", () =>
