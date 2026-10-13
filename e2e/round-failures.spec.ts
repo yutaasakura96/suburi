@@ -564,6 +564,7 @@ test("a practice take that cannot be transcribed is retried or typed too: Record
   await page.goto(`/round/${roundId}`);
   await page.getByRole("button", { name: "Start recording" }).click();
   await expect(page.getByTestId("waveform")).toBeVisible();
+  await expect(page.getByTestId("waveform").locator("span > span").nth(1)).toBeAttached({ timeout: 10_000 });
   await page.getByRole("button", { name: "Stop recording" }).click();
   await expect(page.getByRole("button", { name: "Record again" })).toBeEnabled();
   await page.getByRole("button", { name: "Transcribe this take" }).click();
@@ -571,6 +572,7 @@ test("a practice take that cannot be transcribed is retried or typed too: Record
   await expect(page.getByTestId("take-notice")).toHaveText(UNTRANSCRIBED);
   await expect(recorders).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Type the answer instead" })).toBeVisible();
+  await page.screenshot({ path: test.info().outputPath("practice-empty-transcript.png"), fullPage: true });
   await page.reload();
   await expect(page.getByTestId("take-notice")).toHaveText(UNTRANSCRIBED);
   await expect(recorders).toHaveCount(0);

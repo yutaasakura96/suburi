@@ -483,9 +483,9 @@ read and accepted the same day.
   typed answer is recorded as typed, has no duration or pace, is not counted in progress, and that the
   take is kept. Saving goes on to screen 5 with the typed text as the raw transcript and **no figures**:
   there was no delivery to measure. A reload returns to this frame, not to a new take.
-  **No control records again, in either mode** (#83; `06`, 2026-10-14): a realistic round is one take,
-  and practice's re-take ends where the take is sent to be transcribed (§15), so its `録り直す` is not
-  on this frame either. The answer is the take retried, or typed.
+  **No control records again, in either mode** (#83; `06`, 2026-10-14): a realistic round is one take.
+  In practice, `録り直す` appears only on the take-held frame (§15); sending the take for transcription
+  leaves that frame, so a failed transcription offers only retry or typing.
 - **The round is abandoned.** In place of the frames: one sentence; the way Home is the header's
   link, which here asks nothing (`05` §5.2). Which sentence
   depends on why — a newer round started, or the round was not finished on the Asia/Tokyo day it
