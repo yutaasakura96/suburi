@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { HeaderName } from "./user-name";
 
 // No "use client": Setup's form renders it on the client, the other screens on the server.
 
@@ -11,14 +12,18 @@ const NAV = [
 
 export type NavItem = (typeof NAV)[number]["key"];
 
+/** Where the header marks the user as being: one of the four items, their settings, or neither. */
+export type HeaderPlace = NavItem | "settings" | null;
+
 /**
  * 05 §5.1: the wordmark and the four-item nav, the top of every app-level screen's card. A round's
  * own screens carry the round header instead (05 §5.2), whose one way out is its Home link.
  * The status page is reached from Home's status line and is not an item here (10 §14). A screen that
  * is none of the four (status, a round's feedback, an error) passes `null`: the nav is still there,
- * with no item current.
+ * with no item current. Right of the nav, the user's name leads to `/settings` and is current there
+ * (#107); it is not a fifth item.
  */
-export function AppHeader({ active }: { active: NavItem | null }) {
+export function AppHeader({ active }: { active: HeaderPlace }) {
   return (
     <header className="flex items-center justify-between border-b border-rule-frame px-[32px] py-[20px]">
       <div className="flex items-baseline gap-[14px]">
@@ -27,19 +32,22 @@ export function AppHeader({ active }: { active: NavItem | null }) {
         </span>
         <span className="font-mono text-[11px] tracking-[0.18em] text-ink-label uppercase">Suburi</span>
       </div>
-      <nav aria-label="Main" className="flex gap-[28px] text-[13px]">
-        {NAV.map((item) =>
-          item.key === active ? (
-            <Link key={item.key} href={item.href} aria-current="page" className="border-b-2 border-mark pb-[2px] text-ink-1">
-              {item.label}
-            </Link>
-          ) : (
-            <Link key={item.key} href={item.href} className="pb-[4px] text-ink-4 hover:text-ink-1">
-              {item.label}
-            </Link>
-          ),
-        )}
-      </nav>
+      <div className="flex items-center gap-[28px] text-[13px]">
+        <nav aria-label="Main" className="flex gap-[28px]">
+          {NAV.map((item) =>
+            item.key === active ? (
+              <Link key={item.key} href={item.href} aria-current="page" className="border-b-2 border-mark pb-[2px] text-ink-1">
+                {item.label}
+              </Link>
+            ) : (
+              <Link key={item.key} href={item.href} className="pb-[4px] text-ink-4 hover:text-ink-1">
+                {item.label}
+              </Link>
+            ),
+          )}
+        </nav>
+        <HeaderName current={active === "settings"} />
+      </div>
     </header>
   );
 }
