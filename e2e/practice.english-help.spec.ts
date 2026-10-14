@@ -11,11 +11,13 @@ import { E2E_URL } from "./database";
 import { generatedQuestions, silentPcm, startMockOpenAi, type MockOpenAi } from "./mock-openai";
 import { startMockS3, type MockS3 } from "./mock-s3";
 
-// 11 §4, `English help in practice` (#106, #123): a Japanese practice round's pill shows the
+// 11 §4, `English help in practice` (#106, #123, #124): a Japanese practice round's pill shows the
 // question's stored English under the Japanese without moving it, across the record frames and the
 // per-answer frame, starts from the setting, and a reload returns to the setting; a question with no
-// English says so; a Japanese realistic round has no pill and no English on screens 3–7. Against the
-// production build, with S3 and OpenAI mocked (11 §2).
+// English says so. With it on, the frames' chrome is English — the record frames, a failure, the
+// correction screen and the per-answer frame — and pressing it again turns it back, while what was
+// asked and said stays Japanese. A Japanese realistic round has no pill and no English on screens
+// 3–7. Against the production build, with S3 and OpenAI mocked (11 §2).
 
 test.describe.configure({ mode: "serial" });
 
@@ -50,9 +52,12 @@ const HEARD = "前職では、請求処理の移行を担当しました。";
 const FOLLOW_UP = "その移行で、ご自身が担った部分はどこですか。";
 const DIMENSIONS = ["structure", "evidence", "relevance", "fluency", "accuracy", "length_pacing", "keigo"];
 const NONE = "No English for this question yet.";
+const JUSTIFICATION = "結論から先に述べている。";
 
 let s3: MockS3;
 let openAi: MockOpenAi;
+/** Set while a spec needs the transcription to fail: the catalogue's `transcription_failed` follows. */
+let transcriptionFails = false;
 
 function formatOf(body: Record<string, unknown>) {
   return ((body.text as { format?: { name?: string } } | undefined)?.format?.name ?? "") as string;
@@ -71,7 +76,7 @@ test.beforeAll(async () => {
     (body) => {
       if (formatOf(body) === "answer_scores") {
         return {
-          scores: DIMENSIONS.map((dimension) => ({ dimension, value: 3, justification: "e2e" })),
+          scores: DIMENSIONS.map((dimension) => ({ dimension, value: 3, justification: JUSTIFICATION })),
           citations: [],
           unsupported: [],
           answered_language: "ja",
@@ -81,7 +86,7 @@ test.beforeAll(async () => {
       if (formatOf(body) === "generated_questions") return generatedQuestions(body);
       return { fail: 400 };
     },
-    { transcription: () => ({ text: HEARD, seconds: 12 }), speech: silentPcm },
+    { transcription: () => (transcriptionFails ? { fail: 400 } : { text: HEARD, seconds: 12 }), speech: silentPcm },
   );
 });
 
@@ -181,17 +186,17 @@ test("a Japanese practice round's pill shows the question's English under it, fr
   await page.screenshot({ path: test.info().outputPath("english-help-record.png"), fullPage: true });
 
   // It stays on across the record frames, the correction screen and the per-answer frame.
-  await page.getByRole("button", { name: "録音を開始" }).click();
+  await page.getByRole("button", { name: "Start recording" }).click();
   await expect(page.getByTestId("waveform").locator("span > span").nth(1)).toBeAttached({ timeout: 5_000 });
-  await page.getByRole("button", { name: "録音を停止" }).click();
+  await page.getByRole("button", { name: "Stop recording" }).click();
   await expect(page.getByTestId("take-held")).toBeVisible();
   await expect(page.getByTestId("prompt-english")).toHaveText(ENGLISH);
-  await page.getByRole("button", { name: "この録音を文字起こしする" }).click();
+  await page.getByRole("button", { name: "Transcribe this take" }).click();
   await expect(page.getByTestId("raw-transcript")).toHaveText(HEARD);
   await expect(page.getByTestId("prompt-english")).toHaveText(ENGLISH);
-  await page.getByRole("button", { name: "文字起こしを直す" }).click();
+  await page.getByRole("button", { name: "Correct the transcript" }).click();
   await expect(pill).toHaveAttribute("aria-pressed", "true");
-  await page.getByRole("button", { name: "この回答を送る" }).click();
+  await page.getByRole("button", { name: "Send this answer" }).click();
   await expect(page.getByTestId("answered-frame")).toBeVisible();
   await expect(pill).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByTestId("answered-frame").getByTestId("prompt-english")).toHaveText(ENGLISH);
@@ -211,10 +216,132 @@ test("a Japanese practice round's pill shows the question's English under it, fr
 
   // A prompt with no stored English says so, and nothing is generated for it.
   await pill.click();
-  await page.getByRole("button", { name: "深掘りに答える" }).click();
+  await page.getByRole("button", { name: "Answer the follow-up" }).click();
   await expect(question).toHaveText(FOLLOW_UP);
   await expect(page.getByTestId("prompt-english-none")).toHaveText(NONE);
   expect(openAi.requests.filter((request) => formatOf(request.body) === "question_english")).toHaveLength(0);
+});
+
+test("the pill turns a Japanese practice round's chrome English across its frames, and back", async ({ page }) => {
+  test.setTimeout(120_000);
+  await setting(false);
+  await signIn(page);
+  const roundId = await startRound(page, "practice");
+  await page.goto(`/round/${roundId}`);
+  const pill = page.getByTestId("english-help-pill");
+  const round = page.getByRole("region", { name: /HR|人事面接/u });
+  const header = page.locator("header").filter({ has: pill });
+  const step = page.getByTestId("round-step");
+  const question = page.getByTestId("round-question");
+  const japaneseQuestion = await question.textContent();
+
+  // Screen 3 in Japanese, then in English: header, step, tab title, controls, captions and footer.
+  await expect(page).toHaveTitle("ラウンド — Suburi");
+  await expect(header).toContainText("日本語・練習・3問");
+  await pill.click();
+  await expect(page).toHaveTitle("Round — Suburi");
+  await expect(round).toHaveAttribute("lang", "en");
+  await expect(header.locator("h1")).toHaveText("HR");
+  await expect(header).toContainText("Japanese · Practice · 3 questions");
+  await expect(step).toHaveText("Question 1 / 3");
+  await expect(page.getByRole("button", { name: "Start recording" })).toBeVisible();
+  await expect(page.getByText("You can record again until the take is transcribed.")).toBeVisible();
+  await expect(page.getByText("Each answer's scores appear once it is scored. The round's feedback comes at the end.")).toBeVisible();
+  // What was asked does not change, and says which language it is in.
+  await expect(question).toHaveText(japaneseQuestion!);
+  await expect(question).toHaveAttribute("lang", "ja");
+  await expect(round).not.toContainText("録音を開始");
+  await page.screenshot({ path: test.info().outputPath("english-chrome-asked.png"), fullPage: true });
+
+  // Back, and on again: it switches both ways.
+  await pill.click();
+  await expect(page).toHaveTitle("ラウンド — Suburi");
+  await expect(round).toHaveAttribute("lang", "ja");
+  await expect(step).toHaveText("第1問 / 3問");
+  await expect(page.getByRole("button", { name: "録音を開始" })).toBeVisible();
+  await pill.click();
+
+  // Recording, and the take held.
+  await page.getByRole("button", { name: "Start recording" }).click();
+  await expect(page.getByTestId("speaker-line")).toHaveText("Recording");
+  await expect(page.getByTestId("waveform").locator("span > span").nth(1)).toBeAttached({ timeout: 5_000 });
+  await page.getByRole("button", { name: "Stop recording" }).click();
+  await expect(page.getByTestId("take-held")).toHaveText("Take recorded — not transcribed yet");
+  await expect(page.getByText("Once it is transcribed, the take is final and cannot be recorded again.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Record again" })).toBeVisible();
+  await expect(page.getByText("Recording again replaces this take.")).toBeVisible();
+
+  // A failure is the catalogue's English sentence, and follows the pill after it is shown.
+  transcriptionFails = true;
+  await page.getByRole("button", { name: "Transcribe this take" }).click();
+  const notice = page.getByTestId("take-notice");
+  await expect(notice).toHaveText("Transcription failed. The take is kept — retry it, or type your answer instead.");
+  await expect(page.getByRole("button", { name: "Type the answer instead" })).toBeVisible();
+  await pill.click();
+  await expect(notice).toHaveText("文字起こしに失敗しました。録音は残っています。もう一度試すか、回答を入力してください。");
+  await expect(page.getByRole("button", { name: "回答を入力する" })).toBeVisible();
+  await pill.click();
+  transcriptionFails = false;
+  await page.getByRole("button", { name: "Try again" }).click();
+
+  // Screen 5: the label, the figures in characters, and the transcript as heard.
+  await expect(page.getByTestId("raw-transcript")).toHaveText(HEARD);
+  await expect(page.getByTestId("raw-transcript")).toHaveAttribute("lang", "ja");
+  await expect(page.getByText("Raw transcript — uncorrected")).toBeVisible();
+  await expect(page.getByTestId("take-figures")).toHaveText(/^0:12 · about \d+ chars\/min · \d+ chars$/u);
+  await expect(page.getByText("Correct it to what you said, then send. The amount rewritten is recorded but never scored.")).toBeVisible();
+  await page.getByRole("button", { name: "Correct the transcript" }).click();
+
+  // Screen 6: labels, the meter's words, the caption, and the editor and RAW in Japanese.
+  const editor = page.getByLabel("Your answer — edit freely");
+  await expect(editor).toHaveValue(HEARD);
+  await expect(editor).toHaveAttribute("lang", "ja");
+  await expect(page.getByTestId("raw-kept")).toHaveText(HEARD);
+  await expect(page.getByTestId("raw-kept")).toHaveAttribute("lang", "ja");
+  await expect(page.getByText("Raw — kept, never replaced")).toBeVisible();
+  await expect(page.getByText("of the characters changed from the uncorrected transcript")).toBeVisible();
+  const chars = [...HEARD].length;
+  await expect(page.getByTestId("word-change")).toHaveText(`${chars} chars → ${chars} chars`);
+  await expect(page.getByText("Sending writes one follow-up question from the text you just corrected.")).toBeVisible();
+  await expect(round).not.toContainText("文字起こしを直");
+  await page.screenshot({ path: test.info().outputPath("english-chrome-correction.png"), fullPage: true });
+  await pill.click();
+  await expect(page.getByLabel("あなたの回答 — 自由に直せます")).toHaveValue(HEARD);
+  await expect(page.getByTestId("word-change")).toHaveText(`${chars}字 → ${chars}字`);
+  await pill.click();
+  await page.getByRole("button", { name: "Send this answer" }).click();
+
+  // The per-answer frame: the rubric's `label_en`, the figures, `Next`, and the scorer's own words.
+  const frame = page.getByTestId("answered-frame");
+  await expect(frame).toHaveAttribute("data-scoring", "ok", { timeout: 15_000 });
+  await expect(frame.getByTestId("score-row")).toHaveCount(DIMENSIONS.length);
+  for (const label of ["Structure", "Evidence", "Relevance", "Fluency", "Accuracy", "Length and pacing", "Keigo (register)"]) {
+    await expect(frame.locator(`[data-dimension="${label}"]`)).toHaveCount(1);
+  }
+  await expect(frame.getByTestId("answer-figures")).toHaveText(/^0 min 12 s · about \d+ chars\/min · rewrite 0%$/u);
+  await expect(frame.getByTestId("answered-question")).toHaveAttribute("lang", "ja");
+  await expect(frame.getByText("Next", { exact: true })).toBeVisible();
+  await expect(page.getByTestId("next-follow-up")).toContainText("└ Follow-up");
+  await expect(page.getByTestId("next-follow-up").getByText(FOLLOW_UP)).toHaveAttribute("lang", "ja");
+  await expect(page.getByRole("button", { name: "Answer the follow-up" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Answer again" })).toBeVisible();
+  await expect(frame).toContainText("A new answer beside this one, scored on its own, with no follow-up. This one stays as it is.");
+  await frame.locator('[data-dimension="Structure"]').hover();
+  const tooltip = page.getByTestId("score-justification");
+  await expect(tooltip).toHaveText(JUSTIFICATION);
+  await expect(tooltip).toHaveAttribute("lang", "ja");
+  await page.screenshot({ path: test.info().outputPath("english-chrome-answered.png"), fullPage: true });
+  await page.mouse.move(0, 0);
+  await pill.click();
+  await expect(frame.locator('[data-dimension="構成"]')).toHaveCount(1);
+  await expect(page.getByRole("button", { name: "深掘りに答える" })).toBeVisible();
+  await pill.click();
+
+  // The follow-up names itself in the step.
+  await page.getByRole("button", { name: "Answer the follow-up" }).click();
+  await expect(question).toHaveText(FOLLOW_UP);
+  await expect(step).toHaveText("Question 1 / 3 · follow-up");
+  await expect(page.getByRole("button", { name: "Start recording" })).toBeVisible();
 });
 
 test("English help saved on /settings is the next practice round's starting state", async ({ page }) => {

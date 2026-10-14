@@ -87,8 +87,13 @@ built (2026-10-15), on `fm/suburi-123`:** `question_translations` and `user_sett
 synthetic Japanese questions' on `develop`, `npm run questions:translate`, `prompt.text_en`, the pill,
 and `English help` on `/settings`. **Owed, the user's:** `npm run db:seed:develop` against Neon
 `develop` for the seeded English, and, once deployed to `main`, `npm run db:seed` and
-`npm run questions:translate` against Neon `main` (`12` §1).
-**Updated:** 2026-10-15 (#123 built; #122 built; #122–#127 confirmed); 2026-10-14 (#106 and #107 planned; #76 built; #85 built; #83 checked; #75 built; #105 built; #104 measured and fixed; #51 built; follow-ups spoken; #73 built; #49's Japanese strings all accepted; #50's
+`npm run questions:translate` against Neon `main` (`12` §1). **#124, the round's chrome behind the
+same pill, is built (2026-10-15), on `fm/suburi-124`:** with it on, the record frames, their waits and
+failures, the correction screen and the per-answer frame read in English from an English round's copy,
+with `10` §0's wording for the header, the step and the figures, the rubric's `label_en` on the score
+rows, and an English tab title; what was asked and said, `RAW`, the CV rails' quotes and the
+justifications keep their Japanese, marked `lang="ja"`. No new Japanese string.
+**Updated:** 2026-10-15 (#124 built; #123 built; #122 built; #122–#127 confirmed); 2026-10-14 (#106 and #107 planned; #76 built; #85 built; #83 checked; #75 built; #105 built; #104 measured and fixed; #51 built; follow-ups spoken; #73 built; #49's Japanese strings all accepted; #50's
 catalogue string read; #43, #44, #45, #46, #47, #48, #49, #50 and #74 built; #42 closed; #55 and #56 on 2026-09-30)
 
 ## Done
@@ -384,8 +389,8 @@ Page 1 is the screen set, page 2 the three exploration directions. **Working fil
 every change re-seeds from those — edit them, never the built `design/suburi-directions.html`.
 
 ## Next
-**English help (#106) and the settings page (#107): six slices, confirmed 2026-10-15; #122 and
-#123 are built.** Planned on 2026-10-14 from the owner's answers to Q0, Q106-1 to Q106-7, Q-P1 and Q-P2
+**English help (#106) and the settings page (#107): six slices, confirmed 2026-10-15; #122, #123
+and #124 are built.** Planned on 2026-10-14 from the owner's answers to Q0, Q106-1 to Q106-7, Q-P1 and Q-P2
 (`06`, "Phase 6 — #106 and #107"): no English in a realistic round before its feedback, enforced
 structurally; in a Japanese practice round, one pill for the question's English and the round's
 chrome; English written by the call that writes the Japanese and stored apart from the question; the

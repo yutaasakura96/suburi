@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { paceUnits, rewriteMagnitude, rewritePercent } from "@/lib/round/measures";
 import type { ScoringRead } from "@/lib/round/read-round";
 import { failureText, postJson, type FailureCode } from "../api";
-import { ROUND_COPY, clock, type RoundCopy, type RoundLanguage, type RoundMode } from "../copy";
+import { clock, roundCopy, type RoundCopy, type RoundLanguage, type RoundMode } from "../copy";
 import type { AnsweredView, NextView, RoundFrame } from "../load";
 import { CalloutRail, ErrorLine, PromptEnglish, RoundFooter, RoundHeader, caption, roundSectionLabel, type Failure } from "../parts";
 import { AnsweredFrame, type FrameNext } from "./answered-frame";
@@ -135,10 +135,10 @@ const rejectionOf = (code: FailureCode | null): UploadRejection | null =>
  */
 export function RoundRunner({ frame }: { frame: RoundFrame }) {
   const { language } = frame.round;
-  const copy = ROUND_COPY[language];
   const router = useRouter();
   const [screen, setScreen] = useState<Screen>(() => initialScreen(frame.start));
-  const [error, setError] = useState<Failure | null>(null);
+  // The failed call by its code, so its sentence follows the chrome when the pill is pressed after it.
+  const [failed, setError] = useState<{ readonly code: FailureCode; readonly retry: (() => void) | null } | null>(null);
   const [busy, setBusy] = useState(false);
   const leaveDialog = useRef<HTMLDialogElement>(null);
   const mounted = useRef(true);
@@ -159,6 +159,14 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
   const pill = frame.englishHelp === null ? null : { on: englishOn, onToggle: () => setEnglishOn((on) => !on) };
   /** What English help shows under a prompt: undefined for nothing, null for the line saying there is none. */
   const englishFor = (textEn: string | null | undefined) => (pill?.on ? (textEn ?? null) : undefined);
+  // With the pill on, the frames' chrome is English (10 §0); what was asked and said stays in `language`.
+  const chrome: RoundLanguage = pill?.on ? "en" : language;
+  const copy = roundCopy(language, pill?.on === true);
+  const error: Failure | null = failed && { text: failureText(failed.code, chrome), retry: failed.retry };
+  // The tab title is chrome too. The page's metadata sets it from where the pill starts; this follows it.
+  useEffect(() => {
+    document.title = copy.title;
+  }, [copy.title]);
 
   // What the header names: the prompt on screen, or on the per-answer frame the answer it shows.
   const prompt =
@@ -216,7 +224,7 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
   ]);
 
   function fail(code: FailureCode, retry: (() => void) | null) {
-    setError({ text: failureText(code, language), retry: code === "round_abandoned" ? null : retry });
+    setError({ code, retry: code === "round_abandoned" ? null : retry });
     setBusy(false);
   }
 
@@ -522,6 +530,7 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
       body = (
         <RecordFrame
           copy={copy}
+          language={language}
           mode={round.mode}
           capSeconds={round.capSeconds}
           // Named by position and kind, never by text: the server reads what it says (07 §5.15). A
@@ -531,7 +540,7 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
               ? `/api/rounds/${round.id}/speech?position=${screen.question.position}&kind=${screen.question.followUpVersion === null ? "question" : "follow_up"}`
               : null
           }
-          speechFailed={failureText("speech_failed", round.language)}
+          speechFailed={failureText("speech_failed", chrome)}
           question={screen.question}
           english={englishFor(screen.question.textEn)}
           delivering={screen.kind === "uploading" ? screen.step : screen.kind === "retake" && screen.transcribing ? "transcribe" : null}
@@ -550,13 +559,14 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
         <StuckTakeFrame
           copy={copy}
           language={language}
+          chrome={chrome}
           question={screen.question.text}
           english={englishFor(screen.question.textEn)}
           notices={[
             ...(refused
               ? [copy.uploadRefused[refused]]
               : [
-                  ...(screen.cause === null ? [] : [failureText(screen.cause, language)]),
+                  ...(screen.cause === null ? [] : [failureText(screen.cause, chrome)]),
                   screen.onDevice ? copy.uploadHeld : copy.uploadFailed,
                 ]),
             ...(error ? [error.text] : []),
@@ -576,9 +586,10 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
         <StuckTakeFrame
           copy={copy}
           language={language}
+          chrome={chrome}
           question={screen.question.text}
           english={englishFor(screen.question.textEn)}
-          notices={[failureText("transcription_failed", language), ...(error ? [error.text] : [])]}
+          notices={[failureText("transcription_failed", chrome), ...(error ? [error.text] : [])]}
           busy={busy}
           stamp={stamp(screen.question)}
           onRetry={() => void transcribe(screen.question, screen.answerId)}
@@ -591,6 +602,7 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
         <StuckTakeFrame
           copy={copy}
           language={language}
+          chrome={chrome}
           question={screen.question.text}
           english={englishFor(screen.question.textEn)}
           notices={error ? [error.text] : []}
@@ -608,6 +620,7 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
         <TranscriptFrame
           copy={copy}
           language={language}
+          chrome={chrome}
           question={screen.question}
           english={englishFor(screen.question.textEn)}
           transcript={screen.transcript}
@@ -620,6 +633,7 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
         <CorrectionFrame
           copy={copy}
           language={language}
+          chrome={chrome}
           mode={round.mode}
           question={screen.question}
           transcript={screen.transcript}
@@ -634,9 +648,10 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
       body = (
         <SavedFrame
           copy={copy}
+          language={language}
           question={screen.question}
           missing={screen.reason === "missing"}
-          notice={screen.reason === "missing" ? failureText("followup_generation_failed", frame.round.language) : copy.followUpNotStored}
+          notice={screen.reason === "missing" ? failureText("followup_generation_failed", chrome) : copy.followUpNotStored}
           busy={busy}
           error={error}
           onGoOn={() =>
@@ -651,7 +666,9 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
           // A new answer is a new frame: its own score to wait for.
           key={screen.answer.answerId}
           roundId={round.id}
+          copy={copy}
           language={language}
+          chrome={chrome}
           dimensions={frame.dimensions}
           cvLabel={frame.cvLabel}
           step={prompt?.again ? copy.stepAgain(step) : step}
@@ -659,7 +676,7 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
           english={pill?.on ? { answer: screen.answer.textEn ?? null, next: "textEn" in screen.next ? (screen.next.textEn ?? null) : null } : null}
           next={screen.next}
           nextStep={screen.next.kind === "question" ? copy.step(screen.next.position, round.length) : null}
-          missingNotice={failureText("followup_generation_failed", language)}
+          missingNotice={failureText("followup_generation_failed", chrome)}
           busy={busy}
           error={error}
           stamp={roundStamp}
@@ -670,13 +687,13 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
       break;
     case "pressure":
       body = (
-        <PressureFrame copy={copy} language={language} roundId={round.id} busy={busy} error={error} stamp={roundStamp} onPick={(value) => void complete(value)} />
+        <PressureFrame copy={copy} language={chrome} roundId={round.id} busy={busy} error={error} stamp={roundStamp} onPick={(value) => void complete(value)} />
       );
       break;
   }
 
   return (
-    <section className="flex min-h-[680px] flex-col border border-rule-frame bg-surface" aria-label={copy.roundTypes[round.roundType]}>
+    <section className="flex min-h-[680px] flex-col border border-rule-frame bg-surface" lang={chrome} aria-label={copy.roundTypes[round.roundType]}>
       {header}
       {body}
       <dialog ref={leaveDialog} role="alertdialog" aria-labelledby="leave-round-title" aria-describedby="leave-round-detail" className="fixed inset-0 m-auto w-[460px] border border-rule-frame bg-surface p-[32px] backdrop:bg-ink-1/50">
@@ -713,6 +730,7 @@ function SpeakerGlyph() {
  */
 function RecordFrame({
   copy,
+  language,
   mode,
   capSeconds,
   speechSrc,
@@ -728,11 +746,13 @@ function RecordFrame({
   stamp,
 }: {
   copy: RoundCopy;
+  /** The round's language: the question is in it, whatever the chrome is. */
+  language: RoundLanguage;
   mode: RoundMode;
   capSeconds: number;
   /** The speech route's URL for this prompt; null in practice, which is text only. */
   speechSrc: string | null;
-  /** The catalogue's `speech_failed` sentence, in the round's language. */
+  /** The catalogue's `speech_failed` sentence, in the chrome's language. */
   speechFailed: string;
   question: Question;
   /** English help's line under the question: undefined draws none (10 §15). */
@@ -791,7 +811,7 @@ function RecordFrame({
       </div>
 
       <div className="flex flex-col gap-[8px]">
-        <p className="max-w-[880px] text-[19px] leading-[1.9] text-ink-2" data-testid="round-question">
+        <p className="max-w-[880px] text-[19px] leading-[1.9] text-ink-2" lang={language} data-testid="round-question">
           {question.text}
         </p>
         <PromptEnglish english={english} className="max-w-[880px] text-[15px] leading-[1.8] text-ink-5" />
@@ -882,13 +902,17 @@ function RecordFrame({
 function TranscriptFrame({
   copy,
   language,
+  chrome,
   question,
   english,
   transcript,
   onCorrect,
 }: {
   copy: RoundCopy;
+  /** The round's language: the question and the transcript are in it, and its pace counts in its units. */
   language: RoundLanguage;
+  /** The language `copy` is in: the round's, or English under English help (10 §0). */
+  chrome: RoundLanguage;
   question: Question;
   /** English help's line under the question: undefined draws none (10 §15). */
   english: string | null | undefined;
@@ -898,11 +922,13 @@ function TranscriptFrame({
   return (
     <div className="flex flex-grow flex-col gap-[22px] px-[32px] pt-[36px] pb-[32px]">
       <div className="flex flex-col gap-[6px]">
-        <p className="max-w-[880px] text-[14px] leading-[1.85] text-ink-5">{question.text}</p>
+        <p className="max-w-[880px] text-[14px] leading-[1.85] text-ink-5" lang={language}>
+          {question.text}
+        </p>
         <PromptEnglish english={english} className="max-w-[880px] text-[13px] leading-[1.75] text-ink-5" />
       </div>
       <div className="flex items-baseline justify-between">
-        <span className={roundSectionLabel(language)}>{copy.rawTranscript}</span>
+        <span className={roundSectionLabel(chrome)}>{copy.rawTranscript}</span>
         <span className="font-mono text-[12px] text-ink-label" data-testid="take-figures">
           {transcript.durationMs !== null && transcript.wpm !== null
             ? copy.takeFigures(transcript.durationMs, transcript.wpm, paceUnits(language, transcript.raw))
@@ -911,6 +937,7 @@ function TranscriptFrame({
       </div>
       <p
         className="max-h-[232px] overflow-hidden border-l-2 border-rule-axis pl-[18px] text-[15px] leading-[1.95] whitespace-pre-wrap text-ink-2"
+        lang={language}
         data-testid="raw-transcript"
       >
         {transcript.raw}
@@ -931,6 +958,7 @@ function TranscriptFrame({
 function CorrectionFrame({
   copy,
   language,
+  chrome,
   mode,
   question,
   transcript,
@@ -940,7 +968,10 @@ function CorrectionFrame({
   onSubmit,
 }: {
   copy: RoundCopy;
+  /** The round's language: the question, the editor's text and `RAW`'s are in it, and counted in its units. */
   language: RoundLanguage;
+  /** The language `copy` is in: the round's, or English under English help (10 §0). */
+  chrome: RoundLanguage;
   mode: RoundMode;
   question: Question;
   transcript: Transcript;
@@ -957,12 +988,14 @@ function CorrectionFrame({
   const deferred = useDeferredValue(text);
   const percent = rewritePercent(rewriteMagnitude(transcript.raw, deferred));
   const empty = text.trim() === "";
-  const sectionLabel = roundSectionLabel(language);
+  const sectionLabel = roundSectionLabel(chrome);
 
   return (
     <div className="grid flex-grow grid-cols-3">
       <div className="col-span-2 flex flex-col gap-[18px] border-r border-rule-frame px-[32px] pt-[30px] pb-[32px]">
-        <p className="text-[14px] leading-[1.85] text-ink-5">{question.text}</p>
+        <p className="text-[14px] leading-[1.85] text-ink-5" lang={language}>
+          {question.text}
+        </p>
         <div className="h-px bg-rule-row" />
         <div className="flex items-baseline justify-between">
           <label htmlFor="answer-text" className={sectionLabel}>
@@ -974,13 +1007,14 @@ function CorrectionFrame({
         </div>
         <textarea
           id="answer-text"
+          lang={language}
           value={text}
           onChange={(event) => setText(event.target.value)}
           className="h-[300px] resize-none border border-rule-frame px-[18px] py-[16px] font-sans text-[15px] leading-[1.95] text-ink-1 outline-none"
         />
         <div className="flex flex-col gap-[10px]">
           <span className={sectionLabel}>{copy.rawKept}</span>
-          <p className="border-l-2 border-rule-section pl-[18px] text-[13px] leading-[1.9] whitespace-pre-wrap text-ink-label" data-testid="raw-kept">
+          <p className="border-l-2 border-rule-section pl-[18px] text-[13px] leading-[1.9] whitespace-pre-wrap text-ink-label" lang={language} data-testid="raw-kept">
             {transcript.raw}
           </p>
         </div>
@@ -1046,6 +1080,7 @@ function CorrectionFrame({
  */
 function SavedFrame({
   copy,
+  language,
   question,
   missing,
   notice,
@@ -1054,6 +1089,8 @@ function SavedFrame({
   onGoOn,
 }: {
   copy: RoundCopy;
+  /** The round's language: the question is in it. */
+  language: RoundLanguage;
   question: Question;
   /** The hole takes the attention colour; a follow-up merely not stored yet does not. */
   missing: boolean;
@@ -1064,7 +1101,9 @@ function SavedFrame({
 }) {
   return (
     <div className="flex flex-grow flex-col gap-[22px] px-[32px] pt-[36px] pb-[32px]">
-      <p className="max-w-[880px] text-[14px] leading-[1.85] text-ink-5">{question.text}</p>
+      <p className="max-w-[880px] text-[14px] leading-[1.85] text-ink-5" lang={language}>
+        {question.text}
+      </p>
       <div className="h-px bg-rule-row" />
       <div data-testid="follow-up-notice">
         <CalloutRail tone={missing ? "attention" : "information"}>{notice}</CalloutRail>

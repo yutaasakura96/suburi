@@ -166,6 +166,35 @@ export function CalloutRail({
   );
 }
 
+/**
+ * A chrome sentence that quotes stored text — the answer's words, a CV label — which keeps its own
+ * language inside it (10 §15). `sentence` is the copy's function, given a placeholder for each quote;
+ * each placeholder becomes the quote, marked with `lang`.
+ */
+export function Quoting<Args extends readonly string[]>({
+  sentence,
+  quotes,
+  lang,
+}: {
+  sentence: (...quotes: Args) => string;
+  quotes: Args;
+  lang: "ja" | "en";
+}) {
+  const marks = quotes.map((_, index) => `\u{E000}${index}\u{E001}`) as unknown as Args;
+  return sentence(...marks)
+    .split(/(\u{E000}\d+\u{E001})/u)
+    .map((part, index) => {
+      const quote = /^\u{E000}(\d+)\u{E001}$/u.exec(part);
+      return quote ? (
+        <span key={index} lang={lang}>
+          {quotes[Number(quote[1])]}
+        </span>
+      ) : (
+        part
+      );
+    });
+}
+
 /** A failed call, said in the round's language, and how to make it again — null when it cannot be. */
 export interface Failure {
   readonly text: string;
@@ -205,12 +234,18 @@ export function ScoreRow({
   value,
   unscored,
   justification = null,
+  justificationLang,
 }: {
   label: string;
   value: number | null;
   unscored: string;
   /** What the scorer wrote for this dimension (04 `scores`), shown as stored. */
   justification?: string | null;
+  /**
+   * The round's language, which the justification is written in: marked where the row's own chrome
+   * may be in another — English help's (06 Q106-6). The tooltip renders outside the row.
+   */
+  justificationLang?: "ja" | "en";
 }) {
   const reason = useId();
   const cells = <ScoreCells label={label} value={value} unscored={unscored} />;
@@ -232,11 +267,11 @@ export function ScoreRow({
         data-dimension={label}
       >
         {cells}
-        <span id={reason} className="sr-only">
+        <span id={reason} className="sr-only" lang={justificationLang}>
           {justification}
         </span>
       </TooltipTrigger>
-      <TooltipContent className="max-w-[420px] text-[11px] leading-[1.7]" data-testid="score-justification">
+      <TooltipContent className="max-w-[420px] text-[11px] leading-[1.7]" lang={justificationLang} data-testid="score-justification">
         {justification}
       </TooltipContent>
     </Tooltip>

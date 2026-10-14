@@ -152,8 +152,11 @@ export interface RoundFrame {
    * has no pill at all, a realistic or an English round. Only a round with a pill carries any English.
    */
   readonly englishHelp: boolean | null;
-  /** The rubric's dimensions in its own order, named in the round's language: the per-answer frame's rows. */
-  readonly dimensions: readonly { readonly key: string; readonly label: string }[];
+  /**
+   * The rubric's dimensions in its own order: the per-answer frame's rows. `label` is in the round's
+   * language; `labelEn` is the rubric's `label_en`, which English help's chrome names them by (10 §15).
+   */
+  readonly dimensions: readonly { readonly key: string; readonly label: string; readonly labelEn: string }[];
   /** Each position's generator prompt version, for the stamp — the versions only, never a later question. */
   readonly generatorVersions: readonly string[];
   /** The prompt version of each follow-up the round has generated so far, for the round's stamp. */
@@ -244,6 +247,7 @@ export async function roundFrame(db: Db, userId: string, round: RoundRow): Promi
     dimensions: rubric.dimensions.map((dimension) => ({
       key: dimension.key as string,
       label: round.language === "ja" ? dimension.label_ja : dimension.label_en,
+      labelEn: dimension.label_en,
     })),
     generatorVersions: versions.map((row) => row.version),
     followUpVersions: [...new Set(followUps.filter((row) => row.status === "generated").map((row) => row.promptVersion))],

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { pace, paceUnits } from "@/lib/round/measures";
-import { FEEDBACK_READING, ROUND_COPY, SETUP_COPY, type RoundCopy } from "./copy";
+import { ERROR_COPY } from "@/lib/copy/errors";
+import { FEEDBACK_READING, ROUND_COPY, SETUP_COPY, roundCopy, type RoundCopy } from "./copy";
 
 // The round screens' chrome in the round's language (10 §0). The expected strings are 10 §3–§8's own;
 // the rules are 05 §6's mechanical ones, as lib/copy/errors.test.ts holds them over the catalogue.
@@ -301,6 +302,56 @@ describe("an English round's chrome", () => {
 
   it("carries no Japanese", () => {
     for (const [, text] of strings({ ...en, stamps: () => "", unused: () => en.unused([]) })) expect(text).not.toMatch(/[぀-ヿ一-龯]/u);
+  });
+});
+
+// 10 §0, §15: a Japanese practice round with English help's pill on reads in English, naming itself
+// and its pace as an English round would, with Japanese units in English words.
+describe("a Japanese round under English chrome (10 §0, §15)", () => {
+  const help = roundCopy("ja", true);
+
+  it("is the pill's alone: a Japanese round without it, and an English round, keep their own", () => {
+    expect(roundCopy("ja", false)).toBe(ja);
+    expect(roundCopy("en", true)).toBe(en);
+    expect(roundCopy("en", false)).toBe(en);
+  });
+
+  it("has every key a Japanese round's chrome has", () => {
+    expect(Object.keys(help).sort()).toEqual(Object.keys(ja).sort());
+  });
+
+  // A key on these frames with no English fails here: every string it can produce, given Latin
+  // arguments, carries no Japanese. The data it quotes — a CV label, the answer's words — is the
+  // screen's to mark, and is not chrome.
+  it.each(strings({ ...help, stamps: () => help.stamps(["Rubric v1.2", "CV v3"]), unused: () => help.unused([]) }))("%s is written in English", (_, text) => {
+    expect(text).not.toMatch(/[぀-ヿ一-龯]/u);
+    expect(text).toMatch(/[A-Za-z]/u);
+  });
+
+  it("names the round, its step and its figures as 10 §0 does", () => {
+    expect(help.roundTypes.behavioural).toBe("Behavioural");
+    expect(help.meta("practice", 3)).toBe("Japanese · Practice · 3 questions");
+    expect(help.followUpStep(1, 3)).toBe("Question 1 / 3 · follow-up");
+    expect(help.stepAgain(help.step(1, 3))).toBe("Question 1 / 3 · again");
+    const raw = "あ".repeat(800);
+    expect(help.takeFigures(192_000, pace("ja", raw, 192_000)!, paceUnits("ja", raw))).toBe("3:12 · about 250 chars/min · 800 chars");
+    expect(help.unitsChange(800, 812)).toBe("800 chars → 812 chars");
+    expect(help.takeSummary(192_000, 250)).toBe("3:12 · about 250 chars/min");
+    expect(help.answerFigures(192_000, 250, 3)).toBe("3 min 12 s · about 250 chars/min · rewrite 3%");
+    expect(help.title).toBe("Round — Suburi");
+  });
+
+  it("is an English round's copy everywhere else", () => {
+    const own = new Set(["meta", "takeFigures", "unitsChange", "takeSummary", "answerFigures", "wrongLanguage"]);
+    for (const [key, value] of Object.entries(help)) if (!own.has(key)) expect(value, key).toBe(en[key as keyof RoundCopy]);
+    expect(help.wrongLanguage("en")).toBe("This answer was given in English. It is kept out of your Japanese progress.");
+  });
+
+  it("says every catalogue error in English", () => {
+    for (const [code, sentence] of Object.entries(ERROR_COPY)) {
+      expect(sentence.en, code).toMatch(/[A-Za-z]/u);
+      expect(sentence.en, code).not.toMatch(/[぀-ヿ一-龯]/u);
+    }
   });
 });
 

@@ -16,6 +16,7 @@ import { CalloutRail, PromptEnglish, RoundFooter, caption, roundSectionLabel } f
 export function StuckTakeFrame({
   copy,
   language,
+  chrome,
   question,
   english,
   notices,
@@ -26,8 +27,12 @@ export function StuckTakeFrame({
   typingOpen = false,
   takeKept = true,
 }: {
+  /** The chrome's words: the round's language, or English under English help (10 §0). */
   copy: RoundCopy;
+  /** The round's language: the question and the typed answer are in it. */
   language: RoundLanguage;
+  /** The language `copy` is in. */
+  chrome: RoundLanguage;
   question: string;
   /** English help's line under the question: undefined draws none (10 §15). */
   english: string | null | undefined;
@@ -52,7 +57,7 @@ export function StuckTakeFrame({
     <div className="flex flex-grow flex-col gap-[26px] px-[32px] pt-[36px] pb-[32px]">
       <div className="h-[18px]" />
       <div className="flex flex-col gap-[8px]">
-        <p className="max-w-[880px] text-[19px] leading-[1.9] text-ink-2" data-testid="round-question">
+        <p className="max-w-[880px] text-[19px] leading-[1.9] text-ink-2" lang={language} data-testid="round-question">
           {question}
         </p>
         <PromptEnglish english={english} className="max-w-[880px] text-[15px] leading-[1.8] text-ink-5" />
@@ -86,11 +91,12 @@ export function StuckTakeFrame({
 
       {onType && typing ? (
         <div className="flex max-w-[880px] flex-col gap-[12px]">
-          <label htmlFor="typed-answer" className={roundSectionLabel(language)}>
+          <label htmlFor="typed-answer" className={roundSectionLabel(chrome)}>
             {copy.typedAnswer}
           </label>
           <textarea
             id="typed-answer"
+            lang={language}
             value={text}
             onChange={(event) => setText(event.target.value)}
             className="h-[200px] resize-none border border-rule-frame px-[18px] py-[16px] font-sans text-[15px] leading-[1.95] text-ink-1 outline-none"
