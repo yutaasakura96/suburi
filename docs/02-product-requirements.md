@@ -5,6 +5,8 @@
 round loop"): §2, §3, US-2, US-4, US-5, US-7, US-8, US-11, US-13 and §7. **Amended 2026-10-04**
 (#74): US-17, a model answer for each question, raised by the user after the first real round.
 **Amended 2026-10-12** (#75): US-18, a study view of past questions.
+**Amended 2026-10-14** (#106, #107): §4's feedback language, US-19 English help and US-20 the settings
+page, from the owner's planning answers (`06`, "Phase 6 — #106 and #107").
 **Upstream:** `01-project-brief.md`. Decisions and their reasoning: `06-decision-log.md`.
 
 No technical decisions appear here. Stack, storage, speech engine and model choices belong to
@@ -91,7 +93,9 @@ Fluency and accuracy are separate dimensions, not one language score — see the
 
 **Feedback language.** A Japanese round's feedback is written in Japanese, with a toggle to view it
 in English. An English round's feedback is in English. Rubric dimension names follow the feedback
-language.
+language. *Amended 2026-10-14 (#106):* the toggle also shows the question in English and turns the
+feedback screen's own text English, and it starts from the user's English help setting (US-19). The
+per-dimension justifications stay in the round's language.
 
 ---
 
@@ -319,6 +323,41 @@ Proposed by firstmate and approved by the owner to file on 2026-10-03.
 - The home screen surfaces what is due, most overdue first.
 - It is a suggestion. It never blocks starting any round.
 
+### English help and settings
+
+**US-19 — Use a Japanese round without reading Japanese well** `SHOULD` *(added 2026-10-14, #106)*
+> As a user who does not read Japanese well, I want English beside a Japanese round where it does not
+> change what is measured, so that I can practise Japanese interviews I could not otherwise follow.
+
+Filed by the owner on 2026-10-09; its questions were answered on 2026-10-14 (`06`).
+
+*Acceptance:*
+- **A realistic round shows no English before its feedback** — not the question, not the screen's
+  text, not the transcript. Its rounds stay comparable with every Japanese round already taken.
+- **A practice round has one pill in its header.** It shows each question's and follow-up's English
+  under the Japanese, which stays, and turns the round's buttons, labels and hints English. It starts
+  from the user's setting (US-20); pressing it changes only this round's screens.
+- **A question's English is written when the question is**, by the same call, and stored apart from
+  it: the Japanese never changes, and a bad English can be re-written. A set piece's English is
+  hand-written. A question with no English yet is shown without it, and says so.
+- **On the correction screen of a practice round, an English reading of the text being corrected**,
+  on request. It is never stored and is not part of the answer.
+- **After the round, in either mode**, the feedback screen's toggle shows the question's English and
+  the screen's text in English, beside the feedback and model answers it already translates.
+- **Nothing in English is scored, stamped or plotted.** The scorer's per-dimension justifications stay
+  in Japanese.
+
+**US-20 — Change my own settings** `SHOULD` *(added 2026-10-14, #107)*
+> As the user, I want one page for my own settings, so that a choice like English help has somewhere
+> to be changed.
+
+*Acceptance:*
+- The page holds the **display name** (shown in the app header), the **email** (read-only) and
+  **English help** (US-19). Nothing on it is read by a model, and it holds no career facts: those
+  are the CV's.
+- It is reached from the user's name in the app header.
+- No delete, export or sharing control (§9).
+
 ### Committed v1 scope, not gating round one
 
 **US-15 — Story bank** `MUST` *(lands during the 30-day window)*
@@ -364,6 +403,7 @@ Empty states are requirements.
 | **No rounds completed yet** | The progress screen shows the dimensions it will plot, in both languages, and states the count needed (≥30 first attempts per language). Not a blank chart. |
 | **Too few first attempts to trend** | Points are shown but no trend line is drawn below **5 first attempts** in one segment between version changes for that dimension × language × round type. The screen says how many remain in the newest segment. |
 | **Bank exhausted for a round type × language** | Setup says new questions will be written when the round starts and warns that repeats will not appear in progress data. |
+| **A Japanese question with no English yet** | With English help on, the question is shown in Japanese with one line saying its English is not written yet. The round goes on; nothing is generated for it mid-round (US-19). |
 | **Story bank not yet extracted** | Feedback omits the story section entirely rather than showing an empty one. |
 | **A round with no scores yet** (scoring failed or pending) | Shown in history marked unscored, with a retry. Excluded from progress until scored. |
 

@@ -3,7 +3,7 @@
 Nine screens, extracted from the Direction B artboards in `design/`, **and a tenth — the CV screen
 (§13) — specified from `05` components with no artboard behind it, an eleventh, the status page
 (§14), specified the same way, practice mode's frames (§15), which the artboards never drew, and the
-study view (§16), added by #75.**
+study view (§16), added by #75, and the settings page (§17), added for #106 and #107.**
 Tokens referenced here are
 defined in [`05-design-system.md`](05-design-system.md); this document specifies **what each screen
 contains, in what state, and what it must refuse to do**.
@@ -27,8 +27,8 @@ words, the questions, and the feedback's content.
 
 | Screens | Chrome is in |
 | --- | --- |
-| **Inside a round** — record (§3–5, and practice's frames), transcript correction (§6), felt pressure (§7), round feedback (§8) | **The round's language.** A Japanese round is Japanese throughout; an English round is English throughout. |
-| **App-level** — Home (§1), Setup (§2), Progress (§9), History (§10), Status (§14), Study (§16) | **English**, one fixed app language. |
+| **Inside a round** — record (§3–5, and practice's frames), transcript correction (§6), felt pressure (§7), round feedback (§8) | **The round's language.** A Japanese round is Japanese throughout; an English round is English throughout. **Except under English help** (below): a Japanese practice round with its pill on, and screen 8 with its pill on, in either mode. |
+| **App-level** — Home (§1), Setup (§2), Progress (§9), History (§10), Status (§14), Study (§16), Settings (§17) | **English**, one fixed app language. |
 | CV (§13) | Each panel in its own language — its own rule, unchanged. |
 | `/sign-in` | Both languages side by side (§12), unchanged. |
 
@@ -62,6 +62,24 @@ measures, order, states and refusals stand. What changes:
   it changed in what the sections below quote: **a Japanese round is titled `人事面接` and
   `最終面接`**, not the artboards' `HR` and `CEO・最終` (`行動面接` and `技術面接` stand), and
   **`緊張度4を…` is set tight** (`05` §6).
+- **English help, decided 2026-10-14** (`06`, "Phase 6 — #106 and #107"). The round's language still
+  decides what is asked, answered and scored; English help decides only what else is shown, and
+  never before a realistic round's feedback:
+
+  | Where | What English help shows |
+  | --- | --- |
+  | A realistic round, screens 3–7 | **Nothing.** No pill, and no English in what the screens read (`07` §5.4). |
+  | A Japanese practice round's frames (§15) | Behind the round header's pill: each prompt's stored English under the Japanese, and the round's chrome in English. On the correction screen, an English reading of the answer on request, never stored. |
+  | Screen 8, either mode (§8) | Behind the existing pill: as before the feedback and model answers, now also the question's and follow-up's English under them and the screen's chrome. |
+  | Study (§16) | Behind each card's pill: the questions' English too. Its chrome is English already. |
+
+  **Every pill starts from the user's English help setting** (§17) and is page state after that.
+  **The Japanese is never replaced**: a prompt's English sits under it. What the user said, the raw
+  transcript, every quote of either and the scorer's justifications are never shown in English, except
+  the correction screen's English reading, which is not stored. **A Japanese round under English
+  chrome** names itself and its pace as an English round would, with Japanese units in English words:
+  `Behavioural`, `Japanese · Practice · 3 questions`, `3:12 · about 250 chars/min · 800 chars`,
+  `800 chars → 812 chars`, `Question 1 / 3 · follow-up`. A stored `応募書類 v3` stays as stored.
 
 ---
 
@@ -637,14 +655,21 @@ Header: `行動面接` 17px/600, `日本語・実戦・5問` 13px `--ink-4`; rig
 language pill (`1px --tick`, `padding: 4px 10px`, 11px `--ink-4`) reading `English` — the toggle to
 read a Japanese round's feedback in English.
 
-**What the pill changes (`06`, 2026-10-03):** the feedback, and nothing else — the seven dimension
+**What the pill changes (`06`, 2026-10-03, amended 2026-10-14 for #106):** the seven dimension
 names (`Structure … Keigo (register)`) and the round-level findings with their two headings
-(`To fix 3`, `What worked 1`), read from the stored translation (`04` `round_feedback.body_translated`),
-and **each model answer**, read from the translation stored with it (`04` `model_answers`, #74).
-The round's own chrome stays Japanese: the header, `第1問 / 5問`, the figures, the question, the pager,
-the answer texts' labels and legend, what the user said, and the stamps. The pill appears only when the stored translation exists. It names the language it
-switches to, in that language — `English`, then `日本語` — and the choice is the page's, not stored.
-**An English round has no pill**: its feedback is English already (PRD §4).
+(`To fix 3`, `What worked 1`), read from the stored translation (`04` `round_feedback.body_translated`);
+**each model answer**, read from the translation stored with it (`04` `model_answers`, #74); and,
+since #106, **the question's and the follow-up's stored English, under them** — the newest
+`question_translations` row and `follow_ups.prompt_text_translated` (`04`), at 13px/1.75 `--ink-5`
+under the 15px question and at 12px `--ink-8` under the 12px follow-up, each `lang="en"`, with
+`No English for this question yet.` in their place when none is stored — **and the screen's chrome**:
+the header's line, `Question 1 / 5`, the figures, the pager, the answer texts' labels and legend, the
+`Checked against your CV` region's sentences and the stamps, as §0 sets an English round's. **What
+stays:** the Japanese question and follow-up, what the user said, every quote in the CV region, and
+the score rows' justifications (`06`, Q106-6). The pill appears when anything on the screen has a
+stored English. It names the language it switches to, in that language — `English`, then `日本語` —
+and **starts from the user's English help setting** (§17), in either mode; the choice after that is
+the page's, not stored. **An English round has no pill**: its feedback is English already (PRD §4).
 
 3-column grid: per-answer scores at `span 2`, round-level findings in the last column.
 
@@ -1348,6 +1373,31 @@ A practice round is chosen on Setup (§2), where the mode's line already says wh
   `Each answer's scores appear once it is scored. The round's feedback comes at the end.` /
   `回答ごとの採点は、済みしだい出ます。講評はラウンドの最後にまとめて出ます。`
 
+### English help — a Japanese practice round's pill (#106)
+
+Decided 2026-10-14 (`06`, Q106-3; no artboard). **A Japanese practice round's header carries a
+language pill** (`05` §5.2); an English round and a realistic round have none. It names the language
+it switches to, in that language — `English`, then `日本語` — as screen 8's does, with
+`aria-pressed`. **It starts from the user's English help setting** (§17); pressing it changes this
+round's frames at once and never the setting, and a reload starts from the setting again. With it on:
+
+- **The prompt's English, under the Japanese.** On the record frames, 8px under the 19px question and
+  at its `max-width`, the stored English at 15px/1.8 `--ink-5`, `lang="en"`; on the per-answer frame,
+  under the 15px question at 13px/1.75 `--ink-5`; in `Next`'s follow-up row, under the 13px text at
+  12px `--ink-6`. A bank question's English is its newest `question_translations` row, a follow-up's
+  `follow_ups.prompt_text_translated` (`04`), both read from the round's prompt (`07` §5.5). **The
+  Japanese does not shrink or move**, and nothing in the English is a control. With none stored, the
+  line is `No English for this question yet.` at 12px `--ink-6`, and nothing is generated for it.
+- **The chrome in English** — every string on these frames, from the copy an English round uses, with
+  §0's Japanese-round wording for the header, the step and the figures. Error and wait sentences come
+  from the catalogue's English. The score rows take the rubric's `label_en`; **a row's tooltip still
+  shows the scorer's justification as written**, `lang="ja"` (`06`, Q106-6).
+- **What does not change:** the transcript and the editor's text, `RAW`'s text, the quotes in the CV
+  rails, and the round's stamp values.
+
+**Realistic rounds never show it** (`06`, Q106-2): no pill, no English line and no English field in
+what their frames read, until screen 8.
+
 ### Record, with a re-take — §3–§5 in practice
 
 - **Asked.** The question at 19px, the outline `Start recording` button, and two lines at 12px/1.75
@@ -1382,6 +1432,30 @@ Unchanged, meter included: the diff is stored in both modes (US-6). Only the com
 differs where §6's would promise silence — under a follow-up's own answer, or an answer given again:
 `Sending scores this answer. Its scores appear on the next screen once it is scored.` /
 `送ると、この回答を採点します。採点が済むと、次の画面に出ます。`
+
+**An English reading, in a Japanese practice round** (#106; `06`, 2026-10-14, Q106-7; no artboard).
+Under `RAW`'s rail, below a `--rule-row` divider, an outline button `Read it in English` /
+`英語訳を見る`, captioned at 12px `--ink-6` `An English reading of your answer as it stands now. It is
+not saved.` / `いまの回答を英語に訳して表示します。保存はしません。` It is there whether the pill is on or
+off, and its words follow the chrome. Pressing it sends the editor's text (`07` §5.20):
+
+- **While it runs**, the button is disabled and the caption is `Reading it in English.` /
+  `英語に訳しています。` No spinner; the editor stays editable.
+- **The reading** appears under the button: the §3.3 section label `ENGLISH READING — NOT SAVED` /
+  `英語訳 — 保存しません`, then the English at 13px/1.9 `--ink-3` in a `2px --rule-section` left rail,
+  `lang="en"`, line breaks kept — `RAW`'s rail, in the reading's own place. The button becomes
+  `Read it in English again` / `もう一度英語訳を見る`.
+- **Once the editor's text differs from the text that was read**, one line under the label says so:
+  `You have edited your answer since this reading.` / `この英語訳のあとで回答を直しました。` The reading
+  stays until it is asked for again.
+- **A failure** is the catalogue's `english_reading_failed` sentence on an attention rail (`05` §5.8)
+  above the button, which stays. Nothing else on the screen changes.
+- **Never stored and gone on submit.** A reload, or the commit, drops it; nothing in History, screen 8
+  or Study shows it. It feeds no score, no follow-up and no meter.
+
+**A realistic round's correction screen has none** (§0). The Japanese strings above go into
+`docs/checklists/native-read-round.md` with the slice that builds them, and are read before it ships
+(`05` §6).
 
 ### The per-answer frame — after every commit
 
@@ -1569,10 +1643,13 @@ Screen 8's card without its scores, its pager and its stamps.
   sticky` and stays beside the questions as the round is read. A round whose findings were never
   written says `No fixes are available for this round.`
   `What worked` and `Checked against your CV` are screen 8's, and are not repeated here.
-- **The pill**, on a Japanese round with a stored translation — of its findings, or of any model
-  answer — reads `English`, then `日本語`, as on screen 8. It changes that round's model answers and
-  `To fix`, each from the translation stored with it; what was asked and what was said never change,
-  and neither does the chrome. The choice is that card's, and is not stored. An English round has none.
+- **The pill**, on a Japanese round with a stored translation — of its findings, of any model
+  answer, or, since #106, of any question it asked — reads `English`, then `日本語`, as on screen 8.
+  It changes that round's model answers and `To fix`, each from the translation stored with it, and
+  shows each question's and follow-up's stored English under it as screen 8 does (§8); the question as
+  asked and what was said never change, and neither does the chrome. **It starts from the user's
+  English help setting** (§17); the choice after that is that card's, and is not stored. An English
+  round has none.
 
 ### Empty
 
@@ -1595,3 +1672,43 @@ and the link `Start a round`.
 - **No filter and no search.** Rounds are read newest first; choosing by language or round type is not
   built (`06`, 2026-10-12).
 - **No question a round never asked.**
+
+---
+
+## 17. Settings — `/settings`, no artboard
+
+**Purpose.** The user's own settings, in one place: today the display name and English help (#106,
+#107; `06`, 2026-10-14, Q-P1). **Settings only** — no career facts, which are the CV's, and nothing a
+model reads.
+
+Specified from `05` components, like §13. Session-required (`08` §5), the user's own page, and
+app-level, so its chrome is English (§0). **Not in the nav**: reached from the name at the right of
+the app header (`05` §5.1), which shows it current.
+
+### Layout
+
+The standard frame, **one card** at 1280px: the app header, a card header holding the §3.3 section
+label `SETTINGS`, then the body at `26px 32px 32px`. Three rows on `--rule-hairline` separators,
+`padding: 16px 0`, in a grid `200px minmax(0, 1fr)`: the field's name at 13px `--ink-4`, then its
+control with a 12px/1.7 `--ink-6` caption under it.
+
+| Row | Control | Caption |
+| --- | --- | --- |
+| `Name` | A text input, 360px, `1px solid --rule-frame`, `padding: 8px 12px`, 14px `--ink-1`, prefilled with `users.name` | `Shown at the top of every page. Nothing else reads it.` |
+| `Email` | The address as text, 14px `--ink-3`, not an input | `Your Google account. It is the only account that can sign in.` |
+| `English help` | A checkbox labelled `Start Japanese practice rounds, and the feedback of every Japanese round, with English shown.` | `Realistic rounds show no English until their feedback, whatever this says. In a round, its English pill switches it for that round only.` |
+
+Under them, a solid primary `Save settings`, **disabled until something differs from what is saved**
+and while the name is blank or over 80 characters, with the reason in its caption. Pressing it sends
+both fields (`07` §5.21) and disables it; on success `Saved.` at 12px `--ink-6` beside it, and the app
+header's name changes at once. A failure is the catalogue's sentence on an attention rail (`05` §5.8)
+above the button, and the fields keep what was typed.
+
+### Refuses
+
+- **No career or personal fields**: no current role, years of experience, target role, location or
+  aiming-for text (`06`, Q-P1). A field a model reads is a second CV without its stamps.
+- **No default round choices.** Setup's defaults come from what is due (US-14).
+- **No delete, export or share** of the account or anything in it (§11, refusal 6; `04` §5).
+- **No model, rubric or language-of-the-app picker** (`07` §6).
+- **No API key** until #114 decides one.

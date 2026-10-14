@@ -55,6 +55,8 @@ docs and the build.
 | **Model answer** (`模範回答`) | How one question a round asked — a bank question or a follow-up — could have been answered **by this user, from the record they really have**: the round's CV version and what they said. One `model_answers` row per answer, written when the round completes and **never rewritten**. The parts the CV does not back are stored as spans and underlined. **Coaching, not measurement**: no score, no stamp, nothing Progress reads. |
 | **Felt pressure** | A 1–5 self-report taken once per realistic round, **before any feedback**. Instrumentation for the brief's falsification test — never feedback, never averaged, never shown as something to improve. |
 | **敬語 / register** | A scored rubric dimension in Japanese only. Not a politeness filter, not a translation concern. |
+| **English help** | English shown with a Japanese round so that a user who does not read Japanese well can use it: a prompt's stored English under the Japanese, the round's chrome in English, the stored translation of feedback and model answers. **A reading aid, never the record** — nothing in it is scored, stamped or plotted. **Never before a realistic round's feedback**; in practice, behind the round header's pill, which starts from the user's setting (`06`, 2026-10-14). |
+| **English reading** | An English translation of the text in the correction screen's editor, asked for on that screen in a Japanese practice round. **Never stored and never logged**; only that one was made, and its tokens, are recorded. Not a correction, not a score. |
 
 ---
 
@@ -149,6 +151,10 @@ detail and the non-obvious consequences: `docs/12-deployment.md` §1 and §4.
   authoring time. Assume the same is true of the next batch.
 - **Desktop only.** Stated by the app, not degraded on a phone. No breakpoints; do not infer one from
   the 1280px canvas.
+- **English help is a reading aid, never the measurement** (`06`, 2026-10-14). A realistic round shows
+  no English until its feedback, structurally; a practice round shows it behind one pill. A
+  question's English is stored apart from the question and may be re-written; the Japanese never
+  changes. What the user said is never translated into anything stored.
 
 ---
 
@@ -160,6 +166,12 @@ Carry these; do not silently decide them in a ticket.
   inside a round follow the **round's language**; Home, Setup, Progress and History are in **English**,
   one fixed app language. The CV screen keeps its per-panel rule (`10` §13), and `/sign-in` still shows
   both. The artboards' Japanese chrome on the app-level screens is layout, not copy (`10` §0).
+  **Amended 2026-10-14 (#106):** a Japanese practice round's pill, and screen 8's in either mode, can
+  turn the chrome English (`10` §0).
+- **English help beyond the round screens.** The 2026-10-14 answers (#106) reached the round's
+  screens, screen 8 and Study. The CV screen's Japanese panel and History detail were not asked
+  about: the panel keeps its own-language rule and History shows a Japanese round's questions as
+  asked. Nor is there a way to re-write one question's English from the app; only the script does.
 - **The near-duplicate similarity threshold.** A guess until there is real data. **It starts at cosine
   similarity 0.90 = the same question — unverified** (`06`, 2026-09-27). Store every near-miss with its
   score (`04`); tune from those records.

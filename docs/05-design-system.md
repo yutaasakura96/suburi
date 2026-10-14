@@ -203,6 +203,12 @@ button leads. The study view (`10` §16) has none either and shows `History` act
 History and is reached from its rail (#75). The wordmark is `lang="ja"`. A screen that is none of the
 four (status, a round's feedback, 404, error) shows the nav with no item current (#105).
 
+**The user's name, since #107** (`06`, 2026-10-14, Q-P1). Right of the nav, after a `28px` gap and a
+1px `--rule-row` rule 14px tall, the display name (`users.name`) at 13px `--ink-4`, `max-width:
+200px` with an ellipsis and the whole name in `title`. It is a link to `/settings` and takes the active
+item's treatment and `aria-current="page"` there. **It is not a fifth nav item**: the nav stays four
+(`10` §14), and this is the way to the user's own settings.
+
 ### 5.2 Round header (in-round screens)
 
 Replaces the app header once a round is running. A Home link stays in this header; during a live round,
@@ -211,6 +217,11 @@ can be lost. An abandoned round goes directly Home. Left:
 title 17px/600 plus `日本語・実戦・5問` at 13px `--ink-4`. Right: the **round stepper** — one `26×2px`
 bar per question, gap `7px`, `--accent` when done and `--rule-section` when not — then
 `第1問 / 5問` in 11px mono at `0.08em`, then the Home link at 13px.
+
+**A Japanese practice round adds the language pill (#106)**, first on the right, `18px` before the
+stepper: screen 8's pill (`10` §8) — `1px --tick`, `padding: 4px 10px`, 11px `--ink-4` — with
+`aria-pressed`. It is English help's one control in a round (`10` §15). **A realistic round's header
+never has it**, and neither does an English round's.
 
 ### 5.3 Score row — marker on a five-tick scale
 

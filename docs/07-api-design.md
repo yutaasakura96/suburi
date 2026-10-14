@@ -72,10 +72,16 @@ by round end the scores are already rows.
    **History's retry (#50):** `POST /api/scoring-attempts` and `scoring-attempts/{id}/run` **30 per 10
    minutes** each, in two buckets (`scoring-attempts`, `scoring-run`) — the longest round has 14
    answers, and retrying every one of them is 14 of each call.
+   **The English reading (#106, §5.20): 30 per 10 minutes**, in its own bucket (`english-reading`) —
+   a few readings per answer while it is corrected, across the longest practice round.
 6. **The client never chooses an S3 key, an object prefix, a `user_id`, a `position`, an
    `is_first_attempt`, a question, a CV version, text to be spoken, or any version stamp.** All are
    server-derived. This is not defensive coding; it is what makes the four stamps and first-attempt
-   uniqueness trustworthy.
+   uniqueness trustworthy. **One route takes text for a model, and only the user's own:** the English
+   reading (§5.20) translates the editor's text, bound to an open, unsubmitted answer of a Japanese
+   practice round and capped, so it is not a general translator. Nothing it sends or returns is
+   stored (`06`, 2026-10-14). **No English is chosen by the client either**: a prompt's English is
+   read from stored rows (§5.4).
 
 ---
 
@@ -123,7 +129,7 @@ for the same reason: an error payload is a third home for sensitive material.
 | `409` | Valid request, wrong state — e.g. scoring a round that is already scored | envelope |
 | `422` | Refused by an invariant — the request is well-formed and would corrupt the record | envelope |
 | `429` | Per-session rate limit on a model route | envelope, `Retry-After` |
-| `500` | A database write failed on a round route | envelope, `code: "write_failed"` — never a bare `500` (`06`, 2026-09-28) |
+| `500` | A database write failed on a round route, or on `PUT /api/settings` | envelope, `code: "write_failed"` — never a bare `500` (`06`, 2026-09-28) |
 | `502` | Upstream failed — OpenAI or S3 | envelope, `code` names which |
 | `503` | Preflight says the scorer is unavailable | envelope, `code: "model_unavailable"`. **Includes a spent OpenAI project** — upstream that is `429 project_spend_limit_exceeded`, mapped here and never retried as a rate limit (`06`, 2026-09-27, confirm 5). `detail.error_class` carries the upstream code |
 
@@ -167,7 +173,9 @@ that asserts the two lists match.
 | `model_answer_generation_failed` | 502 | `model-answers` | screen 8 — under the question whose model answer is not written; the round, its scores and its feedback are untouched, and the retry stays (§5.19) |
 | `role_context_too_large` | 422 | `POST /api/role-contexts` | Setup's add form — before anything is saved. The cap is measured (§5.3) |
 | `speech_failed` | 502 | `speech` | screen 3 — a short notice; the prompt stays as text and the round goes on (§5.15) |
-| `write_failed` | 500 | every round route | the screen that made the call — nothing half-written; the round stays resumable |
+| `write_failed` | 500 | every round route, and `PUT /api/settings` | the screen that made the call — nothing half-written; the round stays resumable |
+| `english_reading_not_applicable` | 422 | `english-reading` | — (a client bug: the control is drawn only on a Japanese practice round's correction screen) — names the refusal, a realistic round's or an English one's (§5.20) |
+| `english_reading_failed` | 502 | `english-reading` | the correction screen — under the control; the editor and everything else unchanged, and asking again is allowed (§5.20) |
 | `cv_unchanged` | 422 | `POST /api/cv-versions` | CV screen — the save is refused, nothing written |
 | `cv_too_large` | 422 | `POST /api/cv-versions` | CV screen — before any model call |
 | `cv_extraction_failed` | 502 | `POST /api/cv-versions` | CV screen |
@@ -185,6 +193,10 @@ a round's state, not an attempt's.
 
 **`model_answer_generation_failed` is added by model answers** (#74, `06`, 2026-10-04), with its
 copy. **Only the retry route raises it**: `complete` never fails for a model answer (§5.12).
+
+**`english_reading_not_applicable` and `english_reading_failed` are added by English help** (#106, `06`,
+2026-10-14), each with its `ja` and `en` copy in the slice that builds the route. The first is a `422`
+because Q106-2 is the rule it refuses on: no English before a realistic round's feedback.
 
 **`round_abandoned` landed with the tracer too** (#42 review): `answers`, `submit` and `complete` read
 the derived status (§5.5) inside their locked transaction, so a stale tab cannot write into a round a
@@ -231,7 +243,8 @@ ignored — a silently dropped filter on a measurement list is a wrong answer th
 **No `PATCH` anywhere.** Most of this schema is append-only; the rows that *are* filled in
 progressively (an answer between presign and submit) are advanced by named endpoints — `transcribe`,
 `submit` — not by a generic partial update. A `PATCH /api/answers/{id}` is how `transcript_raw` gets
-overwritten by accident.
+overwritten by accident. **The one replacement is `PUT /api/settings`** (§5.21): the settings row is
+not measurement, and the body is the whole of what the page edits, never a partial update.
 
 **Timestamps** are ISO-8601 UTC with `Z`. **Ids** are the uuids from `04`. **Dimension scores** are
 returned as an array in the rubric's own order, never an object keyed by dimension — the order is part
@@ -520,6 +533,12 @@ shown, not implied.
 
 `speak: true` in realistic mode only; practice mode is text (decision log, Phase 2).
 
+**`prompt.text_en`, in a Japanese practice round only** (#106; `06`, 2026-10-14, Q106-2, Q106-3): the
+newest stored English of the question (`04` `question_translations`), or `null` when it has none. **A
+realistic round's prompt has no such field — not `null`, absent**, here, in §5.5's read and in §5.9's
+`next`, so no English can reach a realistic round's screens before its feedback whatever the client
+does. An English round has none either. The client never asks for an English and never sends one.
+
 **Question selection, all at once** (`06`, 2026-09-27). From the `(user_id, language, round_type)
 where retired_at is null` slice, in this order:
 
@@ -665,6 +684,9 @@ response is what makes that structural rather than a client courtesy.
 - **An answer-again that is open is what the round resumes on**: `prompt` is the same prompt asked
   again, carrying `retry_of_answer_id` and `speak: false`, and `resume` names that row by the same
   rule as any open slot. With none open, `prompt` and `resume` follow the round's step.
+- **`prompt.text_en`**, as §5.4 says: a Japanese practice round's prompt carries its stored English or
+  `null` — a follow-up's from `follow_ups.prompt_text_translated` — and a realistic round's carries no
+  such field (#106). It is read on every request, never cached on the round.
 - `cache-control: no-store`: practice's per-answer frame polls this read while a score is pending
   (`03` §7), and a stored copy would be the one thing it must not get.
 - `401 unauthenticated`; `404 not_found` for no such round, or another user's.
@@ -849,6 +871,9 @@ while the user is still at the machine. So `submit` creates the `scoring_attempt
 after the answer's commit. By round end, all but the last score are already rows and
 the feedback screen is a read. *(Seven questions and seven follow-ups make at most 14 answers a round —
 not the "sixteen" this used to say, confirm 7. Practice retries add rows without adding follow-ups.)*
+
+In a Japanese practice round, a `next` that asks a prompt carries `text_en` by §5.4's rule; in a
+realistic round it carries none (#106).
 
 **`next` is one of four shapes**, and the client does not compute it:
 
@@ -1409,6 +1434,58 @@ generates and stores exactly as §5.12 does, for only the answers with no `model
 **It never touches a score, the feedback, or an existing model answer**, and takes no input: which
 answers, which CV version and which prompt are all the round's own (§1 rule 6).
 
+### 5.20 `POST /api/answers/{answerId}/english-reading` ⚡
+
+An English reading of the text in the correction screen's editor, for a **Japanese practice round**
+(#106; `06`, 2026-10-14, Q106-7). Asked on request, never automatically. **Nothing it is sent or
+returns is stored.**
+
+```http
+POST /api/answers/c003e8a2-…/english-reading
+{ "text": "前職では、経理システムの刷新を担当していました。…" }
+```
+```json
+200
+{ "answer_id": "c003e8a2-…", "english": "At my previous job, I was in charge of renewing the accounting system. …" }
+```
+
+- **Refused before any model call** when the answer is not one it may read: another user's or no
+  such answer → `404`; a realistic round's or an English round's → `422 english_reading_not_applicable`
+  (Q106-2: no English before a realistic round's feedback); no `transcript_raw` yet → `400
+  invalid_request` naming it; already submitted → `422 answer_already_submitted`; a complete round →
+  `409 round_already_complete`; an abandoned one → `409 round_abandoned`.
+- `text` is required, not blank, and at most **4,000 code points** — a fifteen-minute practice take at
+  250 字/分 is 3,750 — or the call is a `400`. It is the editor's text as it stands, the user's own
+  words; the route is not a translator for anything else.
+- One call to the pinned text model with `english-reading-1.0`: translate faithfully, keep the
+  speaker's hesitations and repetitions, correct nothing, add nothing. **Bounded at 30 s, with no
+  retry**; a failure is `502 english_reading_failed` with `detail.error_class`, and the user can ask
+  again.
+- **Every call that reached the model writes one `english_readings` row** — `ok` or `failed`, the
+  length of `text`, the model, the prompt version and the tokens, **no text** (`04`) — so the week's
+  spend counts it (`12` §6). Neither `text` nor `english` is logged (`12` §7).
+- It changes nothing else: not the answer, not its transcripts, not the rewrite meter.
+
+### 5.21 `PUT /api/settings`
+
+Replaces the user's settings (#107; `06`, 2026-10-14, Q-P1). The settings page (`10` §17) is a
+Server Component; this is its one write. Calls no model, so it is not rate-limited.
+
+```http
+PUT /api/settings
+{ "display_name": "Yuta", "english_help": true }
+```
+```json
+200
+{ "settings": { "display_name": "Yuta", "english_help": true } }
+```
+
+- **Both fields, every time** — the body is the page, not a patch. `display_name` is trimmed and 1–80
+  code points; `english_help` is a boolean. Anything else, or an unknown field, is a `400` naming it.
+- One transaction: `users.name` is set, and `user_settings` is upserted on `user_id` (`04`). The
+  email is not a field: it is Google's and the allowlist's (`08` §2).
+- `500 write_failed` when it fails; nothing is half-written.
+
 ## 6. Endpoints that do not exist, and must not be added
 
 Stated so a later session recognises these as refusals, not gaps. Each one, if added, would quietly
@@ -1428,6 +1505,9 @@ convert a guarantee in `04` §6 into a preference.
 | Anything that regenerates, edits or replaces a model answer | `model_answers` is written once per answer (`04` §6). A regenerate button turns a stored reference into something re-rolled until it flatters, and what is reviewed later would no longer be what the round ended with. §5.19 writes only what is missing. |
 | A model or rubric selector on any request | The stamps would become user-chosen, making drift voluntary and biased (decision log). Both are config and resolved server-side. |
 | Anything with a `share`, `visibility`, `export` or `public` in it | Refusal #6. Multi-tenancy is not permission to build a sharing surface (`03` §2, `08` §7). |
+| Anything that writes a question's English, or takes translation text | A question's English is written by the generator call, the seed or the script (`04` `question_translations`). A route that took it would let the client write what screen 8 shows as the question (`06`, 2026-10-14). |
+| An English field on a realistic round's prompt, or an English route for one | Q106-2: no English before a realistic round's feedback. Leaving the field out is what makes it structural (§5.4). |
+| Any route that stores an English reading | It is never stored (`04` §6, item 16). |
 | `POST /api/questions` | The bank is written by generation with the near-duplicate guard, or by seed. A hand-inserted question skips the embedding check and fragments the measurement (`03` §11). |
 | An admin route of any kind | There are no roles (`08` §4). |
 

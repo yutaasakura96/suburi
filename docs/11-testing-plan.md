@@ -595,6 +595,43 @@ and model answers the test invents — the seed writes none.
   nothing that combines dimensions (refusal #1).
 - **It runs in a read-only transaction**: the loader cannot write.
 
+### 3.25 English help (#106)
+
+Decided 2026-10-14 (`06`, "Phase 6 — #106 and #107"); each slice adds the tests for what it builds.
+Against real Postgres, with the model mocked.
+
+- **No English reaches a realistic round before its feedback — asserted as an absence**, the way
+  §3.15 asserts a realistic round's read has no score: `POST /api/rounds`, `GET /api/rounds/{id}` and
+  `submit`'s `next` for a Japanese realistic round have **no `text_en` key at all**, with a stored
+  English for every question and follow-up in it; and the English reading route refuses its answer
+  `422 english_reading_not_applicable` **before any model call**. **May not be deleted to make a
+  refactor pass** (Q106-2 is the measurement's).
+- **A Japanese practice round's prompts carry the newest English**: with two rows for one question,
+  the later; `null` with none; a follow-up's from its row. An English round's prompts have no key.
+- **A question's English never touches the question**: writing and re-writing a translation leaves
+  `questions` byte-identical, every `round_questions`, `answers` and stamp unchanged, and the old row in
+  place beside the new one.
+- **The generator keeps a question whose English failed**: a mocked `ja-1.1` response with one
+  candidate's English missing and one malformed banks all three, writes two translation rows fewer,
+  and counts the drops; a reused candidate writes no translation row. A follow-up whose English is
+  malformed is `generated`, with `prompt_text_translated` null — never `missing`.
+- **The English reading stores no text**: after an `ok` and a `failed` call, no column of any table
+  holds the sentinel sent or the sentinel returned, the `english_readings` rows hold the length and
+  tokens, the answer row is unchanged, and the sentinels are in no log line (§3.10's method). The
+  route refuses an English round's answer, a submitted answer, an answer with no transcript, another
+  user's, and text over 4,000 code points, each before the model.
+- **Spend counts both new token columns**: the self-check's week sums `question_translations` and
+  `english_readings` with the rest (`12` §6).
+
+### 3.26 The settings page (#107)
+
+- `PUT /api/settings` writes `users.name` and upserts `user_settings` in one transaction; a blank,
+  over-long or missing field, or an unknown one, is a `400` that writes nothing.
+- **No row is every default**: a user without `user_settings` reads English help off.
+- One user's write never reaches another user's rows.
+- **The setting is a starting state, never a gate around Q106-2**: with English help on, a realistic
+  round's reads are exactly as above.
+
 ## 4. End-to-end, in Playwright
 
 Chromium, fake media device, S3 PUT and OpenAI intercepted. What this pass exists to catch is the
@@ -643,6 +680,10 @@ wiring between screens that no unit test sees.
 | The app header (#51) | Home, Progress, History and the CV each reach the others, the current one marked `aria-current="page"`. |
 | A way back to Home (#105) | The nav's Home link on a CV version's page, a round's feedback, the status page, an unknown path and a History 404, which carries one nav and not two. In a live round the header's Home link opens the confirmation, focus never lands on the round behind it, staying keeps a held take, and leaving reaches Home with the round still resumable; an abandoned round's link goes straight Home. A round left while it is closing stays on Home when the close lands, and its feedback is there to go to. Two starts make one microphone request, and a stream granted after leaving is stopped. |
 | The study view (#75) | `e2e/history.study.spec.ts`, with no round and then over the `develop` seed and model answers the spec invents. With none: a sentence and the way to start one. History's rail leads to it, the nav marks `History`, and Home is one link away. Rounds with submitted answers newest first, including the abandoned one's answered question with unavailable model answer and fixes; unanswered questions stay out. Each question shows what was said beside its stored model answer, the answered follow-up the same way, the underline on the stored span with the legend naming the CV stamp, a missing follow-up omitted, and the round's `To fix`. **English chrome on a Japanese round**, whose pill reads the model answers and `To fix` in their stored English while what was asked and said stays. A practice answer-again under the first answer; a round with no findings saying so; ten rounds a page, the rest behind `Older rounds`; a cursor the server did not mint a 404 with the nav. **No score row and no word for a combined figure, no control but the pill, nothing that takes input, no model call, and `model_answers`, `round_feedback` and the attempts unchanged by the visit.** |
+| English help in practice (#106) | A Japanese practice round with the setting off: the header's pill reads `English`; pressing it shows the stored English under the question without moving the Japanese, turns the frame's chrome English, keeps it across the record frames, correction and the per-answer frame, and a reload returns to the setting's state. With the setting on, the round opens with it on. A question with no English says so. **A Japanese realistic round has no pill and no English text on screens 3–7**, with the setting on. |
+| The English reading (#106) | On a Japanese practice round's correction screen, the control shows the mocked English under `RAW`, says so once the editor changes, and leaves the editor, the meter and the submitted text untouched; a failure is the catalogue's sentence. After submit and on a reload, no reading is shown anywhere. A realistic round's correction screen has no control. |
+| English after the round (#106) | Screen 8 of a Japanese round, in each mode: the pill shows the question's and the follow-up's English under them and the screen's chrome in English, while what was said, the CV region's quotes and the justification tooltips stay Japanese; it starts from the setting. Study's card pill shows the questions' English too. |
+| Settings (#107) | The app header's name leads to `/settings`, marked current; changing the name and saving updates the header; the save button is disabled until something changes and while the name is blank; English help saved on is the next practice round's starting state. No delete, export or share control on the page. |
 | No deletion surface | No delete or share control on History, a round, an answer or a score (refusals #3, #6). **As built (#50):** on every round's page with a row open, no control's name matches a delete, share or export word, every button is one of the four History has — a play toggle, the pill, `Retry scoring`, `Older rounds` — nothing takes input, and `DELETE` on a round, an answer and an attempt finds no route. |
 
 **Not in Playwright, deliberately:** any assertion about transcript *content*. The fake device

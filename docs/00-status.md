@@ -77,7 +77,11 @@ under their parent questions' numbers (`10` §8 and §15).
 `gpt-realtime-2.1-mini` over the Realtime API, behind the same port, ahead of the speech endpoint's
 2027-01-06 removal (`06`, "Phase 6 — #76"). **Owed, the user's:** `11` §5's ear check on the new
 voice (`npm run ear-check`).
-**Updated:** 2026-10-14 (#76 built; #85 built; #83 checked; #75 built; #105 built; #104 measured and fixed; #51 built; follow-ups spoken; #73 built; #49's Japanese strings all accepted; #50's
+**English help (#106), with the settings page (#107) inside it, is planned (2026-10-14):** the owner
+answered the scout's nine questions for the group, the decisions are written into the docs (`06`,
+"Phase 6 — #106 and #107"), and six slice issues, #122–#127, are drafted and **not yet confirmed**
+(Next).
+**Updated:** 2026-10-14 (#106 and #107 planned; #76 built; #85 built; #83 checked; #75 built; #105 built; #104 measured and fixed; #51 built; follow-ups spoken; #73 built; #49's Japanese strings all accepted; #50's
 catalogue string read; #43, #44, #45, #46, #47, #48, #49, #50 and #74 built; #42 closed; #55 and #56 on 2026-09-30)
 
 ## Done
@@ -373,6 +377,23 @@ Page 1 is the screen set, page 2 the three exploration directions. **Working fil
 every change re-seeds from those — edit them, never the built `design/suburi-directions.html`.
 
 ## Next
+**English help (#106) and the settings page (#107): six slices drafted, awaiting the owner's
+confirmation.** Planned on 2026-10-14 from the owner's answers to Q0, Q106-1 to Q106-7, Q-P1 and Q-P2
+(`06`, "Phase 6 — #106 and #107"): no English in a realistic round before its feedback, enforced
+structurally; in a Japanese practice round, one pill for the question's English and the round's
+chrome; English written by the call that writes the Japanese and stored apart from the question; the
+justifications untranslated; an English reading of the transcript on practice's correction screen,
+never stored; and `/settings` holding the name and English help. Slices:
+[#122](https://github.com/yutaasakura96/suburi/issues/122) the settings page → #123 the question's
+English behind the practice pill → #124 the round's chrome · #125 new questions and follow-ups with
+their English (#123) → #126 the English reading (#124) · #127 English after the round (#124), with
+native `blocked_by` edges, linked from #106 and #107, **unlabeled until the owner confirms them**.
+Two things for the owner with that confirmation: #125 moves the Japanese generator to `ja-1.1`, which
+draws a stamp-3 boundary on the Japanese Progress chart; and #126 reads Q106-7 as practice-only,
+from Q106-2. Carried, not decided: English help on the CV screen's Japanese panel and on History
+detail (`CONTEXT.md`). The answers for #108–#115 were given the same day and wait for their own
+planning.
+
 **0. The round-loop plan is settled, its open answers are recorded, and its slice issues are ready.** Eleven
 issues, slices 0–10 — [#41](https://github.com/yutaasakura96/suburi/issues/41) (S3, CORS, IAM, the
 OpenAI checks) → #42 (tracer: an English realistic round) → #43 Japanese · #44 follow-ups · #45

@@ -94,6 +94,7 @@ realistic mode is designed not to have.
 | Read own history, progress, feedback | ✅ | ❌ |
 | Upload a CV / role context | ✅ | ❌ |
 | Retry a failed scoring attempt | ✅ | ❌ |
+| Change own settings — display name, English help (`10` §17) | ✅ | ❌ |
 | Delete a round, answer or score | ❌ **nobody** | ❌ |
 | Share, export to another person, publish | ❌ **nobody** | ❌ |
 
@@ -112,7 +113,7 @@ deleted"* as a deliberate pressure countermeasure.
 | --- | --- | --- |
 | `/sign-in` | public | — |
 | `/api/auth/*` | Better Auth's own | — |
-| `/` (Home), `/round/*`, `/progress`, `/history`, `/cv`, `/status` | session required | `/sign-in` |
+| `/` (Home), `/round/*`, `/progress`, `/history`, `/cv`, `/status`, `/settings` | session required | `/sign-in` |
 | `/api/*` (presign, transcribe, score) | session required | `401`, no redirect |
 | `/api/cron/self-check`, `/api/cron/digest` | **`CRON_SECRET`**, not a session — Vercel Cron sends none (`07` §5.17) | `401`, no redirect |
 

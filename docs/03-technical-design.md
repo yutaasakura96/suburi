@@ -185,7 +185,8 @@ note is stated as pending with a retry. The bound comes from the latency measure
 
 ## 4. Model use
 
-Six text jobs on one pinned model, and three more on models of their own:
+Six text jobs on one pinned model, and three more on models of their own — and, decided for #106 and
+not built yet, two small text jobs for English help on the same pinned model (`06`, 2026-10-14):
 
 | Job | Model | Latency budget | Stakes |
 | --- | --- | --- | --- |
@@ -198,6 +199,17 @@ Six text jobs on one pinned model, and three more on models of their own:
 | Transcription | `gpt-transcribe` | user is waiting, after each take | Medium — the raw transcript is final |
 | Text-to-speech | `gpt-realtime-2.1-mini`, voice `marin`, over the Realtime API (#76; `gpt-4o-mini-tts-2025-12-15` until then, #45) | user is waiting, at ask time | Low — not retained |
 | Embeddings | `text-embedding-3-small`, 1536 dimensions | at question generation | High — the near-duplicate guard (§11) |
+| English reading (#106) | `gpt-5.6-sol` | user is waiting, **on request only**, on a Japanese practice round's correction screen; 30 s, no retry (`07` §5.20) | Low — **never stored**; a reading aid |
+| A question's English, by script (#106) | `gpt-5.6-sol` | **never at round time**: `scripts/translate-questions.mts`, run by hand for questions banked without one and for re-writes | Low — a reading aid, re-writable (`04` `question_translations`) |
+
+**English help adds output to two existing jobs** (`06`, 2026-10-14, Q106-4). In a Japanese round,
+question generation (`generate-{round type}-ja-1.1`) writes each candidate's English and follow-up
+generation (`follow-up-ja-1.1`) the follow-up's, in the same call. A missing or malformed English is
+dropped and the question or follow-up kept, so neither call gains a failure. Both write more tokens
+and so take longer; **the slice that changes them re-measures both here** against the tables below
+(round start for 3 to 9 Japanese questions; the follow-up's 15 s bound, set at three times the slowest
+English call, has not been measured in Japanese at all). The generator's version change is a stamp-3
+boundary on Progress (`06`).
 
 **The round's latencies, measured 2026-10-01 (#42)** with `scripts/measure-round-latency.mts`
 against OpenAI, five runs of each at the time, from the development machine, the way #20 measured extraction. Synthetic
@@ -620,11 +632,16 @@ store in v1 — introducing one would be inventing a synchronisation problem the
 Named so a ticket does not add one: **no TanStack Query, no TanStack Router, no Zustand**, nor any
 other client cache, router or global store.
 
-**Client state is two surfaces only:**
+**Client state is three surfaces only:**
 
 - **The recorder** — `MediaRecorder`, elapsed time, the waveform, the local blob. Held in component
   state.
-- **The transcript editor** — the edit buffer and the live rewrite-magnitude meter (screen 6).
+- **The transcript editor** — the edit buffer and the live rewrite-magnitude meter (screen 6), and in
+  a Japanese practice round the English reading last asked for with the text it read (#106, `10` §15).
+  Neither is stored; a reload drops both.
+- **English help's pill** (#106) — on or off for the page, starting from the stored setting each time
+  the page loads (`10` §0). Not a store and not persisted: the setting is the server's, changed only on
+  `/settings`.
 
 **A round survives a refresh.** Every answer is written server-side at submit. Bank questions are
 fixed when the round starts (`round_questions`); a follow-up is fixed when its parent answer is
