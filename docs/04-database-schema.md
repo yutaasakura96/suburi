@@ -132,9 +132,9 @@ here is scored, stamped or plotted, and changing a value changes no stored row b
 | `created_at` | `timestamptz` | no | `now()` | |
 | `updated_at` | `timestamptz` | no | `now()` | |
 
-**No row means every default.** From #123, the row is written by the first save of English help on
-`/settings`, as an upsert on `user_id`, never by the seed. #122's name-only save writes `users.name`
-without creating this row. A later setting — #114's key, if it lands here — is a column added by
+**No row means every default.** From #123, the row is written by the first save on `/settings`, which
+always carries English help, as an upsert on `user_id`, never by the seed. A save from before #123
+wrote `users.name` only, so a user who has not saved since has no row. A later setting — #114's key, if it lands here — is a column added by
 its own slice.
 
 ---
