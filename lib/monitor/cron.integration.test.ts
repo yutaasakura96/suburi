@@ -322,9 +322,21 @@ describe("self-check", () => {
           tokensIn: 50_000,
           createdAt: at(-HOUR),
         }); // $0.20
+        // And a question's English written by the script (04 `question_translations`, 12 §1).
+        await db.insert(s.questionTranslations).values({
+          questionId: world.questionId,
+          userId: world.userId,
+          language: "en",
+          body: "Fixture English.",
+          source: "translated",
+          modelId: CV_EXTRACTION_MODEL,
+          promptVersion: "translate-question-fixture",
+          tokensIn: 50_000,
+          createdAt: at(-HOUR),
+        }); // $0.20
 
         const { spend_week_to_date_usd: reading } = await selfCheck(db, world.userId);
-        expect(reading).toMatchObject({ value: 1.2, threshold: 2.1, isRed: false });
+        expect(reading).toMatchObject({ value: 1.4, threshold: 2.1, isRed: false });
       }));
 
     it("raises the threshold by $2.10 for each round started this week", () =>

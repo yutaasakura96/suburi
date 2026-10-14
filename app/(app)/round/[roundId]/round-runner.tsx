@@ -9,7 +9,7 @@ import type { ScoringRead } from "@/lib/round/read-round";
 import { failureText, postJson, type FailureCode } from "../api";
 import { ROUND_COPY, clock, type RoundCopy, type RoundLanguage, type RoundMode } from "../copy";
 import type { AnsweredView, NextView, RoundFrame } from "../load";
-import { CalloutRail, ErrorLine, RoundFooter, RoundHeader, caption, roundSectionLabel, type Failure } from "../parts";
+import { CalloutRail, ErrorLine, PromptEnglish, RoundFooter, RoundHeader, caption, roundSectionLabel, type Failure } from "../parts";
 import { AnsweredFrame, type FrameNext } from "./answered-frame";
 import { closingWait, useScoringProgress } from "./closing-progress";
 import { forgetAnswerAgain, heldAnswerAgain, heldTake, holdTake, releaseRoundTakes, releaseTake, type HeldAnswerAgain, type UploadRejection } from "./held-take";
@@ -33,6 +33,8 @@ interface Question {
   readonly followUpVersion: string | null;
   /** Practice's "answer again" (10 §15): the answer this prompt is being answered again beside. */
   readonly again: string | null;
+  /** A Japanese practice round's: the prompt's stored English, or null when it has none (10 §15). */
+  readonly textEn?: string | null;
 }
 
 /** Practice's per-answer frame (10 §15): the answer sent last, and where the round goes from it. */
@@ -85,7 +87,7 @@ function initialScreen(start: RoundFrame["start"]): Screen {
     return { kind: "saved", question, answerId: start.answerId, corrected: start.corrected, reason: "reloaded" };
   }
   if (start.kind !== "question") return start;
-  const question = { position: start.position, text: start.text, followUpVersion: start.followUpVersion, again: start.again };
+  const question = { position: start.position, text: start.text, followUpVersion: start.followUpVersion, again: start.again, textEn: start.textEn };
   if (start.transcript) return { kind: "transcript", question, transcript: start.transcript };
   if (start.openAnswerId && start.typedSlot) return { kind: "typed", question, answerId: start.openAnswerId, takeHeld: false };
   return start.openAnswerId && start.uploadConfirmed ? { kind: "uploading", question, step: "transcribe" } : { kind: "asked", question, back: null };
@@ -94,7 +96,7 @@ function initialScreen(start: RoundFrame["start"]): Screen {
 /** The record frame for what a per-answer frame leads to: the follow-up, or the next question. */
 function asked(next: Extract<NextView, { kind: "follow_up" | "question" }>): Screen {
   const followUpVersion = next.kind === "follow_up" ? next.promptVersion : null;
-  return { kind: "asked", question: { position: next.position, text: next.text, followUpVersion, again: null }, back: null };
+  return { kind: "asked", question: { position: next.position, text: next.text, followUpVersion, again: null, textEn: next.textEn }, back: null };
 }
 
 interface OpenedAnswer {
@@ -116,9 +118,10 @@ interface Typed {
 interface Submitted {
   rewrite_magnitude: number | null;
   scoring: ScoringRead;
+  // `text_en` only in a Japanese practice round (07 §5.9).
   next:
-    | { kind: "question"; position: number; text: string }
-    | { kind: "follow_up"; position: number; text: string; prompt_version: string }
+    | { kind: "question"; position: number; text: string; text_en?: string | null }
+    | { kind: "follow_up"; position: number; text: string; text_en?: string | null; prompt_version: string }
     | { kind: "pressure" }
     | { kind: "feedback" };
 }
@@ -149,6 +152,13 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
   const { round } = frame;
 
   const practice = round.mode === "practice";
+
+  // English help's pill (10 §15): only a Japanese practice round has one. It starts from the setting
+  // and is page state after that — never saved, and a reload starts from the setting again.
+  const [englishOn, setEnglishOn] = useState(frame.englishHelp === true);
+  const pill = frame.englishHelp === null ? null : { on: englishOn, onToggle: () => setEnglishOn((on) => !on) };
+  /** What English help shows under a prompt: undefined for nothing, null for the line saying there is none. */
+  const englishFor = (textEn: string | null | undefined) => (pill?.on ? (textEn ?? null) : undefined);
 
   // What the header names: the prompt on screen, or on the per-answer frame the answer it shows.
   const prompt =
@@ -187,6 +197,7 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
       length={round.length}
       step={prompt?.again ? copy.stepAgain(step) : step}
       home={copy.home}
+      pill={pill}
       onHome={(event) => {
         if (screen.kind === "abandoned") return;
         event.preventDefault();
@@ -210,7 +221,12 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
   }
 
   const slotOf = (question: Question) => ({ roundId: round.id, position: question.position, followUp: question.followUpVersion !== null });
-  const promptOf = (question: Question) => ({ text: question.text, followUpVersion: question.followUpVersion, again: question.again });
+  const promptOf = (question: Question) => ({
+    text: question.text,
+    followUpVersion: question.followUpVersion,
+    again: question.again,
+    ...(question.textEn === undefined ? {} : { textEn: question.textEn }),
+  });
 
   /**
    * Open the slot after the take exists (07 §5.6), PUT it to S3, transcribe it. **The take is held in
@@ -347,7 +363,7 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
   // An answer-again take whose slot never opened has no row to resume from: the page loads onto a
   // per-answer frame, and the take is found by the round instead.
   const offerAnswerAgain = (held: HeldAnswerAgain) => {
-    const question = { position: held.position, text: held.text, followUpVersion: held.followUpVersion, again: held.again };
+    const question = { position: held.position, text: held.text, followUpVersion: held.followUpVersion, again: held.again, textEn: held.textEn };
     setScreen({ kind: "held", question, take: held, onDevice: true, cause: held.rejection ?? null });
   };
   const resumeTake = useEffectEvent(async () => {
@@ -358,7 +374,7 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
       return;
     }
     if (start.kind !== "question" || start.transcript) return;
-    const question = { position: start.position, text: start.text, followUpVersion: start.followUpVersion, again: start.again };
+    const question = { position: start.position, text: start.text, followUpVersion: start.followUpVersion, again: start.again, textEn: start.textEn };
     if (start.again) await forgetAnswerAgain(slotOf(question));
     const take = await heldTake(slotOf(question));
     if (start.typedSlot) {
@@ -388,9 +404,12 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
 
   /** `next` as the screens hold it. A follow-up's version joins the round's stamp when it first appears. */
   function nextOf(next: Submitted["next"]): NextView | { kind: "pressure" } {
+    // The English rides along only where the read carried the key: a Japanese practice round's.
+    const english = "text_en" in next ? { textEn: next.text_en } : {};
+    if (next.kind === "question") return { kind: "question", position: next.position, text: next.text, ...english };
     if (next.kind !== "follow_up") return next;
     setFollowUpVersions((versions) => (versions.includes(next.prompt_version) ? versions : [...versions, next.prompt_version]));
-    return { kind: "follow_up", position: next.position, text: next.text, promptVersion: next.prompt_version };
+    return { kind: "follow_up", position: next.position, text: next.text, ...english, promptVersion: next.prompt_version };
   }
 
   /** Submit (07 §5.9). The same text sent again is a retry: it returns what the first call made. */
@@ -414,6 +433,7 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
           answerId,
           position: question.position,
           text: question.text,
+          ...(question.textEn === undefined ? {} : { textEn: question.textEn }),
           followUpVersion: question.followUpVersion,
           again: question.again !== null,
           corrected,
@@ -482,7 +502,7 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
     setError(null);
     setScreen({
       kind: "asked",
-      question: { position: answer.position, text: answer.text, followUpVersion: answer.followUpVersion, again: answer.answerId },
+      question: { position: answer.position, text: answer.text, followUpVersion: answer.followUpVersion, again: answer.answerId, textEn: answer.textEn },
       back: frame,
     });
   }
@@ -513,6 +533,7 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
           }
           speechFailed={failureText("speech_failed", round.language)}
           question={screen.question}
+          english={englishFor(screen.question.textEn)}
           delivering={screen.kind === "uploading" ? screen.step : screen.kind === "retake" && screen.transcribing ? "transcribe" : null}
           held={screen.kind === "retake"}
           onTake={(take) => void deliver(screen.question, take)}
@@ -530,6 +551,7 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
           copy={copy}
           language={language}
           question={screen.question.text}
+          english={englishFor(screen.question.textEn)}
           notices={[
             ...(refused
               ? [copy.uploadRefused[refused]]
@@ -555,6 +577,7 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
           copy={copy}
           language={language}
           question={screen.question.text}
+          english={englishFor(screen.question.textEn)}
           notices={[failureText("transcription_failed", language), ...(error ? [error.text] : [])]}
           busy={busy}
           stamp={stamp(screen.question)}
@@ -569,6 +592,7 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
           copy={copy}
           language={language}
           question={screen.question.text}
+          english={englishFor(screen.question.textEn)}
           notices={error ? [error.text] : []}
           busy={busy}
           stamp={stamp(screen.question)}
@@ -585,6 +609,7 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
           copy={copy}
           language={language}
           question={screen.question}
+          english={englishFor(screen.question.textEn)}
           transcript={screen.transcript}
           onCorrect={() => setScreen({ kind: "correct", question: screen.question, transcript: screen.transcript })}
         />
@@ -631,6 +656,7 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
           cvLabel={frame.cvLabel}
           step={prompt?.again ? copy.stepAgain(step) : step}
           answer={screen.answer}
+          english={pill?.on ? { answer: screen.answer.textEn ?? null, next: "textEn" in screen.next ? (screen.next.textEn ?? null) : null } : null}
           next={screen.next}
           nextStep={screen.next.kind === "question" ? copy.step(screen.next.position, round.length) : null}
           missingNotice={failureText("followup_generation_failed", language)}
@@ -692,6 +718,7 @@ function RecordFrame({
   speechSrc,
   speechFailed,
   question,
+  english,
   delivering,
   held,
   onTake,
@@ -708,6 +735,8 @@ function RecordFrame({
   /** The catalogue's `speech_failed` sentence, in the round's language. */
   speechFailed: string;
   question: Question;
+  /** English help's line under the question: undefined draws none (10 §15). */
+  english: string | null | undefined;
   /** Which call the stopped take is in, or null when none is on its way. */
   delivering: "upload" | "transcribe" | null;
   /** Practice's: the take is uploaded and not transcribed, so it can still be recorded again. */
@@ -761,9 +790,12 @@ function RecordFrame({
         ) : null}
       </div>
 
-      <p className="max-w-[880px] text-[19px] leading-[1.9] text-ink-2" data-testid="round-question">
-        {question.text}
-      </p>
+      <div className="flex flex-col gap-[8px]">
+        <p className="max-w-[880px] text-[19px] leading-[1.9] text-ink-2" data-testid="round-question">
+          {question.text}
+        </p>
+        <PromptEnglish english={english} className="max-w-[880px] text-[15px] leading-[1.8] text-ink-5" />
+      </div>
       <div className="h-px bg-rule-row" />
 
       {recording ? (
@@ -851,18 +883,24 @@ function TranscriptFrame({
   copy,
   language,
   question,
+  english,
   transcript,
   onCorrect,
 }: {
   copy: RoundCopy;
   language: RoundLanguage;
   question: Question;
+  /** English help's line under the question: undefined draws none (10 §15). */
+  english: string | null | undefined;
   transcript: Transcript;
   onCorrect: () => void;
 }) {
   return (
     <div className="flex flex-grow flex-col gap-[22px] px-[32px] pt-[36px] pb-[32px]">
-      <p className="max-w-[880px] text-[14px] leading-[1.85] text-ink-5">{question.text}</p>
+      <div className="flex flex-col gap-[6px]">
+        <p className="max-w-[880px] text-[14px] leading-[1.85] text-ink-5">{question.text}</p>
+        <PromptEnglish english={english} className="max-w-[880px] text-[13px] leading-[1.75] text-ink-5" />
+      </div>
       <div className="flex items-baseline justify-between">
         <span className={roundSectionLabel(language)}>{copy.rawTranscript}</span>
         <span className="font-mono text-[12px] text-ink-label" data-testid="take-figures">

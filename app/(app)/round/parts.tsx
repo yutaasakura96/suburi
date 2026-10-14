@@ -1,6 +1,7 @@
 import { useId } from "react";
 import Link from "next/link";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { FEEDBACK_READING, NO_ENGLISH_YET } from "./copy";
 import type { ModelAnswerSegment } from "./load";
 
 // No "use client": the round runner renders these on the client, the feedback page on the server.
@@ -39,7 +40,12 @@ export function ModelAnswerText({ segments, lang }: { segments: readonly ModelAn
   );
 }
 
-/** 05 §5.2: replaces the app header in a round — title and meta left, the stepper right. */
+/**
+ * 05 §5.2: replaces the app header in a round — title and meta left, the stepper right. `pill` is
+ * English help's one control (10 §15), first on the right, 18px before the stepper: given only for a
+ * Japanese practice round. It names the language it switches to, in that language, and says whether
+ * it is pressed.
+ */
 export function RoundHeader({
   title,
   meta,
@@ -48,6 +54,7 @@ export function RoundHeader({
   step,
   home,
   onHome,
+  pill = null,
 }: {
   title: string;
   meta: string;
@@ -57,7 +64,9 @@ export function RoundHeader({
   step: string;
   home: string;
   onHome: React.MouseEventHandler<HTMLAnchorElement>;
+  pill?: { readonly on: boolean; readonly onToggle: () => void } | null;
 }) {
+  const switchesTo = pill?.on ? "ja" : "en";
   return (
     <header className="flex items-baseline justify-between border-b border-rule-frame px-[32px] py-[20px]">
       <div className="flex items-baseline gap-[14px]">
@@ -65,14 +74,28 @@ export function RoundHeader({
         <span className="text-[13px] text-ink-4">{meta}</span>
       </div>
       <div className="flex items-center gap-[20px]">
-        <span className="flex items-center gap-[7px]" aria-hidden data-testid="round-stepper">
-          {Array.from({ length }, (_, index) => (
-            <span
-              key={index}
-              data-done={index < done}
-              className={`h-[2px] w-[26px] ${index < done ? "bg-mark" : "bg-rule-section"}`}
-            />
-          ))}
+        <span className="flex items-center gap-[18px]">
+          {pill ? (
+            <button
+              type="button"
+              lang={switchesTo}
+              aria-pressed={pill.on}
+              onClick={pill.onToggle}
+              className="border border-tick px-[10px] py-[4px] text-[11px] text-ink-4 hover:text-ink-1"
+              data-testid="english-help-pill"
+            >
+              {FEEDBACK_READING[switchesTo]}
+            </button>
+          ) : null}
+          <span className="flex items-center gap-[7px]" aria-hidden data-testid="round-stepper">
+            {Array.from({ length }, (_, index) => (
+              <span
+                key={index}
+                data-done={index < done}
+                className={`h-[2px] w-[26px] ${index < done ? "bg-mark" : "bg-rule-section"}`}
+              />
+            ))}
+          </span>
         </span>
         <span className="font-mono text-[11px] tracking-[0.08em] text-ink-label" data-testid="round-step">
           {step}
@@ -82,6 +105,27 @@ export function RoundHeader({
         </Link>
       </div>
     </header>
+  );
+}
+
+/**
+ * English help's line under a prompt (10 §15): the stored English, `lang="en"`, or one line saying
+ * there is none. `english` undefined draws nothing — the pill is off, or the round has none. Nothing
+ * in it is a control, and the Japanese above it neither shrinks nor moves.
+ */
+export function PromptEnglish({ english, className }: { english: string | null | undefined; className: string }) {
+  if (english === undefined) return null;
+  if (english === null) {
+    return (
+      <p lang="en" className="text-[12px] text-ink-6" data-testid="prompt-english-none">
+        {NO_ENGLISH_YET}
+      </p>
+    );
+  }
+  return (
+    <p lang="en" className={className} data-testid="prompt-english">
+      {english}
+    </p>
   );
 }
 

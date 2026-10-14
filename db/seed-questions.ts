@@ -1,10 +1,11 @@
 import { and, eq, inArray } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { RUBRICS } from "../lib/rubric/index.ts";
-import { SET_PIECES, type SetPieceContent } from "../lib/questions/set-pieces.ts";
+import { SET_PIECES, SET_PIECES_JA_EN, type SetPieceContent } from "../lib/questions/set-pieces.ts";
+import { seedHandWrittenEnglish } from "../lib/questions/translations.ts";
 import { questions, rubricVersions } from "./schema.ts";
 
-type Db = Pick<NodePgDatabase, "select" | "insert">;
+type Db = Pick<NodePgDatabase, "select" | "selectDistinctOn" | "insert">;
 
 /**
  * Every rubric version in `lib/rubric/`, idempotent on `(version_label, language)`. Real data, but
@@ -85,6 +86,15 @@ export async function seedSetPieces(db: Db, userId: string, content: readonly Se
 }
 
 /**
+ * The Japanese set pieces' hand-written English (`set-piece-ja-en-1.0`), beside whichever of them this
+ * user's bank holds — in `db:seed` too, so production has it (12 §1). No model call; idempotent.
+ */
+export function seedSetPieceEnglish(db: Db, userId: string) {
+  const { japaneseVersion, contentVersion, english } = SET_PIECES_JA_EN;
+  return seedHandWrittenEnglish(db, userId, japaneseVersion, contentVersion, english);
+}
+
+/**
  * Synthetic generated-origin bank questions (12 §1), for `develop` and local only — **never seeded on
  * `main`**. Fixtures with no model call, so a round of 3 can be filled before generation exists
  * (#47). Their stamp 3 names them as fixtures, so no chart can mistake them for the generator's.
@@ -138,4 +148,16 @@ export async function seedSyntheticQuestions(db: Db, userId: string) {
   const en = await seedBank(db, userId, "en", "generated", SYNTHETIC_QUESTIONS_VERSION.en, SYNTHETIC_QUESTIONS_EN);
   const ja = await seedBank(db, userId, "ja", "generated", SYNTHETIC_QUESTIONS_VERSION.ja, SYNTHETIC_QUESTIONS_JA);
   return en + ja;
+}
+
+/** The synthetic Japanese questions' English content version: a fixture's, named as one. */
+export const SYNTHETIC_ENGLISH_VERSION = "synthetic-generated-ja-en-1.0";
+
+/**
+ * The synthetic Japanese bank questions' English, on `develop` and local only (12 §1): each is the
+ * English question at the same place in the parallel list, hand-written, no model call. Idempotent.
+ */
+export function seedSyntheticEnglish(db: Db, userId: string) {
+  const english = new Map(SYNTHETIC_QUESTIONS_JA.map((question, index) => [question.body, SYNTHETIC_QUESTIONS_EN[index].body]));
+  return seedHandWrittenEnglish(db, userId, SYNTHETIC_QUESTIONS_VERSION.ja, SYNTHETIC_ENGLISH_VERSION, english);
 }

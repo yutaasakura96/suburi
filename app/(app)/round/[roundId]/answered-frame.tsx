@@ -6,7 +6,7 @@ import { sliceQuote } from "@/lib/cv/spans";
 import type { ScoringRead } from "@/lib/round/read-round";
 import { ROUND_COPY, type RoundLanguage } from "../copy";
 import type { AnsweredView, NextView, RoundFrame } from "../load";
-import { CalloutRail, ErrorLine, ScoreRow, caption, roundSectionLabel, type Failure } from "../parts";
+import { CalloutRail, ErrorLine, PromptEnglish, ScoreRow, caption, roundSectionLabel, type Failure } from "../parts";
 import { closingWait, useScoringProgress } from "./closing-progress";
 import { WaitLine } from "./wait-line";
 
@@ -73,6 +73,7 @@ export function AnsweredFrame({
   cvLabel,
   step,
   answer,
+  english = null,
   next,
   nextStep,
   missingNotice,
@@ -89,6 +90,11 @@ export function AnsweredFrame({
   /** The answer's own step, as the header names it. */
   step: string;
   answer: AnsweredView;
+  /**
+   * English help, on (10 §15): the stored English of what was asked and of the follow-up `Next`
+   * names, each null when there is none. Null when the pill is off or the round has none.
+   */
+  english?: { readonly answer: string | null; readonly next: string | null } | null;
   next: FrameNext;
   /** The step of the question that is next, when one is. */
   nextStep: string | null;
@@ -130,9 +136,12 @@ export function AnsweredFrame({
             {copy.answerFigures(answer.durationMs, answer.wpm, answer.rewrite)}
           </span>
         </div>
-        <p className="text-[15px] leading-[1.85] text-ink-2" data-testid="answered-question">
-          {answer.text}
-        </p>
+        <div className="flex flex-col gap-[6px]">
+          <p className="text-[15px] leading-[1.85] text-ink-2" data-testid="answered-question">
+            {answer.text}
+          </p>
+          <PromptEnglish english={english?.answer} className="text-[13px] leading-[1.75] text-ink-5" />
+        </div>
         <div className="flex flex-col">
           {dimensions.map((dimension) => {
             const score = scored ? scoring.scores?.find((candidate) => candidate.dimension === dimension.key) : undefined;
@@ -190,6 +199,7 @@ export function AnsweredFrame({
           <div className="flex flex-col gap-[6px]" data-testid="next-follow-up">
             <span className="text-[12px] text-ink-6">{copy.followUp}</span>
             <p className="text-[13px] leading-[1.75] text-ink-2">{next.text}</p>
+            <PromptEnglish english={english?.next} className="text-[12px] leading-[1.7] text-ink-6" />
           </div>
         ) : null}
         {nextStep ? <p className="font-mono text-[12px] text-ink-label">{nextStep}</p> : null}

@@ -1692,7 +1692,7 @@ the app header (`05` §5.1), which shows it current.
 ### Layout
 
 The standard frame, **one card** at 1280px: the app header, a card header holding the §3.3 section
-label `SETTINGS`, then the body at `26px 32px 32px`. Two rows now; #123 adds a third. Rows have
+label `SETTINGS`, then the body at `26px 32px 32px`. Three rows. Rows have
 `--rule-hairline` separators, `padding: 16px 0`, in a grid `200px minmax(0, 1fr)`: the field's name at 13px `--ink-4`, then its
 control with a 12px/1.7 `--ink-6` caption under it.
 
@@ -1704,7 +1704,7 @@ control with a 12px/1.7 `--ink-6` caption under it.
 
 Under them, a solid primary `Save settings`, **disabled until something differs from what is saved**
 and while the name is blank or over 80 characters, with the reason in its caption. Pressing it sends
-the editable fields (`07` §5.21; name only until #123) and disables it; on success `Saved.` at 12px
+the editable fields (`07` §5.21) and disables it; on success `Saved.` at 12px
 `--ink-6` beside it, and the app header's name changes at once. A failure is the catalogue's sentence on an attention rail (`05` §5.8)
 above the button, and the fields keep what was typed.
 

@@ -191,6 +191,19 @@ async function seedEverything(db: TestDb) {
     tokensIn: 5_000,
     tokensOut: 800,
   });
+  // English help (#106): a question's English, beside the world's Japanese question, and the setting.
+  await db.insert(s.questionTranslations).values({
+    questionId: world.questionId,
+    userId: world.userId,
+    language: "en",
+    body: AWKWARD,
+    source: "translated",
+    modelId: "fixture-model",
+    promptVersion: "translate-question-fixture",
+    tokensIn: 120,
+    tokensOut: 30,
+  });
+  await db.insert(s.userSettings).values({ userId: world.userId, englishHelp: true });
   const [run] = await db.insert(s.cronRuns).values({ job: "self-check" }).returning({ id: s.cronRuns.id });
   await db.insert(s.cronReadings).values({
     runId: run.id,

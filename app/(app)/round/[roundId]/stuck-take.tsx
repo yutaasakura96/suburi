@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { RoundCopy, RoundLanguage } from "../copy";
-import { CalloutRail, RoundFooter, caption, roundSectionLabel } from "../parts";
+import { CalloutRail, PromptEnglish, RoundFooter, caption, roundSectionLabel } from "../parts";
 
 /**
  * 10 §4–§5, when a take exists and the round cannot go on with it yet (03 §5, §8). Either it has not
@@ -17,6 +17,7 @@ export function StuckTakeFrame({
   copy,
   language,
   question,
+  english,
   notices,
   busy,
   stamp,
@@ -28,6 +29,8 @@ export function StuckTakeFrame({
   copy: RoundCopy;
   language: RoundLanguage;
   question: string;
+  /** English help's line under the question: undefined draws none (10 §15). */
+  english: string | null | undefined;
   /** What happened, plainly: each its own rail. */
   notices: readonly string[];
   busy: boolean;
@@ -48,9 +51,12 @@ export function StuckTakeFrame({
   return (
     <div className="flex flex-grow flex-col gap-[26px] px-[32px] pt-[36px] pb-[32px]">
       <div className="h-[18px]" />
-      <p className="max-w-[880px] text-[19px] leading-[1.9] text-ink-2" data-testid="round-question">
-        {question}
-      </p>
+      <div className="flex flex-col gap-[8px]">
+        <p className="max-w-[880px] text-[19px] leading-[1.9] text-ink-2" data-testid="round-question">
+          {question}
+        </p>
+        <PromptEnglish english={english} className="max-w-[880px] text-[15px] leading-[1.8] text-ink-5" />
+      </div>
       <div className="h-px bg-rule-row" />
 
       <div className="flex flex-col gap-[10px]" data-testid="take-notice">

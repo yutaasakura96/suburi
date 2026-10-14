@@ -28,6 +28,12 @@ export const MODEL_ANSWER_MODEL = "gpt-5.6-sol";
 export const QUESTION_GENERATION_MODEL = "gpt-5.6-sol";
 
 /**
+ * A Japanese bank question's English, written by `scripts/translate-questions.mts` and stored on
+ * `question_translations.model_id` (04). A reading aid, never a stamp: no score depends on it.
+ */
+export const QUESTION_TRANSLATION_MODEL = "gpt-5.6-sol";
+
+/**
  * The near-duplicate guard's embeddings (03 §4, §11). `questions.embedding` is `vector(1536)`, this
  * model's default dimension. Changing it changes every distance the guard has ever recorded, so each
  * `near_duplicate_checks` row carries the string it was measured with (04).

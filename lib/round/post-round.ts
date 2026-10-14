@@ -8,6 +8,7 @@ import type { ModelHealth } from "../ai/health";
 import type { AnswerScorer } from "../ai/score";
 import { ModelCallFailed, SPEND_LIMIT_CLASSES } from "../ai/upstream";
 import { admitCandidate, lockSlice } from "../questions/near-duplicate";
+import { promptEnglish } from "./english-help";
 import { generateCandidates, type GeneratedCandidates } from "./generate-candidates";
 import { authenticate, guarded, log, notFound, parseBody, writeFailed, type Db, type RoundDeps } from "./http";
 import { loadCandidates, planQuestions } from "./select-questions";
@@ -239,7 +240,15 @@ export function createPostRound(deps: PostRoundDeps) {
             scoring_prompt_version: deps.scorer.promptVersions[language] ?? null,
           },
         },
-        prompt: { kind: "question", position: 1, question_id: first.id, text: first.body, speak: mode === "realistic" },
+        prompt: {
+          kind: "question",
+          position: 1,
+          question_id: first.id,
+          text: first.body,
+          speak: mode === "realistic",
+          // A Japanese practice round's first prompt carries its English; a realistic round's, no such key (07 §5.4).
+          ...(await promptEnglish(deps.db, round, first.id)),
+        },
         progress: { position: 1, of: length },
       },
       // Where the round is read back from, and resumed (07 §5.5).

@@ -6,26 +6,27 @@ import { Button } from "@/components/ui/button";
 import type { ErrorCode } from "@/lib/api/errors";
 import { ERROR_COPY } from "@/lib/copy/errors";
 import { useUserName } from "../user-name";
-import { SETTINGS_COPY as copy, saveBlocker } from "./copy";
+import { SETTINGS_COPY as copy, saveBlocker, type SettingsFields } from "./copy";
 
 const caption = "text-[12px] leading-[1.7] text-ink-6";
 const rowGrid = "grid grid-cols-[200px_minmax(0,1fr)] py-[16px]";
 const fieldName = "text-[13px] text-ink-4";
 
 /**
- * 10 §17's rows and its one write. The email is shown, never sent: it is Google's and the
- * allowlist's (07 §5.21). A failure keeps what was typed.
+ * 10 §17's rows and its one write, which sends every editable field (07 §5.21). The email is shown,
+ * never sent: it is Google's and the allowlist's. A failure keeps what was typed.
  */
-export function SettingsForm({ displayName, email }: { displayName: string; email: string }) {
+export function SettingsForm({ displayName, email, englishHelp }: { displayName: string; email: string; englishHelp: boolean }) {
   const router = useRouter();
   const { setName } = useUserName();
-  const [saved, setSaved] = useState(displayName);
+  const [saved, setSaved] = useState<SettingsFields>({ name: displayName, englishHelp });
   const [typed, setTyped] = useState(displayName);
+  const [help, setHelp] = useState(englishHelp);
   const [saving, setSaving] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
   const [error, setError] = useState<{ code: ErrorCode; nameRefused: boolean } | null>(null);
 
-  const blocker = saveBlocker(typed, saved);
+  const blocker = saveBlocker({ name: typed, englishHelp: help }, saved);
 
   async function save(event: React.FormEvent) {
     event.preventDefault();
@@ -37,7 +38,7 @@ export function SettingsForm({ displayName, email }: { displayName: string; emai
       const response = await fetch("/api/settings", {
         method: "PUT",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ display_name: typed }),
+        body: JSON.stringify({ display_name: typed, english_help: help }),
       });
       const json = await response.json();
       if (!response.ok) {
@@ -47,8 +48,10 @@ export function SettingsForm({ displayName, email }: { displayName: string; emai
         return;
       }
       const stored: string = json.settings.display_name;
-      setSaved(stored);
+      const storedHelp: boolean = json.settings.english_help;
+      setSaved({ name: stored, englishHelp: storedHelp });
       setTyped(stored);
+      setHelp(storedHelp);
       setName(stored);
       setJustSaved(true);
       router.refresh();
@@ -90,6 +93,30 @@ export function SettingsForm({ displayName, email }: { displayName: string; emai
           <div className="flex flex-col gap-[6px]">
             <p className="text-[14px] text-ink-3">{email}</p>
             <p className={caption}>{copy.emailCaption}</p>
+          </div>
+        </div>
+        <div className={rowGrid}>
+          <span className={fieldName} id="settings-english-help">
+            {copy.englishHelp}
+          </span>
+          <div className="flex flex-col gap-[6px]">
+            <label className="flex items-start gap-[10px] text-[14px] leading-[1.6] text-ink-1">
+              <input
+                type="checkbox"
+                checked={help}
+                disabled={saving}
+                aria-describedby="settings-english-help settings-english-help-caption"
+                onChange={(event) => {
+                  setHelp(event.target.checked);
+                  setJustSaved(false);
+                }}
+                className="mt-[4px] size-[14px] shrink-0 accent-mark"
+              />
+              {copy.englishHelpLabel}
+            </label>
+            <p id="settings-english-help-caption" className={caption}>
+              {copy.englishHelpCaption}
+            </p>
           </div>
         </div>
       </div>

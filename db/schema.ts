@@ -45,6 +45,7 @@ export const RATE_LIMITED_ROUTES = [
 ] as const;
 // 12 §6's monitoring jobs and what they read (04 cron_readings). #47 adds the near-miss row; #56
 // added the daily dump's.
+export const TRANSLATION_SOURCES = ["generated", "hand_written", "translated"] as const;
 export const CRON_JOBS = ["self-check", "digest"] as const;
 export const SELF_CHECK_SIGNALS = [
   "scoring_pending_over_24h",
@@ -145,6 +146,18 @@ export const verifications = pgTable(
 );
 
 // ── Application tables ──
+
+// One user's settings, updated in place (04). Not measurement: nothing here is scored, stamped or
+// plotted. No row is every default.
+export const userSettings = pgTable("user_settings", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  // English help starts on: the starting state of a Japanese practice round's pill (10 §15).
+  englishHelp: boolean("english_help").notNull().default(false),
+  createdAt: createdAt(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
 
 export const cvVersions = pgTable(
   "cv_versions",
@@ -311,6 +324,44 @@ export const questions = pgTable(
       .on(t.userId, t.language, t.roundType)
       .where(sql`${t.retiredAt} is null`),
     index("questions_embedding_hnsw_idx").using("hnsw", t.embedding.op("vector_cosine_ops")),
+  ],
+);
+
+// Append-only: one English of one Japanese bank question (04, 06 2026-10-14). The newest row is the
+// question's English; a re-write is a new row. A reading aid, never part of the question: no score
+// reads it, no stamp names it.
+export const questionTranslations = pgTable(
+  "question_translations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    questionId: uuid("question_id")
+      .notNull()
+      .references(() => questions.id, { onDelete: "restrict" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    // The translation's language, never the question's own: the writer refuses that.
+    language: text("language", { enum: LANGUAGES }).notNull(),
+    body: text("body").notNull(),
+    source: text("source", { enum: TRANSLATION_SOURCES }).notNull(),
+    // Exact pinned string, never an alias. Null exactly when hand-written.
+    modelId: text("model_id"),
+    promptVersion: text("prompt_version").notNull(),
+    // The script's call only: a generated English shares its question's call and tokens.
+    tokensIn: integer("tokens_in"),
+    tokensOut: integer("tokens_out"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    oneOf("question_translations", "language", t.language, LANGUAGES),
+    oneOf("question_translations", "source", t.source, TRANSLATION_SOURCES),
+    check("question_translations_body_not_blank_check", sql`btrim(${t.body}) <> ''`),
+    check("question_translations_model_check", sql`(${t.source} = 'hand_written') = (${t.modelId} is null)`),
+    check(
+      "question_translations_tokens_check",
+      sql`${t.source} = 'translated' or (${t.tokensIn} is null and ${t.tokensOut} is null)`,
+    ),
+    index("question_translations_question_id_language_created_at_idx").on(t.questionId, t.language, t.createdAt.desc()),
   ],
 );
 

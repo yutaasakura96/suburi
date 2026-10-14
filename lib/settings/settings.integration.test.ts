@@ -7,10 +7,10 @@ import { insertUser } from "../../db/test/fixtures";
 import { createAuth } from "../auth/auth";
 import { mintSessionCookie } from "../auth/test/session";
 import { getConfig } from "../config";
-import { createPutSettings, loadSettings } from "./settings";
+import { createPutSettings, englishHelpStartsOn, loadSettings } from "./settings";
 
-// 11 §3.26, the display name: PUT /api/settings through its handler, against the migrated test
-// database, with a real Better Auth session.
+// 11 §3.26, the display name and English help: PUT /api/settings through its handler, against the
+// migrated test database, with a real Better Auth session.
 
 vi.stubEnv("DATABASE_URL", "postgresql://suburi:suburi@localhost:5433/suburi_test");
 vi.stubEnv("DATABASE_URL_UNPOOLED", "postgresql://suburi:suburi@localhost:5433/suburi_test");
@@ -71,15 +71,16 @@ async function setUp(db: TestDb, { failWrite = false } = {}) {
   }
 
   const nameOf = async (userId = user.id) => (await loadSettings(db, userId)).displayName;
-  return { userId: user.id, put, nameOf };
+  const settingsRows = async () => db.select().from(s.userSettings);
+  return { userId: user.id, put, nameOf, settingsRows };
 }
 
 describe("PUT /api/settings", () => {
   it("writes users.name, trimmed, and answers with the settings", async () => {
     await inRolledBackTransaction(async (db) => {
       const { put, nameOf } = await setUp(db);
-      const response = await put({ display_name: `  ${SENTINEL} Example  ` });
-      expect(response).toEqual({ status: 200, json: { settings: { display_name: `${SENTINEL} Example` } } });
+      const response = await put({ display_name: `  ${SENTINEL} Example  `, english_help: false });
+      expect(response).toEqual({ status: 200, json: { settings: { display_name: `${SENTINEL} Example`, english_help: false } } });
       expect(await nameOf()).toBe(`${SENTINEL} Example`);
       expect(logged.join("\n")).not.toContain(SENTINEL);
     });
@@ -89,27 +90,52 @@ describe("PUT /api/settings", () => {
     await inRolledBackTransaction(async (db) => {
       const { put, nameOf } = await setUp(db);
       // 𠮷 is two UTF-16 units and one code point.
-      expect((await put({ display_name: "𠮷".repeat(80) })).status).toBe(200);
+      expect((await put({ display_name: "𠮷".repeat(80), english_help: false })).status).toBe(200);
       expect(await nameOf()).toBe("𠮷".repeat(80));
 
-      const tooLong = await put({ display_name: "a".repeat(81) });
+      const tooLong = await put({ display_name: "a".repeat(81), english_help: false });
       expect(tooLong).toMatchObject({ status: 400, json: { error: { code: "invalid_request", detail: { fields: ["display_name"] } } } });
       expect(await nameOf()).toBe("𠮷".repeat(80));
     });
   });
 
   it.each([
-    ["blank", { display_name: "   " }, ["display_name"]],
-    ["missing", {}, ["display_name"]],
-    ["not a string", { display_name: 7 }, ["display_name"]],
-    ["unknown", { display_name: "Jordan", email: "other@example.test" }, ["email"]],
+    ["blank", { display_name: "   ", english_help: true }, ["display_name"]],
+    ["missing", { english_help: true }, ["display_name"]],
+    ["not a string", { display_name: 7, english_help: true }, ["display_name"]],
+    ["missing English help", { display_name: "Jordan" }, ["english_help"]],
+    ["non-boolean English help", { display_name: "Jordan", english_help: "on" }, ["english_help"]],
+    ["unknown", { display_name: "Jordan", english_help: true, email: "other@example.test" }, ["email"]],
   ])("a %s field is a 400 naming it, and writes nothing", async (_, body, fields) => {
     await inRolledBackTransaction(async (db) => {
-      const { put, nameOf } = await setUp(db);
+      const { put, nameOf, settingsRows } = await setUp(db);
       const before = await nameOf();
       const response = await put(body);
       expect(response).toMatchObject({ status: 400, json: { error: { code: "invalid_request", detail: { fields } } } });
       expect(await nameOf()).toBe(before);
+      expect(await settingsRows()).toEqual([]);
+    });
+  });
+
+  it("upserts English help with the name, in place, and the round's starting state reads it", async () => {
+    await inRolledBackTransaction(async (db) => {
+      const { put, userId, settingsRows } = await setUp(db);
+      // No row is every default: English help reads off.
+      expect(await englishHelpStartsOn(db, userId)).toBe(false);
+      expect((await loadSettings(db, userId)).englishHelp).toBe(false);
+
+      expect(await put({ display_name: "Jordan", english_help: true })).toEqual({
+        status: 200,
+        json: { settings: { display_name: "Jordan", english_help: true } },
+      });
+      expect(await englishHelpStartsOn(db, userId)).toBe(true);
+      expect((await loadSettings(db, userId)).englishHelp).toBe(true);
+
+      expect((await put({ display_name: "Jordan", english_help: false })).status).toBe(200);
+      const rows = await settingsRows();
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ userId, englishHelp: false });
+      expect(await englishHelpStartsOn(db, userId)).toBe(false);
     });
   });
 
@@ -124,7 +150,7 @@ describe("PUT /api/settings", () => {
     await inRolledBackTransaction(async (db) => {
       const { put, nameOf } = await setUp(db);
       const before = await nameOf();
-      const response = await put({ display_name: "Jordan" }, { signedIn: false });
+      const response = await put({ display_name: "Jordan", english_help: true }, { signedIn: false });
       expect(response).toMatchObject({ status: 401, json: { error: { code: "unauthenticated" } } });
       expect(await nameOf()).toBe(before);
     });
@@ -132,23 +158,26 @@ describe("PUT /api/settings", () => {
 
   it("one user's write never reaches another user's row", async () => {
     await inRolledBackTransaction(async (db) => {
-      const { put, nameOf } = await setUp(db);
+      const { put, nameOf, userId } = await setUp(db);
       const other = await insertUser(db);
-      expect((await put({ display_name: "Jordan" })).status).toBe(200);
+      expect((await put({ display_name: "Jordan", english_help: true })).status).toBe(200);
       expect(await nameOf(other)).toBe("fixture");
+      expect(await englishHelpStartsOn(db, other)).toBe(false);
+      expect((await db.select({ userId: s.userSettings.userId }).from(s.userSettings)).map((row) => row.userId)).toEqual([userId]);
     });
   });
 
-  it("a failed write is 500 write_failed with the error class, and the name is unchanged", async () => {
+  it("a failed write is 500 write_failed with the error class, and nothing is written", async () => {
     await inRolledBackTransaction(async (db) => {
-      const { put, nameOf } = await setUp(db, { failWrite: true });
+      const { put, nameOf, settingsRows } = await setUp(db, { failWrite: true });
       const before = await nameOf();
-      const response = await put({ display_name: `${SENTINEL}` });
+      const response = await put({ display_name: `${SENTINEL}`, english_help: true });
       expect(response).toMatchObject({
         status: 500,
         json: { error: { code: "write_failed", detail: { error_class: "pg_57014" } } },
       });
       expect(await nameOf()).toBe(before);
+      expect(await settingsRows()).toEqual([]);
       expect(logged.join("\n")).not.toContain(SENTINEL);
     });
   });
@@ -156,7 +185,7 @@ describe("PUT /api/settings", () => {
   it("leaves the email alone", async () => {
     await inRolledBackTransaction(async (db) => {
       const { put, userId } = await setUp(db);
-      await put({ display_name: "Jordan" });
+      await put({ display_name: "Jordan", english_help: true });
       const [row] = await db.execute<{ email: string }>(sql`select email from users where id = ${userId}`).then((r) => r.rows);
       expect(row.email).toBe(getConfig().ALLOWED_EMAIL);
     });

@@ -1471,22 +1471,22 @@ POST /api/answers/c003e8a2-…/english-reading
 
 Replaces the editable settings on the page (#107; `06`, 2026-10-14, Q-P1). The settings page
 (`10` §17) is a Server Component; this is its one write. Calls no model, so it is not rate-limited.
-In #122, the name is the only editable setting. #123 adds English help to this same replacement.
+#122 brought the name; #123 added English help to this same replacement.
 
 ```http
 PUT /api/settings
-{ "display_name": "Yuta" }
+{ "display_name": "Yuta", "english_help": true }
 ```
 ```json
 200
-{ "settings": { "display_name": "Yuta" } }
+{ "settings": { "display_name": "Yuta", "english_help": true } }
 ```
 
-- **The name every time** — the body is the page, not a patch. `display_name` is trimmed and 1–80
-  code points. A missing or invalid name, or an unknown field (including `english_help` until #123),
-  is a `400` naming it. From #123, the body and response also carry boolean `english_help` every time.
-- One transaction: `users.name` is set. From #123, `user_settings` is also upserted on `user_id`
-  (`04`). The email is not a field: it is Google's and the allowlist's (`08` §2).
+- **Every field every time** — the body is the page, not a patch. `display_name` is trimmed and 1–80
+  code points; `english_help` is a boolean. A missing or invalid field, or an unknown one, is a `400`
+  naming it.
+- One transaction: `users.name` is set, and `user_settings` upserted on `user_id` (`04`). The email
+  is not a field: it is Google's and the allowlist's (`08` §2).
 - `500 write_failed` when it fails; nothing is half-written.
 
 ## 6. Endpoints that do not exist, and must not be added
