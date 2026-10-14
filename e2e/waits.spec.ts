@@ -8,7 +8,7 @@ import { createAuth } from "../lib/auth/auth";
 import { mintSessionCookie } from "../lib/auth/test/session";
 import { getConfig } from "../lib/config";
 import { E2E_URL, MOCK_S3_ENDPOINT } from "./database";
-import { generatedQuestions, silentMp3, startMockOpenAi, type MockOpenAi } from "./mock-openai";
+import { generatedQuestions, silentPcm, startMockOpenAi, type MockOpenAi } from "./mock-openai";
 import { startMockS3, type MockS3 } from "./mock-s3";
 
 // The round's two waits (#73, 10 §3–5 and §7), against the production build: the take on its way and
@@ -106,7 +106,7 @@ test.beforeAll(async () => {
       }
       return { fail: 400 };
     },
-    { transcription: () => ({ text: heard, seconds: 18 }), speech: silentMp3 },
+    { transcription: () => ({ text: heard, seconds: 18 }), speech: silentPcm },
   );
 });
 

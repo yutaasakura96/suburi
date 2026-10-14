@@ -205,8 +205,9 @@ Carry these; do not silently decide them in a ticket.
   §3's three prose strings now say `応募書類`, one rewritten for register (`05` §6, `06`).
 - ~~**What a database failure mid-write returns.**~~ **Decided 2026-09-28:** `write_failed`, a
   catalogued `500` in the `07` §2 envelope, on every round route; the round stays resumable (`07` §3).
-- ~~**The text-to-speech model.**~~ **Pinned 2026-10-03 (#45).** The model, voice and replacement
-  deadline are in `03` §4; the decision is in `06`.
+- ~~**The text-to-speech model.**~~ **Pinned 2026-10-03 (#45), moved to the Realtime API 2026-10-14
+  (#76)** ahead of the speech endpoint's 2027-01-06 removal. The model and voice are in `03` §4; the
+  decisions are in `06`.
 - ~~**Who sends the alert mail.**~~ **Decided 2026-09-28:** nobody. The cron routes write to a private,
   signed-in status page the user checks; no email vendor (`12` §6, `06`). Built by #55.
 - **User-facing copy for the error catalogue.** `docs/07-api-design.md` §3 closes the set of error codes;

@@ -6,9 +6,10 @@ import { seedSyntheticCv } from "../db/seed-cv";
 import { seedRubrics, seedSetPieces, seedSyntheticQuestions } from "../db/seed-questions";
 import { createAuth } from "../lib/auth/auth";
 import { mintSessionCookie } from "../lib/auth/test/session";
+import { wavStreamHeader } from "../lib/ai/tts";
 import { getConfig } from "../lib/config";
 import { E2E_URL } from "./database";
-import { generatedQuestions, silentMp3, startMockOpenAi, type MockOpenAi } from "./mock-openai";
+import { generatedQuestions, silentPcm, startMockOpenAi, type MockOpenAi } from "./mock-openai";
 import { startMockS3, type MockS3 } from "./mock-s3";
 
 // What makes a realistic round realistic (#45), against the production build: the spoken question,
@@ -79,7 +80,7 @@ test.beforeAll(async () => {
     },
     {
       transcription: () => ({ text: RAW, seconds: 240 }),
-      speech: () => (speechFails ? { fail: 503 } : silentMp3()),
+      speech: () => (speechFails ? { fail: 500 } : silentPcm()),
     },
   );
 });
@@ -194,7 +195,7 @@ test("the runaway guard fires: a practice take is kept at 15 minutes, and is nev
   expect(takes[0].bytes).toBeGreaterThan(0);
 
   expect(speech).toEqual([]);
-  expect(openAi.requests.slice(before).filter((request) => request.path === "/v1/audio/speech")).toHaveLength(0);
+  expect(openAi.requests.slice(before).filter((request) => request.path === "/v1/realtime")).toHaveLength(0);
   const refused = await page.request.get(`/api/rounds/${round.id}/speech?position=1&kind=question`);
   expect(refused.status()).toBe(404);
 });
@@ -229,7 +230,7 @@ test("a reloaded realistic round asks for its prompt by position, and plays it w
   expect(await page.getByTestId("round-question").boundingBox()).toEqual(question);
 
   expect(speech).toEqual([`/api/rounds/${round.id}/speech?position=1&kind=question`]);
-  const upstream = openAi.requests.filter((request) => request.path === "/v1/audio/speech");
+  const upstream = openAi.requests.filter((request) => request.path === "/v1/realtime");
   expect(upstream.at(-1)!.body.input).toBe(await page.getByTestId("round-question").textContent());
 });
 
@@ -241,7 +242,7 @@ test("pausing a pending spoken question to record does not show a speech failure
   await signIn(page);
   const round = await startRound(page, "realistic");
   await page.route(`**/api/rounds/${round.id}/speech?*`, (route) =>
-    route.fulfill({ status: 200, contentType: "audio/mpeg", body: Buffer.from(silentMp3()) }),
+    route.fulfill({ status: 200, contentType: "audio/wav", body: Buffer.concat([wavStreamHeader(), silentPcm()]) }),
   );
   await page.addInitScript(() => {
     let gesture = false;
@@ -289,7 +290,7 @@ test("a failed speech request shows the notice, and the round goes on as text", 
   expect(refused.status()).toBe(502);
   expect((await refused.json()).error).toMatchObject({
     code: "speech_failed",
-    detail: { round_id: round.id, position: 1, error_class: "upstream_503" },
+    detail: { round_id: round.id, position: 1, error_class: "upstream_server_error" },
   });
 
   // The speaker line is replaced by the catalogue's sentence; the question is still there to answer.
@@ -338,6 +339,6 @@ test("a follow-up is spoken from its own text, at its question's position", asyn
   // The server read the follow-up's text from its row: the request named a position and a kind.
   // Polled: the browser's request is seen before the server's call upstream has landed.
   await expect
-    .poll(() => openAi.requests.filter((request) => request.path === "/v1/audio/speech").at(-1)!.body.input)
+    .poll(() => openAi.requests.filter((request) => request.path === "/v1/realtime").at(-1)!.body.input)
     .toBe(FOLLOW_UP);
 });
