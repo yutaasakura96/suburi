@@ -559,9 +559,11 @@ test("an answer given in Japanese to an English round says so on its own page of
   await expect(page.getByTestId("wrong-language")).toHaveCount(0);
   await page.getByRole("button", { name: "Question 2" }).click();
   await expect(page.getByTestId("wrong-language")).toHaveText("This answer was given in Japanese. It is kept out of your English progress.");
-  // It was still scored (PRD §7): the rows are there, and nothing was flagged in it.
+  // It was still scored (PRD §7): the rows are there, and nothing was flagged in that answer.
   await expect(page.getByTestId("score-value")).toHaveText(["4", "3", "4", "3", "4", "2"]);
-  await expect(page.getByTestId("grounding").getByTestId("unsupported")).toHaveCount(2);
+  await expect(page.getByTestId("grounding").getByTestId("unsupported")).toHaveText(
+    [1, 1, 2, 3, 3].map((position) => new RegExp(`^Unsupported \\(Question ${position}\\) — nothing in CV v\\d+ backs “${UNSUPPORTED}”\\.$`)),
+  );
   await page.screenshot({ path: test.info().outputPath("screen8-wrong-language.png"), fullPage: true });
   await page.getByRole("button", { name: "Question 3" }).click();
   await expect(page.getByTestId("wrong-language")).toHaveCount(0);
