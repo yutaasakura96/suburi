@@ -1713,7 +1713,7 @@ above the button, and the fields keep what was typed.
 - **No career or personal fields**: no current role, years of experience, target role, location or
   aiming-for text (`06`, Q-P1). A field a model reads is a second CV without its stamps.
 - **No default round choices.** Setup's defaults come from what is due (US-14). Q-P1 = A listed
-  them; the owner confirms or reverses the omission with #122–#127 (`06`, 2026-10-14, Q-P1).
+  them; the owner confirmed the omission with #122–#127 (`06`, 2026-10-15).
 - **No delete, export or share** of the account or anything in it (§11, refusal 6; `04` §5).
 - **No model, rubric or language-of-the-app picker** (`07` §6).
 - **No API key** until #114 decides one.
