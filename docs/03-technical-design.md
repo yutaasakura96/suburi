@@ -200,7 +200,7 @@ Six text jobs on one pinned model, and three more on models of their own:
 | Embeddings | `text-embedding-3-small`, 1536 dimensions | at question generation | High — the near-duplicate guard (§11) |
 
 **The round's latencies, measured 2026-10-01 (#42)** with `scripts/measure-round-latency.mts`
-against OpenAI, five runs of each, from the development machine, the way #20 measured extraction. Synthetic
+against OpenAI, five runs of each at the time, from the development machine, the way #20 measured extraction. Synthetic
 answers of the lengths a realistic round produces (one to three and a half minutes spoken). Scoring
 and round feedback ran through the real ports and prompts (`score-en-1.0`, `feedback-en-1.0`);
 **follow-up and question generation ran draft prompts**, since their ports did not exist yet. **Follow-up
@@ -208,7 +208,8 @@ generation was re-measured on 2026-10-03 (#44)** through its real port and `foll
 same way; the Japanese prompt is not measured until a real Japanese round with follow-ups runs on
 `develop`. **Question generation's draft rows were replaced by #47's measurement** through its real
 port, below. Transcription read takes
-synthesised by TTS and re-encoded to webm/opus by ffmpeg, the browser's format.
+synthesised by TTS and re-encoded to webm/opus by ffmpeg, the browser's format. #76 added ten
+question-length TTS runs through the new port on 2026-10-14.
 
 | Job | Model | n | median | p90 | slowest | tokens in / out |
 | --- | --- | --- | --- | --- | --- | --- |
