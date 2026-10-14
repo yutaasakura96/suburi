@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { expect, test, type Page } from "@playwright/test";
 import * as s from "../db/schema";
@@ -119,4 +119,49 @@ test("the page has no delete, export or share control, and no career or personal
   await expect(form.getByRole("textbox")).toHaveCount(1);
   await expect(form.getByRole("button")).toHaveCount(1);
   await expect(page.getByRole("main")).not.toContainText(/delete|export|share|download/i);
+});
+
+test("the running API rejects unauthorized and invalid writes without changing the saved name", async ({ page, request }) => {
+  const original = await storedName();
+  await page.goto("/settings");
+  await expect(page).toHaveURL(/\/sign-in/);
+  const unauthorized = await request.put("/api/settings", { data: { display_name: "Stranger" } });
+  expect(unauthorized.status()).toBe(401);
+  expect((await unauthorized.json()).error.code).toBe("unauthenticated");
+
+  await signIn(page);
+  await page.goto("/settings");
+  for (const displayName of ["   ", "a".repeat(81)]) {
+    const response = await page.request.put("/api/settings", { data: { display_name: displayName } });
+    expect(response.status()).toBe(400);
+    expect((await response.json()).error.detail.fields).toContain("display_name");
+  }
+  const extraField = await page.request.put("/api/settings", {
+    data: { display_name: "Stranger", email: "changed@example.test" },
+  });
+  expect(extraField.status()).toBe(400);
+  expect((await extraField.json()).error.detail.fields).toContain("email");
+  expect(await storedName()).toBe(original);
+
+  const maxName = "𠮷".repeat(80);
+  const accepted = await page.request.put("/api/settings", { data: { display_name: `  ${maxName}  ` } });
+  expect(accepted.status()).toBe(200);
+  expect((await accepted.json()).settings.display_name).toBe(maxName);
+  expect(await storedName()).toBe(maxName);
+});
+
+test("a database refusal leaves the typed name intact and shows the save failure", async ({ page }) => {
+  await signIn(page);
+  await page.goto("/settings");
+  const original = await storedName();
+  await withDb((db) => db.execute(sql`alter table users add constraint settings_refusal_check check (name <> 'Refused')`));
+  try {
+    await page.getByRole("textbox", { name: "Name" }).fill("Refused");
+    await page.getByRole("button", { name: "Save settings" }).click();
+    await expect(page.getByText("The save failed, and nothing was written. Try the same step again.")).toBeVisible();
+    await expect(page.getByRole("textbox", { name: "Name" })).toHaveValue("Refused");
+    expect(await storedName()).toBe(original);
+  } finally {
+    await withDb((db) => db.execute(sql`alter table users drop constraint settings_refusal_check`));
+  }
 });

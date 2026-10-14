@@ -1681,9 +1681,9 @@ and the link `Start a round`.
 
 ## 17. Settings — `/settings`, no artboard
 
-**Purpose.** The user's own settings, in one place: today the display name and English help (#106,
-#107; `06`, 2026-10-14, Q-P1). **Settings only** — no career facts, which are the CV's, and nothing a
-model reads.
+**Purpose.** The user's own settings, in one place: #122 brings the display name and read-only email;
+#123 adds English help (#106, #107; `06`, 2026-10-14, Q-P1). **Settings only** — no career facts,
+which are the CV's, and nothing a model reads.
 
 Specified from `05` components, like §13. Session-required (`08` §5), the user's own page, and
 app-level, so its chrome is English (§0). **Not in the nav**: reached from the name at the right of
@@ -1692,20 +1692,20 @@ the app header (`05` §5.1), which shows it current.
 ### Layout
 
 The standard frame, **one card** at 1280px: the app header, a card header holding the §3.3 section
-label `SETTINGS`, then the body at `26px 32px 32px`. Three rows on `--rule-hairline` separators,
-`padding: 16px 0`, in a grid `200px minmax(0, 1fr)`: the field's name at 13px `--ink-4`, then its
+label `SETTINGS`, then the body at `26px 32px 32px`. Two rows now; #123 adds a third. Rows have
+`--rule-hairline` separators, `padding: 16px 0`, in a grid `200px minmax(0, 1fr)`: the field's name at 13px `--ink-4`, then its
 control with a 12px/1.7 `--ink-6` caption under it.
 
 | Row | Control | Caption |
 | --- | --- | --- |
 | `Name` | A text input, 360px, `1px solid --rule-frame`, `padding: 8px 12px`, 14px `--ink-1`, prefilled with `users.name` | `Shown at the top of every page. Nothing else reads it.` |
 | `Email` | The address as text, 14px `--ink-3`, not an input | `Your Google account. It is the only account that can sign in.` |
-| `English help` | A checkbox labelled `Start Japanese practice rounds, and the feedback of every Japanese round, with English shown.` | `Realistic rounds show no English until their feedback, whatever this says. In a round, its English pill switches it for that round only.` |
+| `English help` (#123) | A checkbox labelled `Start Japanese practice rounds, and the feedback of every Japanese round, with English shown.` | `Realistic rounds show no English until their feedback, whatever this says. In a round, its English pill switches it for that round only.` |
 
 Under them, a solid primary `Save settings`, **disabled until something differs from what is saved**
 and while the name is blank or over 80 characters, with the reason in its caption. Pressing it sends
-both fields (`07` §5.21) and disables it; on success `Saved.` at 12px `--ink-6` beside it, and the app
-header's name changes at once. A failure is the catalogue's sentence on an attention rail (`05` §5.8)
+the editable fields (`07` §5.21; name only until #123) and disables it; on success `Saved.` at 12px
+`--ink-6` beside it, and the app header's name changes at once. A failure is the catalogue's sentence on an attention rail (`05` §5.8)
 above the button, and the fields keep what was typed.
 
 ### Refuses

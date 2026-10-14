@@ -94,7 +94,7 @@ realistic mode is designed not to have.
 | Read own history, progress, feedback | ✅ | ❌ |
 | Upload a CV / role context | ✅ | ❌ |
 | Retry a failed scoring attempt | ✅ | ❌ |
-| Change own settings — display name, English help (`10` §17) | ✅ | ❌ |
+| Change own settings — display name, then English help from #123 (`10` §17) | ✅ | ❌ |
 | Delete a round, answer or score | ❌ **nobody** | ❌ |
 | Share, export to another person, publish | ❌ **nobody** | ❌ |
 

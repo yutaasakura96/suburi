@@ -157,6 +157,7 @@ describe("locked sign-in", () => {
     inRolledBackTransaction(async (db) => {
       const email = getConfig().ALLOWED_EMAIL;
       await seedUser(db, email);
+      await db.update(s.users).set({ name: "Chosen display name" }).where(eq(s.users.email, email));
       const sub = randomUUID();
 
       const { response, location } = await signInThroughCallback(db, {
@@ -175,6 +176,7 @@ describe("locked sign-in", () => {
       expect(cookie).toMatch(/; Max-Age=2592000/i);
 
       const [user] = await db.select().from(s.users).where(eq(s.users.email, email));
+      expect(user.name).toBe("Chosen display name");
       const linked = await db
         .select({ providerId: s.accounts.providerId, accountId: s.accounts.accountId })
         .from(s.accounts)
