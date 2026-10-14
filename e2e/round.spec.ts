@@ -486,7 +486,7 @@ test("a realistic English round: Setup → each question and its follow-up → p
   expect(stored.flags).toHaveLength(6);
   for (const flag of stored.flags) expect([...flag.corrected!].slice(flag.start, flag.end).join("")).toBe(UNSUPPORTED);
   expect(stored.feedback[0].ids).toHaveLength(2);
-  await page.screenshot({ path: process.env.SUBURI_E2E_EVIDENCE_DIR ? `${process.env.SUBURI_E2E_EVIDENCE_DIR}/screen8-grounding.png` : test.info().outputPath("screen8-grounding.png"), fullPage: true });
+  await page.screenshot({ path: test.info().outputPath("screen8-grounding.png"), fullPage: true });
 
   await page.getByRole("button", { name: "Question 2" }).click();
   await expect(page.getByTestId("answer-region")).toHaveAttribute("data-position", "2");
