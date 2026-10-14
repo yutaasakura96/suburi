@@ -87,7 +87,20 @@ test("the save button waits for a change and refuses a blank name; a save change
 
   await input.fill("  Jordan Example  ");
   await expect(save).toBeEnabled();
+  let releaseSave!: () => void;
+  const saveHeld = new Promise<void>((resolve) => { releaseSave = resolve; });
+  let requestSeen!: () => void;
+  const requestStarted = new Promise<void>((resolve) => { requestSeen = resolve; });
+  await page.route("**/api/settings", async (route) => {
+    requestSeen();
+    await saveHeld;
+    await route.continue();
+  });
   await save.click();
+  await requestStarted;
+  await expect(input).toBeDisabled();
+  await expect(save).toBeDisabled();
+  releaseSave();
 
   await expect(page.getByText("Saved.")).toBeVisible();
   await expect(page.locator("header").getByRole("link", { name: "Jordan Example" })).toHaveAttribute("aria-current", "page");

@@ -71,6 +71,7 @@ export function SettingsForm({ displayName, email }: { displayName: string; emai
               id="settings-name"
               type="text"
               value={typed}
+              disabled={saving}
               aria-describedby="settings-name-caption"
               aria-invalid={error?.nameRefused || undefined}
               onChange={(event) => {
