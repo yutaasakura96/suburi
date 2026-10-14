@@ -619,7 +619,7 @@ Against real Postgres, with the model mocked.
   holds the sentinel sent or the sentinel returned, the `english_readings` rows hold the length and
   tokens, the answer row is unchanged, and the sentinels are in no log line (§3.10's method). The
   route refuses an English round's answer, a submitted answer, an answer with no transcript, another
-  user's, and text over 4,000 code points, each before the model.
+  user's, and text over 8,000 code points, each before the model.
 - **Spend counts both new token columns**: the self-check's week sums `question_translations` and
   `english_readings` with the rest (`12` §6).
 

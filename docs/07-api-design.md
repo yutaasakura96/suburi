@@ -1454,8 +1454,9 @@ POST /api/answers/c003e8a2-…/english-reading
   (Q106-2: no English before a realistic round's feedback); no `transcript_raw` yet → `400
   invalid_request` naming it; already submitted → `422 answer_already_submitted`; a complete round →
   `409 round_already_complete`; an abandoned one → `409 round_abandoned`.
-- `text` is required, not blank, and at most **4,000 code points** — a fifteen-minute practice take at
-  250 字/分 is 3,750 — or the call is a `400`. It is the editor's text as it stands, the user's own
+- `text` is required, not blank, and at most **8,000 code points** — a fifteen-minute practice take at
+  a brisk 350 字/分 is 5,250, and the rest is room for what the editor adds — or the call is a `400`
+  (`10` §15 disables the button first). It is the editor's text as it stands, the user's own
   words; the route is not a translator for anything else.
 - One call to the pinned text model with `english-reading-1.0`: translate faithfully, keep the
   speaker's hesitations and repetitions, correct nothing, add nothing. **Bounded at 30 s, with no

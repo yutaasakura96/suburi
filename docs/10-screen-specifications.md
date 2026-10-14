@@ -1448,6 +1448,10 @@ off, and its words follow the chrome. Pressing it sends the editor's text (`07` 
 - **Once the editor's text differs from the text that was read**, one line under the label says so:
   `You have edited your answer since this reading.` / `この英語訳のあとで回答を直しました。` The reading
   stays until it is asked for again.
+- **Over 8,000 characters** (code points, `07` §5.20), the button is disabled and the caption is
+  `Your answer is too long to read in English. Shorten it to 8,000 characters or fewer.` /
+  `回答が長すぎるため英語訳を表示できません。8,000字以内にしてください。` Nothing is sent; a `400` the
+  route returns anyway shows the same caption.
 - **A failure** is the catalogue's `english_reading_failed` sentence on an attention rail (`05` §5.8)
   above the button, which stays. Nothing else on the screen changes.
 - **Never stored and gone on submit.** A reload, or the commit, drops it; nothing in History, screen 8
@@ -1708,7 +1712,8 @@ above the button, and the fields keep what was typed.
 
 - **No career or personal fields**: no current role, years of experience, target role, location or
   aiming-for text (`06`, Q-P1). A field a model reads is a second CV without its stamps.
-- **No default round choices.** Setup's defaults come from what is due (US-14).
+- **No default round choices.** Setup's defaults come from what is due (US-14). Q-P1 = A listed
+  them; the owner confirms or reverses the omission with #122–#127 (`06`, 2026-10-14, Q-P1).
 - **No delete, export or share** of the account or anything in it (§11, refusal 6; `04` §5).
 - **No model, rubric or language-of-the-app picker** (`07` §6).
 - **No API key** until #114 decides one.

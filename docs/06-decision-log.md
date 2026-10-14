@@ -183,10 +183,11 @@ nothing measures).
 **Decided:** `/settings` (`10` §17) holds the **display name** — `users.name`, shown at the right of
 the app header and read by no model — the **email**, read-only, and **English help** (Q106-1). The
 API key of #114 is the next field it is expected to hold. **No personal history and nothing the AI
-reads**: career facts belong to the CV, which is versioned and stamped. **Default round choices**,
-which the option named among such settings, are not added: Setup's defaults come from what is due
-(US-3, US-14), and a stored default would override them, so a ticket that wants one amends US-3
-first. It is reached from the name at the right of the app header, not from a fifth nav item
+reads**: career facts belong to the CV, which is versioned and stamped. **Default round choices are
+left out, and this is not settled**: the owner's pick, Q-P1 = A, listed them among the page's
+settings, but this plan leaves them out because Setup's defaults come from what is due (US-3, US-14)
+and a stored default would override them. The owner confirms or reverses the omission together with
+the draft slice issues #122–#127; a reversal amends US-3 first. It is reached from the name at the right of the app header, not from a fifth nav item
 (`05` §5.1). Writes go through `PUT /api/settings`, a whole replacement of the two editable fields
 (`07` §5.21) — not a `PATCH`, which `07` §4 refuses everywhere.
 **Amends** 2026-09-17, "Google's profile does not overwrite the seeded user's name": Google still

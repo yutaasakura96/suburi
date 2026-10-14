@@ -388,7 +388,9 @@ never stored; and `/settings` holding the name and English help. Slices:
 English behind the practice pill → #124 the round's chrome · #125 new questions and follow-ups with
 their English (#123) → #126 the English reading (#124) · #127 English after the round (#124), with
 native `blocked_by` edges, linked from #106 and #107, **unlabeled until the owner confirms them**.
-Two things for the owner with that confirmation: #125 moves the Japanese generator to `ja-1.1`, which
+Three things for the owner with that confirmation: Q-P1 = A listed default round choices among the
+settings, and this plan leaves them out because a stored default would override the US-3/US-14
+due-based defaults — confirm the omission or reverse it; #125 moves the Japanese generator to `ja-1.1`, which
 draws a stamp-3 boundary on the Japanese Progress chart; and #126 reads Q106-7 as practice-only,
 from Q106-2. Carried, not decided: English help on the CV screen's Japanese panel and on History
 detail (`CONTEXT.md`). The answers for #108–#115 were given the same day and wait for their own

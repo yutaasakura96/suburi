@@ -833,7 +833,7 @@ the English returned**, and none may be added.
 | `created_at` | `timestamptz` | no | `now()` | |
 
 **Constraints:** `check (status = 'failed' or error_class is null)`; `check (source_code_points
-between 1 and 4000)`.
+between 1 and 8000)`.
 
 ---
 
