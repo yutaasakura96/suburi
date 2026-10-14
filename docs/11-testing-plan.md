@@ -625,9 +625,10 @@ Against real Postgres, with the model mocked.
 
 ### 3.26 The settings page (#107)
 
-- `PUT /api/settings` writes `users.name` and upserts `user_settings` in one transaction; a blank,
-  over-long or missing field, or an unknown one, is a `400` that writes nothing.
-- **No row is every default**: a user without `user_settings` reads English help off.
+- #122: `PUT /api/settings` writes `users.name`; a blank, over-long or missing name, or an unknown
+  field, is a `400` that writes nothing. A failed write is `500 write_failed` and leaves the name alone.
+- From #123: the same write upserts `user_settings` in one transaction. **No row is every default**:
+  a user without `user_settings` reads English help off.
 - One user's write never reaches another user's rows.
 - **The setting is a starting state, never a gate around Q106-2**: with English help on, a realistic
   round's reads are exactly as above.
@@ -683,7 +684,7 @@ wiring between screens that no unit test sees.
 | English help in practice (#106) | A Japanese practice round with the setting off: the header's pill reads `English`; pressing it shows the stored English under the question without moving the Japanese, turns the frame's chrome English, keeps it across the record frames, correction and the per-answer frame, and a reload returns to the setting's state. With the setting on, the round opens with it on. A question with no English says so. **A Japanese realistic round has no pill and no English text on screens 3–7**, with the setting on. |
 | The English reading (#106) | On a Japanese practice round's correction screen, the control shows the mocked English under `RAW`, says so once the editor changes, and leaves the editor, the meter and the submitted text untouched; a failure is the catalogue's sentence. After submit and on a reload, no reading is shown anywhere. A realistic round's correction screen has no control. |
 | English after the round (#106) | Screen 8 of a Japanese round, in each mode: the pill shows the question's and the follow-up's English under them and the screen's chrome in English, while what was said, the CV region's quotes and the justification tooltips stay Japanese; it starts from the setting. Study's card pill shows the questions' English too. |
-| Settings (#107) | The app header's name leads to `/settings`, marked current; changing the name and saving updates the header; the save button is disabled until something changes and while the name is blank; English help saved on is the next practice round's starting state. No delete, export or share control on the page. |
+| Settings (#107) | The app header's name leads to `/settings`, marked current; changing the name and saving updates the header; the save button is disabled until something changes and while the name is blank or over 80 characters. From #123, English help saved on is the next practice round's starting state. No delete, export or share control on the page. |
 | No deletion surface | No delete or share control on History, a round, an answer or a score (refusals #3, #6). **As built (#50):** on every round's page with a row open, no control's name matches a delete, share or export word, every button is one of the four History has — a play toggle, the pill, `Retry scoring`, `Older rounds` — nothing takes input, and `DELETE` on a round, an answer and an attempt finds no route. |
 
 **Not in Playwright, deliberately:** any assertion about transcript *content*. The fake device

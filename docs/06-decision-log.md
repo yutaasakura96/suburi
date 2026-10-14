@@ -20,6 +20,14 @@ The term this section introduces is **English help** (`CONTEXT.md`): English sho
 round so that a user who does not read Japanese well can use it. It is a reading aid, never part of
 the record. Nothing in it is scored, stamped or plotted.
 
+### [2026-10-15] The six slices are confirmed, without default round choices
+
+**Asked:** "Confirm the six English-help issues #122 to #127?", with the narrowing that default round
+choices stay off the settings page because a saved default would override the due-based suggestions.
+**Answered: "A. Confirm all six, without default round choices".**
+**Decided:** #122–#127 are labeled `ready-for-agent`, and `/settings` holds no default round choices:
+Setup's defaults stay the due-based ones of US-3 and US-14. Settles the omission Q-P1 left open.
+
 ### [2026-10-14] Q0: English help is planned first, with the settings page inside it
 
 **Asked:** which of six groups — English support, profile, real interviews, the Track Record link,
@@ -178,6 +186,9 @@ meant); C, an English reading stored with the answer (a column in the measuremen
 nothing measures).
 
 ### [2026-10-14] Q-P1: the settings page holds settings only
+
+> **Settled 2026-10-15:** the owner confirmed the omission of default round choices with the six
+> slices (above).
 
 **Asked:** what is the profile page for? **Answered: "A Settings only".**
 **Decided:** `/settings` (`10` §17) holds the **display name** — `users.name`, shown at the right of

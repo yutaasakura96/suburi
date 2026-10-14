@@ -1,5 +1,6 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { cache } from "react";
 import { unauthenticated } from "../api/errors";
 import { getAuth } from ".";
 
@@ -26,9 +27,15 @@ export async function sessionOf(auth: SessionReader, requestHeaders: Headers) {
   return { userId: session.user.id, sessionId: session.session.id };
 }
 
-async function currentUserId() {
-  return (await sessionOf(getAuth(), await headers()))?.userId;
-}
+/**
+ * The session's user, or `undefined`, read once per request: the `(app)` layout reads it for the
+ * header's name and the page again for its own rows.
+ */
+export const currentUserId = cache(async () => {
+  // Headers first: at build time this is where a prerender stops, before the auth instance is built.
+  const requestHeaders = await headers();
+  return (await sessionOf(getAuth(), requestHeaders))?.userId;
+});
 
 /** Pages and Server Actions. No session redirects to /sign-in. */
 export async function requireSession(): Promise<string> {

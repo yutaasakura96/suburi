@@ -352,9 +352,9 @@ Filed by the owner on 2026-10-09; its questions were answered on 2026-10-14 (`06
 > to be changed.
 
 *Acceptance:*
-- The page holds the **display name** (shown in the app header), the **email** (read-only) and
-  **English help** (US-19). Nothing on it is read by a model, and it holds no career facts: those
-  are the CV's.
+- The page holds the **display name** (shown in the app header) and **email** (read-only) from #122;
+  **English help** (US-19) joins in #123. Nothing on it is read by a model, and it holds no career
+  facts: those are the CV's.
 - It is reached from the user's name in the app header.
 - No delete, export or sharing control (§9).
 
