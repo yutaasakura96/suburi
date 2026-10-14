@@ -15,6 +15,10 @@ index; and `rate_limit_windows.route` extended for the round routes. **Migrated 
 extended for History's two retry routes. The remaining round-loop changes are not migrated yet.
 **Amended 2026-10-04 for model answers** (`06`, 2026-10-04, #74; migrated by `0013_model-answers`):
 `model_answers` is new, and `rate_limit_windows.route` gains `model-answers`.
+**Amended 2026-10-14 for English help and the settings page** (`06`, "Phase 6 — #106 and #107"; not
+migrated): `user_settings`, `question_translations` and `english_readings` are new;
+`follow_ups.prompt_text_translated` is added; `users.name` is written by `/settings`; and
+`rate_limit_windows.route` gains `english-reading`. Each lands with the slice that first needs it.
 
 ---
 
@@ -40,7 +44,8 @@ extended for History's two retry routes. The remaining round-loop changes are no
   `rounds.round_type`, `rounds.language`, `rounds.mode`, `answers.language`,
   `scoring_attempts.status`, `scoring_attempts.answered_language`, `round_feedback.language`,
   `claim_citations.relation`, `cv_documents.kind`, `rate_limit_windows.route`, `follow_ups.status`,
-  `answer_flags.kind`, `cron_runs.job`, `cron_readings.signal`.
+  `answer_flags.kind`, `cron_runs.job`, `cron_readings.signal`, `question_translations.language`,
+  `question_translations.source`, `english_readings.status`.
   `scores.dimension` is **not** checked here: its valid set depends on the rubric row (`keigo` is
   `ja` only), which a column check cannot see.
 - Every table holding user data carries `user_id` (tenancy decision, `03` §2).
@@ -55,12 +60,14 @@ extended for History's two retry routes. The remaining round-loop changes are no
 | --- | --- |
 | `users` | A person who may sign in. There is exactly one, inserted by the seed script. |
 | `sessions`, `accounts`, `verifications` | Better Auth's own tables. Shape owned by the library. |
+| `user_settings` | One user's settings: today only whether English help starts on (#106). Not measurement. |
 | `cv_versions` | One language's **whole CV**, frozen — every document in the set joined into one immutable text. |
 | `cv_documents` | One member of that set — a 履歴書, a 職務経歴書, a CV document or a titled additional document — and the range of `cv_versions.body` it occupies. |
 | `cv_claims` | One atomic, citable assertion from a CV version, with a span into that version's text. |
 | `role_contexts` | The company/role a round is pitched at — a posting, researched notes, or General practice. |
 | `rubric_versions` | One version of a rubric: its dimensions and their definitions, as data. |
 | `questions` | A permanent bank entry. Set piece or generated. Has a stable identity forever. |
+| `question_translations` | One English of one Japanese bank question — generated with it, hand-written for a set piece, or written later by the script. Append-only; the newest is the question's English. Never part of the question. |
 | `near_duplicate_checks` | One generated question's comparison with its nearest neighbour in the bank: the two ids, the similarity, the threshold in force. Ids and numbers, no question text. |
 | `rounds` | One sitting: one type, one language, one mode, one length. |
 | `round_questions` | One bank question a round will ask, at one position — fixed when the round starts. |
@@ -72,6 +79,7 @@ extended for History's two retry routes. The remaining round-loop changes are no
 | `model_answers` | The **model answer** to one question a round asked — a bank question or a follow-up: how it could have been answered from the user's real record, with the parts the CV does not back marked. Coaching, not measurement. |
 | `claim_citations` | A CV claim was cited when evaluating an answer. This is the coverage record. |
 | `answer_flags` | A span of an answer's corrected text that the scorer flagged — today only `unsupported`: nothing in the CV backs it. |
+| `english_readings` | That one English reading of a transcript was made on the correction screen: the answer, the model, the length and the tokens. **No text — the reading itself is never stored.** |
 | `held_out_rescores` | A past answer re-scored under new stamps, to make drift visible. |
 | `rate_limit_windows` | One session's current fixed window on one ⚡ route: when it began and how many requests it has counted (`07` §1 rule 5). Not measurement. |
 | `cron_runs` | One run of a monitoring job, `self-check` or `digest` (`12` §6): which job, and when. |
@@ -103,6 +111,28 @@ One row, inserted by a hand-run seed script from `ALLOWED_EMAIL` with `email_ver
 the Google provider means no second row can appear by signing in (`08`). The `email_verified` value is
 load-bearing: Better Auth links a first Google sign-in to an existing row only when that row is
 verified, and fails with "account not linked" otherwise. The script is idempotent on `email`.
+
+**`name` is the display name** (`06`, 2026-10-14, Q-P1): the seed's local part until the user changes
+it on `/settings` (`07` §5.21), trimmed, 1–80 code points. It is shown in the app header and read by
+no model. Google's profile never overwrites it (`06`, 2026-09-17).
+
+---
+
+### `user_settings`
+
+**One row per user, updated in place** (`06`, 2026-10-14, Q106-1). Settings, not measurement: nothing
+here is scored, stamped or plotted, and changing a value changes no stored row but this one.
+
+| Column | Type | Null | Default | Notes |
+| --- | --- | --- | --- | --- |
+| `user_id` | `text` | no | — | PK, → `users.id` **cascade** |
+| `english_help` | `boolean` | no | `false` | **English help starts on** — the starting state of a Japanese practice round's pill and of screen 8's and Study's (`10` §15, §8, §16). Never read by a realistic round before its feedback |
+| `created_at` | `timestamptz` | no | `now()` | |
+| `updated_at` | `timestamptz` | no | `now()` | |
+
+**No row means every default.** The row is written by the first save on `/settings`, as an upsert on
+`user_id`, never by the seed. A later setting — #114's key, if it lands here — is a column added by
+its own slice.
 
 ---
 
@@ -332,6 +362,10 @@ rewriting one silently rewrites history.
 A retired question stops being *asked*; every answer that referenced it stays valid and keeps
 appearing in History and Progress.
 
+**Its English is not here** (`06`, 2026-10-14, Q106-5): `body` is the question as asked, and a
+Japanese question's English is a `question_translations` row, below, which can be re-written without
+touching this one.
+
 **A set piece belongs to exactly one round type** — 自己紹介, 自己PR and 転職理由 (and their English
 counterparts) to `hr`, 志望動機 to `ceo`. One row per set piece per language, never one per round type:
 four rows would be four ids and four first attempts for one question. **逆質問 is not in the bank.**
@@ -352,6 +386,37 @@ not from intuition; `12` §6's weekly digest reads them.
 **Set pieces carry no embedding**, so the guard never compares against one: they are kept out of the
 generator's output by its prompt, which is given every question in the slice and told to repeat none.
 A row seeded without an embedding is invisible to the guard for the same reason.
+
+---
+
+### `question_translations`
+
+**Append-only.** One English of one Japanese bank question (`06`, 2026-10-14, Q106-4, Q106-5). **The
+newest row for a question is its English**; a re-write is a new row beside the old one, never an
+update. A reading aid, not the record: no score reads it, no stamp names it, and the scorer and the
+generators are never sent it.
+
+| Column | Type | Null | Default | Notes |
+| --- | --- | --- | --- | --- |
+| `id` | `uuid` | no | `gen_random_uuid()` | PK |
+| `question_id` | `uuid` | no | — | → `questions.id` **restrict** |
+| `user_id` | `text` | no | — | → `users.id` **restrict** |
+| `language` | `text` | no | — | the translation's language: `en` \| `ja`, value-checked; today always `en`, of a `ja` question. The writer refuses one in the question's own language |
+| `body` | `text` | no | — | the question in English. Not blank |
+| `source` | `text` | no | — | `generated` (by the generator call that wrote the question) \| `hand_written` (a set piece's, seeded) \| `translated` (by `translate-question-en-…`, from the script) |
+| `model_id` | `text` | yes | — | the model that wrote it. **Null exactly when `hand_written`** |
+| `prompt_version` | `text` | no | — | the generator prompt version for `generated`; the translation prompt's for `translated`; the set pieces' English content version (`set-piece-ja-en-1.0`) for `hand_written` |
+| `tokens_in` / `tokens_out` | `integer` | yes | — | **`translated` only**: a generated English shares its question's call, whose tokens are on the `questions` row |
+| `created_at` | `timestamptz` | no | `now()` | orders the rows; the newest wins |
+
+**Constraints:** `check ((source = 'hand_written') = (model_id is null))`; `check (source =
+'translated' or (tokens_in is null and tokens_out is null))`.
+
+**Written** in the transaction that inserts a generated question, when the generator returned a valid
+English for it; by the seed beside each Japanese set piece and, on `develop`, each synthetic Japanese
+question; and by `scripts/translate-questions.mts`, for a question with none or one being re-written.
+**A question with no row has no English**, and the screens say so (`10` §15). **Never written at round
+time.**
 
 ---
 
@@ -467,6 +532,7 @@ fixed here but never answered — the round was abandoned first, or the recordin
 | `user_id` | `text` | no | — | → `users.id` **restrict** |
 | `status` | `text` | no | — | `generated` \| `missing` — value-checked |
 | `prompt_text` | `text` | yes | — | the follow-up as asked. **Null exactly when `missing`** |
+| `prompt_text_translated` | `text` | yes | — | **its English, written by the same call** (`06`, 2026-10-14, Q106-4): set on a Japanese round's `generated` row when the call returned a valid one; null on an English round, on `missing`, and when the English was missing or malformed. A reading aid, not the prompt: speech, scoring and the model answer read `prompt_text` only |
 | `model_id` | `text` | no | — | the generation model, exact string |
 | `prompt_version` | `text` | no | — | the follow-up prompt version — **stamp 3 for the follow-up's answer** |
 | `tokens_in` / `tokens_out` | `integer` | yes | — | cost attribution |
@@ -474,7 +540,8 @@ fixed here but never answered — the round was abandoned first, or the recordin
 | `created_at` | `timestamptz` | no | `now()` | |
 
 **Constraints:** `check ((status = 'generated') = (prompt_text is not null))`; `check (status =
-'missing' or error_class is null)`.
+'missing' or error_class is null)`; `check (status = 'generated' or prompt_text_translated is
+null)`.
 
 **A missing follow-up is a row, not an absence** (US-7, `10` §10). History renders it as the hole it
 is, and nothing ever backfills it. The follow-up's own answer points at the parent through
@@ -746,6 +813,30 @@ the latest attempt's only. Two quotes that locate to the same span are one row.
 
 ---
 
+### `english_readings`
+
+**Append-only. That an English reading was made, never what it said** (`06`, 2026-10-14, Q106-7).
+One row per request to `POST /api/answers/{answerId}/english-reading` that reached the model (`07`
+§5.20). It exists so the week's spend counts the call (`12` §6); **no column holds the text sent or
+the English returned**, and none may be added.
+
+| Column | Type | Null | Default | Notes |
+| --- | --- | --- | --- | --- |
+| `id` | `uuid` | no | `gen_random_uuid()` | PK |
+| `answer_id` | `uuid` | no | — | → `answers.id` **restrict**. An unsubmitted answer of a Japanese practice round |
+| `user_id` | `text` | no | — | → `users.id` **restrict** |
+| `status` | `text` | no | — | `ok` \| `failed`, value-checked |
+| `source_code_points` | `integer` | no | — | the length of the text sent. A count, not the text |
+| `model_id`, `prompt_version` | `text` | no | — | the pinned model and `english-reading-…` |
+| `tokens_in` / `tokens_out` | `integer` | yes | — | counted in the week's spend; null when the call returned none |
+| `error_class` | `text` | yes | — | set when `failed`; a class, never the model's output |
+| `created_at` | `timestamptz` | no | `now()` | |
+
+**Constraints:** `check (status = 'failed' or error_class is null)`; `check (source_code_points
+between 1 and 8000)`.
+
+---
+
 ### `held_out_rescores`
 
 Drift detection (`03` §11). A small fixed set of past answers, re-scored whenever a stamp changes.
@@ -774,7 +865,7 @@ so concurrent requests on different serverless instances cannot both slip under 
 | `id` | `uuid` | no | `gen_random_uuid()` | PK |
 | `user_id` | `text` | no | — | → `users.id` **restrict** |
 | `session_id` | `text` | no | — | `sessions.id`, **deliberately not a foreign key** — see below |
-| `route` | `text` | no | — | Checked: `cv-versions`, since #42 `rounds`, `transcribe`, `submit`, `complete`, `feedback`, since #45 `speech`, since #50 `scoring-attempts`, `scoring-run`, and since #74 `model-answers`. Each later ⚡ route in `07` extends the list in the migration of the slice that builds it |
+| `route` | `text` | no | — | Checked: `cv-versions`, since #42 `rounds`, `transcribe`, `submit`, `complete`, `feedback`, since #45 `speech`, since #50 `scoring-attempts`, `scoring-run`, since #74 `model-answers`, and with #106's reading `english-reading`. Each later ⚡ route in `07` extends the list in the migration of the slice that builds it |
 | `window_started_at` | `timestamptz` | no | — | Database clock, never the function's |
 | `count` | `integer` | no | — | Requests counted in this window, **refused ones included** |
 | `created_at` | `timestamptz` | no | `now()` | |
@@ -891,6 +982,8 @@ version's is null, the reading is null.
 | `questions (user_id, language, round_type) where retired_at is null` | Pick the next question; the near-duplicate candidate slice. **The guard's query runs on this index and sorts the slice exactly** — it does not use the `hnsw` index below (`06`, #47). |
 | `questions using hnsw (embedding vector_cosine_ops)` | Similarity search across the bank. **Not the guard's query**: an approximate index filtered to a slice can return fewer rows than exist, and a missed neighbour is a duplicate inserted. Kept for an unfiltered search; the guard's slice is small enough to sort. |
 | `near_duplicate_checks (user_id, created_at)` | The digest's week of checks. |
+| `question_translations (question_id, language, created_at desc)` | **A question's English** — the newest row, for every prompt a practice round shows with the pill on, and for screen 8 and Study. |
+| `english_readings (user_id, created_at)` | The week's spend from readings (`12` §6). |
 | `claim_citations (cv_claim_id)` | **"Which claims have never been cited?"** — the coverage query. |
 | `cv_claims (cv_version_id)` | Load a version's claims. |
 | `cv_claims (text_normalised, cv_version_id)` | Carry-forward exact match on new CV upload. |
@@ -980,6 +1073,9 @@ characters per minute. The rubric label `v1.2` is the artboards' sample; the fir
 | `model_answers` | Never deleted. Never updated. What is reviewed later is what was written when the round ended. |
 | `role_contexts` | Never deleted, never updated. A changed posting is a new row. |
 | `near_duplicate_checks` | Never deleted. Never updated. The guard's decisions, each beside the threshold it was made under. |
+| `question_translations` | Never deleted. Never updated. A re-write is a new row; the old English stays readable beside it. |
+| `english_readings` | Never deleted. Never updated. Holds no text to delete. |
+| `user_settings` | Updated in place; never deleted. Settings, not measurement. |
 | `transcript_raw` | **Never discarded**, even after correction (PRD §9). |
 | `questions` | Soft retire via `retired_at`. Never deleted — progress data is keyed by its id. |
 | `cv_versions`, `cv_documents`, `cv_claims` | Never deleted. **Never updated.** Spans, document ranges and citations all point into `body`. |
@@ -1032,3 +1128,8 @@ Stated so a later session recognises these as decisions, not oversights:
 14. **A model answer that scores, or that changes.** `model_answers` has no score column, no rubric
     reference and no update path, and one row per answer. It cannot become a second opinion on a
     score, and what was stored at the round's end is what is read later.
+15. **A question whose English is part of it.** `questions` has no English column; a translation is a
+    `question_translations` row that can be re-written while `body` cannot (`06`, 2026-10-14). The
+    record of what was asked is the Japanese.
+16. **A stored English reading of a transcript.** `english_readings` has no text column and
+    `answers` has no English one. What the user said is translated only on screen, on request.

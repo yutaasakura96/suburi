@@ -155,6 +155,16 @@ a round is never rewritten:
   set structure to 4. No scorer read this answer.` — so the score row's tooltip (`05` §7) can be
   checked on `develop`, and is never read as a scorer's reasoning.
 
+**What English help adds (#106, decided 2026-10-14, not built).** Every seed that writes a Japanese
+question writes its English beside it as a `question_translations` row (`04`): the Japanese set
+pieces' hand-written English (`set-piece-ja-en-1.0`, in `db:seed` too, so production has it) and, on
+`develop` only, the synthetic Japanese bank questions'. No model call. **Questions already banked
+without one** — on `develop`, and on production once real rounds have generated any — get theirs from
+`scripts/translate-questions.mts`, run by hand against one database at a time, like the seed: it
+writes a row only where a question has none, or for the one question named to be re-written, and its
+tokens count in that week's spend. **Run against Neon `main` by the owner only**, after the slice is
+deployed there; nothing runs it on a deploy.
+
 **Cron is off on `develop` on purpose.** The self-check alerts on pending scores and cost drift (§6);
 run against synthetic data it would fill the status page with noise, and an alert channel that cries
 wolf is one you stop reading — which is the whole failure §6 exists to prevent. The routes and the
@@ -412,7 +422,8 @@ response (`06`, 2026-09-29). The current-version selection rule is in `04` `cron
 **The round-cost baseline is a constant, not a measurement yet** (`06`, 2026-09-29). It is set from
 `03` §6's estimate plus #74's measured model-answer spend, **$0.70 a round**. Spend is counted
 from every stored `tokens_in`/`tokens_out` row — `questions`, `scoring_attempts`, `round_feedback`,
-`follow_ups` and `model_answers` (`04`) — each counted in the week of its own `created_at`, with no
+`follow_ups` and `model_answers` (`04`), and, with English help (#106), `question_translations` and
+`english_readings` — each counted in the week of its own `created_at`, with no
 round attribution. The threshold is 3× the baseline × max(1, rounds started that week). Rows are priced
 by per-model constants beside the pinned strings in `lib/ai/models.ts`. Transcription, speech, embeddings and CV extraction
 store no tokens and are not in it, so the threshold is loose until it is re-measured: **after eight
@@ -506,7 +517,9 @@ follow-up recorded as missing — and the next round's start is refused as soon 
 logs, Sentry, and the status page the cron routes write (§6).
 
 **Never:** transcript text, corrected text, **CV document text**, CV text or claim text, **a document's
-`source_filename`**, company notes, prompt bodies, model response bodies, salary expectations. A
+`source_filename`**, company notes, prompt bodies, model response bodies, salary expectations, **the
+text sent for an English reading or the reading returned** (#106; a transcript and a model response,
+named so the route's logging is not written from the general rule alone). A
 rejected span's sliced text is CV text and is on this list; `spans_rejected` is a count, and a count is
 all that is ever logged or shown about it (§6). **Logs and reports carry ids, counts, durations and error
 classes** — nothing else. `07` §2 applies the same rule to `error.detail`, and `11` §3.10 tests it with

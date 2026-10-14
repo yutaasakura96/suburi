@@ -3,6 +3,226 @@
 Newest first. Every entry records what was chosen, why, and what was rejected.
 
 ---
+## Phase 6 — #106 and #107, English help and the settings page, decided before they are built
+
+Settled 2026-10-14. A scout read the ten ideas the owner filed on 2026-10-09 (#106–#115) against
+the docs and wrote the questions each needs answered before it can be planned, with what every option
+means. The owner answered all of them on one decision page the same day. **Q0 chose English support
+(#106) first, with the profile page (#107) folded in as its settings screen**, so this section is
+that group's nine questions: Q106-1 to Q106-7, Q-P1 and Q-P2. Each entry quotes the owner's answer
+as given, then says what it decided and which earlier decision it amends; the amended entries carry a
+pointer back. **The answers for the other groups (#108–#115) were given the same day and are held
+for their own planning; nothing here acts on them.** Written into the docs before any code, the way
+the round loop's were (2026-09-27); the build is drafted as six slice issues, #122–#127, **not yet
+`ready-for-agent`**: the owner confirms them first.
+
+The term this section introduces is **English help** (`CONTEXT.md`): English shown with a Japanese
+round so that a user who does not read Japanese well can use it. It is a reading aid, never part of
+the record. Nothing in it is scored, stamped or plotted.
+
+### [2026-10-14] Q0: English help is planned first, with the settings page inside it
+
+**Asked:** which of six groups — English support, profile, real interviews, the Track Record link,
+more users, polish — to plan first. **Answered: "A English support (#106)".**
+**Why it comes first:** the one user there is does not read Japanese well (`CONTEXT.md`; the
+2026-10-03 entry on the delegated reviews, below), only the feedback and the model answers of a
+Japanese round have English today, and every later feature's screens are written under whatever rule
+this sets. #107 has nothing to hold on its own until a setting needs a screen, so it is planned here
+(Q-P2).
+
+### [2026-10-14] Q106-1: built now for the owner, and the one setting is stored per user
+
+**Asked:** who English help is for. **Answered: "C Both: built now, shaped so a per-user setting
+can be added later".**
+**Decided:** it is built now, for the one user, and its one stored choice — whether a Japanese
+practice round and a Japanese round's feedback **start** with English shown — is a per-user row,
+`user_settings.english_help` (`04`), off by default and changed on `/settings` (Q-P1). The setting
+is added now rather than later because Q-P1 and Q-P2 give it the screen whose absence was the
+2026-10-03 reason to refuse one; a second user (#113) inherits it with no migration. Behaviour on
+deploy is unchanged until the owner turns it on.
+**Rejected:** A, a choice hard-coded for the owner (no saving, and #113 needs the row anyway); B,
+waiting for multi-user (nothing changes for the user who needs it now).
+
+### [2026-10-14] Q106-2: a realistic round shows no English before its feedback
+
+**Asked:** during a Japanese round in realistic mode, can English appear before the answer?
+**Answered: "A No".**
+**Decided:** a realistic round shows **no English on any screen before screen 8** — no question
+translation, no English chrome, no English reading of the transcript (Q106-7). **Enforced
+structurally, the way US-8 is:** a realistic round's `POST /api/rounds`, `GET /api/rounds/{id}` and
+`submit` responses carry no English field at all, its round header has no pill, and the English
+reading route refuses its answers with `422 english_reading_not_applicable` (`07`). From screen 8
+on, the round is over and its English is shown as any round's is (Q106-3, last paragraph).
+**Why:** realistic mode is the measurement, and the measurement wins over a nicer experience
+(`CONTEXT.md`). English before the answer would make a Japanese round measure understanding the
+question in English, and the Japanese chart before and after would measure different things.
+Progress stays comparable with every round already taken. **Affirms** the 2026-09-27 rule for
+realistic rounds.
+**Rejected:** B, English behind a reveal that is recorded on the answer; C, always side by side,
+which would have needed a boundary like a stamp change.
+
+### [2026-10-14] Q106-3: in practice, the question's English and the round's chrome, behind one pill
+
+**Asked:** during a Japanese round in practice mode, what can be seen in English? **Answered: "C The
+question and the round's screen text (buttons, labels, hints), behind one toggle".**
+**Decided:** a Japanese practice round's header carries the language pill screen 8 already has
+(`05` §5.2, `10` §15). Pressed, it does two things, together:
+
+- **Each prompt's stored English appears under the Japanese** — a bank question's from
+  `question_translations`, a follow-up's from `follow_ups.prompt_text_translated` (Q106-4) — on the
+  record frames and the per-answer frame. **The Japanese prompt stays** at its size and in its place:
+  the answer is still given in Japanese, to the Japanese question, and replacing it would hide what
+  is being answered. A prompt with no stored English says so in one line.
+- **The round's chrome turns English** — every label, button, caption, hint, wait line and error
+  sentence on the record frames, the correction screen and the per-answer frame, from the copy an
+  English round already uses, with pace still in characters. The dimension names take the rubric's
+  `label_en`.
+
+What the user said, the raw transcript, every quote of it, and the scorer's justifications (Q106-6)
+stay as they are. **The pill starts from the setting** (Q106-1) and is page state after that:
+pressing it changes this round's screens and never the setting, and a reload starts from the setting
+again.
+**After the round, the same in both modes.** Screen 8's pill — which today switches the feedback and
+the model answers — also shows the question's and the follow-up's English under them and turns the
+screen's chrome English, and it too starts from the setting. Study's pill (`10` §16) shows the
+questions' English the same way. Q106-2 keeps realistic rounds Japanese *until* the feedback, so
+screen 8 is where a realistic round's English begins.
+**Amends** 2026-09-27, "Round screens follow the round's language", for a Japanese practice round with
+the pill on and for screen 8; and 2026-10-03, "The pill changes the feedback and nothing else", which
+refused both translating the question and remembering the choice.
+**Rejected:** B, the question alone (the chrome is the larger part of what the owner cannot read);
+D, always side by side (practice could never be done without it, and the frames would carry two
+languages throughout); replacing the Japanese question with its English.
+
+### [2026-10-14] Q106-4: English is written by the call that writes the Japanese
+
+**Asked:** how translations of generated text are made. **Answered: "A In the same model call that
+writes the Japanese, and stored beside it".**
+**Decided:**
+
+- **Generated questions:** `generate-{round type}-ja-1.1`, for all four round types, returns each
+  candidate with its English. A candidate that becomes a bank row gets a `question_translations` row
+  with `source: 'generated'` in the same transaction (`04`). **A reused candidate's English is
+  discarded with it**: it translates wording the bank did not keep.
+- **Follow-ups:** `follow-up-ja-1.1` returns the follow-up and its English; the English is stored on
+  the same `follow_ups` row, `prompt_text_translated`.
+- **Set pieces** are hand-written, so their English is too, seeded beside them with
+  `source: 'hand_written'` and no model.
+- **A missing or malformed English drops the English, never the question.** The candidate is banked
+  and the follow-up asked without it, and the drop is logged as a count and an error class. Unlike
+  the feedback's translation (2026-10-03), the Japanese here is not one row written whole with its
+  English — Q106-5 stores a question's apart — so a failed translation costs a reading aid, not a
+  question or a follow-up, and adds no failure path to the round.
+- **Questions banked before 1.1**, and any re-write (Q106-5), are translated by
+  `translate-question-en-1.0`, run by hand from `scripts/translate-questions.mts` — **never at round
+  time**. A question with no English is shown without it.
+
+**A boundary, accepted.** The generator prompt version is stamp 3, so the first first attempt at a
+question `ja-1.1` wrote draws a boundary on the Japanese Progress chart (2026-10-08, "The generator
+stamp is compared within its own kind"). That is the honest cost of changing the generator's prompt:
+the same model with a revised prompt is a different experiment (`03` §4). The follow-up prompt
+version is stamp 3 for a follow-up's answer, which Progress never plots. Both calls write more
+output, so both are re-measured by the slice that changes them (`03` §4).
+**Rejected:** B, on demand when the pill is pressed (a spinner and a model call on frames that read
+stored rows, refused on 2026-10-03 for the feedback for the same reason); C, a separate translation
+call at round start (a second failure path and a second wait inside the round).
+
+### [2026-10-14] Q106-5: a question's English is stored apart and can be re-written
+
+**Asked:** is a question's English part of the question's identity? **Answered: "A The English is
+stored separately and can be re-written; the Japanese never changes".**
+**Decided:** a question's English is a row of `question_translations`, never a column of
+`questions`; `questions.body` stays immutable (`04` §6). The table is append-only: **the newest row
+for a question is its English**, and a re-write is a new row beside the old one, never an update or a
+delete (`04` §5). Only the script writes a re-write (Q106-4); no route takes question text or
+translation text (`07` §6).
+**Why:** a score is made from the Japanese question and the answer, never from the English, so
+changing the English changes no measurement, and a mistranslation can be fixed.
+**Consequence:** screen 8 and Study show the newest English, which may differ from what a practice
+round showed while it ran. The English is a reading aid, not the record of what was asked.
+**Rejected:** B, the English fixed with the question (a bad translation kept forever).
+
+### [2026-10-14] Q106-6: the scorer's justifications stay in the round's language
+
+**Asked:** are the per-answer explanations — why each dimension got its score — translated?
+**Answered: "B Not now; only what is shown today".**
+**Decided:** `scores.justification` stays in the round's language. Since #51 it is the score row's
+tooltip (`05` §7); with the pill on, the tooltip still reads in Japanese, marked `lang="ja"`. No
+scoring prompt changes, so no scoring prompt version moves and no boundary is drawn. **Affirms**
+2026-10-03's refusal to translate them. Decide again when a ticket gives them more than a tooltip.
+**Rejected:** A, an English written by the scoring call (a new scoring prompt version, a stamp change
+and a boundary on Progress, for text no screen leads with).
+
+### [2026-10-14] Q106-7: an English reading of the transcript, in practice, never stored
+
+**Asked:** what about the user's own answer, the transcript? **Answered: "B Offer an English reading
+of the transcript on the correction screen, never stored".**
+**Decided:** on the correction screen of a **Japanese practice round**, a control asks for an
+**English reading** of the text in the editor as it stands (`10` §15). The reading is shown under the
+raw transcript, labelled as not saved, and says so when the text has been edited since. It is **never
+stored and never logged**: no column holds it, and it is a model response body (`12` §7). Each
+request writes one `english_readings` row of ids, the model, the prompt version, the length of the
+text and the tokens — no text — so the week's spend still counts it (`12` §6).
+**Practice only.** Q106-2 keeps a realistic round free of English until its feedback, and the
+correction screen comes before it; the scout recommended B for practice and A for realistic, and the
+two answers read together say the same. **The owner confirms this reading with its slice.**
+**What it costs.** It is the correction step's first model call: made only on request, bounded at
+30 s with no retry, and a failure is one sentence that changes nothing else on the screen. The route
+takes the editor's text from the client, which `07` §1 rule 6 otherwise avoids; it is bound to an
+open, unsubmitted answer of the user's own Japanese practice round, capped, and rate-limited, so it
+cannot be used as a general translator (`07` §5.20).
+**Amends** 2026-10-04, "A Japanese round's model answer is translated by the same call": what the user
+said is still never translated into anything stored.
+**Rejected:** A, no reading (a user with weak Japanese cannot check the correction says what they
+meant); C, an English reading stored with the answer (a column in the measurement record that
+nothing measures).
+
+### [2026-10-14] Q-P1: the settings page holds settings only
+
+**Asked:** what is the profile page for? **Answered: "A Settings only".**
+**Decided:** `/settings` (`10` §17) holds the **display name** — `users.name`, shown at the right of
+the app header and read by no model — the **email**, read-only, and **English help** (Q106-1). The
+API key of #114 is the next field it is expected to hold. **No personal history and nothing the AI
+reads**: career facts belong to the CV, which is versioned and stamped. **Default round choices are
+left out, and this is not settled**: the owner's pick, Q-P1 = A, listed them among the page's
+settings, but this plan leaves them out because Setup's defaults come from what is due (US-3, US-14)
+and a stored default would override them. The owner confirms or reverses the omission together with
+the draft slice issues #122–#127; a reversal amends US-3 first. It is reached from the name at the right of the app header, not from a fifth nav item
+(`05` §5.1). Writes go through `PUT /api/settings`, a whole replacement of the two editable fields
+(`07` §5.21) — not a `PATCH`, which `07` §4 refuses everywhere.
+**Amends** 2026-09-17, "Google's profile does not overwrite the seeded user's name": Google still
+does not; the user now can.
+**Rejected:** B, settings plus personal details (a third copy of facts the 履歴書 and Track Record
+already hold, kept in step by hand); C, a "what I am aiming for" text that generation reads (a second
+CV without versions or a stamp).
+
+### [2026-10-14] Q-P2: #107 is built inside #106
+
+**Asked:** should #107 be planned on its own, or inside the group that first needs it? **Answered:
+"A Inside #106".**
+**Decided:** #107 is #122, the first slice of this plan: `/settings` with the name and the email,
+reached from the header. English help's switch joins it in #123, the slice that first reads it.
+**Rejected:** B, a page with a name and an email and no reason yet; C, waiting for #113/#114.
+
+### [2026-10-14] Carried, not decided by these answers
+
+- **The CV screen's Japanese panel and History detail.** Neither is a round screen, and no answer
+  reached them: the panel keeps its own-language rule (`10` §13), and History detail shows a Japanese
+  round's questions as asked, with no pill for them. `CONTEXT.md` "Still open".
+- **A way to re-write one question's English from the app.** Q106-5 makes it possible; only the
+  script does it. A control would be a route that writes a question's English, and needs its own
+  decision.
+
+### [2026-10-14] The build, as six slices
+
+#122 the settings page (#107) → #123 the question's English behind the practice pill, with the
+setting → #124 the round's chrome behind the same pill · #125 new questions and follow-ups written
+with their English (#123) → #126 the English reading of the transcript (#124) · #127 English after
+the round, on screen 8 and Study (#124). Each issue carries What to build, Acceptance criteria, Docs
+and Blocked by, with native `blocked_by` edges, and is linked from #106 and #107. **Unlabeled until
+the owner confirms them.**
+
+---
 ## Phase 6 — #76, the spoken question off the deprecated speech models
 
 ### [2026-10-14] The spoken question moves to `gpt-realtime-2.1-mini`, over the Realtime API, behind the same port
@@ -131,6 +351,9 @@ the findings would lose the round they describe); listing an abandoned round's a
 beside them.
 
 ### [2026-10-12] It reads and never writes: a missing model answer is said, not offered
+
+> **Amended 2026-10-14 (#106, Q106-3):** the pill also shows each question's stored English under
+> it. It still reads stored rows only.
 
 The screen is a Server Component over stored rows, and reads no score. Where no model answer is
 stored it says so and says where it can be written; the control stays on screen 8 (`07` §5.19).
@@ -1043,6 +1266,9 @@ stable to review later, and a re-roll is how a reference becomes whatever read b
 
 ### [2026-10-04] A Japanese round's model answer is translated by the same call, like its feedback
 
+> **Amended 2026-10-14 (#106, Q106-7):** what the user said is still never translated into anything
+> stored; a Japanese practice round's correction screen offers an English reading that is not.
+
 The English pill reads the feedback from a stored translation (2026-10-03, below). The model answer
 follows it: `body_translated` holds the English and its own spans, written by the same call and
 refused whole if the translation is missing. The Japanese is written in です・ます体 at the register
@@ -1526,6 +1752,11 @@ translating the per-answer justifications too (they are not shown yet, and they 
 where a translation has no column).
 
 ### [2026-10-03] The pill changes the feedback and nothing else
+
+> **Amended 2026-10-14 (#106, Q106-3, Q106-1):** the pill now also shows the question's and the
+> follow-up's stored English under them and turns screen 8's chrome English; and it starts from the
+> English help setting on `/settings`, the screen this entry found missing. The per-answer
+> justifications stay untranslated (Q106-6).
 
 On a Japanese round's feedback, `English` switches the seven dimension names and the round-level
 findings with their two headings; the header, the question, the figures, the pager and the stamps stay
@@ -2479,6 +2710,10 @@ slice issues, **not yet `ready-for-agent`**. Every entry below contradicts or fi
 earlier phase wrote; each says what.
 
 ### [2026-09-27] Round screens follow the round's language; every other screen is in English
+
+> **Amended 2026-10-14 (#106, Q106-2, Q106-3):** a Japanese practice round's pill can turn its chrome
+> English, and screen 8's pill can in either mode. A realistic round keeps this rule until its
+> feedback. `/settings` is one more English app-level screen.
 
 **Decided:** the screens inside a round — record in all its states, transcript correction, felt
 pressure, round feedback and practice mode's per-answer frame — are written entirely in the round's
@@ -4235,6 +4470,9 @@ lookahead for `api/auth` would also exempt `/api/authors`. The unit test asserts
 Playwright test hits an `/api/*` path that has no handler.
 
 ### [2026-09-17] Google's profile does not overwrite the seeded user's name
+
+> **Amended 2026-10-14 (#107, Q-P1):** Google's profile still never overwrites the name; the user can
+> change it on `/settings`.
 
 **Decided:** `overrideUserInfoOnSignIn` stays at its default, off. Account linking stays at its
 default too.
