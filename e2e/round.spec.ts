@@ -437,7 +437,7 @@ test("a realistic English round: Setup → each question and its follow-up → p
   // No composite, anywhere on the screen (AGENTS.md invariant 1).
   await expect(page.locator("main")).not.toContainText(/total|average|overall/i);
 
-  // The CV check (10 §8): one flag per answer, quoted from the corrected text by span; one unused
+  // The CV check (10 §8): one flag per question and follow-up answer, quoted from the corrected text by span; one unused
   // claim, quoted from the CV by span. What the mock invented was dropped.
   const feedbackCall = openAi.requests.findLast((request) => formatOf(request.body) === "round_feedback")!;
   const unused = claimsShown(feedbackCall.body, UNUSED_HEADING);
@@ -445,7 +445,7 @@ test("a realistic English round: Setup → each question and its follow-up → p
   const grounding = page.getByTestId("grounding");
   await expect(grounding).toContainText("Checked against your CV");
   await expect(grounding.getByTestId("unsupported")).toHaveText(
-    [1, 2, 3].map((position) => new RegExp(`^Unsupported \\(Question ${position}\\) — nothing in CV v\\d+ backs “${UNSUPPORTED}”\\.$`)),
+    [1, 1, 2, 2, 3, 3].map((position) => new RegExp(`^Unsupported \\(Question ${position}\\) — nothing in CV v\\d+ backs “${UNSUPPORTED}”\\.$`)),
   );
   await expect(grounding.getByTestId("untouched")).toHaveText(`Unused — “${unused.get(1)}” “${unused.get(2)}”`);
   await expect(grounding).not.toContainText(INVENTED_QUOTE);
@@ -479,15 +479,14 @@ test("a realistic English round: Setup → each question and its follow-up → p
       prompt: "model-answer-en-1.0",
     });
   }
-  // Three questions and three follow-ups: a follow-up's answer goes through the same check. Its flag
-  // is stored and sent to the feedback call; the region above names the bank questions' only.
+  // Three questions and three follow-ups: every answer's flag reaches the CV region above.
   expect(stored.attempts).toHaveLength(6);
   expect(stored.attempts.every((attempt) => attempt.status === "ok" && attempt.prompt === "score-en-1.1" && attempt.language === "en")).toBe(true);
   expect(stored.citations.map((citation) => citation.relation)).toEqual(Array(6).fill("supported_by"));
   expect(stored.flags).toHaveLength(6);
   for (const flag of stored.flags) expect([...flag.corrected!].slice(flag.start, flag.end).join("")).toBe(UNSUPPORTED);
   expect(stored.feedback[0].ids).toHaveLength(2);
-  await page.screenshot({ path: test.info().outputPath("screen8-grounding.png"), fullPage: true });
+  await page.screenshot({ path: process.env.SUBURI_E2E_EVIDENCE_DIR ? `${process.env.SUBURI_E2E_EVIDENCE_DIR}/screen8-grounding.png` : test.info().outputPath("screen8-grounding.png"), fullPage: true });
 
   await page.getByRole("button", { name: "Question 2" }).click();
   await expect(page.getByTestId("answer-region")).toHaveAttribute("data-position", "2");

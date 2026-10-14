@@ -315,6 +315,13 @@ test("a practice round: Setup's mode, a re-take, the per-answer frame pending th
   await expect(page.getByText("English · Practice · 3 questions")).toBeVisible();
   await expect(page.getByTestId("to-fix")).toContainText("Lead with the result");
   await expect(page.getByTestId("what-worked")).toContainText("In answer 3, the example was concrete and your own.");
+  // The retry also has a scored flag, but the round-level CV check uses original answers only.
+  await expect(page.getByTestId("grounding").getByTestId("unsupported")).toHaveText(
+    [1, 1, 2, 2, 3, 3].map((position) => new RegExp(`^Unsupported \\(Question ${position}\\) — nothing in CV v\\d+ backs “${UNSUPPORTED}”\\.$`)),
+  );
+  if (process.env.SUBURI_E2E_EVIDENCE_DIR) {
+    await page.screenshot({ path: `${process.env.SUBURI_E2E_EVIDENCE_DIR}/screen8-practice-grounding.png`, fullPage: true });
+  }
   await expect(page.getByTestId("pressure-stamp")).toHaveCount(0);
   const [round] = await withDb((db) => db.select().from(s.rounds).where(eq(s.rounds.id, roundId)));
   expect(round.completedAt).not.toBeNull();

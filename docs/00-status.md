@@ -70,7 +70,10 @@ route, no model call and no new Japanese string (Next).
 **#83, one take after a failed transcription, is checked (2026-10-14), on `fm/suburi-83`:** reproduced
 in a browser, `Start recording` is not on the failed-transcription frame in either mode, so no code
 changed; an end-to-end assertion and `10`'s sentence were added (`06`, "Phase 6 — #83").
-**Updated:** 2026-10-14 (#83 checked; #75 built; #105 built; #104 measured and fixed; #51 built; follow-ups spoken; #73 built; #49's Japanese strings all accepted; #50's
+**#85, follow-up unsupported claims on screen 8, is built (2026-10-14), on `fm/suburi-85`:**
+`Checked against your CV` now includes flags from the follow-up answers used for round feedback,
+under their parent questions' numbers (`10` §8 and §15).
+**Updated:** 2026-10-14 (#85 built; #83 checked; #75 built; #105 built; #104 measured and fixed; #51 built; follow-ups spoken; #73 built; #49's Japanese strings all accepted; #50's
 catalogue string read; #43, #44, #45, #46, #47, #48, #49, #50 and #74 built; #42 closed; #55 and #56 on 2026-09-30)
 
 ## Done
@@ -574,7 +577,7 @@ scored, with new prompt versions; scored follow-up retries have their own page o
 owner read and accepted the original 28 Japanese strings and the numbered follow-up retry label in
 `docs/checklists/native-read-round.md` §13, and on 2026-10-06 the numbered bank-retry heading and
 the two names `feedback-ja-1.2` gives an answer given again. One known limitation of the fallback is
-recorded in `06`, "Phase 6 — #49", and tracked in #85.
+recorded in `06`, "Phase 6 — #49".
 
 **#54, #55 and #56 are next, then #21. #20, #29 and #38 are done.** #21 is blocked by all three
 (native `blocked_by` edges, 2026-09-29), and #56 by #55. They were triaged 2026-09-29 (`06`): #54 and
