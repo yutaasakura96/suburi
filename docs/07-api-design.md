@@ -1294,7 +1294,7 @@ GET /api/rounds/77af0b13-…/speech?position=2&kind=question
 ```
 ```
 200
-Content-Type: audio/mpeg
+Content-Type: audio/wav
 <streamed audio>
 ```
 
@@ -1309,8 +1309,9 @@ retained** (`03` §4), and the response is `Cache-Control: no-store` so the brow
 **The query is validated like a body** (§1 rule 3). `position` is 1–7 and `kind` is `question` or
 `follow_up`; anything else, a `text` parameter included, is `400 invalid_request` naming the field.
 
-**The model is `TTS_MODEL` in `lib/ai/models.ts`**, with its voice beside it (`03` §4, `06`, #45).
-Synthesis has 10 s to reach its first byte.
+**The model is `TTS_MODEL` in `lib/ai/models.ts`**, with its voice beside it (`03` §4, `06`, #45, #76).
+It speaks over the Realtime API, so the audio is 16-bit mono PCM at 24 kHz behind a WAV header whose
+sizes are left open, streamed as it arrives. Synthesis has 10 s to reach its first byte.
 
 **When synthesis fails, the round goes on** (`06`, 2026-09-28). The route returns `502
 speech_failed`; screen 3 shows that code's copy as a short notice, and the prompt, already on screen

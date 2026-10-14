@@ -196,7 +196,7 @@ Six text jobs on one pinned model, and three more on models of their own:
 | Model answers | `gpt-5.6-sol` | at `complete`, **beside** the wait and the feedback call, one call per question asked, all at once; waited for no longer than 45 s from the round's close, then stored behind the response (`07` §5.12) | Medium — coaching, stored once, never a score. **It must not invent a record** |
 | CV claim extraction | `gpt-5.6-sol` | **measured: 43–46 s on real documents, windowed** (#20/#29, 2026-09-27) | High — every citation and every coverage count rests on it |
 | Transcription | `gpt-transcribe` | user is waiting, after each take | Medium — the raw transcript is final |
-| Text-to-speech | `gpt-4o-mini-tts-2025-12-15`, voice `marin` (#45) | user is waiting, at ask time | Low — not retained |
+| Text-to-speech | `gpt-realtime-2.1-mini`, voice `marin`, over the Realtime API (#76; `gpt-4o-mini-tts-2025-12-15` until then, #45) | user is waiting, at ask time | Low — not retained |
 | Embeddings | `text-embedding-3-small`, 1536 dimensions | at question generation | High — the near-duplicate guard (§11) |
 
 **The round's latencies, measured 2026-10-01 (#42)** with `scripts/measure-round-latency.mts`
@@ -220,6 +220,8 @@ synthesised by TTS and re-encoded to webm/opus by ffmpeg, the browser's format.
 | Transcription, 198 s take | `gpt-transcribe` | 5 | 5.8 s | 7.2 s | 7.3 s | — |
 | TTS, a question, first byte | `gpt-4o-mini-tts-2025-12-15` | 5 | 1.0 s | 1.4 s | 1.5 s | — |
 | TTS, a question, whole | `gpt-4o-mini-tts-2025-12-15` | 5 | 1.6 s | 2.8 s | 3.3 s | — |
+| TTS, a question, first byte (#76) | `gpt-realtime-2.1-mini` | 10 | 1.5 s | 2.4 s | 3.0 s | ~40 / ~150 |
+| TTS, a question, whole (#76) | `gpt-realtime-2.1-mini` | 10 | 3.5 s | 5.4 s | 5.9 s | — |
 
 What they settle:
 
@@ -564,21 +566,19 @@ Realistic mode speaks the question and its follow-up (`07` §5.15); practice mod
 happens when each prompt is asked and the audio is not retained. Both prompts are stored for the round,
 so re-synthesis is cheap and caching adds a store to invalidate for no benefit.
 
-**Through a ⚡ route that streams an OpenAI TTS model's audio** (`07` §5.15, `06`, 2026-09-27). The
+**Through a ⚡ route that streams an OpenAI model's audio** (`07` §5.15, `06`, 2026-09-27). The
 route takes a position and kind, never text; `07` §5.15 specifies the prompt source.
-**The model is `gpt-4o-mini-tts-2025-12-15`, voice `marin`**, both constants in `lib/ai/models.ts`,
-pinned on 2026-10-03 after a check of OpenAI's docs (`06`, #45). It is the newest snapshot the speech
-endpoint takes and the one #42 measured above; the alias `gpt-4o-mini-tts` is never used. The model is
-steerable, so it is told to read the prompt exactly as written, in the round's language, and not to
-answer it. The browser's `speechSynthesis` was rejected: its voice depends on the OS, it cannot be
-stamped, and its reading of 役職 is unverified. Pronunciation itself is `11` §5's ear check.
-
-**OpenAI removes this model on 2027-01-06.** On 2026-10-01 it deprecated every model the speech
-endpoint takes — `tts-1`, `tts-1-hd` and both `gpt-4o-mini-tts` snapshots — and named
-`gpt-realtime-2.1-mini` as the replacement, a speech-to-speech model reached only through the Realtime
-API. That is a different route design, not a different string, so it is a slice of its own before that
-date. `lib/ai/tts.ts` is a port with one implementation, so the change stays behind it. TTS is not a
-stamp: replacing it needs no re-score and draws no boundary.
+**The model is `gpt-realtime-2.1-mini`, voice `marin`**, both constants in `lib/ai/models.ts`
+(`06`, 2026-10-14, #76). On 2026-10-01 OpenAI deprecated every model its speech endpoint takes —
+`tts-1`, `tts-1-hd` and both `gpt-4o-mini-tts` snapshots, the second of which #45 pinned — for removal
+on 2027-01-06, and named this one as the replacement. It is reached only through the Realtime API, so
+`lib/ai/tts.ts` opens a server-side WebSocket per prompt, asks one out-of-band response with the prompt
+as a user message, and relays its PCM deltas behind a WAV header as they arrive. The route and the rest
+of the round are unchanged; the response is now `audio/wav`. The model is a conversational one asked to
+recite, so it is told to read the prompt exactly as written, in the round's language, and not to answer
+it. The browser's `speechSynthesis` was rejected: its voice depends on the OS, it cannot be stamped, and
+its reading of 役職 is unverified. Pronunciation itself is `11` §5's ear check, owed again for this
+model. TTS is not a stamp: replacing it needed no re-score and drew no boundary.
 
 ---
 

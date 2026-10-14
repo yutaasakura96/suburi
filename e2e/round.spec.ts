@@ -9,7 +9,7 @@ import { mintSessionCookie } from "../lib/auth/test/session";
 import { getConfig } from "../lib/config";
 import { E2E_URL } from "./database";
 import { TTS_MODEL, TTS_VOICE } from "../lib/ai/models";
-import { generatedQuestions, silentMp3, startMockOpenAi, type MockOpenAi } from "./mock-openai";
+import { generatedQuestions, silentPcm, startMockOpenAi, type MockOpenAi } from "./mock-openai";
 import { startMockS3, type MockS3 } from "./mock-s3";
 
 // The round loop, end to end against the production build: a realistic round from Setup to feedback,
@@ -197,7 +197,7 @@ test.beforeAll(async () => {
       if (formatOf(body) === "generated_questions") return generatedQuestions(body);
       return { fail: 400 };
     },
-    { transcription: () => heard, speech: silentMp3 },
+    { transcription: () => heard, speech: silentPcm },
   );
 });
 
@@ -502,11 +502,11 @@ test("a realistic English round: Setup → each question and its follow-up → p
   // Each prompt was spoken as it was asked — the question, then its follow-up, and position 2's
   // follow-up again on the reload — by the pinned model and voice, from the text the server holds for
   // that position and kind: the browser named them and sent no text (07 §5.15).
-  const speech = openAi.requests.slice(requestsBefore).filter((request) => request.path === "/v1/audio/speech");
+  const speech = openAi.requests.slice(requestsBefore).filter((request) => request.path === "/v1/realtime");
   expect(speech.map((request) => request.body.input)).toEqual(
     questions.flatMap((question, index) => [question, ...Array.from({ length: index === 1 ? 2 : 1 }, () => FOLLOW_UP)]),
   );
-  for (const request of speech) expect(request.body).toMatchObject({ model: TTS_MODEL, voice: TTS_VOICE, response_format: "mp3" });
+  for (const request of speech) expect(request.body).toMatchObject({ model: TTS_MODEL, voice: TTS_VOICE, format: { type: "audio/pcm", rate: 24_000 } });
   const speechOf = (position: number, kind: string) => `/api/rounds/${roundId}/speech?position=${position}&kind=${kind}`;
   expect(speechRequests).toEqual(
     [1, 2, 3].flatMap((position) => [
@@ -1043,7 +1043,7 @@ test("a realistic Japanese round: Japanese throughout, seven rows, and the feedb
   );
   expect(followUps).toHaveLength(3);
   for (const followUp of followUps) expect(followUp).toEqual({ status: "generated", promptText: FOLLOW_UP_JA, promptVersion: "follow-up-ja-1.0" });
-  const spoken = openAi.requests.slice(requestsBefore).filter((request) => request.path === "/v1/audio/speech");
+  const spoken = openAi.requests.slice(requestsBefore).filter((request) => request.path === "/v1/realtime");
   expect(spoken).toHaveLength(6);
   expect(spoken.filter((_, index) => index % 2 === 1).map((request) => request.body.input)).toEqual([FOLLOW_UP_JA, FOLLOW_UP_JA, FOLLOW_UP_JA]);
 

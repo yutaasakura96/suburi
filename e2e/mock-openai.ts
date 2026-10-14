@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { createServer, type Server } from "node:http";
+import { WebSocketServer } from "ws";
 import { EMBEDDING_DIMENSIONS } from "../lib/ai/models";
 import { MOCK_OPENAI_PORT } from "./database";
 
@@ -44,21 +45,21 @@ export interface MockOpenAiOptions {
   readonly transcription?: () => { text: string; seconds: number } | MockFailure;
   /** `GET /v1/models/{id}`, the round's preflight: a failure to send in place of the model, or null. */
   readonly preflight?: () => MockFailure | null;
-  /** `POST /v1/audio/speech`, answered with MP3 as the speech endpoint does. Its JSON body is recorded. */
+  /**
+   * The Realtime WebSocket at `/v1/realtime`, answered with these PCM bytes as audio deltas, or with an
+   * error event for a failure. Recorded at its `response.create` as path `/v1/realtime` and a body of
+   * what it was asked: `{ model, voice, format, input }`, `input` being the text it was told to say.
+   */
   readonly speech?: () => Uint8Array | MockFailure;
 }
 
 /**
- * Half a second of silence a browser will really play: twenty MPEG-1 Layer III frames at 128 kbps and
- * 44.1 kHz, each a header and an all-zero body. The spoken question's audio is never asserted on
- * (11 §9) — only that it was asked for and played without an error.
+ * Half a second of silence as the Realtime API sends it: mono 16-bit PCM at 24 kHz, no header. The
+ * spoken question's audio is never asserted on (11 §9) — only that it was asked for and played
+ * without an error.
  */
-export function silentMp3() {
-  const frame = new Uint8Array(417);
-  frame.set([0xff, 0xfb, 0x90, 0x00]);
-  const audio = new Uint8Array(frame.length * 20);
-  for (let index = 0; index < 20; index += 1) audio.set(frame, index * frame.length);
-  return audio;
+export function silentPcm() {
+  return new Uint8Array(24_000);
 }
 
 /**
@@ -104,6 +105,7 @@ export async function startMockOpenAi(
   options: MockOpenAiOptions = {},
 ): Promise<MockOpenAi> {
   const requests: MockOpenAi["requests"] = [];
+  const failed = (value: object): value is MockFailure => "fail" in value;
   const server: Server = createServer((request, response) => {
     let raw = "";
     request.on("data", (chunk) => (raw += chunk));
@@ -116,7 +118,6 @@ export async function startMockOpenAi(
         response.writeHead(status, { "content-type": "application/json" });
         response.end(JSON.stringify(value));
       };
-      const failed = (value: object): value is MockFailure => "fail" in value;
       const refuse = ({ fail, code }: MockFailure) =>
         send(fail, { error: { message: "mock failure", type: code ? "insufficient_quota" : "server_error", code: code ?? null } });
 
@@ -135,12 +136,6 @@ export async function startMockOpenAi(
         else send(200, { text: result.text, usage: { type: "duration", seconds: result.seconds } });
         return;
       }
-      if (request.method === "POST" && path === "/v1/audio/speech" && options.speech) {
-        const result = options.speech();
-        if (failed(result)) send(result.fail, { error: { message: "mock failure", type: "server_error" } });
-        else response.writeHead(200, { "content-type": "audio/mpeg" }).end(Buffer.from(result));
-        return;
-      }
       if (request.method === "POST" && path === "/v1/embeddings") {
         const data = (body.input as string[]).map((text, index) => ({ object: "embedding", index, embedding: mockEmbedding(text) }));
         send(200, { object: "list", data, model: body.model, usage: { prompt_tokens: 1, total_tokens: 1 } });
@@ -155,9 +150,42 @@ export async function startMockOpenAi(
       else send(200, responsesApiBody(result));
     });
   });
+  // The Realtime API's session, as far as the speech port drives it: a session.update, then one
+  // response.create whose input is the prompt, answered with audio deltas and a completed response.done.
+  const realtime = new WebSocketServer({ server, path: "/v1/realtime" });
+  realtime.on("connection", (socket, request) => {
+    const url = new URL(request.url ?? "", "http://localhost");
+    let session: Record<string, unknown> = {};
+    socket.on("message", (data) => {
+      const event = JSON.parse(String(data));
+      if (event.type === "session.update") session = event.session;
+      if (event.type !== "response.create") return;
+      const output = (session.audio as { output?: { voice?: string; format?: object } } | undefined)?.output;
+      requests.push({
+        path: "/v1/realtime",
+        authorization: request.headers.authorization,
+        body: { model: url.searchParams.get("model"), voice: output?.voice, format: output?.format, input: event.response.input[0].content[0].text },
+      });
+      const result = options.speech?.() ?? { fail: 500 };
+      const emit = (value: object) => socket.send(JSON.stringify(value));
+      if (failed(result)) {
+        emit({ type: "error", error: { type: "server_error", code: "server_error", message: "mock failure" } });
+        return;
+      }
+      const audio = Buffer.from(result);
+      const half = Math.floor(audio.length / 4) * 2;
+      for (const chunk of [audio.subarray(0, half), audio.subarray(half)]) emit({ type: "response.output_audio.delta", delta: chunk.toString("base64") });
+      emit({ type: "response.done", response: { status: "completed" } });
+    });
+  });
   await new Promise<void>((resolve) => server.listen(MOCK_OPENAI_PORT, "localhost", resolve));
   return {
     requests,
-    close: () => new Promise<void>((resolve) => server.close(() => resolve())),
+    close: () =>
+      new Promise<void>((resolve) => {
+        for (const client of realtime.clients) client.terminate();
+        realtime.close();
+        server.close(() => resolve());
+      }),
   };
 }

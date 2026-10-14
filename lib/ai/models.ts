@@ -42,13 +42,13 @@ export const EMBEDDING_DIMENSIONS = 1536;
 export const TRANSCRIPTION_MODEL = "gpt-transcribe";
 
 /**
- * Text-to-speech, realistic mode's spoken question (03 §4). The newest snapshot the speech endpoint
- * takes, verified against OpenAI's docs on 2026-10-03 (06) — never the `gpt-4o-mini-tts` alias. Not a
- * stamp: the audio is not retained and nothing scored depends on it. **OpenAI removes it on
- * 2027-01-06** (deprecated 2026-10-01, with every other speech-endpoint model); the port in
- * `lib/ai/tts.ts` is where its replacement lands.
+ * Text-to-speech, realistic mode's spoken question (03 §4), over the Realtime API: OpenAI removes every
+ * speech-endpoint model on 2027-01-06 and names this one as their replacement, verified against its
+ * docs on 2026-10-14 (06). Its only snapshot shares its name, as `TRANSCRIPTION_MODEL`'s does. Not a
+ * stamp: the audio is not retained and nothing scored depends on it. The port in `lib/ai/tts.ts` is
+ * the only caller.
  */
-export const TTS_MODEL = "gpt-4o-mini-tts-2025-12-15";
+export const TTS_MODEL = "gpt-realtime-2.1-mini";
 
 /** The voice is part of what the ear check heard (11 §5), so it is pinned beside the model. */
 export const TTS_VOICE = "marin";

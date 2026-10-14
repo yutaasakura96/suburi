@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { TTS_MODEL, TTS_VOICE } from "../lib/ai/models.ts";
-import { openAiSpeechSynthesizer, type SpeechInput } from "../lib/ai/tts.ts";
+import { openAiSpeechSynthesizer, sizedWav, type SpeechInput } from "../lib/ai/tts.ts";
 
 // 11 §5's ear check, made listenable (#45): whether the pinned speech model pronounces a question
 // correctly — 役職 and company names included, in both languages — is a judgement only an ear makes
@@ -10,7 +10,7 @@ import { openAiSpeechSynthesizer, type SpeechInput } from "../lib/ai/tts.ts";
 //   OPENAI_API_KEY=… npm run ear-check
 //
 // It speaks the synthetic questions below through the real port (`lib/ai/tts.ts`), so what is heard
-// is exactly what a realistic round plays, and writes each as an MP3 beside one page that lists the
+// is exactly what a realistic round plays, and writes each as a WAV beside one page that lists the
 // text next to its player. Open `private/ear-check/index.html` and listen. Nothing here is a real
 // question from a real round: the samples are invented, and `/private/` is gitignored.
 //
@@ -43,9 +43,9 @@ console.log(`Speaking ${SAMPLES.length} sample question(s) with ${TTS_MODEL}, vo
 const escape = (text: string) => text.replace(/&/g, "&amp;").replace(/</g, "&lt;");
 const rows: string[] = [];
 for (const [index, sample] of SAMPLES.entries()) {
-  const file = `${sample.language}-${index + 1}.mp3`;
+  const file = `${sample.language}-${index + 1}.wav`;
   const started = performance.now();
-  const audio = new Uint8Array(await new Response(await speech.synthesize(sample)).arrayBuffer());
+  const audio = sizedWav(new Uint8Array(await new Response(await speech.synthesize(sample)).arrayBuffer()));
   writeFileSync(join(dir, file), audio);
   console.log(`${file}: ${audio.byteLength} bytes in ${Math.round(performance.now() - started)} ms`);
   rows.push(`<li lang="${sample.language}"><p>${escape(sample.text)}</p><audio controls preload="none" src="${file}"></audio></li>`);

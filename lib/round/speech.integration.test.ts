@@ -140,7 +140,7 @@ describe("GET /api/rounds/{id}/speech", () => {
       for (const position of [1, 2, 3]) {
         const response = await speak(roundId, `position=${position}&kind=question`);
         expect(response.status).toBe(200);
-        expect(response.headers.get("content-type")).toBe("audio/mpeg");
+        expect(response.headers.get("content-type")).toBe("audio/wav");
         expect(response.headers.get("cache-control")).toBe("no-store");
         expect(new Uint8Array(await response.arrayBuffer())).toEqual(AUDIO);
         expect(speech.inputs.at(-1)).toEqual({ text: (await promptAt(db, roundId, position))!.text, language: "en" });
@@ -162,7 +162,7 @@ describe("GET /api/rounds/{id}/speech", () => {
 
       const response = await speak(roundId, "position=2&kind=follow_up");
       expect(response.status).toBe(200);
-      expect(response.headers.get("content-type")).toBe("audio/mpeg");
+      expect(response.headers.get("content-type")).toBe("audio/wav");
       expect(response.headers.get("cache-control")).toBe("no-store");
       expect(new Uint8Array(await response.arrayBuffer())).toEqual(AUDIO);
       expect(speech.inputs).toEqual([{ text: FOLLOW_UP, language: "en" }]);

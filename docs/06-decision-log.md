@@ -3,6 +3,58 @@
 Newest first. Every entry records what was chosen, why, and what was rejected.
 
 ---
+## Phase 6 — #76, the spoken question off the deprecated speech models
+
+### [2026-10-14] The spoken question moves to `gpt-realtime-2.1-mini`, over the Realtime API, behind the same port
+
+**Checked, against OpenAI's docs on 2026-10-14,** not the names recorded on 2026-10-03:
+- [Deprecations](https://developers.openai.com/api/docs/deprecations), "2026-10-01: Text-to-speech
+  models": `tts-1`, `tts-1-hd`, `gpt-4o-mini-tts-2025-03-20` and `gpt-4o-mini-tts-2025-12-15` are
+  deprecated and **removed on 2027-01-06**; the recommended replacement for each is
+  **`gpt-realtime-2.1-mini`**. Not withdrawn, not moved.
+- [The model page](https://developers.openai.com/api/docs/models/gpt-realtime-2.1-mini): one
+  snapshot, sharing its name; text and audio out; **supported endpoint: realtime only**.
+- [Text to speech](https://developers.openai.com/api/docs/guides/text-to-speech): the speech endpoint
+  still lists only the deprecated models; no newer one takes it.
+- [Realtime conversations](https://developers.openai.com/api/docs/guides/realtime-conversations) and
+  [WebSockets](https://developers.openai.com/api/docs/guides/voice-websockets?api=realtime): a
+  server connects to `wss://api.openai.com/v1/realtime?model=…` with the API key as a bearer header,
+  sets the session with `session.update` (`type: "realtime"`, `output_modalities: ["audio"]`,
+  `audio.output.format` `audio/pcm` at 24 kHz, `audio.output.voice`), asks with `response.create`, and
+  reads base64 PCM from `response.output_audio.delta` until `response.done`. `marin` is a Realtime voice.
+- [Pricing](https://developers.openai.com/api/docs/pricing#audio-tokens), per million tokens: audio
+  $10.00 in, $0.30 cached, $20.00 out; text $0.60 in, $0.06 cached, $2.40 out.
+
+**Decided:** `TTS_MODEL` is `gpt-realtime-2.1-mini`, the voice stays `marin`, and `lib/ai/tts.ts`'s one
+implementation speaks over the Realtime API. Per prompt it opens a server-side WebSocket, sends the
+session and one out-of-band `response.create` (`conversation: "none"`) whose input is the prompt as a
+user message, and relays the PCM deltas as they arrive behind a WAV header whose sizes are left open.
+The port's shape, the route, its 10 s to the first byte, `502 speech_failed`, the bucket and the log
+lines are unchanged; the response's type becomes `audio/wav` (`07` §5.15). The stream yields nothing
+until the first audio arrives, so a session that fails before then is still the `502`. A Realtime
+`error` event is logged as `upstream_<its code>`, never its message; a response that does not complete
+is `response_<status>`. The connection is Node's own `WebSocket`, so the app takes no new dependency;
+the e2e mock answers the same session with `ws`, a dev dependency.
+
+**Then run, through the real port, on 2026-10-14:** the ten synthetic questions of the 2026-10-03
+check's shape, four English and six Japanese with company names, 役職 and a number, each transcribed
+back with `gpt-transcribe`. First audio byte 1.3–3.0 s (median 1.5 s), whole 3.1–5.9 s. Six read back
+word for word or differing only in punctuation and numerals (五年 / 5年). Two proper nouns did not:
+"Mercari" came back as "Rakari" once, and "Mercury" twice in three re-runs where the old model's
+three were all "Mercari"; 「そごう・西武」 came back garbled on both models. Whether that is the voice or
+the transcriber is the ear's call. One question measured 36 text tokens in and 67–107 audio tokens out
+(about 130–160 in all): about $0.002 a prompt, so a 7-question round with follow-ups stays a few cents.
+That is a machine check, not `11` §5's ear check, **which is owed again for this model and is the
+owner's** (`npm run ear-check` now writes WAV).
+
+**Rejected:** staying on `gpt-4o-mini-tts-2025-12-15` past its removal; a GPT-Live session, which is a
+full-duplex conversational product with a delegated backend, not a reader; an audio model through Chat
+Completions, which OpenAI does not name as the replacement for these models; the
+SDK's `OpenAIRealtimeWebSocket`, which refuses a non-`wss:` URL and so could not reach the e2e mock;
+and transcoding to MP3 on the server, which would hold audio back until a frame is full for no gain
+the browser needs.
+
+---
 ## Phase 6 — #83, one take after a failed transcription
 
 ### [2026-10-14] Reproduced on `develop`: no control records again, and nothing was changed

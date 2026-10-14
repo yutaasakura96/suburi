@@ -43,7 +43,7 @@ speech route, screen 3's speaker line in both languages, and practice's guard, s
 drawn. Its one step of the user's, `11` §5's ear check (`npm run ear-check`), was done on 2026-10-03:
 all ten samples, four English and six Japanese, sounded correct. **Follow-ups are spoken too
 (2026-10-07, on `fm/suburi-45-followup-speech`):** the route reads #44's `follow_ups`, and screen 3
-asks it for the follow-up on screen. The pinned model and its replacement deadline are in `03` §4.
+asks it for the follow-up on screen. The pinned model is in `03` §4; #76 moved it (below).
 **#50, History, is built (2026-10-04), on `fm/suburi-50`** (Next).
 **#48, failure paths, is built (2026-10-04), on `fm/suburi-48`** (Next).
 **#74, a model answer for each question, is built (2026-10-04), on `fm/suburi-74`** (Next).
@@ -73,7 +73,11 @@ changed; an end-to-end assertion and `10`'s sentence were added (`06`, "Phase 6 
 **#85, follow-up unsupported claims on screen 8, is built (2026-10-14), on `fm/suburi-85`:**
 `Checked against your CV` now includes flags from the follow-up answers used for round feedback,
 under their parent questions' numbers (`10` §8 and §15).
-**Updated:** 2026-10-14 (#85 built; #83 checked; #75 built; #105 built; #104 measured and fixed; #51 built; follow-ups spoken; #73 built; #49's Japanese strings all accepted; #50's
+**#76, the spoken question off the deprecated speech models, is built (2026-10-14), on `fm/suburi-76`:**
+`gpt-realtime-2.1-mini` over the Realtime API, behind the same port, ahead of the speech endpoint's
+2027-01-06 removal (`06`, "Phase 6 — #76"). **Owed, the user's:** `11` §5's ear check on the new
+voice (`npm run ear-check`).
+**Updated:** 2026-10-14 (#76 built; #85 built; #83 checked; #75 built; #105 built; #104 measured and fixed; #51 built; follow-ups spoken; #73 built; #49's Japanese strings all accepted; #50's
 catalogue string read; #43, #44, #45, #46, #47, #48, #49, #50 and #74 built; #42 closed; #55 and #56 on 2026-09-30)
 
 ## Done

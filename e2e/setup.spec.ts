@@ -10,7 +10,7 @@ import { mintSessionCookie } from "../lib/auth/test/session";
 import { getConfig } from "../lib/config";
 import { MAX_POSTING_CHARS } from "../lib/round/limits";
 import { E2E_URL } from "./database";
-import { generatedQuestions, silentMp3, startMockOpenAi, type MockOpenAi } from "./mock-openai";
+import { generatedQuestions, silentPcm, startMockOpenAi, type MockOpenAi } from "./mock-openai";
 
 // Setup's role context and generated questions (#47), against the production build: add a posting by
 // import, pick it, read the bank-exhausted warning, and start a round whose questions are generated.
@@ -67,7 +67,7 @@ test.beforeAll(async () => {
   });
   // The round Setup starts is realistic, so its first question is spoken (07 §5.15).
   openAi = await startMockOpenAi((body) => (formatOf(body) === "generated_questions" ? generatedQuestions(body) : { fail: 400 }), {
-    speech: silentMp3,
+    speech: silentPcm,
   });
 });
 

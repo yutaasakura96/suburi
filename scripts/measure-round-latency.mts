@@ -7,7 +7,7 @@ import { SCORING_MODEL, TRANSCRIPTION_MODEL, TTS_MODEL } from "../lib/ai/models.
 import { openAiRoundFeedbackGenerator } from "../lib/ai/round-feedback.ts";
 import { openAiAnswerScorer } from "../lib/ai/score.ts";
 import { openAiTranscriber } from "../lib/ai/transcribe.ts";
-import { openAiClient } from "../lib/ai/upstream.ts";
+import { openAiSpeechSynthesizer, sizedWav } from "../lib/ai/tts.ts";
 import { sliceQuote } from "../lib/cv/spans.ts";
 import { locateUnsupported, pickUntouched, resolveCitations } from "../lib/round/grounding.ts";
 import { pace } from "../lib/round/measures.ts";
@@ -34,7 +34,7 @@ const RUNS = Number(process.env.RUNS ?? 5);
 
 const apiKey = process.env.OPENAI_API_KEY;
 if (!apiKey) throw new Error("OPENAI_API_KEY is not set");
-const client = openAiClient({ apiKey });
+const speech = openAiSpeechSynthesizer({ apiKey });
 
 // Three synthetic answers at the lengths a realistic round produces: about one, two and three and a
 // half minutes spoken at ~140 wpm. Invented, and no one's CV.
@@ -214,13 +214,7 @@ async function measureFollowUps() {
 async function measureSpeech() {
   for (let run = 0; run < RUNS; run += 1) {
     const started = performance.now();
-    const response = await client.audio.speech.create({
-      model: TTS_MODEL,
-      voice: "marin",
-      input: ANSWERS[run % ANSWERS.length].prompt,
-      response_format: "mp3",
-    });
-    const reader = response.body!.getReader();
+    const reader = (await speech.synthesize({ text: ANSWERS[run % ANSWERS.length].prompt, language: "en" })).getReader();
     let first: number | null = null;
     for (;;) {
       const { done } = await reader.read();
@@ -240,10 +234,10 @@ async function measureTranscription() {
     // TTS speaks faster than a candidate, so the three answers run together make the near-cap take.
     const texts = [...ANSWERS.map((answer) => answer.text), ANSWERS.map((answer) => answer.text).join(" ")];
     for (const [index, text] of texts.entries()) {
-      const speech = await client.audio.speech.create({ model: TTS_MODEL, voice: "cedar", input: text, response_format: "wav" });
+      const spoken = await new Response(await speech.synthesize({ text, language: "en" })).arrayBuffer();
       const wav = join(dir, `${index}.wav`);
       const webm = join(dir, `${index}.webm`);
-      writeFileSync(wav, Buffer.from(await speech.arrayBuffer()));
+      writeFileSync(wav, sizedWav(new Uint8Array(spoken)));
       execFileSync("ffmpeg", ["-loglevel", "error", "-i", wav, "-c:a", "libopus", "-b:a", "32k", webm]);
       const seconds = Number(
         execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", wav]).toString().trim(),
