@@ -6,6 +6,7 @@ import type { AnswerScorer } from "../ai/score";
 import { generateFollowUp, type FollowUpDeps } from "./follow-up";
 import { answerIdOf, authenticate, guarded, isUuid, log, notFound, parseBody, roundAbandoned, writeFailed, type RoundDeps } from "./http";
 import { rewriteMagnitude } from "./measures";
+import { promptEnglish } from "./english-help";
 import { runScoringAttempt, type ScoringRunDeps } from "./run-scoring";
 import { isAbandoned, lockRoundUser, promptAt, readRoundStep, type AnswerRow, type RoundRow, type RoundStep } from "./state";
 
@@ -62,13 +63,22 @@ export async function nextPrompt(db: RoundDeps["db"], round: RoundRow, step: Exc
         text: row.promptText,
         prompt_version: row.promptVersion,
         speak,
+        ...(await promptEnglish(db, round, null)),
       },
       progress,
     };
   }
   const prompt = await promptAt(db, round.id, step.position);
   return {
-    next: { kind: "question", position: step.position, question_id: prompt?.questionId ?? null, text: prompt?.text ?? null, speak },
+    next: {
+      kind: "question",
+      position: step.position,
+      question_id: prompt?.questionId ?? null,
+      text: prompt?.text ?? null,
+      speak,
+      // A Japanese practice round's prompt carries its English; a realistic round's, no such key (07 §5.9).
+      ...(await promptEnglish(db, round, prompt?.questionId ?? null)),
+    },
     progress,
   };
 }

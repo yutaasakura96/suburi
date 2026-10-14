@@ -2,6 +2,7 @@ import { asc, eq, inArray } from "drizzle-orm";
 import * as s from "../../db/schema";
 import { apiError } from "../api/errors";
 import type { Rubric } from "../rubric/types";
+import { promptEnglish } from "./english-help";
 import { authenticate, guarded, isUuid, notFound, roundIdOf, type Db, type RoundDeps } from "./http";
 import {
   answerState,
@@ -166,6 +167,7 @@ export function createGetRound(deps: Pick<RoundDeps, "auth" | "db">) {
           retry_of_answer_id: again.retryOfAnswerId,
           text: again.promptText,
           speak: false,
+          ...(await promptEnglish(deps.db, round, again.questionId)),
         };
         resume = answerResume(again);
       }

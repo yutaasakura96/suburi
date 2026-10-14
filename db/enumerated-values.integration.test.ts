@@ -29,6 +29,8 @@ const ENUMERATED = [
   ["rate_limit_windows", "route"],
   ["cron_runs", "job"],
   ["cron_readings", "signal"],
+  ["question_translations", "language"],
+  ["question_translations", "source"],
 ] as const;
 
 // One valid row in every table that has an enumerated column.
@@ -88,6 +90,16 @@ async function insertOneOfEach(db: TestDb) {
     route: "cv-versions",
     windowStartedAt: new Date(),
     count: 1,
+  });
+  // Generated: a model and no tokens, so an unlisted source trips the value check alone.
+  await db.insert(s.questionTranslations).values({
+    questionId: world.questionId,
+    userId: world.userId,
+    language: "en",
+    body: "Fixture English.",
+    source: "generated",
+    modelId: "fixture-model-2026-01-01",
+    promptVersion: "generate-fixture",
   });
   const [run] = await db.insert(s.cronRuns).values({ job: "self-check" }).returning({ id: s.cronRuns.id });
   await db.insert(s.cronReadings).values({

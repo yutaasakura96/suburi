@@ -518,3 +518,9 @@ export const ROUND_COPY: Record<RoundLanguage, RoundCopy> = { en, ja };
  * feedback to, in that language. An English round's feedback is English and has no pill (PRD §4).
  */
 export const FEEDBACK_READING: Record<RoundLanguage, string> = { ja: "日本語", en: "English" };
+
+/**
+ * English help in a round (10 §15): what a prompt with no stored English says under the Japanese, in
+ * English whatever the round's language — it is English help's own line. Nothing is generated for it.
+ */
+export const NO_ENGLISH_YET = "No English for this question yet.";

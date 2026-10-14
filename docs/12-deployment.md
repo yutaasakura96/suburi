@@ -155,14 +155,16 @@ a round is never rewritten:
   set structure to 4. No scorer read this answer.` — so the score row's tooltip (`05` §7) can be
   checked on `develop`, and is never read as a scorer's reasoning.
 
-**What English help adds (#106, decided 2026-10-14, not built).** Every seed that writes a Japanese
+**What English help adds (#106, decided 2026-10-14; built by #123).** Every seed that writes a Japanese
 question writes its English beside it as a `question_translations` row (`04`): the Japanese set
 pieces' hand-written English (`set-piece-ja-en-1.0`, in `db:seed` too, so production has it) and, on
-`develop` only, the synthetic Japanese bank questions'. No model call. **Questions already banked
-without one** — on `develop`, and on production once real rounds have generated any — get theirs from
-`scripts/translate-questions.mts`, run by hand against one database at a time, like the seed: it
-writes a row only where a question has none, or for the one question named to be re-written, and its
-tokens count in that week's spend. **Run against Neon `main` by the owner only**, after the slice is
+`develop` only, the synthetic Japanese bank questions' (`synthetic-generated-ja-en-1.0`). No model call;
+each is idempotent, and `db:seed` writes the set pieces' English beside whichever set pieces the bank
+already holds. **Questions already banked without one** — on `develop`, and on production once real
+rounds have generated any — get theirs from `scripts/translate-questions.mts`
+(`npm run questions:translate`, or `npm run questions:translate -- --rewrite <question id>`), run by
+hand against one database at a time, like the seed: it writes a row only where a question has none,
+or for the one question named to be re-written, and its tokens count in that week's spend. **Run against Neon `main` by the owner only**, after the slice is
 deployed there; nothing runs it on a deploy.
 
 **Cron is off on `develop` on purpose.** The self-check alerts on pending scores and cost drift (§6);

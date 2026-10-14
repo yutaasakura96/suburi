@@ -35,6 +35,8 @@ export interface HeldPrompt {
   readonly followUpVersion: string | null;
   /** Practice's "answer again" (10 §15): the answer this take is given beside. */
   readonly again: string | null;
+  /** A Japanese practice round's: the prompt's stored English, or null when it has none (10 §15). */
+  readonly textEn?: string | null;
 }
 
 export interface StoredTake extends Take {
@@ -116,6 +118,7 @@ export async function heldAnswerAgain(roundId: string): Promise<HeldAnswerAgain 
       text: held.text ?? "",
       followUpVersion: held.followUpVersion ?? null,
       again: held.again ?? null,
+      ...(held.textEn === undefined ? {} : { textEn: held.textEn }),
       blob: held.blob,
       contentType: held.contentType,
       rejection: held.rejection,

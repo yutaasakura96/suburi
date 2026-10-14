@@ -29,7 +29,7 @@ export default async function SettingsPage() {
           </h1>
         </div>
         <div className="px-[32px] pt-[26px] pb-[32px]">
-          <SettingsForm displayName={settings.displayName} email={settings.email} />
+          <SettingsForm displayName={settings.displayName} email={settings.email} englishHelp={settings.englishHelp} />
         </div>
       </section>
     </main>

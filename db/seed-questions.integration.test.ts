@@ -2,7 +2,8 @@ import { asc, eq } from "drizzle-orm";
 import { afterAll, describe, expect, it } from "vitest";
 import * as s from "./schema";
 import { seedUser } from "./seed";
-import { seedRubrics, seedSetPieces, seedSyntheticQuestions } from "./seed-questions";
+import { SET_PIECES_JA_EN } from "../lib/questions/set-pieces";
+import { seedRubrics, seedSetPieceEnglish, seedSetPieces, seedSyntheticEnglish, seedSyntheticQuestions } from "./seed-questions";
 import { closePool, inRolledBackTransaction, type TestDb } from "./test/database";
 
 afterAll(closePool);
@@ -73,5 +74,56 @@ describe("the rubric and set-piece seeds, in the form 12 §3 step 9 seeds", () =
           expect(bank.filter((row) => row.roundType === roundType).length).toBeGreaterThanOrEqual(3);
         }
       }
+    }));
+
+  // 12 §1, English help (#106): each seeded Japanese question's English beside it, hand-written, with
+  // no model call. Idempotent, and the question rows are never touched (04 `question_translations`).
+  it("seeds the Japanese set pieces' hand-written English, once, beside whichever set pieces the bank holds", () =>
+    inRolledBackTransaction(async (db) => {
+      const userId = await user(db);
+      // A bank with no set pieces yet, as production's before step 9: nothing to write beside.
+      expect(await seedSetPieceEnglish(db, userId)).toBe(0);
+
+      await seedSetPieces(db, userId);
+      const before = await db.select().from(s.questions).orderBy(asc(s.questions.id));
+      expect(await seedSetPieceEnglish(db, userId)).toBe(4);
+      expect(await seedSetPieceEnglish(db, userId)).toBe(0);
+
+      const rows = await db
+        .select({ translation: s.questionTranslations, question: s.questions })
+        .from(s.questionTranslations)
+        .innerJoin(s.questions, eq(s.questions.id, s.questionTranslations.questionId));
+      expect(rows).toHaveLength(4);
+      for (const { translation, question } of rows) {
+        expect(question.language).toBe("ja");
+        expect(translation).toMatchObject({
+          userId,
+          language: "en",
+          source: "hand_written",
+          modelId: null,
+          promptVersion: "set-piece-ja-en-1.0",
+          tokensIn: null,
+          tokensOut: null,
+          body: SET_PIECES_JA_EN.english.get(question.body),
+        });
+      }
+      expect(await db.select().from(s.questions).orderBy(asc(s.questions.id))).toEqual(before);
+    }));
+
+  it("seeds the synthetic Japanese questions' English, once, from the parallel English list", () =>
+    inRolledBackTransaction(async (db) => {
+      const userId = await user(db);
+      await seedSyntheticQuestions(db, userId);
+      expect(await seedSyntheticEnglish(db, userId)).toBe(17);
+      expect(await seedSyntheticEnglish(db, userId)).toBe(0);
+
+      const rows = await db
+        .select({ body: s.questionTranslations.body, version: s.questionTranslations.promptVersion, question: s.questions.body })
+        .from(s.questionTranslations)
+        .innerJoin(s.questions, eq(s.questions.id, s.questionTranslations.questionId));
+      expect(new Set(rows.map((row) => row.version))).toEqual(new Set(["synthetic-generated-ja-en-1.0"]));
+      expect(rows.find((row) => row.question === "仕事での失敗と、そのあとに変えたことを教えてください。")?.body).toBe(
+        "Tell me about a mistake you made at work and what you changed afterwards.",
+      );
     }));
 });

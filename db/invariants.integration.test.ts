@@ -19,6 +19,18 @@ import {
 
 afterAll(closePool);
 
+function translationValues(world: { userId: string; questionId: string }) {
+  return {
+    questionId: world.questionId,
+    userId: world.userId,
+    language: "en",
+    body: "Fixture English.",
+    source: "generated",
+    modelId: "fixture-model-2026-01-01",
+    promptVersion: "generate-fixture",
+  } satisfies typeof s.questionTranslations.$inferInsert;
+}
+
 describe("the measurement record refuses", () => {
   it("a second first attempt for the same question and language", () =>
     inRolledBackTransaction(async (db) => {
@@ -458,6 +470,35 @@ describe("the measurement record refuses", () => {
       await expectRefused(db, () => db.delete(s.answers).where(eq(s.answers.id, answered)), {
         kind: "restrict",
         constraint: "model_answers_answer_id_answers_id_fk",
+      });
+    }));
+
+  // 04 `question_translations`: a model wrote it exactly when it is not hand-written, and only the
+  // script's own call stores tokens. A reading aid, kept beside its question for good.
+  it.each([
+    ["a hand-written English with a model", { source: "hand_written", modelId: "fixture-model-2026-01-01" }, "question_translations_model_check"],
+    ["a translated English with no model", { source: "translated", modelId: null }, "question_translations_model_check"],
+    ["a generated English with tokens", { source: "generated", tokensIn: 10, tokensOut: 5 }, "question_translations_tokens_check"],
+    ["a blank English", { body: "  " }, "question_translations_body_not_blank_check"],
+  ] as const)("%s", (_, overrides, constraint) =>
+    inRolledBackTransaction(async (db) => {
+      const world = await insertWorld(db);
+      await expectRefused(
+        db,
+        () => db.insert(s.questionTranslations).values({ ...translationValues(world), ...overrides }),
+        { kind: "check", constraint },
+      );
+    }),
+  );
+
+  it("deleting a question that has an English", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await insertWorld(db);
+      await db.insert(s.questionTranslations).values(translationValues(world));
+
+      await expectRefused(db, () => db.delete(s.questions).where(eq(s.questions.id, world.questionId)), {
+        kind: "restrict",
+        constraint: "question_translations_question_id_questions_id_fk",
       });
     }));
 

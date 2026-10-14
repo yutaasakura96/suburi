@@ -9,7 +9,8 @@ import { E2E_URL } from "./database";
 
 // 11 §4, the Settings row, for the name (#122): the header's name leads to /settings and is current
 // there, a saved name changes the header at once, and the save button waits for a change and refuses a
-// blank name. English help's part of the row arrives with its slice (#123).
+// blank name. English help's part of the row — saved on, the next practice round's starting state —
+// is in e2e/practice.english-help.spec.ts (#123).
 
 test.describe.configure({ mode: "serial" });
 
@@ -117,6 +118,7 @@ test("the page has no delete, export or share control, and no career or personal
   await page.goto("/settings");
   const form = page.locator("form");
   await expect(form.getByRole("textbox")).toHaveCount(1);
+  await expect(form.getByRole("checkbox")).toHaveCount(1);
   await expect(form.getByRole("button")).toHaveCount(1);
   await expect(page.getByRole("main")).not.toContainText(/delete|export|share|download/i);
 });
@@ -125,26 +127,26 @@ test("the running API rejects unauthorized and invalid writes without changing t
   const original = await storedName();
   await page.goto("/settings");
   await expect(page).toHaveURL(/\/sign-in/);
-  const unauthorized = await request.put("/api/settings", { data: { display_name: "Stranger" } });
+  const unauthorized = await request.put("/api/settings", { data: { display_name: "Stranger", english_help: false } });
   expect(unauthorized.status()).toBe(401);
   expect((await unauthorized.json()).error.code).toBe("unauthenticated");
 
   await signIn(page);
   await page.goto("/settings");
   for (const displayName of ["   ", "a".repeat(81)]) {
-    const response = await page.request.put("/api/settings", { data: { display_name: displayName } });
+    const response = await page.request.put("/api/settings", { data: { display_name: displayName, english_help: false } });
     expect(response.status()).toBe(400);
     expect((await response.json()).error.detail.fields).toContain("display_name");
   }
   const extraField = await page.request.put("/api/settings", {
-    data: { display_name: "Stranger", email: "changed@example.test" },
+    data: { display_name: "Stranger", english_help: false, email: "changed@example.test" },
   });
   expect(extraField.status()).toBe(400);
   expect((await extraField.json()).error.detail.fields).toContain("email");
   expect(await storedName()).toBe(original);
 
   const maxName = "𠮷".repeat(80);
-  const accepted = await page.request.put("/api/settings", { data: { display_name: `  ${maxName}  ` } });
+  const accepted = await page.request.put("/api/settings", { data: { display_name: `  ${maxName}  `, english_help: false } });
   expect(accepted.status()).toBe(200);
   expect((await accepted.json()).settings.display_name).toBe(maxName);
   expect(await storedName()).toBe(maxName);

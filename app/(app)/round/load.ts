@@ -4,6 +4,8 @@ import type { FeedbackItem, TranslatedFeedback } from "@/lib/ai/round-feedback";
 import { underlineSegments } from "@/lib/cv/segments";
 import { characterLength, sliceQuote, type Span } from "@/lib/cv/spans";
 import { feedbackAnswers } from "@/lib/round/complete";
+import { questionEnglish } from "@/lib/questions/translations";
+import { carriesEnglish } from "@/lib/round/english-help";
 import type { Db } from "@/lib/round/http";
 import { rewritePercent } from "@/lib/round/measures";
 import type { TranslatedModelAnswer } from "@/lib/round/model-answers";
@@ -25,6 +27,7 @@ import {
 } from "@/lib/round/state";
 import { roundStatus } from "@/lib/round/status";
 import type { Rubric } from "@/lib/rubric/types";
+import { englishHelpStartsOn } from "@/lib/settings/settings";
 import { tokyoDate } from "../cv/load";
 import type { RoundLanguage, RoundMode, RoundType } from "./copy";
 
@@ -105,6 +108,8 @@ export interface AnsweredView {
   readonly answerId: string;
   readonly position: number;
   readonly text: string;
+  /** What was asked, in its stored English (10 §15): only a Japanese practice round's view has the key. */
+  readonly textEn?: string | null;
   /** Set when the answer is to a follow-up: the stamp it carries, and what the header's step names. */
   readonly followUpVersion: string | null;
   /** True for an answer given again: a row beside the first, at the same position. */
@@ -119,8 +124,14 @@ export interface AnsweredView {
 
 /** What the per-answer frame leads to: where the round stands, from stored rows. */
 export type NextView =
-  | { readonly kind: "follow_up"; readonly position: number; readonly text: string; readonly promptVersion: string }
-  | { readonly kind: "question"; readonly position: number; readonly text: string }
+  | {
+      readonly kind: "follow_up";
+      readonly position: number;
+      readonly text: string;
+      readonly textEn?: string | null;
+      readonly promptVersion: string;
+    }
+  | { readonly kind: "question"; readonly position: number; readonly text: string; readonly textEn?: string | null }
   | { readonly kind: "feedback" }
   /** The follow-up is not stored yet: `submit`, sent again with the same text, writes it (07 §5.9). */
   | { readonly kind: "follow_up_due" };
@@ -136,6 +147,11 @@ export interface RoundFrame {
   };
   readonly cvLabel: string;
   readonly rubricLabel: string;
+  /**
+   * English help's pill (10 §15): its starting state, the user's setting — or `null` where the round
+   * has no pill at all, a realistic or an English round. Only a round with a pill carries any English.
+   */
+  readonly englishHelp: boolean | null;
   /** The rubric's dimensions in its own order, named in the round's language: the per-answer frame's rows. */
   readonly dimensions: readonly { readonly key: string; readonly label: string }[];
   /** Each position's generator prompt version, for the stamp — the versions only, never a later question. */
@@ -152,6 +168,8 @@ export interface RoundFrame {
         readonly kind: "question";
         readonly position: number;
         readonly text: string;
+        /** The prompt's stored English, or null when it has none; the key only where `englishHelp` is not null. */
+        readonly textEn?: string | null;
         /** Set when the prompt is a follow-up: its prompt version, the stamp its answer will carry. */
         readonly followUpVersion: string | null;
         /** Set when the prompt is being answered again (practice): the answer the new one stands beside. */
@@ -207,7 +225,12 @@ export async function roundFrame(db: Db, userId: string, round: RoundRow): Promi
       .where(eq(s.roundQuestions.roundId, round.id))
       .orderBy(s.roundQuestions.position),
   ]);
+  // The prompt's English, as the fields to spread: none at all on a round without the pill (07 §5.4).
+  // A follow-up's (`questionId` null) is null until follow-ups are written with their English (#125).
+  const englishOf = async (questionId: string | null): Promise<{ textEn?: string | null }> =>
+    carriesEnglish(round) ? { textEn: questionId === null ? null : await questionEnglish(db, questionId) } : {};
   const frame = {
+    englishHelp: carriesEnglish(round) ? await englishHelpStartsOn(db, userId) : null,
     round: {
       id: round.id,
       roundType: round.roundType as RoundType,
@@ -245,6 +268,11 @@ export async function roundFrame(db: Db, userId: string, round: RoundRow): Promi
     typedSlot: open !== null && open.transcriptRaw === null && open.audioS3Key === null,
   });
 
+  const nextQuestion = async (position: number): Promise<NextView> => {
+    const prompt = await promptAt(db, round.id, position);
+    return { kind: "question", position, text: prompt?.text ?? "", ...(await englishOf(prompt?.questionId ?? null)) };
+  };
+
   if (round.mode === "practice") {
     // 10 §15's resume order: an open answer-again, then the open answer to the current prompt, then
     // the per-answer frame of the answer sent last.
@@ -256,6 +284,7 @@ export async function roundFrame(db: Db, userId: string, round: RoundRow): Promi
           kind: "question",
           position: again.position,
           text: again.promptText,
+          ...(await englishOf(again.questionId)),
           followUpVersion: followUpVersionOf(again),
           again: again.retryOfAnswerId,
           ...slotOf(again),
@@ -272,8 +301,14 @@ export async function roundFrame(db: Db, userId: string, round: RoundRow): Promi
           : step.kind !== "answer"
             ? { kind: "feedback" }
             : step.followUp
-              ? { kind: "follow_up", position: step.position, text: step.followUp.row.promptText, promptVersion: step.followUp.row.promptVersion }
-              : { kind: "question", position: step.position, text: (await promptAt(db, round.id, step.position))?.text ?? "" };
+              ? {
+                  kind: "follow_up",
+                  position: step.position,
+                  text: step.followUp.row.promptText,
+                  ...(await englishOf(null)),
+                  promptVersion: step.followUp.row.promptVersion,
+                }
+              : await nextQuestion(step.position);
       const scoring = (await scoringReads(db, round, [last], { scores: true })).get(last.id);
       if (!scoring) throw new Error("a submitted answer with no scoring attempt");
       return {
@@ -284,6 +319,7 @@ export async function roundFrame(db: Db, userId: string, round: RoundRow): Promi
             answerId: last.id,
             position: last.position,
             text: last.promptText,
+            ...(await englishOf(last.questionId)),
             followUpVersion: followUpVersionOf(last),
             again: last.retryOfAnswerId !== null,
             corrected: last.transcriptCorrected ?? "",
@@ -313,12 +349,14 @@ export async function roundFrame(db: Db, userId: string, round: RoundRow): Promi
   }
   if (step.kind !== "answer") return { ...frame, start: { kind: "pressure" } };
 
+  const asked = step.followUp ? null : await promptAt(db, round.id, step.position);
   return {
     ...frame,
     start: {
       kind: "question",
       position: step.position,
-      text: step.followUp ? step.followUp.row.promptText : ((await promptAt(db, round.id, step.position))?.text ?? ""),
+      text: step.followUp ? step.followUp.row.promptText : (asked?.text ?? ""),
+      ...(await englishOf(asked?.questionId ?? null)),
       followUpVersion: step.followUp?.row.promptVersion ?? null,
       again: null,
       ...slotOf(step.answer),

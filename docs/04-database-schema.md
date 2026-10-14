@@ -15,10 +15,12 @@ index; and `rate_limit_windows.route` extended for the round routes. **Migrated 
 extended for History's two retry routes. The remaining round-loop changes are not migrated yet.
 **Amended 2026-10-04 for model answers** (`06`, 2026-10-04, #74; migrated by `0013_model-answers`):
 `model_answers` is new, and `rate_limit_windows.route` gains `model-answers`.
-**Amended 2026-10-14 for English help and the settings page** (`06`, "Phase 6 — #106 and #107"; not
-migrated): `user_settings`, `question_translations` and `english_readings` are new;
+**Amended 2026-10-14 for English help and the settings page** (`06`, "Phase 6 — #106 and #107"):
+`user_settings`, `question_translations` and `english_readings` are new;
 `follow_ups.prompt_text_translated` is added; `users.name` is written by `/settings`; and
-`rate_limit_windows.route` gains `english-reading`. Each lands with the slice that first needs it.
+`rate_limit_windows.route` gains `english-reading`. Each lands with the slice that first needs it:
+**`user_settings` and `question_translations` are migrated by #123** (`0015_english-help`); the rest
+are not migrated yet.
 
 ---
 
@@ -130,9 +132,9 @@ here is scored, stamped or plotted, and changing a value changes no stored row b
 | `created_at` | `timestamptz` | no | `now()` | |
 | `updated_at` | `timestamptz` | no | `now()` | |
 
-**No row means every default.** From #123, the row is written by the first save of English help on
-`/settings`, as an upsert on `user_id`, never by the seed. #122's name-only save writes `users.name`
-without creating this row. A later setting — #114's key, if it lands here — is a column added by
+**No row means every default.** From #123, the row is written by the first save on `/settings`, which
+always carries English help, as an upsert on `user_id`, never by the seed. A save from before #123
+wrote `users.name` only, so a user who has not saved since has no row. A later setting — #114's key, if it lands here — is a column added by
 its own slice.
 
 ---
@@ -404,14 +406,14 @@ generators are never sent it.
 | `user_id` | `text` | no | — | → `users.id` **restrict** |
 | `language` | `text` | no | — | the translation's language: `en` \| `ja`, value-checked; today always `en`, of a `ja` question. The writer refuses one in the question's own language |
 | `body` | `text` | no | — | the question in English. Not blank |
-| `source` | `text` | no | — | `generated` (by the generator call that wrote the question) \| `hand_written` (a set piece's, seeded) \| `translated` (by `translate-question-en-…`, from the script) |
+| `source` | `text` | no | — | `generated` (by the generator call that wrote the question) \| `hand_written` (a set piece's, seeded; on `develop`, a synthetic question's too) \| `translated` (by `translate-question-en-…`, from the script) |
 | `model_id` | `text` | yes | — | the model that wrote it. **Null exactly when `hand_written`** |
-| `prompt_version` | `text` | no | — | the generator prompt version for `generated`; the translation prompt's for `translated`; the set pieces' English content version (`set-piece-ja-en-1.0`) for `hand_written` |
+| `prompt_version` | `text` | no | — | the generator prompt version for `generated`; the translation prompt's for `translated`; the set pieces' English content version (`set-piece-ja-en-1.0`) for `hand_written`, and `synthetic-generated-ja-en-1.0` for a synthetic question's on `develop` |
 | `tokens_in` / `tokens_out` | `integer` | yes | — | **`translated` only**: a generated English shares its question's call, whose tokens are on the `questions` row |
 | `created_at` | `timestamptz` | no | `now()` | orders the rows; the newest wins |
 
 **Constraints:** `check ((source = 'hand_written') = (model_id is null))`; `check (source =
-'translated' or (tokens_in is null and tokens_out is null))`.
+'translated' or (tokens_in is null and tokens_out is null))`; `check (btrim(body) <> '')`.
 
 **Written** in the transaction that inserts a generated question, when the generator returned a valid
 English for it; by the seed beside each Japanese set piece and, on `develop`, each synthetic Japanese

@@ -48,3 +48,21 @@ export const SET_PIECES_JA: SetPieceContent = {
 };
 
 export const SET_PIECES: readonly SetPieceContent[] = [SET_PIECES_EN, SET_PIECES_JA];
+
+/**
+ * The Japanese set pieces' English, hand-written like the pieces themselves and seeded beside them as
+ * `question_translations` rows (04; 06, 2026-10-14, Q106-4): what English help shows under each. It
+ * reads the Japanese as asked — not the English set, which an English interviewer words their own
+ * way. Keyed by the Japanese body. A changed English is a new content version, seeded as a new row
+ * beside the old; the question itself never changes.
+ */
+export const SET_PIECES_JA_EN = {
+  japaneseVersion: SET_PIECES_JA.contentVersion,
+  contentVersion: "set-piece-ja-en-1.0",
+  english: new Map<string, string>([
+    ["まず、簡単に自己紹介をお願いします。", "To begin, please introduce yourself briefly."],
+    ["自己PRをお願いします。", "Please tell us about your strengths: what you would most like us to know about you."],
+    ["転職を考えた理由を教えてください。", "Please tell us why you began thinking about changing jobs."],
+    ["当社を志望した理由を教えてください。", "Please tell us why you applied to our company."],
+  ]),
+} as const;
