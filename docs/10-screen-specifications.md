@@ -714,7 +714,8 @@ switches to, in that language — `English`, then `日本語` — and the choice
 - `応募書類との照合` / `Checked against your CV` — a §3.3 section label over callout rails (`05`
   §5.8), below 良かったところ. Built with the grounding slice (#46, `06`):
   - **裏づけなし — one `--attention-mark` rail per unsupported span**, in question order and then in
-    the order the spans stand in the answer, each naming its question:
+    the order the spans stand in the answer, each naming its question — **a follow-up answer's span
+    is named by its question's number, as the answer to the question itself is** (#85):
     `裏づけなし（第2問）—「チーム全体の生産性を上げた」に対応する記述が応募書類 v3にない。` /
     `Unsupported (Question 2) — nothing in CV v3 backs “raised the whole team's productivity”.`
     **The quote is the answer's own words by span** — sliced from the corrected text, never reworded
@@ -1486,10 +1487,9 @@ scores, and the frame after the last answer is the one that leads to the feedbac
   was said that time beside the model answer of the answer it follows: a retry has none of its own
   (`06`, 2026-10-04).
 - **When an original answer scored, round-level findings use the first answers and their
-  follow-ups; `Checked against your CV` lists unsupported spans from bank-question answers only.**
+  follow-ups; `Checked against your CV` lists the unsupported spans of those same answers, a follow-up's under its question's number.**
   If none scored, both use scored answers given again, including follow-up retries, under the new
-  feedback prompt versions (`07` §5.12, `06`). Extending the ordinary CV region to original
-  follow-up answers is tracked in [#85](https://github.com/yutaasakura96/suburi/issues/85).
+  feedback prompt versions (`07` §5.12, `06`).
 - The two sentences that stand in for missing findings do not mention a rating:
   `The findings for this round are not ready. The round is complete, and every score above is kept.` /
   `このラウンドの講評はまだできていません。ラウンドは終了し、上の採点はすべて残っています。` and
