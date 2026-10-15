@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import * as en from "../prompts/follow-up-en-1.0";
-import * as ja from "../prompts/follow-up-ja-1.0";
-import { MAX_FOLLOW_UP_CODE_POINTS, checkFollowUp, openAiFollowUpGenerator, renderFollowUpInput } from "./follow-up";
+import * as ja from "../prompts/follow-up-ja-1.1";
+import { MAX_FOLLOW_UP_CODE_POINTS, checkFollowUp, checkFollowUpResult, openAiFollowUpGenerator, renderFollowUpInput } from "./follow-up";
 import { FOLLOW_UP_MODEL } from "./models";
 import { ModelCallFailed } from "./upstream";
 
@@ -78,6 +78,46 @@ describe("checkFollowUp", () => {
   it("counts code points, so a question in astral characters is not cut at half the length", () => {
     expect(() => checkFollowUp(`${"𠮷".repeat(MAX_FOLLOW_UP_CODE_POINTS - 1)}？`, "ja")).not.toThrow();
     expect(() => checkFollowUp(`${"𠮷".repeat(MAX_FOLLOW_UP_CODE_POINTS)}？`, "ja")).toThrowError(ModelCallFailed);
+  });
+});
+
+// 11 §3.25: a Japanese follow-up's English is checked like an English follow-up, and dropped on its
+// own — never the follow-up (06, 2026-10-14, Q106-4).
+describe("checkFollowUpResult", () => {
+  const followUp = "その移行で、ご自身が担った部分はどこですか。";
+
+  it("keeps a Japanese follow-up's English, trimmed", () => {
+    expect(checkFollowUpResult("ja", { followUp, english: "  Which part of that migration was yours?\n" })).toEqual({
+      text: followUp,
+      english: "Which part of that migration was yours?",
+      englishDropped: null,
+    });
+  });
+
+  it.each([
+    [null, "english_missing"],
+    ["   ", "english_missing"],
+    ["What changed? Who approved it?", "english_malformed"],
+    ["Interesting. What did you measure?", "english_malformed"],
+    ["Tell me which part was yours.", "english_malformed"],
+    ["その移行で、ご自身が担った部分はどこですか。", "english_malformed"],
+    [`${"a".repeat(MAX_FOLLOW_UP_CODE_POINTS)}?`, "english_malformed"],
+  ] as const)("drops the English %j as %s and keeps the follow-up", (english, drop) => {
+    expect(checkFollowUpResult("ja", { followUp, english })).toEqual({ text: followUp, english: null, englishDropped: drop });
+  });
+
+  it("still refuses a malformed follow-up, whatever its English", () => {
+    expect(() => checkFollowUpResult("ja", { followUp: "何を測りましたか。誰が承認しましたか。", english: "What did you measure?" })).toThrowError(
+      ModelCallFailed,
+    );
+  });
+
+  it("gives an English round's follow-up no English and no drop", () => {
+    expect(checkFollowUpResult("en", { followUp: "How did you measure it?", english: null })).toEqual({
+      text: "How did you measure it?",
+      english: null,
+      englishDropped: null,
+    });
   });
 });
 

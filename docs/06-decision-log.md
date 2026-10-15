@@ -20,6 +20,21 @@ The term this section introduces is **English help** (`CONTEXT.md`): English sho
 round so that a user who does not read Japanese well can use it. It is a reading aid, never part of
 the record. Nothing in it is scored, stamped or plotted.
 
+### [2026-10-15] #125: Japanese follow-ups measured; the 15 s bound kept with no margin; generation owed
+
+**Measured** (`03` §4): `follow-up-ja-1.1`, the first measurement of a Japanese follow-up, 15 calls —
+4.5 s median, 8.7 s p90, **14.6 s slowest**, 825 / 193 tokens; every English kept.
+**Decided:** `FOLLOW_UP_TIMEOUT_MS` stays 15 s. No call broke it, and a call that does is retried once
+and then recorded as missing, which costs a follow-up and never the round. But the rule that set it —
+three times the slowest call seen — no longer holds in Japanese: the slowest call is within 0.4 s of
+it. **Widening it is the owner's decision**, not this slice's, and is raised with the slice's report.
+**Not done:** round start under `generate-{round type}-ja-1.1`, 3 to 9 Japanese questions, posting
+and General practice. OpenAI refused every call with `insufficient_quota` (the development
+project's credit balance) before a row was printed. It is owed, by the same script, before the 60 s
+generation timeout is re-checked; that timeout stands on #47's `ja-1.0` measurement meanwhile.
+**The stamp-3 boundary Q106-4 accepted is in place**: the first first attempt at a question `ja-1.1`
+wrote draws one on the Japanese Progress chart, and an integration test over seeded rows holds it.
+
 ### [2026-10-15] The six slices are confirmed, without default round choices
 
 **Asked:** "Confirm the six English-help issues #122 to #127?", with the narrowing that default round

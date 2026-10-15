@@ -4,8 +4,7 @@ import type { FeedbackItem, TranslatedFeedback } from "@/lib/ai/round-feedback";
 import { underlineSegments } from "@/lib/cv/segments";
 import { characterLength, sliceQuote, type Span } from "@/lib/cv/spans";
 import { feedbackAnswers } from "@/lib/round/complete";
-import { questionEnglish } from "@/lib/questions/translations";
-import { carriesEnglish } from "@/lib/round/english-help";
+import { answerEnglishSource, carriesEnglish, storedEnglish, type EnglishSource } from "@/lib/round/english-help";
 import type { Db } from "@/lib/round/http";
 import { rewritePercent } from "@/lib/round/measures";
 import type { TranslatedModelAnswer } from "@/lib/round/model-answers";
@@ -229,9 +228,9 @@ export async function roundFrame(db: Db, userId: string, round: RoundRow): Promi
       .orderBy(s.roundQuestions.position),
   ]);
   // The prompt's English, as the fields to spread: none at all on a round without the pill (07 §5.4).
-  // A follow-up's (`questionId` null) is null until follow-ups are written with their English (#125).
-  const englishOf = async (questionId: string | null): Promise<{ textEn?: string | null }> =>
-    carriesEnglish(round) ? { textEn: questionId === null ? null : await questionEnglish(db, questionId) } : {};
+  // A question's is its newest translation, a follow-up's its own row's (Q106-4).
+  const englishOf = async (source: EnglishSource): Promise<{ textEn?: string | null }> =>
+    carriesEnglish(round) ? { textEn: await storedEnglish(db, source) } : {};
   const frame = {
     englishHelp: carriesEnglish(round) ? await englishHelpStartsOn(db, userId) : null,
     round: {
@@ -274,7 +273,7 @@ export async function roundFrame(db: Db, userId: string, round: RoundRow): Promi
 
   const nextQuestion = async (position: number): Promise<NextView> => {
     const prompt = await promptAt(db, round.id, position);
-    return { kind: "question", position, text: prompt?.text ?? "", ...(await englishOf(prompt?.questionId ?? null)) };
+    return { kind: "question", position, text: prompt?.text ?? "", ...(await englishOf({ questionId: prompt?.questionId ?? null })) };
   };
 
   if (round.mode === "practice") {
@@ -288,7 +287,7 @@ export async function roundFrame(db: Db, userId: string, round: RoundRow): Promi
           kind: "question",
           position: again.position,
           text: again.promptText,
-          ...(await englishOf(again.questionId)),
+          ...(await englishOf(answerEnglishSource(again, followUps))),
           followUpVersion: followUpVersionOf(again),
           again: again.retryOfAnswerId,
           ...slotOf(again),
@@ -309,7 +308,7 @@ export async function roundFrame(db: Db, userId: string, round: RoundRow): Promi
                   kind: "follow_up",
                   position: step.position,
                   text: step.followUp.row.promptText,
-                  ...(await englishOf(null)),
+                  ...(await englishOf({ followUp: step.followUp.row })),
                   promptVersion: step.followUp.row.promptVersion,
                 }
               : await nextQuestion(step.position);
@@ -323,7 +322,7 @@ export async function roundFrame(db: Db, userId: string, round: RoundRow): Promi
             answerId: last.id,
             position: last.position,
             text: last.promptText,
-            ...(await englishOf(last.questionId)),
+            ...(await englishOf(answerEnglishSource(last, followUps))),
             followUpVersion: followUpVersionOf(last),
             again: last.retryOfAnswerId !== null,
             corrected: last.transcriptCorrected ?? "",
@@ -360,7 +359,7 @@ export async function roundFrame(db: Db, userId: string, round: RoundRow): Promi
       kind: "question",
       position: step.position,
       text: step.followUp ? step.followUp.row.promptText : (asked?.text ?? ""),
-      ...(await englishOf(asked?.questionId ?? null)),
+      ...(await englishOf(step.followUp ? { followUp: step.followUp.row } : { questionId: asked?.questionId ?? null })),
       followUpVersion: step.followUp?.row.promptVersion ?? null,
       again: null,
       ...slotOf(step.answer),

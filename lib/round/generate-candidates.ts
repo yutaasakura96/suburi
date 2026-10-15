@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import type { Embedder } from "../ai/embed";
 import type { GenerationRoleContext, QuestionGenerator } from "../ai/generate-questions";
+import { countDrops, type EnglishDrop } from "../ai/generated-english";
 import type { QuestionCandidate, QuestionSlice } from "../questions/near-duplicate";
 import type { Db } from "./http";
 
@@ -31,6 +32,8 @@ export interface GeneratedCandidates {
   readonly promptVersion: string;
   readonly tokensIn: number | null;
   readonly tokensOut: number | null;
+  /** The Japanese candidates whose English the call's check dropped, by class: counted, never shown (12 §7). */
+  readonly englishDropped: Readonly<Record<EnglishDrop, number>>;
   readonly generationMs: number;
   readonly embeddingMs: number;
 }
@@ -87,13 +90,22 @@ export async function generateCandidates(
     { timeoutMs: GENERATION_TIMEOUT_MS },
   );
   const embeddingStarted = performance.now();
-  const embeddings = await deps.embedder.embed(generated.questions, { timeoutMs: EMBEDDING_TIMEOUT_MS });
+  // The Japanese is embedded and compared, never the English: the guard is about what is asked.
+  const embeddings = await deps.embedder.embed(
+    generated.questions.map((question) => question.text),
+    { timeoutMs: EMBEDDING_TIMEOUT_MS },
+  );
 
   return {
-    candidates: generated.questions.map((body, index) => ({ body, embedding: embeddings[index] })),
+    candidates: generated.questions.map((question, index) => ({
+      body: question.text,
+      english: question.english,
+      embedding: embeddings[index],
+    })),
     promptVersion: deps.questionGenerator.promptVersions[input.language][input.roundType],
     tokensIn: generated.tokensIn,
     tokensOut: generated.tokensOut,
+    englishDropped: countDrops(generated.questions),
     generationMs: Math.round(embeddingStarted - generationStarted),
     embeddingMs: Math.round(performance.now() - embeddingStarted),
   };

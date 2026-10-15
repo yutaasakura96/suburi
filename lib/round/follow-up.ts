@@ -24,7 +24,14 @@ export interface FollowUpDeps {
 }
 
 export type FollowUpOutcome =
-  | { readonly status: "generated"; readonly text: string; readonly tokensIn: number | null; readonly tokensOut: number | null }
+  | {
+      readonly status: "generated";
+      readonly text: string;
+      /** Its English, or null: an English round's, or one dropped by the port's check (Q106-4). */
+      readonly english: string | null;
+      readonly tokensIn: number | null;
+      readonly tokensOut: number | null;
+    }
   | { readonly status: "missing"; readonly errorClass: string };
 
 const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -56,7 +63,12 @@ export async function generateFollowUp(deps: FollowUpDeps, round: RoundRow, pare
         tokens_out: result.tokensOut,
         duration_ms: elapsed(),
       });
-      return { status: "generated", ...result };
+      // A dropped English is asked without, never made missing (06, 2026-10-14, Q106-4): a count
+      // and a class, never the text (12 §7).
+      if (result.englishDropped) {
+        log("error", { event: "follow_up_english_dropped", answer_id: parent.id, error_class: result.englishDropped, count: 1 });
+      }
+      return { status: "generated", text: result.text, english: result.english, tokensIn: result.tokensIn, tokensOut: result.tokensOut };
     } catch (error) {
       errorClass = error instanceof ModelCallFailed ? error.errorClass : "unexpected";
       log("error", { event: "follow_up_call_failed", answer_id: parent.id, retry: attempt, error_class: errorClass });

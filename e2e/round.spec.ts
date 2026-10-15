@@ -908,7 +908,7 @@ test("a realistic Japanese round: Japanese throughout, seven rows, and the feedb
     await expect(page.getByTestId("round-step")).toHaveText(`第${position}問 / 3問・深掘り`);
     await expect(page.getByTestId("round-question")).toHaveText(FOLLOW_UP_JA);
     await expect(page.getByTestId("speaker-line")).toHaveText("読み上げました。文字は残します。");
-    await expect(page.getByTestId("round-stamp")).toContainText("follow-up-ja-1.0・応募書類 v");
+    await expect(page.getByTestId("round-stamp")).toContainText("follow-up-ja-1.1・応募書類 v");
     await expect(main).not.toContainText(ENGLISH_CHROME);
     if (position === 1) await shot("3-follow-up");
     await page.getByRole("button", { name: "録音を開始" }).click();
@@ -1042,7 +1042,7 @@ test("a realistic Japanese round: Japanese throughout, seven rows, and the feedb
       .where(eq(s.answers.roundId, roundId)),
   );
   expect(followUps).toHaveLength(3);
-  for (const followUp of followUps) expect(followUp).toEqual({ status: "generated", promptText: FOLLOW_UP_JA, promptVersion: "follow-up-ja-1.0" });
+  for (const followUp of followUps) expect(followUp).toEqual({ status: "generated", promptText: FOLLOW_UP_JA, promptVersion: "follow-up-ja-1.1" });
   const spoken = openAi.requests.slice(requestsBefore).filter((request) => request.path === "/v1/realtime");
   expect(spoken).toHaveLength(6);
   expect(spoken.filter((_, index) => index % 2 === 1).map((request) => request.body.input)).toEqual([FOLLOW_UP_JA, FOLLOW_UP_JA, FOLLOW_UP_JA]);

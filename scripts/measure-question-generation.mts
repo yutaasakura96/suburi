@@ -15,6 +15,10 @@ import { characterLength } from "../lib/cv/spans.ts";
 // the same call with the posting repeated up to and past the cap, which is where
 // `lib/round/limits.ts`'s number comes from (07 §5.3).
 //
+// **#125 re-measured the Japanese calls** after `generate-{round type}-ja-1.1` began writing each
+// question's English in the same call (06, 2026-10-14, Q106-4): `LANGUAGES=ja COUNTS=3,5,7,9 SIZES=`.
+// The last column counts the questions that came back with an English its check kept.
+//
 // Synthetic input only (11 §8): the invented CVs in `lib/cv/test/`, read as their sentence lines in
 // place of claims, and the invented postings in `lib/round/test/`. Prints timings, token counts and
 // sizes — never a prompt, a posting or a model's output.
@@ -54,23 +58,36 @@ interface Sample {
   readonly tokensIn: number;
   readonly tokensOut: number;
   readonly returned: number;
+  /** How many came back with an English that passed its check: a Japanese call's only (Q106-4). */
+  readonly english: number;
 }
 const samples: Record<string, Sample[]> = {};
 const embedMs: Record<string, number[]> = {};
+const failures: Record<string, string[]> = {};
 
 async function measure(job: string, language: GenerationLanguage, count: number, roleContext: GenerationRoleContext, embed = false) {
   for (let run = 0; run < RUNS; run += 1) {
     const started = performance.now();
-    const result = await generator.generate({ language, roundType: "behavioural", count, roleContext, claims: CLAIMS[language], existing: EXISTING });
+    let result;
+    try {
+      result = await generator.generate({ language, roundType: "behavioural", count, roleContext, claims: CLAIMS[language], existing: EXISTING });
+    } catch (error) {
+      // Counted and printed, never fatal: one rate-limited call does not throw away the run's samples.
+      const errorClass = (error as { errorClass?: string }).errorClass ?? "unexpected";
+      (failures[job] ??= []).push(errorClass);
+      console.log(`${job}: a call failed after ${((performance.now() - started) / 1000).toFixed(1)} s, ${errorClass}`);
+      continue;
+    }
     (samples[job] ??= []).push({
       ms: performance.now() - started,
       tokensIn: result.tokensIn ?? 0,
       tokensOut: result.tokensOut ?? 0,
       returned: result.questions.length,
+      english: result.questions.filter((question) => question.english !== null).length,
     });
     if (embed) {
       const embedStarted = performance.now();
-      await embedder.embed(result.questions);
+      await embedder.embed(result.questions.map((question) => question.text));
       (embedMs[`embeddings, ${count} questions`] ??= []).push(performance.now() - embedStarted);
     }
   }
@@ -94,7 +111,8 @@ console.log(`Claims: en ${CLAIMS.en.length}, ja ${CLAIMS.ja.length}. Postings: e
 
 // The round-start wait.
 const COUNTS = (process.env.COUNTS ?? "3,7").split(",").filter(Boolean).map(Number);
-for (const language of ["en", "ja"] as const) {
+const LANGUAGES = (process.env.LANGUAGES ?? "en,ja").split(",").filter(Boolean) as GenerationLanguage[];
+for (const language of LANGUAGES) {
   for (const count of COUNTS) {
     await measure(`${language}, general practice, ${count} questions`, language, count, { kind: "general" }, language === "en");
     await measure(`${language}, posting as written, ${count} questions`, language, count, { kind: "posting", ...POSTINGS[language] });
@@ -103,7 +121,7 @@ for (const language of ["en", "ja"] as const) {
 
 // The posting's size, seven questions each: the longest round, so the largest output.
 const SIZES = (process.env.SIZES ?? "10000,20000,40000").split(",").filter(Boolean).map(Number);
-for (const language of ["en", "ja"] as const) {
+for (const language of LANGUAGES) {
   for (const chars of SIZES) {
     await measure(`${language}, posting of ${chars} code points, 7 questions`, language, 7, {
       kind: "posting",
@@ -114,14 +132,15 @@ for (const language of ["en", "ja"] as const) {
 }
 
 const seconds = (ms: number) => `${(ms / 1000).toFixed(1)} s`;
-console.log("\n| Job | n | median | p90 | slowest | tokens in / out (median) | questions returned (min) |");
-console.log("| --- | --- | --- | --- | --- | --- | --- |");
+console.log("\n| Job | n | median | p90 | slowest | tokens in / out (median) | questions returned (min) | with English (of all returned) |");
+console.log("| --- | --- | --- | --- | --- | --- | --- | --- |");
 for (const [job, rows] of Object.entries(samples)) {
   const ms = rows.map((row) => row.ms);
   console.log(
-    `| ${job} | ${rows.length} | ${seconds(quantile(ms, 0.5))} | ${seconds(quantile(ms, 0.9))} | ${seconds(Math.max(...ms))} | ${quantile(rows.map((row) => row.tokensIn), 0.5).toFixed(0)} / ${quantile(rows.map((row) => row.tokensOut), 0.5).toFixed(0)} | ${Math.min(...rows.map((row) => row.returned))} |`,
+    `| ${job} | ${rows.length} | ${seconds(quantile(ms, 0.5))} | ${seconds(quantile(ms, 0.9))} | ${seconds(Math.max(...ms))} | ${quantile(rows.map((row) => row.tokensIn), 0.5).toFixed(0)} / ${quantile(rows.map((row) => row.tokensOut), 0.5).toFixed(0)} | ${Math.min(...rows.map((row) => row.returned))} | ${rows.reduce((sum, row) => sum + row.english, 0)} of ${rows.reduce((sum, row) => sum + row.returned, 0)} |`,
   );
 }
 for (const [job, ms] of Object.entries(embedMs)) {
-  console.log(`| ${job} | ${ms.length} | ${seconds(quantile(ms, 0.5))} | ${seconds(quantile(ms, 0.9))} | ${seconds(Math.max(...ms))} | — | — |`);
+  console.log(`| ${job} | ${ms.length} | ${seconds(quantile(ms, 0.5))} | ${seconds(quantile(ms, 0.9))} | ${seconds(Math.max(...ms))} | — | — | — |`);
 }
+for (const [job, classes] of Object.entries(failures)) console.log(`- ${job}: ${classes.length} failed call(s), ${classes.join(", ")}`);

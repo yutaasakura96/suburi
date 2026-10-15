@@ -1,0 +1,2 @@
+ALTER TABLE "follow_ups" ADD COLUMN "prompt_text_translated" text;--> statement-breakpoint
+ALTER TABLE "follow_ups" ADD CONSTRAINT "follow_ups_translated_generated_check" CHECK ("follow_ups"."status" = 'generated' or "follow_ups"."prompt_text_translated" is null);

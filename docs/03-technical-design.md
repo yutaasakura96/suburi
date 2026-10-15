@@ -209,8 +209,26 @@ generation (`follow-up-ja-1.1`) the follow-up's, in the same call. A missing or 
 dropped and the question or follow-up kept, so neither call gains a failure. Both write more tokens
 and so take longer; **the slice that changes them re-measures both here** against the tables below
 (round start for 3 to 9 Japanese questions; the follow-up's 15 s bound, set at three times the slowest
-English call, has not been measured in Japanese at all). The generator's version change is a stamp-3
+English call, had not been measured in Japanese at all). The generator's version change is a stamp-3
 boundary on Progress (`06`).
+
+**Japanese follow-up generation, measured 2026-10-15 (#125)** with `scripts/measure-follow-up-ja.mts`:
+the real port and `follow-up-ja-1.1`, five runs of three invented answers of about one, two and three
+and a half minutes spoken, from the development machine, as #44 measured the English prompt.
+
+| Job | Prompt | n | median | p90 | slowest | tokens in / out |
+| --- | --- | --- | --- | --- | --- | --- |
+| Follow-up generation | `follow-up-ja-1.1` | 15 | 4.5 s | 8.7 s | **14.6 s** | 825 / 193 |
+
+- **Every English was kept**: 15 of 15 passed the follow-up's own check, none dropped, no call failed.
+- **The 15 s bound held, with no margin left.** No call reached it, but the slowest came within 0.4 s,
+  where the bound was set at three times the slowest English call (4.7 s). Past it a call is retried
+  once and then recorded as missing, so the tail costs a follow-up, never the round. **The bound is
+  not changed here**: whether to widen it is the owner's call (`06`, 2026-10-15).
+- **Round-start generation under `ja-1.1` is not re-measured yet.** The run on 2026-10-15 was refused
+  by OpenAI, `insufficient_quota` (the development project's credit balance exhausted), before it
+  printed a row; it is owed, with `LANGUAGES=ja COUNTS=3,5,7,9 SIZES=`, and until then the 60 s
+  generation timeout stands on #47's `ja-1.0` numbers below.
 
 **The round's latencies, measured 2026-10-01 (#42)** with `scripts/measure-round-latency.mts`
 against OpenAI, five runs of each at the time, from the development machine, the way #20 measured extraction. Synthetic
@@ -218,8 +236,7 @@ answers of the lengths a realistic round produces (one to three and a half minut
 and round feedback ran through the real ports and prompts (`score-en-1.0`, `feedback-en-1.0`);
 **follow-up and question generation ran draft prompts**, since their ports did not exist yet. **Follow-up
 generation was re-measured on 2026-10-03 (#44)** through its real port and `follow-up-en-1.0`, the
-same way; the Japanese prompt is not measured until a real Japanese round with follow-ups runs on
-`develop`. **Question generation's draft rows were replaced by #47's measurement** through its real
+same way; the Japanese prompt was first measured by #125, as `follow-up-ja-1.1` (above). **Question generation's draft rows were replaced by #47's measurement** through its real
 port, below. Transcription read takes
 synthesised by TTS and re-encoded to webm/opus by ffmpeg, the browser's format. #76 added ten
 question-length TTS runs through the new port on 2026-10-14.

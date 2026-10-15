@@ -63,7 +63,8 @@ export async function nextPrompt(db: RoundDeps["db"], round: RoundRow, step: Exc
         text: row.promptText,
         prompt_version: row.promptVersion,
         speak,
-        ...(await promptEnglish(db, round, null)),
+        // A follow-up's English is its own row's (07 §5.9; Q106-4).
+        ...(await promptEnglish(db, round, { followUp: row })),
       },
       progress,
     };
@@ -77,7 +78,7 @@ export async function nextPrompt(db: RoundDeps["db"], round: RoundRow, step: Exc
       text: prompt?.text ?? null,
       speak,
       // A Japanese practice round's prompt carries its English; a realistic round's, no such key (07 §5.9).
-      ...(await promptEnglish(db, round, prompt?.questionId ?? null)),
+      ...(await promptEnglish(db, round, { questionId: prompt?.questionId ?? null })),
     },
     progress,
   };
@@ -112,6 +113,7 @@ export function createSubmit(deps: SubmitDeps) {
             userId: parent.userId,
             status: outcome.status,
             promptText: outcome.status === "generated" ? outcome.text : null,
+            promptTextTranslated: outcome.status === "generated" ? outcome.english : null,
             modelId: deps.followUpGenerator.modelId,
             promptVersion: deps.followUpGenerator.promptVersions[round.language],
             tokensIn: outcome.status === "generated" ? outcome.tokensIn : null,
