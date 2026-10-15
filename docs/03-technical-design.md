@@ -225,10 +225,34 @@ and a half minutes spoken, from the development machine, as #44 measured the Eng
   where the bound was set at three times the slowest English call (4.7 s). Past it a call is retried
   once and then recorded as missing, so the tail costs a follow-up, never the round. **The bound is
   not changed here**: whether to widen it is the owner's call (`06`, 2026-10-15).
-- **Round-start generation under `ja-1.1` is not re-measured yet.** The run on 2026-10-15 was refused
-  by OpenAI, `insufficient_quota` (the development project's credit balance exhausted), before it
-  printed a row; it is owed, with `LANGUAGES=ja COUNTS=3,5,7,9 SIZES=`, and until then the 60 s
-  generation timeout stands on #47's `ja-1.0` numbers below.
+
+**Round-start generation under `ja-1.1`, re-measured 2026-10-16 (#125)** with
+`scripts/measure-question-generation.mts` and `LANGUAGES=ja COUNTS=3,5,7,9 SIZES=`: the real port
+and `generate-behavioural-ja-1.1`, five runs of each, the same synthetic input as #47's `ja-1.0` rows
+below. (A first attempt on 2026-10-15 was refused by OpenAI, `insufficient_quota`, before it printed a
+row; the owner topped the credit up.)
+
+| Questions | Role context | median | p90 | slowest | tokens in / out | with English | `ja-1.0` median (#47) |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 3 | General practice | 9.5 s | 10.2 s | 10.3 s | 3,718 / 520 | 15 of 15 | 7.3 s |
+| 3 | posting | 12.6 s | 15.6 s | 16.3 s | 4,996 / 718 | 15 of 15 | 7.1 s |
+| 5 | General practice | 14.0 s | 15.8 s | 15.8 s | 3,718 / 874 | 25 of 25 | 6.8 s |
+| 5 | posting | 19.9 s | 26.1 s | 27.3 s | 4,996 / 1,325 | 25 of 25 | 8.0 s |
+| 7 | General practice | 25.4 s | 38.2 s | 41.7 s | 3,718 / 1,715 | 35 of 35 | 14.0 s |
+| 7 | posting | 16.7 s | 23.5 s | 27.5 s | 4,996 / 1,092 | 35 of 35 | 13.1 s |
+| 9 | General practice | 34.7 s | 43.3 s | **45.9 s** | 3,718 / 2,306 | 45 of 45 | 16.5 s |
+| 9 | posting | 30.5 s | 38.4 s | 39.8 s | 4,996 / 2,151 | 45 of 45 | 15.4 s |
+
+- **Every call returned its count, and every English was kept**: 220 of 220, none dropped.
+- **The English roughly doubles the wait.** Output tokens about 1.3 to 1.6 times `ja-1.0`'s, and the
+  medians about twice: 10 to 35 s now, against 7 to 17 s. It is still paid only when the bank cannot
+  fill the round, and still before the round, so invariant 2 is untouched.
+- **The 60 s generation timeout held, with less margin.** No call reached it; the slowest, 45.9 s, is
+  under it, where the bound was set at twice #47's slowest (27.9 s). **The timeout is not changed
+  here**: whether to widen it is the owner's call (`06`, 2026-10-16).
+- **Setup's wait copy is now short of the truth**: "can take up to half a minute" (`10` §2), where a
+  round of 7 that generates 9 now takes about 31 to 35 s at the median. Not changed here — a copy
+  change, with its Japanese, is the owner's call (`06`, 2026-10-16).
 
 **The round's latencies, measured 2026-10-01 (#42)** with `scripts/measure-round-latency.mts`
 against OpenAI, five runs of each at the time, from the development machine, the way #20 measured extraction. Synthetic

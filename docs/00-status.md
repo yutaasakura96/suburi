@@ -98,11 +98,11 @@ questions and follow-ups written with their English, is built (2026-10-15), on `
 banked candidate's English is a `generated` `question_translations` row in the round-start
 transaction, a reused one's is discarded; a follow-up's is `follow_ups.prompt_text_translated`
 (`0016_follow-up-english`), carried as `text_en`; a missing or malformed English is dropped and
-counted, never the question or the follow-up. The Japanese follow-up is measured (`03` §4: 14.6 s
-slowest against the 15 s bound, kept); **owed:** round start under `ja-1.1`, refused by OpenAI for
-an exhausted credit balance (`06`, 2026-10-15). Migration `0016` is not yet applied to either Neon
-branch.
-**Updated:** 2026-10-15 (#125 built, its round-start measurement owed; #124 built; #123 built; #122 built; #122–#127 confirmed); 2026-10-14 (#106 and #107 planned; #76 built; #85 built; #83 checked; #75 built; #105 built; #104 measured and fixed; #51 built; follow-ups spoken; #73 built; #49's Japanese strings all accepted; #50's
+counted, never the question or the follow-up. Both calls are re-measured (`03` §4): the
+Japanese follow-up 14.6 s slowest against its 15 s bound, round start 45.9 s slowest against its 60 s
+timeout, both kept; widening either, and Setup's "up to half a minute", are raised for the owner (`06`,
+2026-10-16). Migration `0016` is not yet applied to either Neon branch.
+**Updated:** 2026-10-16 (#125 re-measured); 2026-10-15 (#125 built; #124 built; #123 built; #122 built; #122–#127 confirmed); 2026-10-14 (#106 and #107 planned; #76 built; #85 built; #83 checked; #75 built; #105 built; #104 measured and fixed; #51 built; follow-ups spoken; #73 built; #49's Japanese strings all accepted; #50's
 catalogue string read; #43, #44, #45, #46, #47, #48, #49, #50 and #74 built; #42 closed; #55 and #56 on 2026-09-30)
 
 ## Done
