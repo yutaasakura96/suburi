@@ -4,9 +4,9 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { sliceQuote } from "@/lib/cv/spans";
 import type { ScoringRead } from "@/lib/round/read-round";
-import { ROUND_COPY, type RoundLanguage } from "../copy";
+import type { RoundCopy, RoundLanguage } from "../copy";
 import type { AnsweredView, NextView, RoundFrame } from "../load";
-import { CalloutRail, ErrorLine, PromptEnglish, ScoreRow, caption, roundSectionLabel, type Failure } from "../parts";
+import { CalloutRail, ErrorLine, PromptEnglish, Quoting, ScoreRow, caption, roundSectionLabel, type Failure } from "../parts";
 import { closingWait, useScoringProgress } from "./closing-progress";
 import { WaitLine } from "./wait-line";
 
@@ -68,7 +68,9 @@ function useScoring(roundId: string, answerId: string, initial: ScoringRead) {
  */
 export function AnsweredFrame({
   roundId,
+  copy,
   language,
+  chrome,
   dimensions,
   cvLabel,
   step,
@@ -84,7 +86,12 @@ export function AnsweredFrame({
   onAnswerAgain,
 }: {
   roundId: string;
+  /** The chrome's words: the round's language, or English under English help (10 §0). */
+  copy: RoundCopy;
+  /** The round's language: what was asked and said, and what scored it, are in it. */
   language: RoundLanguage;
+  /** The language `copy` is in. */
+  chrome: RoundLanguage;
   dimensions: RoundFrame["dimensions"];
   cvLabel: string;
   /** The answer's own step, as the header names it. */
@@ -98,7 +105,7 @@ export function AnsweredFrame({
   next: FrameNext;
   /** The step of the question that is next, when one is. */
   nextStep: string | null;
-  /** The catalogue's `followup_generation_failed` sentence, in the round's language. */
+  /** The catalogue's `followup_generation_failed` sentence, in the chrome's language. */
   missingNotice: string;
   busy: boolean;
   error: Failure | null;
@@ -106,10 +113,9 @@ export function AnsweredFrame({
   onGoOn: () => void;
   onAnswerAgain: () => void;
 }) {
-  const copy = ROUND_COPY[language];
   const scoring = useScoring(roundId, answer.answerId, answer.scoring);
   const scored = scoring.status === "ok";
-  const sectionLabel = roundSectionLabel(language);
+  const sectionLabel = roundSectionLabel(chrome);
   // Only an answer that went through the CV check says what it found (10 §8's rule).
   const checked = scored && scoring.answered_language != null;
   const answeredIn = checked && scoring.answered_language !== language ? (scoring.answered_language as RoundLanguage) : null;
@@ -137,7 +143,7 @@ export function AnsweredFrame({
           </span>
         </div>
         <div className="flex flex-col gap-[6px]">
-          <p className="text-[15px] leading-[1.85] text-ink-2" data-testid="answered-question">
+          <p className="text-[15px] leading-[1.85] text-ink-2" lang={language} data-testid="answered-question">
             {answer.text}
           </p>
           <PromptEnglish english={english?.answer} className="text-[13px] leading-[1.75] text-ink-5" />
@@ -148,10 +154,11 @@ export function AnsweredFrame({
             return (
               <ScoreRow
                 key={dimension.key}
-                label={dimension.label}
+                label={chrome === language ? dimension.label : dimension.labelEn}
                 value={score?.value ?? null}
                 unscored={scoring.status === "pending" ? copy.notScoredYet : copy.notScored}
                 justification={score?.justification}
+                justificationLang={language}
               />
             );
           })}
@@ -173,13 +180,17 @@ export function AnsweredFrame({
                 <div key={index} data-testid="unsupported">
                   <CalloutRail tone="attention" live={false}>
                     {/* The answer's own words by span, never the scorer's (04 `answer_flags`). */}
-                    {copy.unsupportedHere(sliceQuote(answer.corrected, { start: flag.span_start, end: flag.span_end }), cvLabel)}
+                    <Quoting
+                      sentence={copy.unsupportedHere}
+                      quotes={[sliceQuote(answer.corrected, { start: flag.span_start, end: flag.span_end }), cvLabel]}
+                      lang={language}
+                    />
                   </CalloutRail>
                 </div>
               ))
             ) : (
               <CalloutRail tone="quiet" live={false}>
-                {copy.nothingUnsupported(cvLabel)}
+                <Quoting sentence={copy.nothingUnsupported} quotes={[cvLabel]} lang={language} />
               </CalloutRail>
             )}
             {answeredIn ? (
@@ -198,7 +209,9 @@ export function AnsweredFrame({
         {next.kind === "follow_up" ? (
           <div className="flex flex-col gap-[6px]" data-testid="next-follow-up">
             <span className="text-[12px] text-ink-6">{copy.followUp}</span>
-            <p className="text-[13px] leading-[1.75] text-ink-2">{next.text}</p>
+            <p className="text-[13px] leading-[1.75] text-ink-2" lang={language}>
+              {next.text}
+            </p>
             <PromptEnglish english={english?.next} className="text-[12px] leading-[1.7] text-ink-6" />
           </div>
         ) : null}

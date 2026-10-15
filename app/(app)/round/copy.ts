@@ -514,6 +514,35 @@ const ja: RoundCopy = {
 export const ROUND_COPY: Record<RoundLanguage, RoundCopy> = { en, ja };
 
 /**
+ * A Japanese round under English chrome (10 §0, §15): English help's pill, on, in a Japanese practice
+ * round. Every string is an English round's, except where the round names itself and its pace — its
+ * language, and characters in English words where an English round counts words. No string here is
+ * Japanese.
+ */
+const jaInEnglish: RoundCopy = {
+  ...en,
+  meta: (mode, length) => `Japanese · ${EN_MODES[mode]} · ${length} questions`,
+  takeFigures: (durationMs, pace, units) => `${clock(durationMs)} · about ${Math.round(pace)} chars/min · ${units} chars`,
+  unitsChange: (from, to) => `${from} chars → ${to} chars`,
+  takeSummary: (durationMs, pace) => `${clock(durationMs)} · about ${Math.round(pace)} chars/min`,
+  answerFigures: (durationMs, pace, rewrite) => {
+    const time = durationMs === null ? null : minutesAndSeconds(durationMs);
+    return present([
+      time === null ? null : `${time.minutes} min ${time.seconds} s`,
+      pace === null ? null : `about ${Math.round(pace)} chars/min`,
+      rewrite === null ? null : `rewrite ${rewrite}%`,
+    ]).join(" · ");
+  },
+  // A Japanese round's other language is English (PRD §7).
+  wrongLanguage: () => "This answer was given in English. It is kept out of your Japanese progress.",
+};
+
+/** The chrome a round's frames read in: the round's language, or English under English help (10 §0). */
+export function roundCopy(language: RoundLanguage, englishHelp: boolean): RoundCopy {
+  return language === "ja" && englishHelp ? jaInEnglish : ROUND_COPY[language];
+}
+
+/**
  * 10 §8's pill, on a Japanese round's feedback only: each side names the language it switches the
  * feedback to, in that language. An English round's feedback is English and has no pill (PRD §4).
  */
