@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { requireSession } from "@/lib/auth/session";
 import { getDb } from "@/lib/db";
 import { decodeCursor } from "@/lib/round/list-rounds";
+import { englishHelpStartsOn } from "@/lib/settings/settings";
 import { AppHeader } from "../../app-header";
 import { sectionLabel } from "../../round/parts";
 import { STUDY_COPY as COPY } from "./copy";
@@ -23,7 +24,8 @@ const link = "text-[13px] text-link hover:text-link-hover hover:underline";
  * it reads across rounds.
  *
  * A Server Component reading stored rows (07 §1); the page is the URL's, as History's list is paged
- * by cursor (07 §4). **It writes nothing and calls no model**, and no score is read for it.
+ * by cursor (07 §4). **It writes nothing and calls no model**, and no score is read for it. Each
+ * card's pill starts from the user's English help setting (10 §16).
  * Protected here as well as in the proxy (08 §5).
  */
 export default async function StudyPage({ searchParams }: PageProps<"/history/study">) {
@@ -33,7 +35,7 @@ export default async function StudyPage({ searchParams }: PageProps<"/history/st
   const cursor = before === undefined ? null : typeof before === "string" ? decodeCursor(before) : null;
   if (before !== undefined && cursor === null) notFound();
 
-  const page = await studyPage(getDb(), userId, cursor);
+  const [page, englishHelp] = await Promise.all([studyPage(getDb(), userId, cursor), englishHelpStartsOn(getDb(), userId)]);
   // `Older rounds` is only offered when a round follows, so a cursor past the oldest was not followed from here.
   if (cursor !== null && page.rounds.length === 0) notFound();
   return (
@@ -60,7 +62,7 @@ export default async function StudyPage({ searchParams }: PageProps<"/history/st
       </section>
 
       {page.rounds.map((round) => (
-        <StudyRoundView key={round.id} round={round} />
+        <StudyRoundView key={round.id} round={round} englishHelp={englishHelp} />
       ))}
 
       <footer className="flex items-start justify-between gap-[40px] border border-rule-frame bg-surface px-[32px] py-[16px]">

@@ -4,7 +4,14 @@ import type { FeedbackItem, TranslatedFeedback } from "@/lib/ai/round-feedback";
 import { underlineSegments } from "@/lib/cv/segments";
 import { characterLength, sliceQuote, type Span } from "@/lib/cv/spans";
 import { feedbackAnswers } from "@/lib/round/complete";
-import { answerEnglishSource, carriesEnglish, storedEnglish, type EnglishSource } from "@/lib/round/english-help";
+import {
+  answerEnglishSource,
+  answersEnglish,
+  carriesEnglish,
+  carriesEnglishAfter,
+  storedEnglish,
+  type EnglishSource,
+} from "@/lib/round/english-help";
 import type { Db } from "@/lib/round/http";
 import { rewritePercent } from "@/lib/round/measures";
 import type { TranslatedModelAnswer } from "@/lib/round/model-answers";
@@ -404,6 +411,11 @@ export interface FeedbackAnswerView {
   /** 0 for the first answer to the question; n for the nth answer given again (practice, 10 §15). */
   readonly again: number;
   readonly prompt: string;
+  /**
+   * English help (10 §8): the prompt's stored English, or null when it has none. The key only on a
+   * Japanese round; an English round's prompts have nothing to show.
+   */
+  readonly promptEn?: string | null;
   /** What the user said: the corrected transcript, as it was scored. */
   readonly own: string;
   /** Null when none is stored: a call that failed or has not landed yet, or a round from before model answers existed. */
@@ -432,6 +444,8 @@ export interface FeedbackAnswerView {
     | {
         readonly kind: "asked";
         readonly text: string;
+        /** The follow-up's stored English, as `promptEn` is the question's. */
+        readonly textEn?: string | null;
         readonly status: "ok" | "pending" | "failed";
         /** The follow-up's own answer and its model answer, as the question's are above. */
         readonly own: string | null;
@@ -478,15 +492,21 @@ export interface FeedbackScreen {
   readonly grounding: GroundingView | null;
   /** No answer scored and none is pending: `feedback` refuses as `no_scores`, so no retry is offered (07 §5.12). */
   readonly findingsUnavailable: boolean;
+  /**
+   * The pill (10 §8): null when there is none — an English round, or a Japanese one with nothing in
+   * English stored — and otherwise whether it starts on, from the user's English help setting (§17).
+   */
+  readonly englishHelp: boolean | null;
 }
 
 /** Screen 8, from stored rows only: nothing here calls a model or waits (10 §8). */
 export async function feedbackScreen(db: Db, round: RoundRow): Promise<FeedbackScreen> {
-  const [{ cvLabel, rubric }, answers, followUps, [findings]] = await Promise.all([
+  const [{ cvLabel, rubric }, answers, followUps, [findings], startsOn] = await Promise.all([
     stampLabels(db, round),
     roundAnswers(db, round.id),
     roundFollowUps(db, round.id),
     db.select().from(s.roundFeedback).where(eq(s.roundFeedback.roundId, round.id)),
+    carriesEnglishAfter(round) ? englishHelpStartsOn(db, round.userId) : false,
   ]);
   const answered = answers.filter((answer) => answer.transcriptCorrected !== null);
   // The pager is one bank question per position, its follow-up hanging off it as a row — and, in a
@@ -497,11 +517,12 @@ export async function feedbackScreen(db: Db, round: RoundRow): Promise<FeedbackS
       ? 0
       : submitted.filter((other) => other.retryOfAnswerId === answer.retryOfAnswerId).indexOf(answer) + 1;
   // Every submitted answer's attempt, follow-ups' included: the same set `complete` reads (07 §5.12).
-  const [attempts, modelAnswerRows] = await Promise.all([
+  const [attempts, modelAnswerRows, englishOf] = await Promise.all([
     latestAttempts(db, answered.map((answer) => answer.id)),
     answered.length === 0
       ? []
       : db.select().from(s.modelAnswers).where(inArray(s.modelAnswers.answerId, answered.map((answer) => answer.id))),
+    carriesEnglishAfter(round) ? answersEnglish(db, submitted, followUps) : null,
   ]);
   const modelAnswerOf = (answerId: string): ModelAnswerView | null => {
     const row = modelAnswerRows.find((candidate) => candidate.answerId === answerId);
@@ -515,6 +536,7 @@ export async function feedbackScreen(db: Db, round: RoundRow): Promise<FeedbackS
     return {
       kind: "asked",
       text: row.promptText,
+      ...(englishOf ? { textEn: row.promptTextTranslated } : {}),
       status: (own && attempts.get(own.id)?.status) ?? "pending",
       own: own?.transcriptCorrected ?? null,
       modelAnswer: own ? modelAnswerOf(own.id) : null,
@@ -554,6 +576,47 @@ export async function feedbackScreen(db: Db, round: RoundRow): Promise<FeedbackS
     : [];
 
   const translated = (findings?.bodyTranslated ?? null) as TranslatedFeedback | null;
+  const answerViews = submitted.map((answer): FeedbackAnswerView => {
+    const attempt = attempts.get(answer.id);
+    const status = attempt?.status ?? "pending";
+    return {
+      position: answer.position,
+      followUpAnswer: answer.questionId === null,
+      again: againOf(answer),
+      prompt: answer.promptText,
+      ...(englishOf ? { promptEn: englishOf(answer) } : {}),
+      own: answer.transcriptCorrected ?? "",
+      // An answer given again is the same question, and reads the model answer its original has.
+      modelAnswer: modelAnswerOf(answer.retryOfAnswerId ?? answer.id),
+      durationMs: answer.audioDurationMs,
+      wpm: answer.wordsPerMinute,
+      rewrite: answer.rewriteMagnitude === null ? null : rewritePercent(answer.rewriteMagnitude),
+      status,
+      scores: rubric.dimensions.map((dimension) => {
+        const score = status === "ok" ? scoreRows.find((row) => row.scoringAttemptId === attempt!.id && row.dimension === dimension.key) : undefined;
+        return {
+          key: dimension.key,
+          labels: { ja: dimension.label_ja, en: dimension.label_en },
+          value: score?.value ?? null,
+          justification: score?.justification ?? null,
+        };
+      }),
+      answeredIn:
+        status === "ok" && attempt!.answeredLanguage !== null && attempt!.answeredLanguage !== round.language
+          ? attempt!.answeredLanguage
+          : null,
+      followUp: followUpOf(answer.id),
+    };
+  });
+  // The pill appears when anything on the screen has a stored English (10 §8).
+  const anyEnglish =
+    translated !== null ||
+    answerViews.some(
+      (view) =>
+        (view.promptEn ?? null) !== null ||
+        view.modelAnswer?.translated != null ||
+        (view.followUp?.kind === "asked" && ((view.followUp.textEn ?? null) !== null || view.followUp.modelAnswer?.translated != null)),
+    );
 
   return {
     round: {
@@ -577,37 +640,7 @@ export async function feedbackScreen(db: Db, round: RoundRow): Promise<FeedbackS
       ].sort(),
       cvLabel,
     },
-    answers: submitted.map((answer) => {
-      const attempt = attempts.get(answer.id);
-      const status = attempt?.status ?? "pending";
-      return {
-        position: answer.position,
-        followUpAnswer: answer.questionId === null,
-        again: againOf(answer),
-        prompt: answer.promptText,
-        own: answer.transcriptCorrected ?? "",
-        // An answer given again is the same question, and reads the model answer its original has.
-        modelAnswer: modelAnswerOf(answer.retryOfAnswerId ?? answer.id),
-        durationMs: answer.audioDurationMs,
-        wpm: answer.wordsPerMinute,
-        rewrite: answer.rewriteMagnitude === null ? null : rewritePercent(answer.rewriteMagnitude),
-        status,
-        scores: rubric.dimensions.map((dimension) => {
-          const score = status === "ok" ? scoreRows.find((row) => row.scoringAttemptId === attempt!.id && row.dimension === dimension.key) : undefined;
-          return {
-            key: dimension.key,
-            labels: { ja: dimension.label_ja, en: dimension.label_en },
-            value: score?.value ?? null,
-            justification: score?.justification ?? null,
-          };
-        }),
-        answeredIn:
-          status === "ok" && attempt!.answeredLanguage !== null && attempt!.answeredLanguage !== round.language
-            ? attempt!.answeredLanguage
-            : null,
-        followUp: followUpOf(answer.id),
-      };
-    }),
+    answers: answerViews,
     findings: findings ? { toFix: findings.toFix as FeedbackItem[], whatWorked: findings.whatWorked } : null,
     translated: translated ? { toFix: translated.to_fix, whatWorked: translated.what_worked } : null,
     grounding: grounded
@@ -629,5 +662,6 @@ export async function feedbackScreen(db: Db, round: RoundRow): Promise<FeedbackS
         }
       : null,
     findingsUnavailable: !findings && noScores(scoringCounts(roundLevel)),
+    englishHelp: carriesEnglishAfter(round) && anyEnglish ? startsOn : null,
   };
 }

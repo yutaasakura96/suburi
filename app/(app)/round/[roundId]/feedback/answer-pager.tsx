@@ -1,22 +1,24 @@
 "use client";
 
 import { useState } from "react";
-import { ROUND_COPY, type RoundLanguage } from "../../copy";
+import { roundCopy, type RoundCopy, type RoundLanguage } from "../../copy";
 import type { FeedbackAnswerView, ModelAnswerView } from "../../load";
-import { CalloutRail, ModelAnswerText, ScoreRow, answerText, caption, roundSectionLabel } from "../../parts";
+import { CalloutRail, ModelAnswerText, PromptEnglish, Quoting, ScoreRow, answerText, caption, roundSectionLabel } from "../../parts";
 import { ModelAnswersRetry } from "./model-answers-retry";
 
 /**
  * 10 §8, under the pager: what the user said beside the model answer stored for it (04
  * `model_answers`). **An underline is a stored span of the stored model answer** — what the round's CV
  * version does not back — and the caption says so in words, so the mark is never colour alone. A
- * Japanese round's model answer is read in English with the rest of the feedback (PRD §4); what the
- * user said is never translated. An answer with none written says so and offers the retry.
+ * Japanese round's model answer is read in English with the rest of the feedback (PRD §4), and its
+ * labels and caption follow the chrome; what the user said is never translated. An answer with none
+ * written says so and offers the retry.
  */
 function AnswerTexts({
   roundId,
   language,
   reading,
+  copy,
   cvLabel,
   own,
   modelAnswer,
@@ -25,33 +27,37 @@ function AnswerTexts({
   roundId: string;
   language: RoundLanguage;
   reading: RoundLanguage;
+  copy: RoundCopy;
   cvLabel: string;
   own: string;
   modelAnswer: ModelAnswerView | null;
   labels: { readonly own: string; readonly model: string };
 }) {
-  const copy = ROUND_COPY[language];
   const translated = reading !== language ? (modelAnswer?.translated ?? null) : null;
   const segments = translated ?? modelAnswer?.segments ?? [];
   return (
     <div className="grid grid-cols-2 gap-[28px]" data-testid="answer-texts">
       <div className="flex flex-col gap-[10px]">
-        <h2 className={roundSectionLabel(language)}>{labels.own}</h2>
-        <p className={`${answerText} text-ink-3`} data-testid="own-answer">
+        <h2 className={roundSectionLabel(reading)}>{labels.own}</h2>
+        <p className={`${answerText} text-ink-3`} lang={language} data-testid="own-answer">
           {own}
         </p>
       </div>
       <div className="flex flex-col gap-[10px]">
-        <h2 className={roundSectionLabel(language)}>{labels.model}</h2>
+        <h2 className={roundSectionLabel(reading)}>{labels.model}</h2>
         {modelAnswer ? (
           <>
             <ModelAnswerText segments={segments} lang={translated ? reading : language} />
             <p className={caption} data-testid="model-answer-legend">
-              {segments.some((segment) => segment.unsupported) ? copy.modelAnswerMarked(cvLabel) : copy.modelAnswerUnmarked(cvLabel)}
+              <Quoting
+                sentence={segments.some((segment) => segment.unsupported) ? copy.modelAnswerMarked : copy.modelAnswerUnmarked}
+                quotes={[cvLabel]}
+                lang={language}
+              />
             </p>
           </>
         ) : (
-          <ModelAnswersRetry roundId={roundId} language={language} />
+          <ModelAnswersRetry roundId={roundId} language={reading} />
         )}
       </div>
     </div>
@@ -61,8 +67,9 @@ function AnswerTexts({
 /**
  * 10 §8's per-answer region: one answer at a time, its scores as 05 §5.3 rows, a pager to the rest,
  * and under it what was said beside its model answer. Every row is one dimension; there is no row,
- * cell or line that combines them. A dimension is named in the language the feedback is being read in
- * (PRD §4); the rest is the round's chrome.
+ * cell or line that combines them. Everything here but the round's own words follows the language the
+ * feedback is read in (PRD §4, 10 §8): the dimension names and the chrome. With a Japanese round read in
+ * English, the question's and follow-up's stored English sits under them, and the Japanese stays.
  */
 export function AnswerPager({
   roundId,
@@ -79,13 +86,15 @@ export function AnswerPager({
   reading: RoundLanguage;
   cvLabel: string;
 }) {
-  const copy = ROUND_COPY[language];
+  const copy = roundCopy(language, reading !== language);
   const [index, setIndex] = useState(0);
   const answer = answers[index];
   if (!answer) return null;
   const unscored = answer.status === "pending" ? copy.notScoredYet : copy.notScored;
   const retryHeading = (position: number, n: number, followUp: boolean) =>
-    `${copy.stepAgain(followUp ? copy.followUpStep(position, length) : copy.questionOf(position, length))}${n > 1 ? `${language === "en" ? " " : ""}${n}` : ""}`;
+    `${copy.stepAgain(followUp ? copy.followUpStep(position, length) : copy.questionOf(position, length))}${n > 1 ? `${reading === "en" ? " " : ""}${n}` : ""}`;
+  /** What English help shows under a prompt: undefined for nothing, null for the line saying there is none. */
+  const englishFor = (textEn: string | null | undefined) => (reading !== language ? (textEn ?? null) : undefined);
 
   return (
     <div className="flex flex-col gap-[14px]" data-testid="answer-region" data-position={answer.position} data-again={answer.again}>
@@ -100,10 +109,22 @@ export function AnswerPager({
           {copy.answerFigures(answer.durationMs, answer.wpm, answer.rewrite)}
         </span>
       </div>
-      <p className="text-[15px] leading-[1.85] text-ink-2">{answer.prompt}</p>
+      <div className="flex flex-col gap-[6px]">
+        <p className="text-[15px] leading-[1.85] text-ink-2" lang={language}>
+          {answer.prompt}
+        </p>
+        <PromptEnglish english={englishFor(answer.promptEn)} className="text-[13px] leading-[1.75] text-ink-5" />
+      </div>
       <div className="flex flex-col">
         {answer.scores.map((score) => (
-          <ScoreRow key={score.key} label={score.labels[reading]} value={score.value} unscored={unscored} justification={score.justification} />
+          <ScoreRow
+            key={score.key}
+            label={score.labels[reading]}
+            value={score.value}
+            unscored={unscored}
+            justification={score.justification}
+            justificationLang={language}
+          />
         ))}
         {/* 10 §8: the follow-up shares the row rhythm and carries no scale; its scores are History's. */}
         {answer.followUp ? (
@@ -115,7 +136,12 @@ export function AnswerPager({
               </span>
             ) : (
               <>
-                <span className="flex-1 text-[12px] leading-[1.7] text-ink-7">{answer.followUp.text}</span>
+                <span className="flex flex-1 flex-col gap-[4px]">
+                  <span className="text-[12px] leading-[1.7] text-ink-7" lang={language}>
+                    {answer.followUp.text}
+                  </span>
+                  <PromptEnglish english={englishFor(answer.followUp.textEn)} className="text-[12px] leading-[1.7] text-ink-8" />
+                </span>
                 <span className="shrink-0 text-[11px] text-ink-label">
                   {answer.followUp.status === "ok"
                     ? copy.followUpScored(answer.scores.length)
@@ -160,6 +186,7 @@ export function AnswerPager({
           roundId={roundId}
           language={language}
           reading={reading}
+          copy={copy}
           cvLabel={cvLabel}
           own={answer.own}
           modelAnswer={answer.modelAnswer}
@@ -171,6 +198,7 @@ export function AnswerPager({
               roundId={roundId}
               language={language}
               reading={reading}
+              copy={copy}
               cvLabel={cvLabel}
               own={answer.followUp.own}
               modelAnswer={answer.followUp.modelAnswer}

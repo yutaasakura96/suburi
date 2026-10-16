@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { FEEDBACK_READING, type RoundLanguage } from "../../round/copy";
-import { ModelAnswerText, answerText, caption, sectionLabel } from "../../round/parts";
+import { ModelAnswerText, PromptEnglish, answerText, caption, sectionLabel } from "../../round/parts";
 import { STUDY_COPY as COPY } from "./copy";
 import type { StudyAnswer, StudyRound } from "./load";
 
@@ -67,16 +67,24 @@ function Texts({
  * the model answer, the follow-up the same way — beside the round's stored `To fix`. Screen 8's card
  * without its scores and without its pager.
  *
- * **Read-only by construction.** Its one piece of state is the language a Japanese round's model
- * answers and findings are read in, when their translation was stored (PRD §4); the pill is its one
- * control. No score, no figure and nothing that combines dimensions is read by this screen at all.
+ * **Read-only by construction.** Its one piece of state is the language a Japanese round is read in,
+ * when something of it was stored in English (PRD §4): its model answers and findings from their
+ * translations, and each question's and follow-up's English under it (#106). The pill is its one
+ * control and starts from the user's English help setting; the questions as asked, what was said and
+ * the chrome never change. No score, no figure and nothing that combines dimensions is read by this
+ * screen at all.
  */
-export function StudyRoundView({ round }: { round: StudyRound }) {
+export function StudyRoundView({ round, englishHelp }: { round: StudyRound; englishHelp: boolean }) {
   const { language } = round;
   const answered = round.questions.flatMap((question) => (question.followUp ? [question, question.followUp] : [question]));
-  const translatable = language === "ja" && (round.toFixTranslated !== null || answered.some((answer) => answer.modelAnswer?.translated != null));
-  const [selectedReading, setReading] = useState<RoundLanguage>(language);
+  const translatable =
+    language === "ja" &&
+    (round.toFixTranslated !== null ||
+      answered.some((answer) => answer.modelAnswer?.translated != null || (answer.promptEn ?? null) !== null));
+  const [selectedReading, setReading] = useState<RoundLanguage>(englishHelp ? "en" : language);
   const reading = translatable ? selectedReading : language;
+  /** What the pill shows under a prompt: undefined for nothing, null for the line saying there is none. */
+  const englishFor = (promptEn: string | null | undefined) => (reading !== language ? (promptEn ?? null) : undefined);
   const other: RoundLanguage = reading === "ja" ? "en" : "ja";
   const toFix = reading === language ? round.toFix : (round.toFixTranslated ?? round.toFix);
   const toFixLanguage = reading !== language && round.toFixTranslated ? reading : language;
@@ -110,6 +118,7 @@ export function StudyRoundView({ round }: { round: StudyRound }) {
           <button
             type="button"
             lang={other}
+            aria-pressed={reading !== language}
             onClick={() => setReading(other)}
             className="border border-tick px-[10px] py-[4px] text-[11px] text-ink-4 hover:text-ink-1"
             data-testid="study-language"
@@ -129,18 +138,24 @@ export function StudyRoundView({ round }: { round: StudyRound }) {
               data-position={question.position}
             >
               <span className="font-mono text-[11px] tracking-[0.16em] text-ink-label">{COPY.question(question.position, round.length)}</span>
-              <h3 className="text-[15px] leading-[1.85] text-ink-2" lang={language}>
-                {question.prompt}
-              </h3>
+              <div className="flex flex-col gap-[6px]">
+                <h3 className="text-[15px] leading-[1.85] text-ink-2" lang={language}>
+                  {question.prompt}
+                </h3>
+                <PromptEnglish english={englishFor(question.promptEn)} className="text-[13px] leading-[1.75] text-ink-5" />
+              </div>
               <Texts round={round} reading={reading} answer={question} labels={{ own: COPY.ownAnswer, model: COPY.modelAnswer }} />
               {question.followUp ? (
                 <div className="flex flex-col gap-[14px] pt-[10px]" data-testid="study-follow-up">
-                  <p className="flex items-baseline gap-[18px] text-[12px] leading-[1.7]">
+                  <div className="flex items-baseline gap-[18px] text-[12px] leading-[1.7]">
                     <span className="shrink-0 text-ink-6">{COPY.followUp}</span>
-                    <span className="text-[13px] leading-[1.85] text-ink-2" lang={language}>
-                      {question.followUp.prompt}
-                    </span>
-                  </p>
+                    <div className="flex flex-col gap-[4px]">
+                      <p className="text-[13px] leading-[1.85] text-ink-2" lang={language}>
+                        {question.followUp.prompt}
+                      </p>
+                      <PromptEnglish english={englishFor(question.followUp.promptEn)} className="text-[12px] leading-[1.7] text-ink-8" />
+                    </div>
+                  </div>
                   <Texts
                     round={round}
                     reading={reading}

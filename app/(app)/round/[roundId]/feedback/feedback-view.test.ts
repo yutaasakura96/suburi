@@ -18,10 +18,11 @@ const screen: FeedbackScreen = {
   translated: null,
   grounding: null,
   findingsUnavailable: false,
+  englishHelp: null,
 };
 
 describe("feedback reading language", () => {
-  it("offers English only when stored findings have a translation", () => {
+  it("offers English only when the loader found something stored in English", () => {
     const untranslated = renderToStaticMarkup(createElement(FeedbackView, { screen }));
     expect(untranslated).not.toContain('data-testid="feedback-language"');
     expect(untranslated).toContain("先に述べる");
@@ -31,11 +32,42 @@ describe("feedback reading language", () => {
         screen: {
           ...screen,
           translated: { toFix: [{ title: "Conclusion", body: "State it first" }], whatWorked: "Example" },
+          englishHelp: false,
         },
       }),
     );
     expect(translated).toContain('data-testid="feedback-language"');
     expect(translated).toContain("English");
+    expect(translated).toContain("先に述べる");
+  });
+
+  // 10 §8 (#106): the pill starts from the setting, and with it on the chrome is an English round's.
+  it("starts from the English help setting, with the chrome in English and the findings from their translation", () => {
+    const html = renderToStaticMarkup(
+      createElement(FeedbackView, {
+        screen: {
+          ...screen,
+          translated: { toFix: [{ title: "Conclusion", body: "State it first" }], whatWorked: "Example" },
+          englishHelp: true,
+        },
+      }),
+    );
+    expect(html).toContain('aria-pressed="true"');
+    expect(html).toContain(">日本語</button>");
+    expect(html).toContain("HR</h1>");
+    expect(html).toContain("Japanese · Realistic · 1 questions");
+    expect(html).toContain("State it first");
+    expect(html).toContain("To fix 1");
+    expect(html).not.toContain("先に述べる");
+  });
+
+  it("keeps the Japanese findings, under English headings, when only something else has English", () => {
+    const html = renderToStaticMarkup(createElement(FeedbackView, { screen: { ...screen, englishHelp: true } }));
+    expect(html).toContain("To fix 1");
+    expect(html).toContain('lang="ja" data-testid="findings"');
+    expect(html).toContain('lang="en">To fix 1</h2>');
+    expect(html).toContain("先に述べる");
+    expect(html).not.toContain('data-testid="findings-not-ready"');
   });
 });
 
@@ -72,13 +104,15 @@ describe("the answer texts", () => {
       createElement(AnswerPager, { roundId: "round-1", answers, length: 1, language: "ja", reading, cvLabel: "応募書類 v1" }),
     );
   const ja = ROUND_COPY.ja;
+  /** The CV stamp inside the legend: stored text, marked with the round's language whatever the chrome. */
+  const CV = '<span lang="ja">応募書類 v1</span>';
 
   it("shows what was said beside the model answer, with what the CV does not back underlined and named", () => {
     const html = render([answer]);
     expect(html).toContain(`data-testid="own-answer">${answer.own}</p>`);
     expect(html).toContain('lang="ja" data-testid="model-answer">決済基盤の移行を担当し、<span');
     expect(html).toContain('data-testid="model-answer-unsupported">4名のチーム</span>で切り替えました。</p>');
-    expect(html).toContain(`data-testid="model-answer-legend">${ja.modelAnswerMarked("応募書類 v1")}</p>`);
+    expect(html).toContain(`data-testid="model-answer-legend">${ja.modelAnswerMarked(CV)}</p>`);
     expect(html).not.toContain('data-testid="model-answer-not-written"');
     expect(html).not.toContain('data-testid="follow-up-texts"');
   });
@@ -87,7 +121,7 @@ describe("the answer texts", () => {
     const segments = [{ text: "決済基盤の移行を担当しました。", unsupported: false }];
     const html = render([{ ...answer, modelAnswer: { segments, translated: null } }]);
     expect(html).not.toContain('data-testid="model-answer-unsupported"');
-    expect(html).toContain(`data-testid="model-answer-legend">${ja.modelAnswerUnmarked("応募書類 v1")}</p>`);
+    expect(html).toContain(`data-testid="model-answer-legend">${ja.modelAnswerUnmarked(CV)}</p>`);
   });
 
   it("reads the model answer in English from its stored translation, and never translates what was said", () => {
@@ -95,9 +129,27 @@ describe("the answer texts", () => {
     expect(html).toContain('lang="en" data-testid="model-answer">I led the payments migration with <span');
     expect(html).toContain('data-testid="model-answer-unsupported">a team of four</span>.</p>');
     expect(html).not.toContain("4名のチーム");
-    expect(html).toContain(`data-testid="own-answer">${answer.own}</p>`);
-    // The chrome stays in the round's language (10 §0).
-    expect(html).toContain(ja.modelAnswer);
+    expect(html).toContain(`lang="ja" data-testid="own-answer">${answer.own}</p>`);
+    // With the pill on, the chrome is an English round's (10 §8, #106); the stored CV stamp stays.
+    expect(html).toContain(ROUND_COPY.en.modelAnswer);
+    expect(html).not.toContain(ja.modelAnswer);
+    expect(html).toContain(`data-testid="model-answer-legend">${ROUND_COPY.en.modelAnswerMarked(CV)}</p>`);
+  });
+
+  it("shows the question's and follow-up's stored English under them only with the pill on, and says when there is none", () => {
+    const followUp = { kind: "asked" as const, text: "何名で担当されましたか。", textEn: null, status: "ok" as const, own: null, modelAnswer: null };
+    const english = { ...answer, promptEn: "Tell me about your experience so far.", followUp };
+    const on = render([english], "en");
+    expect(on).toContain('lang="ja">これまでの経験を教えてください。</p>');
+    expect(on).toContain('lang="en" class="text-[13px] leading-[1.75] text-ink-5" data-testid="prompt-english">Tell me about your experience so far.</p>');
+    expect(on).toContain('lang="ja">何名で担当されましたか。</span>');
+    expect(on).toContain('data-testid="prompt-english-none">No English for this question yet.</p>');
+    expect(on).toContain("Question 1 / 1");
+
+    const off = render([english]);
+    expect(off).not.toContain("Tell me about your experience so far.");
+    expect(off).not.toContain("No English for this question yet.");
+    expect(off).toContain("第1問 / 1問");
   });
 
   it("states an answer with no model answer and offers to write it, with no spinner", () => {

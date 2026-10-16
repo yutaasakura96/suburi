@@ -25,7 +25,7 @@ export async function loadSettings(db: Db, userId: string) {
 
 /**
  * Whether English help starts on for this user: the starting state of a Japanese practice round's
- * pill (`10` §15), off when the user has no `user_settings` row. **A starting state, never a gate**:
+ * pill (`10` §15) and of screen 8's and Study's (§8, §16), off when the user has no `user_settings` row. **A starting state, never a gate**:
  * whether a round carries English at all is the round's (`lib/round/english-help.ts`).
  */
 export async function englishHelpStartsOn(db: Db, userId: string): Promise<boolean> {

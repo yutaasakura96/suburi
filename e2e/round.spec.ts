@@ -978,7 +978,8 @@ test("a realistic Japanese round: Japanese throughout, seven rows, and the feedb
   await expect(page.getByTestId("findings")).not.toContainText(ENGLISH_CHROME);
   await shot("8-feedback");
 
-  // The toggle changes the feedback — the dimension names and the findings — and nothing else.
+  // The toggle reads the feedback in English — the dimension names, the findings and the model
+  // answers — and, since #106, turns the screen's chrome English; what was said stays (10 §8).
   await pill.click();
   await expect(pill).toHaveText("日本語");
   expect(await labels()).toEqual(["Structure", "Evidence", "Relevance", "Fluency", "Accuracy", "Length and pacing", "Keigo (register)"]);
@@ -994,10 +995,10 @@ test("a realistic Japanese round: Japanese throughout, seven rows, and the feedb
   await expect(page.getByTestId("model-answer").first()).toHaveAttribute("lang", "en");
   await expect(page.getByTestId("model-answer-unsupported")).toHaveText([MODEL_UNSUPPORTED, MODEL_UNSUPPORTED]);
   await expect(page.getByTestId("own-answer").first()).toHaveText(CORRECTED_JA);
-  await expect(page.getByTestId("answer-texts").first()).toContainText("模範回答");
-  await expect(page.getByText("日本語・実戦・3問")).toBeVisible();
-  await expect(page.getByTestId("answer-region")).toContainText("第1問 / 3問");
-  await expect(page.getByTestId("pressure-stamp")).toHaveText("緊張度4を講評前に記録");
+  await expect(page.getByTestId("answer-texts").first()).toContainText("Model answer");
+  await expect(page.getByText("Japanese · Realistic · 3 questions")).toBeVisible();
+  await expect(page.getByTestId("answer-region")).toContainText("Question 1 / 3");
+  await expect(page.getByTestId("pressure-stamp")).toHaveText("Pressure 4 recorded before the feedback");
   await shot("8-feedback-english");
   await pill.click();
   await expect(pill).toHaveText("English");
@@ -1056,11 +1057,16 @@ test("a realistic Japanese round: Japanese throughout, seven rows, and the feedb
   expect(spoken).toHaveLength(6);
   expect(spoken.filter((_, index) => index % 2 === 1).map((request) => request.body.input)).toEqual([FOLLOW_UP_JA, FOLLOW_UP_JA, FOLLOW_UP_JA]);
 
-  // A stored Japanese finding without an English translation must never offer the toggle.
+  // Findings stored without their English keep the pill while anything else on the screen has
+  // English (10 §8, #106): with it on, the findings stay Japanese, marked so, under English headings.
+  // With nothing stored in English there is no pill (lib/round/study.integration.test.ts).
   await withDb((db) => db.update(s.roundFeedback).set({ bodyTranslated: null }).where(eq(s.roundFeedback.roundId, roundId)));
   await page.reload();
-  await expect(page.getByTestId("feedback-language")).toHaveCount(0);
   await expect(page.getByTestId("to-fix")).toContainText("結論を最初の一文に置く");
+  await page.getByTestId("feedback-language").click();
+  await expect(page.getByTestId("to-fix")).toContainText("To fix 2");
+  await expect(page.getByTestId("to-fix")).toContainText("結論を最初の一文に置く");
+  await expect(page.getByTestId("findings")).toHaveAttribute("lang", "ja");
   await expect(page.getByTestId("what-worked")).toContainText("第3問で、具体的な場面を挙げて説明できている。");
   await page.screenshot({ path: test.info().outputPath("ja-8-no-translation.png"), fullPage: true });
 });

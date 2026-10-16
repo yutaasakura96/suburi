@@ -1,9 +1,10 @@
 import { and, asc, eq, sql } from "drizzle-orm";
 import { afterAll, describe, expect, it } from "vitest";
 import { STUDY_PAGE_ROUNDS, studyPage } from "../../app/(app)/history/study/load";
+import { feedbackScreen } from "../../app/(app)/round/load";
 import * as s from "../../db/schema";
 import { seedSyntheticCv } from "../../db/seed-cv";
-import { seedRubrics, seedSyntheticQuestions } from "../../db/seed-questions";
+import { seedRubrics, seedSyntheticEnglish, seedSyntheticQuestions } from "../../db/seed-questions";
 import { SYNTHETIC_MODEL_ID, seedSyntheticRounds, syntheticId } from "../../db/seed-rounds";
 import { closePool, inRolledBackTransaction, type TestDb } from "../../db/test/database";
 import { insertUser } from "../../db/test/fixtures";
@@ -260,7 +261,7 @@ describe("the study view's loader (10 §16)", () => {
       expect([...keysOf(page)].sort()).toEqual(
         [
           "again", "body", "complete", "cvLabel", "followUp", "id", "language", "length", "mode", "modelAnswer", "older", "own",
-          "position", "prompt", "questions", "roundType", "rounds", "segments", "startedAt", "text", "title", "toFix",
+          "position", "prompt", "promptEn", "questions", "roundType", "rounds", "segments", "startedAt", "text", "title", "toFix",
           "toFixTranslated", "translated", "unsupported",
         ].sort(),
       );
@@ -271,5 +272,123 @@ describe("the study view's loader (10 §16)", () => {
       const userId = await seededUser(db);
       await db.execute(sql`set transaction read only`);
       expect((await studyPage(db, userId, null)).rounds).toHaveLength(4);
+    }));
+});
+
+// English after the round (10 §8, §16; #106, #127): screen 8 and Study read each prompt's stored English
+// — a question's newest translation, a follow-up's own row's — on a Japanese round, and an English
+// round carries none at all. Reads only.
+describe("English after the round", () => {
+  async function withEnglish(db: TestDb) {
+    const userId = await seededUser(db);
+    await seedSyntheticEnglish(db, userId);
+    await db
+      .update(s.followUps)
+      .set({ promptTextTranslated: "Who made that call?" })
+      .where(eq(s.followUps.parentAnswerId, syntheticId(userId, "complete-ja:q1")));
+    return userId;
+  }
+  const Q1_EN = "Tell me about the most difficult problem you solved in the last year.";
+  const roundRow = async (db: TestDb, userId: string, name: string) =>
+    (await db.select().from(s.rounds).where(eq(s.rounds.id, syntheticId(userId, name))))[0];
+
+  it("Study reads each prompt's English on a Japanese round, null where none is stored, and none at all on an English one", () =>
+    inRolledBackTransaction(async (db) => {
+      const userId = await withEnglish(db);
+      const [japanese, english] = (await studyPage(db, userId, null)).rounds;
+
+      expect(japanese.questions[0]).toMatchObject({ promptEn: Q1_EN, followUp: { promptEn: "Who made that call?" } });
+      expect(japanese.questions[2].followUp).toMatchObject({ promptEn: null });
+      expect(english.questions.every((question) => !("promptEn" in question))).toBe(true);
+      expect(english.questions[0].followUp).not.toHaveProperty("promptEn");
+    }));
+
+  it("withholds every stored English field until a realistic round completes, while practice keeps it", () =>
+    inRolledBackTransaction(async (db) => {
+      const userId = await withEnglish(db);
+      const roundId = syntheticId(userId, "complete-ja");
+      const { feltPressure } = await roundRow(db, userId, "complete-ja");
+      await db.insert(s.modelAnswers).values(modelAnswer(userId, syntheticId(userId, "complete-ja:q1"), {
+        body: "夜間処理を短縮しました。",
+        bodyTranslated: { language: "en", body: "We cut the nightly run.", unsupported_spans: [] },
+      }));
+      const studyRound = async () => (await studyPage(db, userId, null)).rounds.find((round) => round.id === roundId)!;
+
+      await db.update(s.rounds).set({ completedAt: null }).where(eq(s.rounds.id, roundId));
+      const unfinished = await studyRound();
+      expect(unfinished.complete).toBe(false);
+      expect(unfinished.questions[0]).not.toHaveProperty("promptEn");
+      expect(unfinished.questions[0].followUp).not.toHaveProperty("promptEn");
+      expect(unfinished.questions[0].modelAnswer?.translated).toBeNull();
+      expect(unfinished.toFixTranslated).toBeNull();
+
+      await db.update(s.rounds).set({ mode: "practice", feltPressure: null }).where(eq(s.rounds.id, roundId));
+      const practice = await studyRound();
+      expect(practice.questions[0].promptEn).toBe(Q1_EN);
+      expect(practice.questions[0].followUp?.promptEn).toBe("Who made that call?");
+      expect(practice.questions[0].modelAnswer?.translated).not.toBeNull();
+      expect(practice.toFixTranslated).not.toBeNull();
+
+      await db.update(s.rounds).set({ mode: "realistic", feltPressure, completedAt: new Date() }).where(eq(s.rounds.id, roundId));
+      const complete = await studyRound();
+      expect(complete.questions[0].promptEn).toBe(Q1_EN);
+      expect(complete.questions[0].followUp?.promptEn).toBe("Who made that call?");
+      expect(complete.questions[0].modelAnswer?.translated).not.toBeNull();
+      expect(complete.toFixTranslated).not.toBeNull();
+    }));
+
+  it("screen 8 reads the newest English, starts the pill from the setting, and an English round has no pill", () =>
+    inRolledBackTransaction(async (db) => {
+      const userId = await withEnglish(db);
+      const [question] = await db
+        .select({ id: s.answers.questionId })
+        .from(s.answers)
+        .where(eq(s.answers.id, syntheticId(userId, "complete-ja:q1")));
+      // A re-write is a new row beside the old one, and the newest is the question's English (Q106-5).
+      await db.insert(s.questionTranslations).values({
+        questionId: question.id!,
+        userId,
+        language: "en",
+        body: "What was the hardest problem you solved this past year?",
+        source: "hand_written",
+        modelId: null,
+        promptVersion: "synthetic-rewrite",
+        createdAt: new Date(Date.now() + 60_000),
+      });
+
+      const screen = await feedbackScreen(db, await roundRow(db, userId, "complete-ja"));
+      expect(screen.englishHelp).toBe(false);
+      expect(screen.answers.map((answer) => answer.promptEn)).toEqual([
+        "What was the hardest problem you solved this past year?",
+        "Describe a time you had to deliver with less time than you needed.",
+        "Tell me about a time you persuaded someone who did not report to you.",
+      ]);
+      expect(screen.answers[0].followUp).toMatchObject({ kind: "asked", textEn: "Who made that call?" });
+      expect(screen.answers[2].followUp).toMatchObject({ kind: "asked", textEn: null });
+
+      await db.insert(s.userSettings).values({ userId, englishHelp: true });
+      expect((await feedbackScreen(db, await roundRow(db, userId, "complete-ja"))).englishHelp).toBe(true);
+
+      const english = await feedbackScreen(db, await roundRow(db, userId, "failed-en"));
+      expect(english.englishHelp).toBeNull();
+      expect(english.answers.every((answer) => !("promptEn" in answer))).toBe(true);
+    }));
+
+  it("screen 8 has no pill on a Japanese round with nothing stored in English", () =>
+    inRolledBackTransaction(async (db) => {
+      const userId = await seededUser(db);
+      await db.update(s.roundFeedback).set({ bodyTranslated: null }).where(eq(s.roundFeedback.roundId, syntheticId(userId, "complete-ja")));
+      const screen = await feedbackScreen(db, await roundRow(db, userId, "complete-ja"));
+      expect(screen.answers.map((answer) => answer.promptEn)).toEqual([null, null, null]);
+      expect(screen.englishHelp).toBeNull();
+    }));
+
+  it("reads and never writes: both run in a read-only transaction", () =>
+    inRolledBackTransaction(async (db) => {
+      const userId = await withEnglish(db);
+      const round = await roundRow(db, userId, "complete-ja");
+      await db.execute(sql`set transaction read only`);
+      expect((await studyPage(db, userId, null)).rounds[0].questions[0].promptEn).toBe(Q1_EN);
+      expect((await feedbackScreen(db, round)).answers[0].promptEn).toBe(Q1_EN);
     }));
 });
