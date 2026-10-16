@@ -988,7 +988,7 @@ below controls a Japanese round's dimension labels.
 | `日本語・実戦・5問` | `Japanese · Realistic · 5 questions` |
 | `未採点 — 採点をやり直す` | `Unscored — retry scoring` |
 | `中断 — 進捗から除外` | `Abandoned — not counted in progress` |
-| `求人票 …・緊張度4を講評前に記録` | `Posting: {company}, {title} · Pressure 4 recorded before the feedback`; a general round reads `General practice` |
+| `求人票 …・緊張度4を講評前に記録` | `Posting: {company}, {title} · Pressure 4 recorded before the feedback`; a round on a research reads `Researched: {company}, {title}` (#135), never `Posting`; a general round reads `General practice` |
 | `編集できません` | `Read-only` |
 | `└ 深掘り` | `└ Follow-up` |
 | `深掘りが生成されませんでした。空欄として記録しています。` | `The follow-up was not generated. It is recorded as a gap.` |

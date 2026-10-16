@@ -49,7 +49,12 @@ async function loadClaims(db: Pick<Db, "execute">, cvVersionId: string) {
   return rows.map((row) => row.quote);
 }
 
-/** A round's role context as a generating call is shown it: a posting with its text, or General practice. */
+/**
+ * A round's role context as a generating call is shown it: a posting with its text, or General practice.
+ * **A research is read where a posting is** (06, 2026-10-16, #135): its `body` is the notes as the user
+ * edited them, shown as the posting's text under the same prompt. `research_draft` is never read here,
+ * so the draft cannot reach a question or a model answer.
+ */
 export async function loadRoleContext(db: Pick<Db, "execute">, roleContextId: string): Promise<GenerationRoleContext> {
   const { rows } = await db.execute<{ kind: string; company_name: string | null; role_title: string | null; body: string | null }>(sql`
     select kind, company_name, role_title, body from role_contexts where id = ${roleContextId}`);

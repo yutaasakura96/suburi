@@ -511,4 +511,16 @@ describe("the measurement record refuses", () => {
         { kind: "unique", constraint: "role_contexts_general_uniq" },
       );
     }));
+
+  // 04 `role_contexts`, #135: only a research has the model's draft beside its notes.
+  it.each(["posting", "general"] as const)("a research draft on a %s role context", (kind) =>
+    inRolledBackTransaction(async (db) => {
+      const world = await insertWorld(db);
+      await expectRefused(
+        db,
+        () => db.insert(s.roleContexts).values({ userId: world.userId, kind, companyName: "Fixture", roleTitle: "Engineer", body: "synthetic", researchDraft: "draft" }),
+        { kind: "check", constraint: "role_contexts_research_draft_check" },
+      );
+    }),
+  );
 });

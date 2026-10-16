@@ -5,16 +5,16 @@ import { ModelCallFailed, upstreamErrorClass } from "../ai/upstream";
 import { characterLength } from "../cv/spans";
 import { authenticate, guarded, log, parseBody, type RoundDeps } from "./http";
 import { MAX_POSTING_NAME_CHARS } from "./limits";
-import { samePosting } from "./same-job";
+import { refuseSamePosting } from "./same-job";
 
 /**
  * `POST /api/role-contexts/research` ⚡ (07 §5.22): English notes on a company and on what a role there
  * most likely involves, for US-16 (06, 2026-10-16, R1, R2, R4, R5). **It saves nothing**: the user
- * reads and edits the notes on Setup first, and a save is `POST /api/role-contexts` (#135).
+ * reads and edits the notes on Setup first, and a save is `POST /api/role-contexts` (§5.3, #135).
  *
  * **A saved posting wins** (R4, US-2): when the user has a posting for the same job — company and role
- * equal after tidying (`same-job.ts`) — it is `422 research_posting_exists`, naming that posting, before
- * any model call. A blank or over-long field is a `400`, as a posting's is.
+ * equal after tidying (`same-job.ts`, shared with the save) — it is `422 research_posting_exists`, naming
+ * that posting, before any model call. A blank or over-long field is a `400`, as a posting's is.
  *
  * **Nothing in the request, the notes or the response is logged** (12 §7): not the company, the role
  * or a fact. Log lines carry counts, a duration and an error class.
@@ -46,13 +46,8 @@ export function createResearch(deps: ResearchDeps) {
     const body = await parseBody(request, requestSchema);
     if (body instanceof Response) return body;
 
-    const posting = await samePosting(deps.db, userId, body.company_name, body.role_title);
-    if (posting) {
-      log("info", { event: "research_posting_exists", role_context_id: posting.id });
-      return apiError("research_posting_exists", "A saved posting is for the same job; it is used instead.", {
-        role_context_id: posting.id,
-      });
-    }
+    const refused = await refuseSamePosting(deps.db, userId, body.company_name, body.role_title);
+    if (refused) return refused;
 
     const started = performance.now();
     const outcome = await research(deps.researcher, { companyName: body.company_name, roleTitle: body.role_title });

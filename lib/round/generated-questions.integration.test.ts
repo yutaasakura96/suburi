@@ -26,6 +26,7 @@ import { SPARE_CANDIDATES } from "./generate-candidates";
 import { MAX_POSTING_CHARS } from "./limits";
 import { createPostRound } from "./post-round";
 import { createPostRoleContext } from "./role-context";
+import * as roleContextRoute from "@/app/api/role-contexts/route";
 
 // #47 through its handlers and its guard, against the migrated test database: generation at round
 // start, the near-duplicate guard (11 §3.7), the questions a round fixes (11 §3.13) and the posting.
@@ -896,7 +897,7 @@ describe("POST /api/role-contexts — a posting (07 §5.3)", () => {
     ["no text", { ...posting, body: " " }, "body"],
     ["a blank filename", { ...posting, source_filename: "" }, "source_filename"],
     ["an unknown field", { ...posting, notes: "x" }, "notes"],
-    ["research, until US-16", { kind: "researched", company_name: "Invented Freight" }, "kind"],
+    ["a research draft on a posting", { ...posting, research_draft: "A draft." }, "research_draft"],
     ["General practice with a company", { kind: "general", company_name: "Invented Freight" }, "company_name"],
   ])("refuses %s with a 400 naming the field, and saves nothing", (_, body, field) =>
     inRolledBackTransaction(async (db) => {
@@ -941,5 +942,159 @@ describe("POST /api/role-contexts — a posting (07 §5.3)", () => {
       expect(status).toBe(404);
       expect(json.error.code).toBe("not_found");
       expect(world.questionGenerator.calls).toBe(0);
+    }));
+});
+
+describe("POST /api/role-contexts — a research (07 §5.3, US-16)", () => {
+  const research = {
+    kind: "researched",
+    company_name: "Invented Freight",
+    role_title: "Backend Engineer",
+    body: "Invented Freight moves parcels. [model knowledge]\nThe role most likely owns the routing service. (a guess)",
+    research_draft: "Invented Freight moves parcels and pallets. [model knowledge]\nThe role most likely owns billing. (a guess)",
+  };
+  const posting = { kind: "posting", company_name: "Invented Freight", role_title: "Backend Engineer", body: "An invented posting." };
+
+  it("saves the edited notes and the draft beside them, and returns neither", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const { status, json } = await world.post(world.handlers.roleContext, research);
+
+      expect(status).toBe(201);
+      expect(json).toEqual({
+        id: expect.any(String),
+        kind: "researched",
+        company_name: "Invented Freight",
+        role_title: "Backend Engineer",
+        source_filename: null,
+        created_at: expect.any(String),
+      });
+      const [row] = await db.select().from(s.roleContexts).where(eq(s.roleContexts.id, json.id));
+      expect(row).toMatchObject({ userId: world.userId, kind: "researched", body: research.body, researchDraft: research.research_draft });
+    }));
+
+  it("trims what it stores", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const { json } = await world.post(world.handlers.roleContext, {
+        ...research,
+        company_name: " Invented Freight ",
+        body: "\n Edited notes. \n",
+        research_draft: "  The draft.\n",
+      });
+      const [row] = await db.select().from(s.roleContexts).where(eq(s.roleContexts.id, json.id));
+      expect(row).toMatchObject({ companyName: "Invented Freight", body: "Edited notes.", researchDraft: "The draft." });
+    }));
+
+  it("is immutable: the same research saved twice is two rows", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const first = await world.post(world.handlers.roleContext, research);
+      const second = await world.post(world.handlers.roleContext, research);
+
+      expect(second.json.id).not.toBe(first.json.id);
+      expect(await db.$count(s.roleContexts, and(eq(s.roleContexts.userId, world.userId), eq(s.roleContexts.kind, "researched")))).toBe(2);
+    }));
+
+  it("has no PUT, PATCH or DELETE: the route answers POST alone", () => {
+    expect(Object.keys(roleContextRoute)).toEqual(["POST"]);
+  });
+
+  it.each([
+    ["the same names", { company_name: "Invented Freight", role_title: "Backend Engineer" }],
+    ["names equal after tidying", { company_name: "  ＩＮＶＥＮＴＥＤ   freight", role_title: "backend  ENGINEER " }],
+  ])("is 422 research_posting_exists for %s as a saved posting, naming it, and saves nothing", (_, names) =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const saved = await world.post(world.handlers.roleContext, posting);
+      const { status, json } = await world.post(world.handlers.roleContext, { ...research, ...names });
+
+      expect(status).toBe(422);
+      expect(json.error).toMatchObject({ code: "research_posting_exists", detail: { role_context_id: saved.json.id } });
+      expect(await db.$count(s.roleContexts, eq(s.roleContexts.kind, "researched"))).toBe(0);
+    }));
+
+  it("saves a research at a posting's company under another role", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      await world.post(world.handlers.roleContext, posting);
+      expect((await world.post(world.handlers.roleContext, { ...research, role_title: "Data Engineer" })).status).toBe(201);
+    }));
+
+  it("is not refused by another user's posting for the same job", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      await db.insert(s.roleContexts).values({ userId: await insertUser(db), kind: "posting", companyName: "Invented Freight", roleTitle: "Backend Engineer", body: "Theirs." });
+      expect((await world.post(world.handlers.roleContext, research)).status).toBe(201);
+    }));
+
+  it.each([
+    ["the notes", { body: "a".repeat(MAX_POSTING_CHARS + 1) }, { body_chars: MAX_POSTING_CHARS + 1 }],
+    ["the draft", { research_draft: "a".repeat(MAX_POSTING_CHARS + 1) }, { research_draft_chars: MAX_POSTING_CHARS + 1 }],
+  ])("is 422 role_context_too_large with %s over the cap, before anything is saved", (_, overrides, chars) =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const { status, json } = await world.post(world.handlers.roleContext, { ...research, ...overrides });
+
+      expect(status).toBe(422);
+      expect(json.error).toMatchObject({ code: "role_context_too_large", detail: { ...chars, max_body_chars: MAX_POSTING_CHARS } });
+      expect(await db.$count(s.roleContexts, eq(s.roleContexts.userId, world.userId))).toBe(0);
+    }));
+
+  it("saves both texts at the cap, counted in code points", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const atCap = "𠮷".repeat(MAX_POSTING_CHARS);
+      expect((await world.post(world.handlers.roleContext, { ...research, body: atCap, research_draft: atCap })).status).toBe(201);
+    }));
+
+  it.each([
+    ["no company", { ...research, company_name: undefined }, "company_name"],
+    ["a blank role title", { ...research, role_title: "  " }, "role_title"],
+    ["a company over 200 characters", { ...research, company_name: "c".repeat(201) }, "company_name"],
+    ["blank notes", { ...research, body: " \n " }, "body"],
+    ["no draft", { ...research, research_draft: undefined }, "research_draft"],
+    ["a blank draft", { ...research, research_draft: "   " }, "research_draft"],
+    ["a filename", { ...research, source_filename: "notes.pdf" }, "source_filename"],
+    ["an unknown field", { ...research, searched: true }, "searched"],
+    ["a research draft on General practice", { kind: "general", research_draft: "A draft." }, "research_draft"],
+  ])("refuses %s with a 400 naming the field, and saves nothing", (_, body, field) =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const { status, json } = await world.post(world.handlers.roleContext, body);
+
+      expect(status).toBe(400);
+      expect(json.error.code).toBe("invalid_request");
+      expect(JSON.stringify(json.error.detail)).toContain(field);
+      expect(await db.$count(s.roleContexts, eq(s.roleContexts.userId, world.userId))).toBe(0);
+    }));
+
+  it("logs neither text, the company nor the role, and returns neither text", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const sentinel = { ...research, company_name: `Co ${SENTINEL}`, role_title: `Role ${SENTINEL}`, body: `Notes ${SENTINEL}`, research_draft: `Draft ${SENTINEL}` };
+      await world.post(world.handlers.roleContext, sentinel);
+      await world.post(world.handlers.roleContext, { ...sentinel, body: `Notes ${SENTINEL} ${"a".repeat(MAX_POSTING_CHARS)}` });
+
+      expect(logged.join("\n")).not.toContain(SENTINEL);
+      expect(world.responses.join("\n")).not.toMatch(/(Notes|Draft) ZEBRA/);
+    }));
+
+  it("starts a round on a research, sending the generator the edited notes and never the draft", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const saved = await world.post(world.handlers.roleContext, research);
+      const { status, json } = await world.startRound({ role_context_id: saved.json.id });
+
+      expect(status).toBe(201);
+      expect(world.questionGenerator.inputs[0].roleContext).toEqual({
+        kind: "posting",
+        companyName: "Invented Freight",
+        roleTitle: "Backend Engineer",
+        body: research.body,
+      });
+      expect(JSON.stringify(world.questionGenerator.inputs)).not.toContain("billing");
+      const [round] = await db.select({ roleContextId: s.rounds.roleContextId }).from(s.rounds).where(eq(s.rounds.id, json.round.id));
+      expect(round.roleContextId).toBe(saved.json.id);
     }));
 });

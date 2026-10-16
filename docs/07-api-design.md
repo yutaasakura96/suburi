@@ -176,12 +176,12 @@ that asserts the two lists match.
 | `round_abandoned` | 409 | `answers`, `transcribe`, `transcript`, `submit`, `complete` | the round screen — the round takes no more writes; start a new one (§5.5) |
 | `feedback_generation_failed` | 502 | `complete`, `feedback` | screen 8 — the round is complete and its scores show; the round-level note is pending and retryable, unless `detail.error_class` is `no_scores`, which no retry can fix (§5.12) |
 | `model_answer_generation_failed` | 502 | `model-answers` | screen 8 — under the question whose model answer is not written; the round, its scores and its feedback are untouched, and the retry stays (§5.19) |
-| `role_context_too_large` | 422 | `POST /api/role-contexts` | Setup's add form — before anything is saved. The cap is measured (§5.3) |
+| `role_context_too_large` | 422 | `POST /api/role-contexts` | Setup's add form, or its research card for the notes or the draft — before anything is saved. The cap is measured (§5.3) |
 | `speech_failed` | 502 | `speech` | screen 3 — a short notice; the prompt stays as text and the round goes on (§5.15) |
 | `write_failed` | 500 | every round route, and `PUT /api/settings` | the screen that made the call — nothing half-written; the round stays resumable |
 | `english_reading_not_applicable` | 422 | `english-reading` | — (a client bug: the control is drawn only on a Japanese practice round's correction screen) — names the refusal, a realistic round's or an English one's (§5.20) |
 | `english_reading_failed` | 502 | `english-reading` | the correction screen — under the control; the editor and everything else unchanged, and asking again is allowed (§5.20) |
-| `research_posting_exists` | 422 | `research` | Setup's research card — a saved posting is the same job and is used; no research runs (§5.22) |
+| `research_posting_exists` | 422 | `research`, `POST /api/role-contexts` | Setup's research card — a saved posting is the same job and is used; no research runs, and no research is saved (§5.22, §5.3) |
 | `research_failed` | 502 | `research` | Setup's research card — nothing was saved and asking again is allowed; `detail.error_class` names why, `upstream_timeout` included (§5.22) |
 | `cv_unchanged` | 422 | `POST /api/cv-versions` | CV screen — the save is refused, nothing written |
 | `cv_too_large` | 422 | `POST /api/cv-versions` | CV screen — before any model call |
@@ -479,12 +479,12 @@ POST /api/role-contexts
   "created_at": "2026-09-12T03:02:00Z" }
 ```
 
-**Round one accepts `posting` and `general`** (`06`, 2026-09-27; `posting` since #47). `researched`
-is a `400` until US-16 ships, when a saved posting takes precedence (PRD US-2). A posting is pasted, or
+**It accepts `posting`, `researched` and `general`** (`06`, 2026-09-27; `posting` since #47,
+`researched` since #135), and a saved posting takes precedence over a research (PRD US-2). A posting is pasted, or
 imported with the CV screen's importer (`lib/cv/import/`): the browser extracts the text, the user
 checks it, and only the text and the filename are sent — the file never reaches the server, as in §5.2.
 
-**What US-16 adds, decided 2026-10-16** (`06`, R1 to R5; specified in full by its slices). A research
+**What US-16 adds, decided 2026-10-16** (`06`, R1 to R5; the save built by #135). A research
 is run by its own ⚡ route (§5.22, built by #134), which takes a company name and a role title, writes the notes and
 **saves nothing**: the user reads and edits them on Setup first. The notes are English; each fact
 carries its source, a web link when the pinned model's search worked and a "model knowledge" label
@@ -495,6 +495,37 @@ posting wins:** when a posting exists whose company name and role title equal th
 tidying (`NFKC`, whitespace collapsed, case folded), both the research route and the save refuse it,
 before any model call. A posting at the same company under a different title is not refused; Setup
 asks the user whether it is the same job (`10` §2).
+
+```http
+POST /api/role-contexts
+{ "kind": "researched", "company_name": "株式会社サンプル", "role_title": "経理マネージャー",
+  "body": "株式会社サンプル — 経理マネージャー\n\nThe company\n…",
+  "research_draft": "株式会社サンプル — 経理マネージャー\n\nThe company\n…" }
+```
+```json
+201
+{ "id": "5d1e…", "kind": "researched", "company_name": "株式会社サンプル",
+  "role_title": "経理マネージャー", "source_filename": null,
+  "created_at": "2026-10-17T03:02:00Z" }
+```
+
+**A research carries `company_name`, `role_title`, `body` and `research_draft`, all four required**,
+each trimmed and non-blank, the names at most 200 code points. `body` is the notes as the user edited
+them; `research_draft` is §5.22's `draft` as it was returned. **Both texts are under the posting's
+20,000-code-point cap**: over it is `422 role_context_too_large`, `detail` carrying `body_chars` or
+`research_draft_chars`, whichever is over (the notes are checked first), and `max_body_chars`.
+`research_draft` is refused on any other kind, and `source_filename` on a research, each as an unknown
+field: a `400`. **The same job as a saved posting is `422 research_posting_exists`** with
+`detail.role_context_id`, the newest such posting, by the research route's own helper
+(`lib/round/same-job.ts`), so the two refuse on one comparison with one code; nothing is saved. A
+research is never compared with another research: the same research saved twice is two rows, as a
+posting is. The response is the row without either text.
+
+**Round start reads a research where it reads a posting** (§5.4): question generation, and every
+model answer's call (§5.12, §5.19), are sent its company, role title and `body`, the edited notes, under the
+posting's place in the input. **`research_draft` is never read by a model call.** The generator
+prompts are unchanged, so no generator prompt version moves and Progress draws no boundary for it
+(`06`, 2026-10-17). The round's provenance is the row's `kind`, through `role_context_id`.
 
 **A posting carries `company_name`, `role_title` and `body`, all three required and non-blank**:
 the picker names a posting by the first two, and a posting with no text is General practice under
@@ -512,11 +543,12 @@ user**: a second `general` request returns the existing row with `200`, never a 
 **A posting's `body` is capped at 20,000 code points** — measured, not guessed, the way the CV's was
 (§5.2, #20; `06`, #47; `03` §4 has the table). Over it is `422 role_context_too_large`, before
 anything is saved, with `detail` carrying `body_chars` and `max_body_chars` and nothing else. The cap
-is one number for both languages, a constant in `lib/round/limits.ts`. It bounds what a round's
-question generation is sent at round start (§5.4), which is the only model call a posting reaches.
+is one number for both languages, a constant in `lib/round/limits.ts`. It bounds the role-context text
+sent to question generation at round start (§5.4) and to model-answer generation (§5.19).
 
-**Not rate-limited and not ⚡**: the route calls no model. **Never logged:** `body`, `company_name`,
-`role_title`, `source_filename` — log lines carry the row id, the kind and the body's length.
+**Not rate-limited and not ⚡**: the route calls no model. **Never logged:** `body`, `research_draft`,
+`company_name`, `role_title`, `source_filename` — log lines carry the row id, the kind and the texts'
+lengths.
 
 ### 5.4 `POST /api/rounds` ⚡
 
@@ -582,8 +614,8 @@ shortfall is generated — one call, for the round's type and language, with the
 `generate-<round type>-<language>-<version>` (`lib/prompts/`), given:
 
 - the round's **CV version as its claims**, each quoted from the stored body by its span;
-- the **role context**: the posting's company, role title and text, or the fact that this is General
-  practice;
+- the **role context**: the posting's company, role title and text — a research's edited notes in the
+  text's place, never its draft (§5.3) — or the fact that this is General practice;
 - **every question already in the slice**, set pieces included, so none is asked again in other words.
 
 The call asks for **two more than the shortfall**, so a candidate the guard maps to an existing
@@ -1533,7 +1565,7 @@ PUT /api/settings
 
 English notes on a company and on what a role there most likely involves, for US-16 (#134; `06`,
 2026-10-16, R1, R2, R4, R5). **It saves nothing**: Setup shows the draft in an editable box, and a save
-is §5.3 with `kind: "researched"` (#135).
+is §5.3 with `kind: "researched"` (built by #135).
 
 ```http
 POST /api/role-contexts/research
