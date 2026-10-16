@@ -358,6 +358,35 @@ test("the pill shows the questions' stored English under them, says when there i
   expect(openAi.requests).toHaveLength(0);
 });
 
+test("an unfinished realistic round withholds stored English until feedback, while practice can show it", async ({ page }) => {
+  await withDb(async (db) => {
+    await seedSyntheticEnglish(db, userId);
+    await db.update(s.rounds).set({ completedAt: null }).where(eq(s.rounds.id, id("complete-ja")));
+    await db.insert(s.userSettings).values({ userId, englishHelp: true })
+      .onConflictDoUpdate({ target: s.userSettings.userId, set: { englishHelp: true } });
+  });
+  try {
+    await signIn(page);
+    await page.goto("/history/study");
+    const japanese = round(page, "complete-ja");
+    await expect(japanese.getByTestId("study-language")).toHaveCount(0);
+    await expect(japanese.getByTestId("prompt-english")).toHaveCount(0);
+    await expect(japanese.getByTestId("prompt-english-none")).toHaveCount(0);
+    await expect(japanese.getByTestId("model-answer").first()).toContainText("夜間処理を6時間から2時間に短縮しました。");
+    await page.screenshot({ path: test.info().outputPath("study-unfinished-realistic.png"), fullPage: true });
+
+    await withDb((db) => db.update(s.rounds).set({ mode: "practice", feltPressure: null }).where(eq(s.rounds.id, id("complete-ja"))));
+    await page.reload();
+    await expect(japanese.getByTestId("study-language")).toHaveAttribute("aria-pressed", "true");
+    await expect(japanese.getByTestId("prompt-english").first()).toHaveText("Tell me about the most difficult problem you solved in the last year.");
+  } finally {
+    await withDb(async (db) => {
+      await db.update(s.rounds).set({ mode: "realistic", feltPressure: 4, completedAt: new Date("2026-09-12T00:00:00.000Z") }).where(eq(s.rounds.id, id("complete-ja")));
+      await db.update(s.userSettings).set({ englishHelp: false }).where(eq(s.userSettings.userId, userId));
+    });
+  }
+});
+
 test("it shows no score and no combined figure, has nothing to press but the pill, and neither writes nor calls a model", async ({ page }) => {
   const before = await withDb(async (db) => ({
     modelAnswers: await db.select().from(s.modelAnswers).orderBy(asc(s.modelAnswers.id)),

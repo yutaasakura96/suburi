@@ -1669,7 +1669,9 @@ Screen 8's card without its scores, its pager and its stamps.
   shows each question's and follow-up's stored English under it as screen 8 does (§8); the question as
   asked and what was said never change, and neither does the chrome. **It starts from the user's
   English help setting** (§17); the choice after that is that card's, and is not stored. An English
-  round has none.
+  round has none. **An unfinished realistic round has no pill or English help on its Study card**, even
+  when English is stored and the setting is on: its prompt English, translated model answers and
+  translated `To fix` are withheld until the round is complete (Q106-2).
 
 ### Empty
 

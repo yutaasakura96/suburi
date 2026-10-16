@@ -25,8 +25,8 @@ export interface StudyAnswer {
 }
 
 /**
- * A prompt as asked, and its stored English for the pill (10 §16, #106): a string, or null when it
- * has none. The key only on a Japanese round; an English round's prompts have nothing to show.
+ * A prompt as asked, and its available stored English for the pill (10 §16, #106). The key is only
+ * on an eligible Japanese round; unfinished realistic and English rounds have nothing to show.
  */
 export interface StudyPrompt {
   readonly prompt: string;

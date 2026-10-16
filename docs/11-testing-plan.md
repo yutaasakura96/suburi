@@ -587,6 +587,9 @@ and model answers the test invents — the seed writes none.
   whose findings were never written, with its questions still listed.
 - A stored model answer as runs cut at its stored spans, in both languages; the follow-up's beside
   the follow-up; `null` where none is stored.
+- An unfinished realistic round's Study card withholds stored prompt English, translated model
+  answers and translated fixes, even with English help on; a completed realistic round and a
+  practice round can show their stored English (`10` §16).
 - **A practice answer-again is beside the first answer**, in the order given, under the one model
   answer: one question, not three (refusal #3).
 - Another user's rounds are never listed.

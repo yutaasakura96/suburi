@@ -217,8 +217,8 @@ test("with the setting off, screen 8 opens in Japanese and its pill shows the qu
   const tooltip = page.getByTestId("score-justification");
   await expect(tooltip).toHaveText(JUSTIFICATION);
   await expect(tooltip).toHaveAttribute("lang", "ja");
-  await page.screenshot({ path: test.info().outputPath("feedback-english.png"), fullPage: true });
   await page.mouse.move(0, 0);
+  await page.screenshot({ path: test.info().outputPath("feedback-english.png"), fullPage: true });
 
   // A follow-up with no English stored says so; nothing is generated for it.
   await region.getByRole("navigation").getByRole("button", { name: "Question 3" }).click();
