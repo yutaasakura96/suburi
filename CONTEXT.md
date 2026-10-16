@@ -168,10 +168,17 @@ Carry these; do not silently decide them in a ticket.
   both. The artboards' Japanese chrome on the app-level screens is layout, not copy (`10` §0).
   **Amended 2026-10-14 (#106):** a Japanese practice round's pill, and screen 8's in either mode, can
   turn the chrome English (`10` §0).
-- **English help beyond the round screens.** The 2026-10-14 answers (#106) reached the round's
-  screens, screen 8 and Study. The CV screen's Japanese panel and History detail were not asked
-  about: the panel keeps its own-language rule and History shows a Japanese round's questions as
-  asked. Nor is there a way to re-write one question's English from the app; only the script does.
+- ~~**English help beyond the round screens.**~~ **Decided 2026-10-16** (`06`, L2): History detail
+  gets the pill, with the English already stored; the CV screen's Japanese panel keeps its
+  own-language rule. Still open: there is no way to re-write one question's English from the app;
+  only the script does.
+- **Where the story bank's stories come from (US-15, S1; #139).** For the 2026-10-28 discussion; if it does
+  not settle it, they come from the CV's claims (`06`, 2026-10-16). **The owner's direction, which
+  must not be forgotten when US-15 is planned or built:** Suburi reads Track Record's career story
+  (the sibling repo's bilingual document for interview preparation, below). That is a connection
+  between the repos, which "The sibling repo" below rules out today; the same discussion holds it
+  (#112). A story bank built from the CV first is planned so that this source can replace its first
+  draft later.
 - **The near-duplicate similarity threshold.** A guess until there is real data. **It starts at cosine
   similarity 0.90 = the same question — unverified** (`06`, 2026-09-27). Store every near-miss with its
   score (`04`); tune from those records.

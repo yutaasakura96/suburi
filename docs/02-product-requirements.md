@@ -369,6 +369,14 @@ Filed by the owner on 2026-10-09; its questions were answered on 2026-10-14 (`06
 - Round feedback reports which stories were used, which are overused across recent rounds, and which
   have never been used.
 - Depends on US-1's parsed CV units.
+- **Decided 2026-10-16** (`06`, S1 to S5): **one list per language**, from that language's CV, each
+  Japanese story with an English title; a story is **used** when an answer's scoring cites one of its
+  claims; **overused** is used in 3 or more of the last 5 rounds in that language, stated with its
+  count; an edit sticks, a removed story is **retired**, never deleted, and a new CV version keeps
+  stories on carried-forward claims and offers new ones to accept.
+- **Where the first list comes from is the 2026-10-28 discussion's** (S1). Unless it settles otherwise,
+  the stories come from the CV's claims, as written above. **The owner's direction, not to be lost:**
+  Suburi reads Track Record's career story (`CONTEXT.md`, Still open).
 
 **US-16 — AI researches the company and role** `MUST` *(lands during the 30-day window)*
 > As the user, I want the app to research a company when I have not given it a file, so that I can
@@ -379,6 +387,12 @@ Filed by the owner on 2026-10-09; its questions were answered on 2026-10-14 (`06
 - The researched context is shown to the user and is **editable before the round starts**.
 - Its provenance is stored with the round, so rounds run on researched context are distinguishable
   from rounds run on a real posting.
+- **Decided 2026-10-16** (`06`, R1 to R5): the research searches the web when that works and uses the
+  model's own knowledge otherwise, **every fact labelled with its source** (a link, or "model
+  knowledge"); the notes cover the company and what the role most likely involves, **the role part
+  labelled as a guess**; the notes are **always in English**, Japanese names kept in Japanese; **the
+  AI's draft is stored beside the edited notes**. A posting and a research are the same job when their
+  company names and role titles match after tidying; when only the company matches, Setup asks.
 
 ### Later
 

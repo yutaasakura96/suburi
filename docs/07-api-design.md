@@ -472,6 +472,18 @@ is a `400` until US-16 ships, when a saved posting takes precedence (PRD US-2). 
 imported with the CV screen's importer (`lib/cv/import/`): the browser extracts the text, the user
 checks it, and only the text and the filename are sent — the file never reaches the server, as in §5.2.
 
+**What US-16 adds, decided 2026-10-16** (`06`, R1 to R5; specified in full by its slices). A research
+is run by its own ⚡ route, which takes a company name and a role title, writes the notes and
+**saves nothing**: the user reads and edits them on Setup first. The notes are English; each fact
+carries its source, a web link when the pinned model's search worked and a "model knowledge" label
+when it did not, and the role part is labelled as a guess. Saving is this route with
+`kind: "researched"`, carrying `company_name`, `role_title`, `body` (the edited notes) and
+`research_draft` (the notes as the research returned them), all required and non-blank. **A saved
+posting wins:** when a posting exists whose company name and role title equal the research's after
+tidying (`NFKC`, whitespace collapsed, case folded), both the research route and the save refuse it,
+before any model call. A posting at the same company under a different title is not refused; Setup
+asks the user whether it is the same job (`10` §2).
+
 **A posting carries `company_name`, `role_title` and `body`, all three required and non-blank**:
 the picker names a posting by the first two, and a posting with no text is General practice under
 another name. Each is trimmed; `company_name` and `role_title` are at most 200 code points.
@@ -923,7 +935,9 @@ this call returns that one. `next` is computed from the stored rows, never from 
 **Its latency, measured with `follow-up-en-1.0`** (`03` §4, 2026-10-03): 3.2 s median, 4.7 s slowest
 of 15. The user waits for it inside a timed round, so the call is bounded on its own: **15 s, and one
 retry after 1 s** when the failure is one a second call could get past (not a `4xx` other than `408`,
-`409` or `429`). After that the follow-up is `missing`.
+`409` or `429`). After that the follow-up is `missing`. **The bound becomes 45 s** (`06`, 2026-10-16,
+L1), three times the slowest Japanese follow-up measured (14.6 s, `03` §4); the retry is unchanged.
+Built by #137; until then the code holds 15 s.
 
 Failures: `400 invalid_request` naming `transcript_raw` when the answer has no transcript yet — there
 is nothing to correct; `422 answer_already_submitted` (idempotent alternative: the same body returns `200` with the

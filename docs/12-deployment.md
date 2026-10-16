@@ -248,6 +248,11 @@ here until 2026-09-28, when alerts went to a private status page instead of emai
 
 In this order. Steps 3 and 4 are the ones that fail silently if skipped.
 
+**Who runs it, decided 2026-10-16** (`06`, P1 to P3): production is set up after US-16 and US-15 are
+built. An agent runs every step it can with the owner's logged-in command-line tools and stops for the
+owner's approval on each production write, passing secrets tool to tool without printing them, as
+#41 did; the owner does only the console steps.
+
 1. **Neon:** project, Postgres 18, `create extension vector`. Note the pooled and unpooled URLs. **Done 2026-09-19:** project `suburi`, region `aws-ap-southeast-1`; the default branch renamed `main`.
 2. **Google Cloud:** OAuth client. Authorised redirect URIs for three origins — **`localhost`**, because local development signs in with the same Google allowlist (§1); the production subdomain, **`suburi-murex.vercel.app`** (`suburi.vercel.app` was taken; Vercel assigned this on import, 2026-09-19); and **`develop`'s stable subdomain, `suburi-develop.vercel.app`** (if a name ever changes, change this list, §1 and the URIs together). Each URI is the origin plus `/api/auth/callback/google`, and local is `http://localhost:3000`. The client stays in **Testing**: with only `openid`, `email` and `profile` requested, Google lets any account through, so the two locks in `08` §2 are the whole gate — which is the second reason `develop` gets a fixed domain rather than a per-commit one: Google's redirect URIs are an exact-match list, so a generated hostname can never sign in. A per-commit URL could not sign in either, which is one reason feature branches are not deployed (§1); verify feature work on `develop`.
 3. **S3 bucket:** Block Public Access **all four settings on**; default encryption SSE-S3 or better; versioning on; a lifecycle rule expiring `dev/` after 30 days and **none on `prod/`** (audio is retained — `04` §5). **Steps 3–5 are done ahead of #21, as the round loop's first slice** (`06`, 2026-09-27): every recording slice needs the bucket, and it is human work. **Done 2026-09-28** (#41): region `ap-northeast-1`, SSE-S3 with a bucket key, Object Ownership bucket-owner-enforced, and a bucket policy refusing any request not over TLS. The `dev/` rule also expires noncurrent versions after a day and aborts incomplete multipart uploads. The bucket name lives only in the §2 variables. Versioning is also what keeps a practice re-take's overwritten object (`04` `answers`) — accepted, and never read. The AWS variables in §2 join `lib/config.ts`, `.env.example` and the `develop` branch's Preview scope in the same slice.
@@ -628,6 +633,8 @@ Not a substitute for `11`; these are the things only production can answer.
 
 - [ ] Sign in with the allowlisted Google account. Confirm a second account is still rejected.
 - [ ] Start a round — the model preflight passes and the **four stamps are displayed** (`07` §5.4).
+  After the first deploy, the round is **a short practice round on the real CV** (`06`, 2026-10-16, P3):
+  it stays in History and never counts on Progress.
 - [ ] Record a short take: the presigned PUT reaches S3 under `prod/`, the object exists, **CORS did not block it.**
 - [ ] Transcribe, correct, submit. Confirm a `scoring_attempts` row appears and reaches `ok`.
 - [ ] Reach the feedback screen and confirm it **renders while you are still sitting there** (PRD §9).

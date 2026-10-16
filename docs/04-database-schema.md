@@ -313,7 +313,14 @@ and a row can be picked by any number of rounds. **General practice is one row p
 `unique (user_id) where kind = 'general'`. **Round one writes `posting` and `general` only;**
 `researched` arrives with US-16. **A posting carries all three of `company_name`, `role_title` and
 `body`** — the route refuses one without (`07` §5.3), so the picker never has a posting it cannot
-name; it is not a column check, since US-16 has yet to say what `researched` carries.
+name; it is not a column check.
+**`researched`, arriving with US-16** (`06`, 2026-10-16, R2 and R3): it carries `company_name`,
+`role_title` and `body` as a posting does, `body` being the notes **as the user edited them**, which
+the questions are written from; and a new nullable column, **`research_draft text`**, the notes
+exactly as the research call returned them, set on `researched` rows only. Both are kept, as a
+transcript's raw and corrected text are (invariant 4). The notes are English, each fact labelled with
+its source (R1, R5). The column and its migration land with the slice that saves research, and
+`db/schema.ts` with them.
 `source_filename` is null on `general`. The posting's text-size cap is **20,000 code points**,
 measured the way the CV's was (`07` §5.3; `06`, #47): a constant in `lib/round/limits.ts`, not a
 column check — a cap that moves must not make a stored row invalid.

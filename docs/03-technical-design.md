@@ -223,7 +223,8 @@ and a half minutes spoken, from the development machine, as #44 measured the Eng
 - **The 15 s bound held, with no margin left.** No call reached it, but the slowest came within 0.4 s,
   where the bound was set at three times the slowest English call (4.7 s). Past it a call is retried
   once and then recorded as missing, so the tail costs a follow-up, never the round. **The bound is
-  not changed here**: whether to widen it is the owner's call (`06`, 2026-10-15).
+  not changed here**: whether to widen it is the owner's call (`06`, 2026-10-15). **The owner widened
+  it to 45 s on 2026-10-16** (`06`, L1), three times this slowest call.
 
 **Round-start generation under `ja-1.1`, re-measured 2026-10-16 (#125)** with
 `scripts/measure-question-generation.mts` and `LANGUAGES=ja COUNTS=3,5,7,9 SIZES=`: the real port
@@ -248,7 +249,8 @@ row; the owner topped the credit up.)
   fill the round, and still before the round, so invariant 2 is untouched.
 - **The 60 s generation timeout held, with less margin.** No call reached it; the slowest, 45.9 s, is
   under it, where the bound was set at twice #47's slowest (27.9 s). **The timeout is not changed
-  here**: whether to widen it is the owner's call (`06`, 2026-10-16).
+  here**: whether to widen it is the owner's call (`06`, 2026-10-16). **The owner widened it to 90 s
+  the same day** (`06`, L1), twice this slowest call.
 
 **The round's latencies, measured 2026-10-01 (#42)** with `scripts/measure-round-latency.mts`
 against OpenAI, five runs of each at the time, from the development machine, the way #20 measured extraction. Synthetic
@@ -285,8 +287,9 @@ What they settle:
   measurement above has a 14.6 s tail. A near-cap take transcribes in about 6 s. TTS starts playing
   in about a second, on the model #45 then pinned.
 - **A follow-up call is bounded at 15 s with one retry** (`07` §5.9): originally about three times
-  the slowest English call seen; the Japanese measurement above reached 14.6 s. Past the bound the
-  follow-up is recorded as missing and the round goes on.
+  the slowest English call seen; the Japanese measurement above reached 14.6 s, so the bound becomes
+  45 s (`06`, 2026-10-16, L1). Past the bound the follow-up is recorded as missing and the round goes
+  on.
 - **Scoring's slowest call is the one to watch.** One in fifteen took five times the median, with no
   error. It is why the bound has a margin, and why scoring runs in `after()` rather than in front of
   the user.
@@ -400,7 +403,8 @@ Every call returned the count it was asked for. What they settle:
 - **It stays at round start** (`06`, 2026-10-03). The wait comes before the round, not inside it and
   not at its end, so invariant 2 is untouched; Setup says so before the user starts
   (`10` §2), and says it again while it waits. The timeouts are 60 s for generation, twice the
-  slowest call seen, and 20 s for embeddings, inside the route's 300 s.
+  slowest call seen, and 20 s for embeddings, inside the route's 300 s. Generation's becomes 90 s,
+  twice the `ja-1.1` measurement's 45.9 s (`06`, 2026-10-16, L1).
 - **`reasoning.effort: low` is the lever if the wait proves too long in use.** A side reading during
   this measurement roughly halved the call with questions that read comparably. It is not set:
   questions are banked permanently (the stakes column above), and one side reading is not a quality

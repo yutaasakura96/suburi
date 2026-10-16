@@ -109,7 +109,7 @@ counts and the model, never the text, and the week's spend counts it; the two ca
 the control under `RAW`, in a Japanese practice round only. **The nine Japanese strings were accepted
 in a delegated AI review on 2026-10-16, not a native read** (`docs/checklists/native-read-round.md`
 §17). Migration `0017` is not yet applied to either Neon branch.
-**Updated:** 2026-10-16 (#126 built; #125 re-measured); 2026-10-15 (#125 built; #124 built; #123 built; #122 built; #122–#127 confirmed); 2026-10-14 (#106 and #107 planned; #76 built; #85 built; #83 checked; #75 built; #105 built; #104 measured and fixed; #51 built; follow-ups spoken; #73 built; #49's Japanese strings all accepted; #50's
+**Updated:** 2026-10-16 (after English help planned: #134–#139; #126 built; #125 re-measured); 2026-10-15 (#125 built; #124 built; #123 built; #122 built; #122–#127 confirmed); 2026-10-14 (#106 and #107 planned; #76 built; #85 built; #83 checked; #75 built; #105 built; #104 measured and fixed; #51 built; follow-ups spoken; #73 built; #49's Japanese strings all accepted; #50's
 catalogue string read; #43, #44, #45, #46, #47, #48, #49, #50 and #74 built; #42 closed; #55 and #56 on 2026-09-30)
 
 ## Done
@@ -405,6 +405,20 @@ Page 1 is the screen set, page 2 the three exploration directions. **Working fil
 every change re-seeds from those — edit them, never the built `design/suburi-directions.html`.
 
 ## Next
+**After English help: company research (US-16) next, the story bank (US-15) after 2026-10-28,
+production after both (planned 2026-10-16).** The owner answered the scout's question page the same
+day (`06`, "Phase 6 — after English help …"); fake data is fine until the app is built, and building
+comes first. US-16 is three `ready-for-agent` slices:
+[#134](https://github.com/yutaasakura96/suburi/issues/134) the research call, saving nothing → #135
+saving research with the draft beside the edit → #136 Setup's `AI research` card. Beside them,
+#137 widens the follow-up and round-start timeouts to 45 s and 90 s (L1), and #138 brings English help
+to History detail after #127 (L2). US-15's answers S2 to S5 are recorded on #139, labeled
+`after-2026-10-28`: where the stories come from (S1) is that discussion's, from the CV unless it
+settles otherwise, **with the owner's direction that Suburi reads Track Record's career story**
+(`CONTEXT.md`, Still open). #21 waits for both features, then runs agent-driven with an approval on
+each production write, its first smoke round a short practice round on the real CV (`12` §3, §9).
+#84 is parked until after production. The multi-user answers U1 to U3 are on #113 and #114.
+
 **English help (#106) and the settings page (#107): six slices, confirmed 2026-10-15; #122, #123,
 #124, #125 and #126 are built.** Planned on 2026-10-14 from the owner's answers to Q0, Q106-1 to Q106-7, Q-P1 and Q-P2
 (`06`, "Phase 6 — #106 and #107"): no English in a realistic round before its feedback, enforced
@@ -419,8 +433,8 @@ native `blocked_by` edges, linked from #106 and #107, **confirmed and labeled `r
 2026-10-15**, with default round choices left off the settings page (`06`, 2026-10-15). Two things the
 owner confirmed with them: #125 moves the Japanese generator to `ja-1.1`, which
 draws a stamp-3 boundary on the Japanese Progress chart; and #126 reads Q106-7 as practice-only,
-from Q106-2. Carried, not decided: English help on the CV screen's Japanese panel and on History
-detail (`CONTEXT.md`). The answers for #108–#115 were given the same day and wait for their own
+from Q106-2. English help on History detail was decided on 2026-10-16 (#138); the CV screen's Japanese
+panel keeps its own-language rule. The answers for #108–#115 were given the same day and wait for their own
 planning.
 
 **0. The round-loop plan is settled, its open answers are recorded, and its slice issues are ready.** Eleven
