@@ -11,8 +11,7 @@ import { ModelCallFailed, openAiClient, upstreamErrorClass } from "./upstream.ts
  * item 16; 12 §7) — only that a call was made. One real implementation and a fake; no test calls
  * OpenAI (11 §2).
  *
- * **What comes back is checked, not trusted:** not blank, and not longer than
- * `MAX_ENGLISH_READING_CODE_POINTS`. Anything else is `malformed_output`.
+ * **What comes back is checked, not trusted:** a blank reading is `malformed_output`.
  */
 
 export interface EnglishReadingResult {
@@ -29,16 +28,10 @@ export interface EnglishReader {
   read(text: string, options?: CallOptions): Promise<EnglishReadingResult>;
 }
 
-/**
- * Several times the English of the longest text the route takes (8,000 code points of Japanese): it
- * refuses a runaway output, nothing shorter.
- */
-export const MAX_ENGLISH_READING_CODE_POINTS = 40_000;
-
 /** The English, trimmed — or the whole result is refused. */
 export function checkEnglishReading(text: string): string {
   const english = text.trim();
-  if (english === "" || Array.from(english).length > MAX_ENGLISH_READING_CODE_POINTS) {
+  if (english === "") {
     throw new ModelCallFailed("English reading", "malformed_output");
   }
   return english;

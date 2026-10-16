@@ -463,19 +463,21 @@ unchanged.
 
 ## 17. #126, the English reading on the correction screen
 
-**Not read yet.** Seven new strings in `app/(app)/round/copy.ts`, all on a Japanese practice round's
-correction screen (`10` §15), and two catalogue sentences in `lib/copy/errors.ts` (`07` §3). The seven
-are `10` §15's own; the two catalogue sentences were written for #126. `8,000字` is the route's cap,
-set tight (`05` §6).
+**Reviewed 2026-10-16 as an AI review, not a native read, at the owner's delegation** (`06`,
+2026-10-03). All nine strings were accepted against their English intent and `05` §6's rules; no
+native speaker has read them. Seven strings in `app/(app)/round/copy.ts` appear on a Japanese
+practice round's correction screen (`10` §15), and two catalogue sentences are in
+`lib/copy/errors.ts` (`07` §3). The seven are `10` §15's own; the two catalogue sentences were written
+for #126. `8,000字` is the route's cap, set tight (`05` §6).
 
 | | Japanese | Intent |
 | --- | --- | --- |
-| | 英語訳を見る | Control — Read it in English |
-| | もう一度英語訳を見る | Control, once a reading is shown — Read it in English again |
-| | いまの回答を英語に訳して表示します。保存はしません。 | Caption under the control — An English reading of your answer as it stands now. It is not saved. |
-| | 英語に訳しています。 | Caption while it runs — Reading it in English. |
-| | 回答が長すぎるため英語訳を表示できません。8,000字以内にしてください。 | Caption over the cap — Your answer is too long to read in English. Shorten it to 8,000 characters or fewer. |
-| | 英語訳 — 保存しません | Section label over the reading — English reading — not saved |
-| | この英語訳のあとで回答を直しました。 | Under the label, once the editor differs — You have edited your answer since this reading. |
-| | この回答の英語訳は表示できません。英語訳は日本語の練習ラウンドでのみ使えます。 | `english_reading_not_applicable` — This answer cannot be read in English. The English reading is only for a Japanese practice round. |
-| | 英語訳を表示できませんでした。回答はそのまま残っています。もう一度お試しください。 | `english_reading_failed`, on the attention rail — The English reading could not be made. Your answer is unchanged. Try again. |
+| ✓ | 英語訳を見る | Control — Read it in English |
+| ✓ | もう一度英語訳を見る | Control, once a reading is shown — Read it in English again |
+| ✓ | いまの回答を英語に訳して表示します。保存はしません。 | Caption under the control — An English reading of your answer as it stands now. It is not saved. |
+| ✓ | 英語に訳しています。 | Caption while it runs — Reading it in English. |
+| ✓ | 回答が長すぎるため英語訳を表示できません。8,000字以内にしてください。 | Caption over the cap — Your answer is too long to read in English. Shorten it to 8,000 characters or fewer. |
+| ✓ | 英語訳 — 保存しません | Section label over the reading — English reading — not saved |
+| ✓ | この英語訳のあとで回答を直しました。 | Under the label, once the editor differs — You have edited your answer since this reading. |
+| ✓ | この回答の英語訳は表示できません。英語訳は日本語の練習ラウンドでのみ使えます。 | `english_reading_not_applicable` — This answer cannot be read in English. The English reading is only for a Japanese practice round. |
+| ✓ | 英語訳を表示できませんでした。回答はそのまま残っています。もう一度お試しください。 | `english_reading_failed`, on the attention rail — The English reading could not be made. Your answer is unchanged. Try again. |
