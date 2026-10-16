@@ -248,6 +248,15 @@ precedence: `求人票とAI調査の両方があります。ファイルを優�
 
 **Round one draws two cards, not three** (`06`, 2026-09-27): the posting and General practice, still
 equal, in a `repeat(2, 1fr)` grid. The research card and the precedence callout arrive with US-16.
+**What US-16's card does, decided 2026-10-16** (`06`, R1 to R5; its slice specifies the frames from
+`05` components, as #47 did). The third card, `AI research`, takes a company name and a role title,
+runs the research and shows the notes **in English**, in an editable box, before anything is saved:
+each fact shows its source, a link or `model knowledge`, and the role part is marked as a guess.
+Saving fixes the edited notes as a new role context, the draft kept beside them; like a posting, saved
+research is never edited. **When a saved posting is the same job** (company and title equal after
+tidying), research is not offered and the precedence callout says the posting is used. **When only the
+company matches**, Setup asks whether it is the same job before researching: yes picks that posting,
+no researches. All of it is English chrome (§0), so the card adds no Japanese string.
 A posting is picked from the ones already saved, or added — pasted, or imported through the CV
 screen's importer into an editable box, as on §13. Saved postings are never edited; a changed one is
 a new one. The drawn detail `Mercari_SRE_2026.pdf` is the picked posting's `source_filename`.
@@ -1001,6 +1010,14 @@ detail carries `Resume this round`. A complete round with every score in carries
 screen 8. On this screen it renames the dimensions, in the rubric version's own two labels; the scores,
 the questions and the transcripts do not change. The feedback itself is read on screen 8, which a
 complete round links to as `Round feedback`.
+
+**English help comes to this detail** (`06`, 2026-10-16, L2; #138, after #127). The pill also shows
+each question's and follow-up's **stored** English under it, `No English for this question yet.` where
+none is stored, as screen 8's does (§8), beside the dimension labels it already renames; History's
+chrome is English already (§0). It appears when anything on the detail has a stored English, and
+starts from the English help setting. What was said
+and the transcripts stay as they are. Still a read: no model call and nothing written. The CV screen's
+Japanese panel keeps its own-language rule (§13).
 
 **Rows the artboard does not draw.**
 

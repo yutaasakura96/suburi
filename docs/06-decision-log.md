@@ -3,6 +3,196 @@
 Newest first. Every entry records what was chosen, why, and what was rejected.
 
 ---
+## Phase 6 — after English help: company research, the story bank, production and the loose ends
+
+Settled 2026-10-16. A scout read what is left of v1 against the docs and the code and wrote one
+question page: what to plan after English help, and the questions each candidate needs answered
+before it can be cut into issues. The owner answered every question the same day. Each entry quotes
+the answer as given and says what it decided. **The owner's standing instruction, repeated with the
+answers:** fake data is fine until the app is built, because the live data will be reset with the
+real data once the owner is satisfied with the whole app; building and perfecting the app comes
+first. Written into the docs before any code. Company research (US-16) is cut into three slices,
+#134 → #135 → #136, labeled `ready-for-agent`, with #137 (L1) and #138 (L2); the story bank (US-15)
+is #139, labeled `after-2026-10-28` and not ready for agents.
+
+### [2026-10-16] Q0: company research next, the story bank after 2026-10-28
+
+**Asked:** what to plan and build after English help (#106). **Answered: "A Company research, then
+the story bank after the Oct 28 talk".**
+**Decided:** US-16 is planned now and built next; it is the one v1 `MUST` story with nothing to wait
+for. US-15 is planned once its source (S1) is settled at the 2026-10-28 discussion; S2 to S5 are
+answered now because they hold whichever source wins.
+**Rejected:** B, the story bank first; C, both planned now; D, production first, which the
+build-first instruction rules out.
+
+### [2026-10-16] R1: research uses the web when it can, the model's knowledge otherwise, every fact labelled
+
+**Asked:** where the research gets its information. **Answered: "C Web when it works, model knowledge
+otherwise, each fact labelled".**
+**Decided:** the research call searches the web through the pinned model when that works, and falls
+back to what the model already knows when it does not. **Every fact in the notes carries its source:**
+a web fact its link, a fact from the model's knowledge a label saying so. A research is never refused
+because search is unavailable; the labels are what tell the user how far to trust each line, and the
+edit before the round (US-16) is where an unsupported line is fixed. Whether the pinned model's
+search works, and how a fallback is detected, is the first slice's to establish against the installed
+SDK and OpenAI's docs.
+**Rejected:** A, web only, where a failed search would block the research; B, the model's knowledge
+only, with nothing to check a line against.
+
+### [2026-10-16] R2: the notes cover the company and the role, the role labelled as a guess
+
+**Asked:** what the notes cover. **Answered: "B The company, plus what the role most likely involves
+(labelled as a guess)".**
+**Decided:** the notes hold the company (what it does, its products, size, recent news, stated values)
+and what the role most likely involves and asks for, **the role part marked as the model's guess**. A
+posting carries a company and a role, so research that stands in for one carries both.
+**Rejected:** A, the company only; C, a list of likely interview questions, which would make the
+round's questions seen before they are asked.
+
+### [2026-10-16] R3: the AI's draft and the user's edited notes are both kept
+
+**Asked:** what is kept when the user edits the notes. **Answered: "A Both the AI's draft and your
+edited version".**
+**Decided:** a researched role context stores the draft exactly as the research call returned it,
+beside the edited notes the questions are written from (`04` `role_contexts`). It is the transcript's
+rule (invariant 4) applied to research: how much the user had to fix is the measure of whether
+research is good enough to rely on. The row is still immutable (2026-09-27); the edit happens before
+it is saved.
+**Rejected:** B, the edited notes only.
+
+### [2026-10-16] R4: the same job is the same company and role after tidying; asked only when the role differs
+
+**Asked:** how the app knows a posting and a research are for the same job. **Answered: "A Same
+company name and role title after tidying; ask you only when the company matches but the role does
+not".**
+**Decided:** a posting and a research are the same job when their company names and role titles are
+equal after tidying (`normaliseClaimText`'s `NFKC` and whitespace collapse, plus case folding).
+**The same job with a saved posting: research is not offered and the route refuses it** — the posting
+wins (US-2, US-16). **The same company with a different role:** Setup asks the user whether it is the
+same job before researching; "yes" uses the posting, "no" researches. "Rakuten" and "楽天" are two
+companies under this rule, accepted.
+**Rejected:** B, the company alone, which blocks research for every other role there; C, asking every
+time.
+
+### [2026-10-16] R5: the notes are always in English
+
+**Asked:** what language the notes are written in. **Answered: "A Always English (Japanese names stay
+in Japanese)".**
+**Decided:** the notes are written in English whatever the company or the round's language, with
+Japanese names and terms left in Japanese inside them. The user checks and edits them before the
+round, and does not read Japanese well (2026-10-03, 2026-10-14). A Japanese round's questions are
+still written in Japanese from English notes. Setup is English (`10` §0), so the research card adds no
+Japanese string.
+**Rejected:** B, the company's language; C, both, with two texts to keep in step.
+
+### [2026-10-16] S1: where stories come from is decided on 2026-10-28; from the CV unless it settles otherwise
+
+**Asked:** where the first story list comes from. **Answered: "C Decide on Oct 28, plan the rest now
+(default A if not settled)"**, with the owner's note: **"this is important • Suburi reads Track
+Record's career story so we need to make sure this is not forgetton in the future".**
+**Decided:** the source is the 2026-10-28 discussion's. **If it does not settle it, the default is A:**
+Suburi takes the stories from the CV's claims itself, as US-15 is written. **The owner's note is
+carried forward as a requirement on that discussion and on US-15's planning:** the intended direction
+is that Suburi reads Track Record's career story (`CONTEXT.md`, "The sibling repo"; Still open). It is
+recorded in `CONTEXT.md` and on the story-bank issue, #139, so that it is not lost if A ships first. This
+answers Q-TR2 ("who owns interview stories?", 2026-10-14: "decide when US-15 is ticketed").
+
+### [2026-10-16] S2: one story list per language, each Japanese story with an English title
+
+**Asked:** one list per language or one shared. **Answered: "A One list per language (Japanese stories
+get an English title too)".**
+**Decided:** each language's CV has its own story list, and a story's use is counted per language, as
+scores are. A Japanese story carries an English title, written by the same call that writes the
+Japanese one, for English help (Q106-4's rule).
+**Rejected:** B, one shared list matched across a Japanese and an English document.
+
+### [2026-10-16] S3: a story is used when an answer cites one of its claims
+
+**Asked:** how the app tells which story an answer used. **Answered: "A From the CV claims the scorer
+already cites".**
+**Decided:** a story counts as used by an answer when the answer's scoring cites any claim in it
+(`claim_citations`). No new model call and no new wait before the round's feedback (invariant 2). A
+story told without the CV's wording is missed; a second detector would be its own decision.
+**Rejected:** B, a new call per answer naming the stories.
+
+### [2026-10-16] S4: overused is 3 or more of the last 5 rounds in that language
+
+**Asked:** what counts as overused. **Answered: "A Used in 3 or more of your last 5 rounds in that
+language".**
+**Decided:** a story is overused when it was used in 3 or more of the user's last 5 completed rounds in
+that language. The two numbers are one constant each, in one place. The feedback states the count
+behind it ("used in 4 of your last 5 rounds"), never a score (invariant 1).
+**Rejected:** B, a share of the last 30 days; C, counts with no rule.
+
+### [2026-10-16] S5: edits stick, a removed story is retired, a new CV keeps stories on carried-forward claims
+
+**Asked:** what happens to the stories on an edit or a new CV. **Answered: "A Edits stick; a removed
+story is retired; a new CV keeps stories on carried-over claims and offers new ones to accept".**
+**Decided:** an edit changes a story's title or the claims it holds and survives later CV versions. A
+removed story is retired, never deleted (invariant 7), so old feedback still names it. A new CV version
+keeps each story on its carried-forward claims (2026-09-12, "CV coverage carries forward on exact
+text match only") and offers new stories, which join the list only when the user accepts them.
+**Rejected:** B, a fresh list per CV version; C, hand edits only after the first list.
+
+### [2026-10-16] P1 to P3: production after the build, run by an agent with approvals, smoke-tested with a practice round
+
+**Asked:** when production is set up, how much of it an agent runs, and what the first production
+round uses. **Answered: "P1 = A After company research and the story bank are built; P2 = A A worker
+runs every step it can and stops for your approval on each production write; P3 = A A short practice
+round on your real CV".**
+**Decided:** #21 waits until US-16 and US-15 are built; the build goes on against `develop` with
+synthetic data. When it runs, an agent runs every `12` §3 step it can with the owner's logged-in
+command-line tools and stops for approval on each production write, secrets passed tool to tool
+without being printed (#41's way); the owner does the console steps only. The first smoke check
+(`12` §9) records **a short practice round on the real CV**: it stays in History and never counts on
+Progress. The six-month measurement starts with the first realistic first attempt after that.
+**Rejected:** P1 B, production now, and C, whenever the owner chooses; P2 B, a guide the owner runs,
+and C, an agent that never writes; P3 B, a realistic round, which would put a smoke check on the chart,
+and C, a synthetic CV left in production for good.
+
+### [2026-10-16] L1: the follow-up and round-start timeouts are widened back to their rules
+
+**Asked:** the two wait limits #125 raised (2026-10-15, 2026-10-16, below). **Answered: "B Widen to their
+own rules: 45 s follow-up, 90 s round start".**
+**Decided:** `FOLLOW_UP_TIMEOUT_MS` becomes **45 s**, three times the slowest Japanese follow-up seen
+(14.6 s), and `GENERATION_TIMEOUT_MS` **90 s**, twice the slowest round start seen (45.9 s): the rules
+that set them, restored. A slow call now finishes instead of failing; normal waits do not change. The
+follow-up's single retry stays, so its longest wait is about 91 s inside a round, well inside the
+route's 300 s. Round start is before the round, so invariant 2 is untouched. Setup's "can take up to a
+minute" stays (2026-10-16): it describes the median wait, not the bound. Built by #137.
+**Amends** the two #125 entries below, which kept 15 s and 60 s.
+**Rejected:** A, keep both; C, widen the follow-up alone to 30 s.
+
+### [2026-10-16] L2: History detail gets English help; the CV panel does not
+
+**Asked:** English help beyond the round screens (`CONTEXT.md`, Still open). **Answered: "A History
+detail gets the pill, using English already stored".**
+**Decided:** History's round detail (`10` §10) carries screen 8's pill for a Japanese round, showing
+the questions' and follow-ups' stored English under them (its chrome is English already), starting
+from the English help setting. A read: no model call, nothing written, no new stored text. The CV screen's
+Japanese panel keeps its own-language rule. A seventh English-help slice, #138, after #127.
+**Rejected:** B, the CV panel too, which would put English into the CV reading every score is measured
+against; C, neither.
+
+### [2026-10-16] L3: #84, Jev as a model-answer check, is parked
+
+**Answered: "A Park it until after v1 is in production".** #84 stays open and is not worked on until
+production (#21) is done. #74's figure check stays the only check.
+
+### [2026-10-16] U1 to U3: more users, for their planning after v1
+
+**Asked:** how someone is invited, whether the owner saves a key too, and who sees the status page.
+**Answered: "U1 = A A script run with their email creates the account; U2 = B Yes, everyone including
+you; U3 = B Each user sees only their own figures".**
+**Decided, for #113 and #114 when their turn comes:** an account is created by a script run with the
+person's email, as the owner's was (`12` §3 step 9); no invite screen and no role. **Every user,
+the owner included, saves their own OpenAI key on `/settings`**; the app's own key is left to the
+background jobs. **`/status` shows each user only their own figures**, and the whole-app checks are
+hidden from the page; no operator role is introduced. Nothing is built for them now (`06`, Q0).
+**Rejected:** U1 B, an emails list in Vercel, and C, an in-app invite screen with an owner role; U2 A,
+the owner on the app's key; U3 A, an operator role for the status page.
+
+---
 ## Phase 6 — #106 and #107, English help and the settings page, decided before they are built
 
 Settled 2026-10-14. A scout read the ten ideas the owner filed on 2026-10-09 (#106–#115) against
@@ -38,6 +228,7 @@ broke either. Neither keeps the margin its rule set (twice and three times the s
 "can take up to half a minute" (`10` §2) should say longer now that a round of 7 generating 9 waits
 about half a minute at the median. `reasoning.effort: low` (`03` §4, #47) remains the lever if the
 wait proves too long in use.
+**Amended 2026-10-16 (L1, above):** the owner widened the timeout to 90 s.
 
 ### [2026-10-15] #125: Japanese follow-ups measured; the 15 s bound kept with no margin; generation owed
 
@@ -47,6 +238,7 @@ wait proves too long in use.
 and then recorded as missing, which costs a follow-up and never the round. But the rule that set it —
 three times the slowest call seen — no longer holds in Japanese: the slowest call is within 0.4 s of
 it. **Widening it is the owner's decision**, not this slice's, and is raised with the slice's report.
+**Amended 2026-10-16 (L1, above):** the owner widened it to 45 s.
 **Not done:** round start under `generate-{round type}-ja-1.1`, 3 to 9 Japanese questions, posting
 and General practice. OpenAI refused every call with `insufficient_quota` (the development
 project's credit balance) before a row was printed. It is owed, by the same script, before the 60 s
