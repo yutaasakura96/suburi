@@ -643,7 +643,8 @@ Against real Postgres, with the model mocked.
 Decided 2026-10-16 (`06`, "Phase 6 — after English help …", R1 to R5). The call is `07` §5.22.
 
 - **The output check, `lib/ai/research.test.ts`:** a fact with a blank text or source, a source that
-  is neither an `http(s)` URL nor exactly `model knowledge`, a fact that is a question, a role not
+  is neither an `http(s)` URL nor exactly `model knowledge`, a fact whose text holds a line break, an
+  `http(s)` URL or a question mark (`?` or `？`) anywhere, a role not
   marked as a guess, no fact on what the company does or what the role involves, and a draft over
   the role-context cap are each `malformed_output`. A well-formed link the call never saw is dropped
   and counted, never relabelled, and **a call that did not search keeps `model knowledge` facts

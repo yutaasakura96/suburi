@@ -1558,8 +1558,9 @@ POST /api/role-contexts/research
   falls back to the model's knowledge when it does not** (R1): `searched` is `true` when the response
   holds a `web_search_call` that completed, read from the response and never from the notes.
 - **The output is checked server-side** (`checkResearchNotes`): every fact is one sentence with one
-  source, an `http(s)` URL or exactly `model knowledge`; no fact is a question (R2 rejected a list of
-  interview questions); the role part is marked as a guess; what the company does and what the role
+  source, an `http(s)` URL or exactly `model knowledge`; a fact's text holds no line break and no
+  `http(s)` URL, so it cannot add a line or a link the check never saw; no fact holds a question mark
+  (`?` or `？`) anywhere (R2 rejected a list of interview questions); the role part is marked as a guess; what the company does and what the role
   involves are not empty; the draft fits a role context's 20,000-code-point cap, so it can be saved as
   returned. Anything else is `malformed_output`, a failed call. **A well-formed link the call never saw
   is dropped and counted, never relabelled** — "saw" is the same URL, or a page on a host its search

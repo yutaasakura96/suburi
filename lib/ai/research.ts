@@ -96,7 +96,7 @@ const ROLE_SECTIONS = [
 const malformed = () => new ModelCallFailed("Research", "malformed_output");
 
 function isWebUrl(source: string) {
-  if (!/^https?:\/\//iu.test(source)) return false;
+  if (!/^https?:\/\/\S+$/iu.test(source)) return false;
   try {
     const url = new URL(source);
     return url.hostname.includes(".");
@@ -129,8 +129,9 @@ export interface CheckedNotes {
  * The server-side check (07 §5.22). Returns the notes with every fact trimmed, or throws
  * `malformed_output`:
  *
- * - each fact's text and source are non-blank, and the text is not a question (R2: no interview
- *   questions);
+ * - each fact's text and source are non-blank; the text is one line, holds no `http(s)` URL and no
+ *   question mark anywhere (R2: no interview questions), so no fact carries an unchecked source or
+ *   writes a second line into the draft;
  * - each source is `model knowledge` or an `http(s)` URL;
  * - the role part is marked as a guess; `what_it_does` and `involves` are not empty;
  * - the draft fits a role context's text cap, so the notes as returned can be saved (#135).
@@ -148,7 +149,7 @@ export function checkResearchNotes(request: ResearchRequest, notes: ResearchNote
       const text = fact.text.trim();
       const source = fact.source.trim();
       if (text === "" || source === "") throw malformed();
-      if (/[?？]\s*$/u.test(text)) throw malformed();
+      if (/[\r\n\u2028\u2029?？]|https?:\/\//iu.test(text)) throw malformed();
       if (source === MODEL_KNOWLEDGE) return [{ text, source }];
       if (!isWebUrl(source)) throw malformed();
       if (!evidence.searched || !seen(source, evidence)) {
