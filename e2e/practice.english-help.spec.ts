@@ -17,7 +17,11 @@ import { startMockS3, type MockS3 } from "./mock-s3";
 // English says so. With it on, the frames' chrome is English — the record frames, a failure, the
 // correction screen and the per-answer frame — and pressing it again turns it back, while what was
 // asked and said stays Japanese. A Japanese realistic round has no pill and no English on screens
-// 3–7. Against the production build, with S3 and OpenAI mocked (11 §2).
+// 3–7. `The English reading` (#126): on a Japanese practice round's correction screen, the control
+// shows the mocked English under `RAW`, says so once the editor changes, and leaves the editor, the
+// meter and the submitted text untouched; a failure is the catalogue's sentence; after submit and on a
+// reload no reading is shown anywhere; a realistic round's correction screen has no control. Against
+// the production build, with S3 and OpenAI mocked (11 §2).
 
 test.describe.configure({ mode: "serial" });
 
@@ -58,6 +62,8 @@ let s3: MockS3;
 let openAi: MockOpenAi;
 /** Set while a spec needs the transcription to fail: the catalogue's `transcription_failed` follows. */
 let transcriptionFails = false;
+/** How the mock answers an English reading (07 §5.20): the English, a held promise of it, or a failure. */
+let englishReading: () => object | Promise<object> = () => ({ fail: 400 });
 
 function formatOf(body: Record<string, unknown>) {
   return ((body.text as { format?: { name?: string } } | undefined)?.format?.name ?? "") as string;
@@ -84,6 +90,7 @@ test.beforeAll(async () => {
       }
       if (formatOf(body) === "follow_up") return { follow_up: FOLLOW_UP };
       if (formatOf(body) === "generated_questions") return generatedQuestions(body);
+      if (formatOf(body) === "english_reading") return englishReading();
       return { fail: 400 };
     },
     { transcription: () => (transcriptionFails ? { fail: 400 } : { text: HEARD, seconds: 12 }), speech: silentPcm },
@@ -405,4 +412,109 @@ test("a Japanese realistic round has no pill and no English on screens 3–7, wi
   await page.reload();
   await expect(page.getByRole("radiogroup")).toBeVisible();
   await noEnglish();
+});
+
+test("the English reading on a Japanese practice round's correction screen is shown, never stored, and gone on submit", async ({ page }) => {
+  test.setTimeout(120_000);
+  await setting(false);
+  await signIn(page);
+  const roundId = await startRound(page, "practice");
+  const answerId = await answerByApi(page, roundId, { submit: false });
+  await page.goto(`/round/${roundId}`);
+  await expect(page.getByTestId("raw-transcript")).toHaveText(HEARD);
+  await page.getByRole("button", { name: "文字起こしを直す" }).click();
+
+  // Under RAW, in the chrome's words: Japanese with the pill off, English with it on.
+  const control = page.getByTestId("english-reading-control");
+  await expect(control.getByRole("button", { name: "英語訳を見る" })).toBeVisible();
+  await expect(control).toContainText("いまの回答を英語に訳して表示します。保存はしません。");
+  const pill = page.getByTestId("english-help-pill");
+  await pill.click();
+  const button = control.getByRole("button", { name: "Read it in English" });
+  await expect(control).toContainText("An English reading of your answer as it stands now. It is not saved.");
+
+  // While it runs: disabled, the wait caption, and the editor still editable.
+  const ENGLISH = "At my previous job, I was in charge of, um, migrating invoice processing.";
+  let release: (() => void) | null = null;
+  englishReading = () => new Promise((resolve) => (release = () => resolve({ english: ENGLISH })));
+  await button.click();
+  await expect(control).toContainText("Reading it in English.");
+  await expect(button).toBeDisabled();
+  const editor = page.getByLabel("Your answer — edit freely");
+  await expect(editor).toBeEditable();
+  // The server's call has to reach the mock before there is a reply to release.
+  await expect.poll(() => release !== null).toBe(true);
+  release!();
+
+  const reading = page.getByTestId("english-reading");
+  await expect(page.getByTestId("english-reading-text")).toHaveText(ENGLISH);
+  await expect(page.getByTestId("english-reading-text")).toHaveAttribute("lang", "en");
+  await expect(reading).toContainText("English reading — not saved");
+  await expect(control.getByRole("button", { name: "Read it in English again" })).toBeEnabled();
+  // It sent the editor's text, and changed nothing: not the editor, not the meter.
+  const sent = openAi.requests.filter((request) => formatOf(request.body) === "english_reading");
+  expect(sent.map((request) => request.body.input)).toEqual([HEARD]);
+  await expect(editor).toHaveValue(HEARD);
+  await expect(page.getByTestId("rewrite-percent")).toHaveText("0%");
+  await expect(page.getByTestId("english-reading-edited")).toHaveCount(0);
+  await page.screenshot({ path: test.info().outputPath("english-reading.png"), fullPage: true });
+
+  // Once the editor differs, one line says so, and the reading stays.
+  const EDITED = `${HEARD}以上です。`;
+  await editor.fill(EDITED);
+  await expect(page.getByTestId("english-reading-edited")).toHaveText("You have edited your answer since this reading.");
+  await expect(page.getByTestId("english-reading-text")).toHaveText(ENGLISH);
+  await pill.click();
+  await expect(page.getByTestId("english-reading-edited")).toHaveText("この英語訳のあとで回答を直しました。");
+  await expect(reading).toContainText("英語訳 — 保存しません");
+  await pill.click();
+
+  // A failure is the catalogue's sentence on an attention rail; the button stays.
+  englishReading = () => ({ fail: 500 });
+  await control.getByRole("button", { name: "Read it in English again" }).click();
+  await expect(control.getByRole("alert")).toHaveText("The English reading could not be made. Your answer is unchanged. Try again.");
+  await expect(control.getByRole("button", { name: "Read it in English again" })).toBeEnabled();
+  await expect(editor).toHaveValue(EDITED);
+  await pill.click();
+  await expect(control.getByRole("alert")).toHaveText("英語訳を表示できませんでした。回答はそのまま残っています。もう一度お試しください。");
+  await pill.click();
+
+  // Over 8,000 characters: disabled and said, nothing sent.
+  const requestsBefore = openAi.requests.length;
+  await editor.fill("あ".repeat(8_001));
+  await expect(control.getByRole("button", { name: "Read it in English again" })).toBeDisabled();
+  await expect(control).toContainText("Your answer is too long to read in English. Shorten it to 8,000 characters or fewer.");
+  expect(openAi.requests.length).toBe(requestsBefore);
+  await editor.fill(EDITED);
+
+  // The commit sends the editor's text, and the reading is gone — here and after a reload.
+  await page.getByRole("button", { name: "Send this answer" }).click();
+  await expect(page.getByTestId("answered-frame")).toBeVisible();
+  await expect(page.getByTestId("english-reading")).toHaveCount(0);
+  await expect(page.locator("body")).not.toContainText(ENGLISH);
+  const [stored] = await withDb((db) => db.select().from(s.answers).where(eq(s.answers.id, answerId)));
+  expect(stored.transcriptCorrected).toBe(EDITED);
+  expect(stored.transcriptRaw).toBe(HEARD);
+  await page.reload();
+  await expect(page.getByTestId("answered-frame")).toBeVisible();
+  await expect(page.getByTestId("english-reading")).toHaveCount(0);
+  await expect(page.locator("body")).not.toContainText(ENGLISH);
+  // Only that readings were made: rows of counts, never the text.
+  const rows = await withDb((db) => db.select().from(s.englishReadings).where(eq(s.englishReadings.answerId, answerId)));
+  expect(rows.map((row) => row.status).sort()).toEqual(["failed", "ok"]);
+  englishReading = () => ({ fail: 400 });
+});
+
+test("a Japanese realistic round's correction screen has no English reading", async ({ page }) => {
+  test.setTimeout(120_000);
+  await setting(true);
+  await signIn(page);
+  const roundId = await startRound(page, "realistic", "technical");
+  await answerByApi(page, roundId, { submit: false });
+  await page.goto(`/round/${roundId}`);
+  await expect(page.getByTestId("raw-transcript")).toHaveText(HEARD);
+  await page.getByRole("button", { name: "文字起こしを直す" }).click();
+  await expect(page.getByLabel("あなたの回答 — 自由に直せます")).toHaveValue(HEARD);
+  await expect(page.getByTestId("english-reading-control")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "英語訳を見る" })).toHaveCount(0);
 });

@@ -101,8 +101,15 @@ transaction, a reused one's is discarded; a follow-up's is `follow_ups.prompt_te
 counted, never the question or the follow-up. Both calls are re-measured (`03` §4): the
 Japanese follow-up 14.6 s slowest against its 15 s bound, round start 45.9 s slowest against its 60 s
 timeout, both kept; widening either remains for the owner, while Setup's wait wording is decided
-(`06`, 2026-10-16). Migration `0016` is not yet applied to either Neon branch.
-**Updated:** 2026-10-16 (#125 re-measured); 2026-10-15 (#125 built; #124 built; #123 built; #122 built; #122–#127 confirmed); 2026-10-14 (#106 and #107 planned; #76 built; #85 built; #83 checked; #75 built; #105 built; #104 measured and fixed; #51 built; follow-ups spoken; #73 built; #49's Japanese strings all accepted; #50's
+(`06`, 2026-10-16). Migration `0016` is not yet applied to either Neon branch. **#126, the English
+reading on the correction screen, is built (2026-10-16), on `fm/suburi-126`:** `POST
+/api/answers/{answerId}/english-reading` with `english-reading-1.0`, every refusal before the model,
+30 s and no retry, its own `english-reading` bucket; `english_readings` (`0017_english-reading`) holds
+counts and the model, never the text, and the week's spend counts it; the two catalogue codes; and
+the control under `RAW`, in a Japanese practice round only. **The nine Japanese strings were accepted
+in a delegated AI review on 2026-10-16, not a native read** (`docs/checklists/native-read-round.md`
+§17). Migration `0017` is not yet applied to either Neon branch.
+**Updated:** 2026-10-16 (#126 built; #125 re-measured); 2026-10-15 (#125 built; #124 built; #123 built; #122 built; #122–#127 confirmed); 2026-10-14 (#106 and #107 planned; #76 built; #85 built; #83 checked; #75 built; #105 built; #104 measured and fixed; #51 built; follow-ups spoken; #73 built; #49's Japanese strings all accepted; #50's
 catalogue string read; #43, #44, #45, #46, #47, #48, #49, #50 and #74 built; #42 closed; #55 and #56 on 2026-09-30)
 
 ## Done
@@ -399,7 +406,7 @@ every change re-seeds from those — edit them, never the built `design/suburi-d
 
 ## Next
 **English help (#106) and the settings page (#107): six slices, confirmed 2026-10-15; #122, #123,
-#124 and #125 are built.** Planned on 2026-10-14 from the owner's answers to Q0, Q106-1 to Q106-7, Q-P1 and Q-P2
+#124, #125 and #126 are built.** Planned on 2026-10-14 from the owner's answers to Q0, Q106-1 to Q106-7, Q-P1 and Q-P2
 (`06`, "Phase 6 — #106 and #107"): no English in a realistic round before its feedback, enforced
 structurally; in a Japanese practice round, one pill for the question's English and the round's
 chrome; English written by the call that writes the Japanese and stored apart from the question; the

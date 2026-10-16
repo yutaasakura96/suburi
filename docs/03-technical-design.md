@@ -187,7 +187,7 @@ note is stated as pending with a retry. The bound comes from the latency measure
 
 Six text jobs on one pinned model, and three more on models of their own — and, decided for #106, two
 small text jobs for English help on the same pinned model (`06`, 2026-10-14): the question's English
-by script, built by #123 (`lib/ai/translate-question.ts`), and the English reading, not built yet:
+by script, built by #123 (`lib/ai/translate-question.ts`), and the English reading, built by #126 (`lib/ai/english-reading.ts`):
 
 | Job | Model | Latency budget | Stakes |
 | --- | --- | --- | --- |

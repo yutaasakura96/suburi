@@ -1,4 +1,5 @@
 import type { Embedder } from "./embed";
+import type { EnglishReader, EnglishReadingResult } from "./english-reading";
 import {
   GENERATOR_PROMPT_VERSIONS,
   type QuestionGenerationInput,
@@ -273,6 +274,26 @@ export function fakeEmbedder(
         if (!own.has(text)) own.set(text, 100 + own.size);
         return vectorNear(own.get(text)!);
       });
+    },
+  };
+  return fake;
+}
+
+/** Reads through `respond`, or fails as it throws; `texts` is what it was asked to read. */
+export function fakeEnglishReader(
+  respond: (text: string, options: CallOptions) => EnglishReadingResult | Promise<EnglishReadingResult>,
+): EnglishReader & { calls: number; texts: string[]; options: CallOptions[] } {
+  const fake = {
+    modelId: "fake-english-reading-2026-01-01",
+    promptVersion: "english-reading-fake",
+    calls: 0,
+    texts: [] as string[],
+    options: [] as CallOptions[],
+    async read(text: string, options: CallOptions = {}) {
+      fake.calls += 1;
+      fake.texts.push(text);
+      fake.options.push(options);
+      return respond(text, options);
     },
   };
   return fake;

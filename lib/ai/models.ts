@@ -34,6 +34,12 @@ export const QUESTION_GENERATION_MODEL = "gpt-5.6-sol";
 export const QUESTION_TRANSLATION_MODEL = "gpt-5.6-sol";
 
 /**
+ * The English reading of a Japanese practice answer on the correction screen (07 §5.20), stored on
+ * `english_readings.model_id` (04) — the call, never its text. A reading aid, never a stamp.
+ */
+export const ENGLISH_READING_MODEL = "gpt-5.6-sol";
+
+/**
  * The near-duplicate guard's embeddings (03 §4, §11). `questions.embedding` is `vector(1536)`, this
  * model's default dimension. Changing it changes every distance the guard has ever recorded, so each
  * `near_duplicate_checks` row carries the string it was measured with (04).

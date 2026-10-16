@@ -41,6 +41,8 @@ describe("the error code table", () => {
       "speech_failed",
       "role_context_too_large",
       "write_failed",
+      "english_reading_not_applicable",
+      "english_reading_failed",
       "cv_unchanged",
       "cv_too_large",
       "cv_extraction_failed",

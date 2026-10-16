@@ -203,6 +203,16 @@ async function seedEverything(db: TestDb) {
     tokensIn: 120,
     tokensOut: 30,
   });
+  // An English reading of a transcript (#126): counts and a class, never its text (04 `english_readings`).
+  await db.insert(s.englishReadings).values({
+    answerId: first.id,
+    userId: world.userId,
+    status: "failed",
+    sourceCodePoints: 42,
+    modelId: "fixture-model",
+    promptVersion: "english-reading-fixture",
+    errorClass: "upstream_503",
+  });
   await db.insert(s.userSettings).values({ userId: world.userId, englishHelp: true });
   const [run] = await db.insert(s.cronRuns).values({ job: "self-check" }).returning({ id: s.cronRuns.id });
   await db.insert(s.cronReadings).values({
