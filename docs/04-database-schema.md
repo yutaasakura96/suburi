@@ -22,6 +22,8 @@ extended for History's two retry routes. The remaining round-loop changes are no
 **`user_settings` and `question_translations` are migrated by #123** (`0015_english-help`);
 **`follow_ups.prompt_text_translated` with its check by #125** (`0016_follow-up-english`); and
 **`english_readings` and the `english-reading` rate-limit route by #126** (`0017_english-reading`).
+**Company research's call (#134) adds only `rate_limit_windows.route` `research`** (`0018_research-route`);
+it saves nothing, and `role_contexts.research_draft` lands with #135.
 
 ---
 
@@ -876,7 +878,7 @@ so concurrent requests on different serverless instances cannot both slip under 
 | `id` | `uuid` | no | `gen_random_uuid()` | PK |
 | `user_id` | `text` | no | — | → `users.id` **restrict** |
 | `session_id` | `text` | no | — | `sessions.id`, **deliberately not a foreign key** — see below |
-| `route` | `text` | no | — | Checked: `cv-versions`, since #42 `rounds`, `transcribe`, `submit`, `complete`, `feedback`, since #45 `speech`, since #50 `scoring-attempts`, `scoring-run`, since #74 `model-answers`, and with #106's reading `english-reading`. Each later ⚡ route in `07` extends the list in the migration of the slice that builds it |
+| `route` | `text` | no | — | Checked: `cv-versions`, since #42 `rounds`, `transcribe`, `submit`, `complete`, `feedback`, since #45 `speech`, since #50 `scoring-attempts`, `scoring-run`, since #74 `model-answers`, with #106's reading `english-reading`, and with #134's company research `research`. Each later ⚡ route in `07` extends the list in the migration of the slice that builds it |
 | `window_started_at` | `timestamptz` | no | — | Database clock, never the function's |
 | `count` | `integer` | no | — | Requests counted in this window, **refused ones included** |
 | `created_at` | `timestamptz` | no | `now()` | |

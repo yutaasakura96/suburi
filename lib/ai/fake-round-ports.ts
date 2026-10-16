@@ -10,6 +10,7 @@ import type { FollowUpGenerator, FollowUpInput, FollowUpResult } from "./follow-
 import type { ModelHealth } from "./health";
 import type { ModelAnswerGenerator, ModelAnswerInput, ModelAnswerResult } from "./model-answer";
 import { EMBEDDING_DIMENSIONS } from "./models";
+import { MODEL_KNOWLEDGE, researchDraft, type CompanyResearcher, type ResearchRequest, type ResearchResult } from "./research";
 import type { RoundFeedbackGenerator, FeedbackInput, RoundFeedbackResult } from "./round-feedback";
 import type { AnswerScorer, CallOptions, ScoringInput, ScoringResult } from "./score";
 import type { Transcriber, TranscriptionInput, TranscriptionResult } from "./transcribe";
@@ -294,6 +295,55 @@ export function fakeEnglishReader(
       fake.texts.push(text);
       fake.options.push(options);
       return respond(text, options);
+    },
+  };
+  return fake;
+}
+
+/**
+ * A research as the real port returns one, from invented notes: one web fact and the rest `model
+ * knowledge`, the role under its guess heading (07 §5.22). No real company's facts.
+ */
+export function fixtureResearch(request: ResearchRequest, { searched = true }: { searched?: boolean } = {}): ResearchResult {
+  const web = searched ? [{ text: "It runs an invented marketplace for second-hand tools.", source: "https://example.com/about" }] : [];
+  const notes = {
+    company: {
+      what_it_does: [...web, { text: "It is a fixture company that exists only in tests.", source: MODEL_KNOWLEDGE }],
+      products: [],
+      size: [{ text: "It has about 300 employees, as of 2026.", source: MODEL_KNOWLEDGE }],
+      recent_news: [],
+      stated_values: [],
+    },
+    role: {
+      guess: true as const,
+      involves: [{ text: "The role most likely runs the monthly close.", source: MODEL_KNOWLEDGE }],
+      asks_for: [{ text: "It most likely asks for 経理 experience.", source: MODEL_KNOWLEDGE }],
+    },
+  };
+  return {
+    draft: researchDraft(request, notes),
+    searched,
+    facts: { web: web.length, modelKnowledge: 4, dropped: 0 },
+    tokensIn: 60_000,
+    tokensOut: 3_000,
+  };
+}
+
+/** Researches through `respond`, or fails as it throws; `requests` is what it was asked. */
+export function fakeCompanyResearcher(
+  respond: (request: ResearchRequest, options: CallOptions) => ResearchResult | Promise<ResearchResult> = (request) => fixtureResearch(request),
+): CompanyResearcher & { calls: number; requests: ResearchRequest[]; options: CallOptions[] } {
+  const fake = {
+    modelId: "fake-research-2026-01-01",
+    promptVersion: "research-fake",
+    calls: 0,
+    requests: [] as ResearchRequest[],
+    options: [] as CallOptions[],
+    async research(request: ResearchRequest, options: CallOptions = {}) {
+      fake.calls += 1;
+      fake.requests.push(request);
+      fake.options.push(options);
+      return respond(request, options);
     },
   };
   return fake;

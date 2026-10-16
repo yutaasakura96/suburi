@@ -43,6 +43,7 @@ export const RATE_LIMITED_ROUTES = [
   "scoring-run",
   "model-answers",
   "english-reading",
+  "research",
 ] as const;
 // 12 §6's monitoring jobs and what they read (04 cron_readings). #47 adds the near-miss row; #56
 // added the daily dump's.

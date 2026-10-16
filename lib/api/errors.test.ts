@@ -43,6 +43,8 @@ describe("the error code table", () => {
       "write_failed",
       "english_reading_not_applicable",
       "english_reading_failed",
+      "research_posting_exists",
+      "research_failed",
       "cv_unchanged",
       "cv_too_large",
       "cv_extraction_failed",

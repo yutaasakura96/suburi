@@ -81,6 +81,28 @@ export function generatedQuestions(body: Record<string, unknown>) {
 }
 
 /**
+ * What a spec answers a `company_research` request with (07 §5.22): invented notes, every fact
+ * `model knowledge` — the mock runs no web search, so a link would be dropped as one the call never saw.
+ */
+export function companyResearch() {
+  const known = (text: string) => ({ text, source: "model knowledge" });
+  return {
+    company: {
+      what_it_does: [known("It is an invented company that exists only in the e2e suite.")],
+      products: [known("Its product is a fixture bookkeeping service.")],
+      size: [],
+      recent_news: [],
+      stated_values: [],
+    },
+    role: {
+      guess: true,
+      involves: [known("The role most likely runs the monthly close.")],
+      asks_for: [known("It most likely asks for 経理 experience.")],
+    },
+  };
+}
+
+/**
  * A unit vector that depends on the text alone: the same text embeds the same way, and two texts are
  * as good as orthogonal, so nothing the mock embeds is anything else's near-duplicate.
  */

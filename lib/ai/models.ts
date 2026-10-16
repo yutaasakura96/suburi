@@ -40,6 +40,13 @@ export const QUESTION_TRANSLATION_MODEL = "gpt-5.6-sol";
 export const ENGLISH_READING_MODEL = "gpt-5.6-sol";
 
 /**
+ * Company research for US-16 (07 §5.22), with the Responses API's hosted `web_search` tool, which
+ * OpenAI's model page lists for this model (verified 2026-10-16, 06). The draft it writes is returned,
+ * never stored by its route; not a stamp: no score depends on it.
+ */
+export const RESEARCH_MODEL = "gpt-5.6-sol";
+
+/**
  * The near-duplicate guard's embeddings (03 §4, §11). `questions.embedding` is `vector(1536)`, this
  * model's default dimension. Changing it changes every distance the guard has ever recorded, so each
  * `near_duplicate_checks` row carries the string it was measured with (04).

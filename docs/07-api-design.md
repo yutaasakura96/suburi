@@ -74,13 +74,18 @@ by round end the scores are already rows.
    answers, and retrying every one of them is 14 of each call.
    **The English reading (#106, §5.20): 30 per 10 minutes**, in its own bucket (`english-reading`) —
    a few readings per answer while it is corrected, across the longest practice round.
+   **Company research (#134, §5.22): 6 per 10 minutes**, in its own bucket (`research`) — one call
+   per company and role on Setup, about a minute each, and a second try after a failure; the same
+   bound as `POST /api/rounds`, which a research comes before.
 6. **The client never chooses an S3 key, an object prefix, a `user_id`, a `position`, an
    `is_first_attempt`, a question, a CV version, text to be spoken, or any version stamp.** All are
    server-derived. This is not defensive coding; it is what makes the four stamps and first-attempt
    uniqueness trustworthy. **One route takes text for a model, and only the user's own:** the English
    reading (§5.20) translates the editor's text, bound to an open, unsubmitted answer of a Japanese
    practice round and capped, so it is not a general translator. Nothing it sends or returns is
-   stored (`06`, 2026-10-14). **No English is chosen by the client either**: a prompt's English is
+   stored (`06`, 2026-10-14). **Company research (§5.22) takes a company name and a role title**, the
+   user's own and capped as a posting's, and returns notes it does not store (`06`, 2026-10-16, R1 to
+   R5). **No English is chosen by the client either**: a prompt's English is
    read from stored rows (§5.4).
 
 ---
@@ -176,6 +181,8 @@ that asserts the two lists match.
 | `write_failed` | 500 | every round route, and `PUT /api/settings` | the screen that made the call — nothing half-written; the round stays resumable |
 | `english_reading_not_applicable` | 422 | `english-reading` | — (a client bug: the control is drawn only on a Japanese practice round's correction screen) — names the refusal, a realistic round's or an English one's (§5.20) |
 | `english_reading_failed` | 502 | `english-reading` | the correction screen — under the control; the editor and everything else unchanged, and asking again is allowed (§5.20) |
+| `research_posting_exists` | 422 | `research` | Setup's research card — a saved posting is the same job and is used; no research runs (§5.22) |
+| `research_failed` | 502 | `research` | Setup's research card — nothing was saved and asking again is allowed; `detail.error_class` names why, `upstream_timeout` included (§5.22) |
 | `cv_unchanged` | 422 | `POST /api/cv-versions` | CV screen — the save is refused, nothing written |
 | `cv_too_large` | 422 | `POST /api/cv-versions` | CV screen — before any model call |
 | `cv_extraction_failed` | 502 | `POST /api/cv-versions` | CV screen |
@@ -197,6 +204,11 @@ copy. **Only the retry route raises it**: `complete` never fails for a model ans
 **`english_reading_not_applicable` and `english_reading_failed` are added by English help** (#106, `06`,
 2026-10-14), each with its `ja` and `en` copy in the slice that builds the route. The first is a `422`
 because Q106-2 is the rule it refuses on: no English before a realistic round's feedback.
+
+**`research_posting_exists` and `research_failed` are added by company research** (#134, `06`,
+2026-10-16), each with its `ja` and `en` copy in the slice that builds the route. The first is a `422`
+because R4 is the rule it refuses on: a saved posting for the same job wins (PRD US-2). Setup renders
+them in English (`10` §0); the `ja` copy is the catalogue's rule (`11` §3.10), never rendered there.
 
 **`round_abandoned` landed with the tracer too** (#42 review): `answers`, `submit` and `complete` read
 the derived status (§5.5) inside their locked transaction, so a stale tab cannot write into a round a
@@ -473,7 +485,7 @@ imported with the CV screen's importer (`lib/cv/import/`): the browser extracts 
 checks it, and only the text and the filename are sent — the file never reaches the server, as in §5.2.
 
 **What US-16 adds, decided 2026-10-16** (`06`, R1 to R5; specified in full by its slices). A research
-is run by its own ⚡ route, which takes a company name and a role title, writes the notes and
+is run by its own ⚡ route (§5.22, built by #134), which takes a company name and a role title, writes the notes and
 **saves nothing**: the user reads and edits them on Setup first. The notes are English; each fact
 carries its source, a web link when the pinned model's search worked and a "model knowledge" label
 when it did not, and the role part is labelled as a guess. Saving is this route with
@@ -1516,6 +1528,54 @@ PUT /api/settings
 - One transaction: `users.name` is set, and `user_settings` upserted on `user_id` (`04`). The email
   is not a field: it is Google's and the allowlist's (`08` §2).
 - `500 write_failed` when it fails; nothing is half-written.
+
+### 5.22 `POST /api/role-contexts/research` ⚡
+
+English notes on a company and on what a role there most likely involves, for US-16 (#134; `06`,
+2026-10-16, R1, R2, R4, R5). **It saves nothing**: Setup shows the draft in an editable box, and a save
+is §5.3 with `kind: "researched"` (#135).
+
+```http
+POST /api/role-contexts/research
+{ "company_name": "株式会社サンプル", "role_title": "経理マネージャー" }
+```
+```json
+200
+{ "company_name": "株式会社サンプル", "role_title": "経理マネージャー",
+  "draft": "株式会社サンプル — 経理マネージャー\n\nThe company\n\nWhat the company does\n- 株式会社サンプル sells accounting software to small firms. [https://www.example.co.jp/company/about]\n…\n\nThe role (a guess, not from a posting)\n\nWhat it most likely involves\n- The role most likely leads the monthly close. [model knowledge]\n…",
+  "searched": true, "model_id": "gpt-5.6-sol", "prompt_version": "research-1.0" }
+```
+
+- `company_name` and `role_title` are required, trimmed, non-blank and at most **200 code points**, as
+  a posting's (§5.3); the schema is strict. Otherwise a `400` naming the field.
+- **A saved posting wins** (R4): when the user has a posting whose company name and role title equal
+  the request's after tidying — `NFKC`, whitespace collapsed, case folded (`lib/round/same-job.ts`) —
+  the route answers `422 research_posting_exists` with `detail.role_context_id`, the newest such
+  posting, **before any model call**. The same company under another title is researched; Setup asks
+  first (`10` §2). Another user's posting is never compared.
+- **One call** to the pinned model (`03` §4) with `research-1.0` and the Responses API's hosted
+  `web_search` tool, `tool_choice: "auto"`, asking for the tool's sources. **It searches when it can and
+  falls back to the model's knowledge when it does not** (R1): `searched` is `true` when the response
+  holds a `web_search_call` that completed, read from the response and never from the notes.
+- **The output is checked server-side** (`checkResearchNotes`): every fact is one sentence with one
+  source, an `http(s)` URL or exactly `model knowledge`; a fact's text holds no line break and no
+  `http(s)` URL, so it cannot add a line or a link the check never saw; no fact holds a question mark
+  (`?` or `？`) anywhere (R2 rejected a list of interview questions); the role part is marked as a
+  guess; what the company does and what the role involves are not empty; the draft fits a role
+  context's 20,000-code-point cap, so it can be saved as returned. Anything else is
+  `malformed_output`, a failed call. **A well-formed link the call never saw is dropped and counted,
+  never relabelled** — "saw" is the same URL, or a page on a host its search returned, opened or
+  cited — so **a call that did not search carries `model knowledge` facts only**.
+- `draft` is the checked notes as English text, each fact's source in brackets after it, the company's
+  lists then the role under a heading that says it is a guess; an empty list is left out. It is what
+  Setup shows and, saved, what `research_draft` keeps (`04` `role_contexts`). Japanese names stay
+  Japanese inside the English (R5).
+- **Bounded at 150 s, with no retry** — twice the slowest call measured (`03` §4); the route's
+  `maxDuration` is 300 s. A failure is `502 research_failed` with `detail.error_class` only, and the
+  user can ask again.
+- **Nothing is written**: no `role_contexts` row, no record of the call. **Nothing it is sent or returns
+  is logged** (`12` §7): log lines carry the duration, `searched`, the fact counts by source, the links
+  dropped, the draft's length and the tokens.
 
 ## 6. Endpoints that do not exist, and must not be added
 

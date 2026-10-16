@@ -4,6 +4,7 @@ import type { AddressInfo } from "node:net";
 // A local stand-in for OpenAI's Responses API, for tests that run a real port's parse and checks
 // against a mocked model response (11 §2: no test calls OpenAI). Every POST /v1/responses is answered
 // with what `respond` returns for its body, as the model's structured output; nothing else is served.
+// `before` adds output items ahead of the message — a research call's `web_search_call`s, say.
 
 export interface MockResponses {
   /** The `baseURL` a port is built with. */
@@ -13,7 +14,10 @@ export interface MockResponses {
   close(): Promise<void>;
 }
 
-export async function startMockResponses(respond: (body: Record<string, unknown>) => object): Promise<MockResponses> {
+export async function startMockResponses(
+  respond: (body: Record<string, unknown>) => object,
+  before: (body: Record<string, unknown>) => object[] = () => [],
+): Promise<MockResponses> {
   const requests: Record<string, unknown>[] = [];
   const server = createServer((request, response) => {
     const chunks: Buffer[] = [];
@@ -33,6 +37,7 @@ export async function startMockResponses(respond: (body: Record<string, unknown>
           status: "completed",
           model: body.model,
           output: [
+            ...before(body),
             {
               id: "msg_test",
               type: "message",

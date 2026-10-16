@@ -140,6 +140,14 @@ const CATALOGUE = {
     ja: "英語訳を表示できませんでした。回答はそのまま残っています。もう一度お試しください。",
     en: "The English reading could not be made. Your answer is unchanged. Try again.",
   },
+  research_posting_exists: {
+    ja: "同じ会社と職種の求人票が保存されています。調査はせず、その求人票を使います。",
+    en: "A saved posting is for this company and role. It is used, and no research is run.",
+  },
+  research_failed: {
+    ja: "会社の調査ができませんでした。何も保存されていません。もう一度お試しください。",
+    en: "The research could not be done. Nothing was saved. Try again.",
+  },
   cv_unchanged: {
     ja: "応募書類に変更がありません。新しいバージョンは作成しませんでした。",
     en: "Nothing in the CV has changed. No new version was created.",
