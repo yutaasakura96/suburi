@@ -5,8 +5,8 @@ import { ModelCallFailed } from "./upstream";
 // The English-reading port's check (07 §5.20): what comes back is checked, not trusted.
 
 describe("checkEnglishReading", () => {
-  it("returns the English, trimmed, with its line breaks inside", () => {
-    expect(checkEnglishReading("  Um, at my last job,\nI led the migration.\n")).toBe("Um, at my last job,\nI led the migration.");
+  it("preserves the English and its leading, internal, and trailing line breaks", () => {
+    expect(checkEnglishReading("\nUm, at my last job,\nI led the migration.\n")).toBe("\nUm, at my last job,\nI led the migration.\n");
   });
 
   it("refuses a blank English", () => {

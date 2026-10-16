@@ -28,13 +28,11 @@ export interface EnglishReader {
   read(text: string, options?: CallOptions): Promise<EnglishReadingResult>;
 }
 
-/** The English, trimmed — or the whole result is refused. */
 export function checkEnglishReading(text: string): string {
-  const english = text.trim();
-  if (english === "") {
+  if (text.trim() === "") {
     throw new ModelCallFailed("English reading", "malformed_output");
   }
-  return english;
+  return text;
 }
 
 const output = z.object({ english: z.string() });

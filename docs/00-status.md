@@ -106,9 +106,9 @@ reading on the correction screen, is built (2026-10-16), on `fm/suburi-126`:** `
 /api/answers/{answerId}/english-reading` with `english-reading-1.0`, every refusal before the model,
 30 s and no retry, its own `english-reading` bucket; `english_readings` (`0017_english-reading`) holds
 counts and the model, never the text, and the week's spend counts it; the two catalogue codes; and
-the control under `RAW`, in a Japanese practice round only. **Owed, the user's:** the native read of its
-nine Japanese strings (`docs/checklists/native-read-round.md` §17). Migration `0017` is not yet
-applied to either Neon branch.
+the control under `RAW`, in a Japanese practice round only. **The nine Japanese strings were accepted
+in a delegated AI review on 2026-10-16, not a native read** (`docs/checklists/native-read-round.md`
+§17). Migration `0017` is not yet applied to either Neon branch.
 **Updated:** 2026-10-16 (#126 built; #125 re-measured); 2026-10-15 (#125 built; #124 built; #123 built; #122 built; #122–#127 confirmed); 2026-10-14 (#106 and #107 planned; #76 built; #85 built; #83 checked; #75 built; #105 built; #104 measured and fixed; #51 built; follow-ups spoken; #73 built; #49's Japanese strings all accepted; #50's
 catalogue string read; #43, #44, #45, #46, #47, #48, #49, #50 and #74 built; #42 closed; #55 and #56 on 2026-09-30)
 
