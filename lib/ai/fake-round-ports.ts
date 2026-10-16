@@ -89,6 +89,8 @@ export function fakeFollowUpGenerator(
 
 export const FIXTURE_FOLLOW_UP: FollowUpResult = {
   text: "How did you measure the six months?",
+  english: null,
+  englishDropped: null,
   tokensIn: 400,
   tokensOut: 20,
 };
@@ -216,11 +218,22 @@ export function fakeQuestionGenerator(
   return fake;
 }
 
-/** As many distinct questions as were asked for, numbered from `from` so two calls never collide. */
-export function numberedQuestions(from = 1) {
+/**
+ * As many distinct questions as were asked for, numbered from `from` so two calls never collide.
+ * With `english`, a Japanese round's each carry an English, as `ja-1.1` writes one (Q106-4); without
+ * it, none.
+ */
+export function numberedQuestions(from = 1, { english = false }: { english?: boolean } = {}) {
   let next = from;
   return (input: QuestionGenerationInput): QuestionGenerationResult => ({
-    questions: Array.from({ length: input.count }, () => `Generated fixture question ${next++}?`),
+    questions: Array.from({ length: input.count }, () => {
+      const number = next++;
+      return {
+        text: `Generated fixture question ${number}?`,
+        english: english && input.language === "ja" ? `The English of fixture question ${number}?` : null,
+        englishDropped: null,
+      };
+    }),
     tokensIn: 900,
     tokensOut: 120,
   });

@@ -1,6 +1,6 @@
 import { questionEnglish } from "../questions/translations";
 import type { Db } from "./http";
-import type { RoundRow } from "./state";
+import type { AnswerRow, FollowUpRow, RoundRow } from "./state";
 
 // English help in what a round's routes read (07 §5.4, §5.5, §5.9; 06, 2026-10-14, Q106-2, Q106-3).
 
@@ -14,17 +14,39 @@ export function carriesEnglish(round: Pick<RoundRow, "language" | "mode">) {
 }
 
 /**
+ * Where a prompt's English is stored (Q106-4): a bank question's is its newest `question_translations`
+ * row, and a follow-up's is the `prompt_text_translated` of its own `follow_ups` row.
+ */
+export type EnglishSource =
+  | { readonly questionId: string | null }
+  | { readonly followUp: Pick<FollowUpRow, "promptTextTranslated"> | null | undefined };
+
+/** The English of the prompt an answer answered: its question's, or the follow-up row it answers. */
+export function answerEnglishSource(
+  answer: Pick<AnswerRow, "questionId" | "parentAnswerId">,
+  followUps: readonly FollowUpRow[],
+): EnglishSource {
+  if (answer.questionId !== null) return { questionId: answer.questionId };
+  return { followUp: followUps.find((row) => row.parentAnswerId === answer.parentAnswerId) };
+}
+
+/** The stored English, or null when the prompt has none. */
+export async function storedEnglish(db: Pick<Db, "selectDistinctOn">, source: EnglishSource): Promise<string | null> {
+  if ("followUp" in source) return source.followUp?.promptTextTranslated ?? null;
+  return source.questionId === null ? null : questionEnglish(db, source.questionId);
+}
+
+/**
  * The `text_en` a prompt carries, as the fields to spread into it: **none at all** — not `null`,
  * absent — on a round that does not carry English, so no English can reach a realistic round's
- * screens whatever the client does. A bank question's is its newest stored English, or `null`; a
- * follow-up's (`questionId` null) is `null` until follow-ups are written with their English (#125).
- * Read on every request, never cached on the round.
+ * screens whatever the client does. Otherwise its stored English, or `null`. Read on every request,
+ * never cached on the round.
  */
 export async function promptEnglish(
   db: Pick<Db, "selectDistinctOn">,
   round: Pick<RoundRow, "language" | "mode">,
-  questionId: string | null,
+  source: EnglishSource,
 ): Promise<{ text_en?: string | null }> {
   if (!carriesEnglish(round)) return {};
-  return { text_en: questionId === null ? null : await questionEnglish(db, questionId) };
+  return { text_en: await storedEnglish(db, source) };
 }

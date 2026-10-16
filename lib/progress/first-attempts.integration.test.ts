@@ -2,6 +2,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import * as s from "../../db/schema";
 import { closePool, inRolledBackTransaction, type TestDb } from "../../db/test/database";
 import { answerValues, attemptValues, insertRubric, insertWorld, roundValues, type World } from "../../db/test/fixtures";
+import { GENERATOR_PROMPT_VERSIONS } from "../ai/generate-questions";
 import { firstAttemptCounts, firstAttempts, seriesOf } from "./first-attempts";
 import { boundaries, segments, trendLine } from "./series";
 
@@ -287,5 +288,41 @@ describe("where Progress draws its boundaries (11 §3.6)", () => {
       // The first five share every stamp; every later run is under five, and no line spans two runs.
       expect(lines.map((line) => line !== null)).toEqual([true, false, false, false, false, false, false]);
       expect(lines[0]!.x2).toBeLessThan(180);
+    }));
+
+  // #125 (06, 2026-10-14, Q106-4): the Japanese generator moved to `ja-1.1` to write each question's
+  // English, and stamp 3 is the generator prompt version — so the first first attempt at a question
+  // `ja-1.1` wrote is a boundary on the Japanese chart. A set piece between them is compared within its
+  // own kind and draws none; the English chart, whose prompts did not move, draws none either.
+  it("draws one at the first first attempt at a question generate-…-ja-1.1 wrote, and none on the English chart", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await insertWorld(db);
+      const before = "generate-behavioural-ja-1.0";
+      const after = GENERATOR_PROMPT_VERSIONS.ja.behavioural;
+      expect(after).toBe("generate-behavioural-ja-1.1");
+      const generatedBy = (version: string) => ({
+        question: { generatorPromptVersion: version },
+        attempts: [{ generatorPromptVersion: version }],
+      });
+      const setPiece = {
+        question: { origin: "set_piece", generatorPromptVersion: "set-piece-ja-1.0" },
+        attempts: [{ generatorPromptVersion: "set-piece-ja-1.0" }],
+      } as const;
+
+      for (const day of [0, 1, 2]) await scored(db, world, { day, ...generatedBy(before) });
+      await scored(db, world, { day: 3, ...setPiece });
+      await scored(db, world, { day: 4, ...generatedBy(after) });
+      await scored(db, world, { day: 5, ...setPiece });
+      await scored(db, world, { day: 6, ...generatedBy(after) });
+      const english = { round: { language: "en" } } as const;
+      for (const day of [7, 8, 9]) {
+        await scored(db, world, { day, ...english, ...generatedBy(GENERATOR_PROMPT_VERSIONS.en.behavioural) });
+      }
+
+      const attempts = await firstAttempts(db, world.userId);
+      const japanese = seriesOf(attempts, JA_BEHAVIOURAL);
+      expect(japanese).toHaveLength(7);
+      expect(boundaries(japanese).map((boundary) => [boundary.before, boundary.changes])).toEqual([[4, [{ kind: "generator", to: after }]]]);
+      expect(boundaries(seriesOf(attempts, { ...JA_BEHAVIOURAL, language: "en" }))).toEqual([]);
     }));
 });

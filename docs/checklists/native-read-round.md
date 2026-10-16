@@ -276,7 +276,7 @@ quotes; the rest were written for #44, each as the Japanese of a string it wrote
 The catalogue's `followup_generation_failed` sentence, shown when the follow-up could not be
 generated, was read with #13.
 
-**What cannot be read in advance.** `lib/prompts/follow-up-ja-1.0.ts` asks the model for one 深掘り,
+**What cannot be read in advance.** `lib/prompts/follow-up-ja-1.1.ts` asks the model for one 深掘り,
 in the です・ます register, at most 60 characters. Its instructions are in English; what needs the
 read is its **output**. `lib/prompts/feedback-ja-1.1.ts` names a follow-up's answer as
 `第2問の深掘り` in the findings. Both are read on the first real Japanese round with follow-ups on
@@ -294,7 +294,7 @@ add no Japanese. One catalogue string does.
 | | 求人票が長すぎます。短くしてからもう一度保存してください。 | `role_context_too_large` — The posting is too long. Shorten it and save again. |
 
 **What cannot be read in advance.** The four Japanese generator prompts
-(`lib/prompts/generate-*-ja-1.0.ts`) are written in English and name the Japanese they ask for —
+(`lib/prompts/generate-*-ja-1.1.ts`) are written in English and name the Japanese they ask for —
 `です・ます体`, ordinary `敬語`, and the set pieces the generator must not ask (`自己紹介`, `自己PR`,
 `転職理由`, `志望動機`). What needs a native reader is their **output**: a handful of generated
 questions per round type, read for whether an interviewer would say them. They are read on the first

@@ -10,7 +10,7 @@ import { ModelCallFailed, openAiClient, upstreamErrorClass } from "./upstream.ts
  * English, for English help. **Called only by `scripts/translate-questions.mts`, never at round
  * time** (06, 2026-10-14, Q106-4). One real implementation and a fake; no test calls OpenAI (11 §2).
  *
- * **What comes back is checked, not trusted:** not blank, and not longer than
+ * **What comes back is checked, not trusted:** not blank, free of Japanese script, and not longer than
  * `MAX_QUESTION_ENGLISH_CODE_POINTS`. Anything else is `malformed_output`, and no row is written.
  */
 
@@ -38,10 +38,12 @@ export interface QuestionTranslator {
 /** Several times the one or two sentences the prompt asks for: it refuses a runaway output, nothing shorter. */
 export const MAX_QUESTION_ENGLISH_CODE_POINTS = 600;
 
-/** The English, trimmed — or the whole result is refused: blank, or too long. */
+export const containsJapaneseScript = (text: string) => /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]/u.test(text);
+
+/** The English, trimmed — or the whole result is refused. */
 export function checkQuestionEnglish(text: string): string {
   const english = text.trim();
-  if (english === "" || Array.from(english).length > MAX_QUESTION_ENGLISH_CODE_POINTS) {
+  if (english === "" || Array.from(english).length > MAX_QUESTION_ENGLISH_CODE_POINTS || containsJapaneseScript(english)) {
     throw new ModelCallFailed("Question translation", "malformed_output");
   }
   return english;

@@ -65,13 +65,19 @@ export function silentPcm() {
 /**
  * As many questions as the generator was asked for — what a spec answers a `generated_questions`
  * request with. Tagged and numbered, so no two calls write the same question, in this worker or the
- * next.
+ * next. A Japanese call (`ja-1.1`, #125) asks for each question with its English, and gets one.
  */
 const RUN = randomUUID().slice(0, 8);
 let generated = 0;
 export function generatedQuestions(body: Record<string, unknown>) {
   const count = Number(/=== questions needed ===\n(\d+)/.exec(String(body.input))?.[1] ?? 0);
-  return { questions: Array.from({ length: count }, () => `Generated e2e question ${RUN}-${(generated += 1)}?`) };
+  const withEnglish = JSON.stringify((body.text as { format?: unknown } | undefined)?.format ?? {}).includes('"english"');
+  return {
+    questions: Array.from({ length: count }, () => {
+      const question = `Generated e2e question ${RUN}-${(generated += 1)}?`;
+      return withEnglish ? { question, english: `The English of e2e question ${RUN}-${generated}?` } : question;
+    }),
+  };
 }
 
 /**

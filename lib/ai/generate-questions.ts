@@ -1,15 +1,17 @@
 import { zodTextFormat } from "openai/helpers/zod";
 import { z } from "zod";
 import * as behaviouralEn from "../prompts/generate-behavioural-en-1.0.ts";
-import * as behaviouralJa from "../prompts/generate-behavioural-ja-1.0.ts";
+import * as behaviouralJa from "../prompts/generate-behavioural-ja-1.1.ts";
 import * as ceoEn from "../prompts/generate-ceo-en-1.0.ts";
-import * as ceoJa from "../prompts/generate-ceo-ja-1.0.ts";
+import * as ceoJa from "../prompts/generate-ceo-ja-1.1.ts";
 import * as hrEn from "../prompts/generate-hr-en-1.0.ts";
-import * as hrJa from "../prompts/generate-hr-ja-1.0.ts";
+import * as hrJa from "../prompts/generate-hr-ja-1.1.ts";
 import * as technicalEn from "../prompts/generate-technical-en-1.0.ts";
-import * as technicalJa from "../prompts/generate-technical-ja-1.0.ts";
+import * as technicalJa from "../prompts/generate-technical-ja-1.1.ts";
+import { checkEnglish, type EnglishDrop } from "./generated-english.ts";
 import { QUESTION_GENERATION_MODEL } from "./models.ts";
 import type { CallOptions } from "./score.ts";
+import { checkQuestionEnglish } from "./translate-question.ts";
 import { ModelCallFailed, openAiClient, upstreamErrorClass } from "./upstream.ts";
 
 /**
@@ -23,6 +25,9 @@ import { ModelCallFailed, openAiClient, upstreamErrorClass } from "./upstream.ts
  *
  * What it returns is a candidate, not a bank row: the near-duplicate guard decides whether each is
  * inserted or mapped to a question the bank already holds (`lib/questions/near-duplicate.ts`).
+ *
+ * **A Japanese call writes each candidate's English too** (`ja-1.1`; 06, 2026-10-14, Q106-4), checked
+ * apart from the question: a missing or malformed English is dropped and the question kept.
  */
 
 export type GenerationLanguage = "ja" | "en";
@@ -43,9 +48,17 @@ export interface QuestionGenerationInput {
   readonly existing: readonly string[];
 }
 
+export interface GeneratedQuestion {
+  readonly text: string;
+  /** Its English, from the same call: a Japanese round's only, and null when it was dropped. */
+  readonly english: string | null;
+  /** Why a Japanese question's English was dropped; null when it was kept, and on an English round. */
+  readonly englishDropped: EnglishDrop | null;
+}
+
 export interface QuestionGenerationResult {
   /** At most `count`, each non-empty, no two the same. */
-  readonly questions: readonly string[];
+  readonly questions: readonly GeneratedQuestion[];
   readonly tokensIn: number | null;
   readonly tokensOut: number | null;
 }
@@ -72,13 +85,30 @@ export function tidyQuestion(text: string) {
   return text.replace(/\s+/gu, " ").trim();
 }
 
+/** A question as the call wrote it: an English round's has no English. */
+export interface WrittenQuestion {
+  readonly question: string;
+  readonly english: string | null;
+}
+
 /**
  * Tidied, blanks and repeats dropped, cut to the count asked for. **None at all is
  * `malformed_output`**; fewer than asked is not, since the guard may shorten the list further anyway
- * and the round's caller decides what a short list means.
+ * and the round's caller decides what a short list means. A repeat keeps the first one's English.
+ *
+ * In a Japanese round each English is checked on its own, and **a failed English never fails its
+ * question**: the question is kept with `english` null and the class of the drop.
  */
-export function checkQuestions(count: number, questions: readonly string[]): readonly string[] {
-  const kept = [...new Set(questions.map(tidyQuestion).filter((question) => question !== ""))].slice(0, count);
+export function checkQuestions(language: GenerationLanguage, count: number, written: readonly WrittenQuestion[]): readonly GeneratedQuestion[] {
+  const seen = new Set<string>();
+  const kept: GeneratedQuestion[] = [];
+  for (const { question, english } of written) {
+    const text = tidyQuestion(question);
+    if (text === "" || seen.has(text)) continue;
+    seen.add(text);
+    kept.push({ text, ...(language === "ja" ? checkEnglish(english, (value) => checkQuestionEnglish(tidyQuestion(value))) : { english: null, englishDropped: null }) });
+    if (kept.length === count) break;
+  }
   if (kept.length === 0) throw new ModelCallFailed("Question generation", "malformed_output");
   return kept;
 }
@@ -103,7 +133,17 @@ export function renderGenerationInput({ count, roleContext, claims, existing }: 
   ].join("\n");
 }
 
-const output = z.object({ questions: z.array(z.string()) });
+const OUTPUTS = {
+  en: z.object({ questions: z.array(z.string()) }),
+  // The English is asked for on every question, and read leniently: one that is absent or not a
+  // string parses as null, so a bad English costs that English, never the call (Q106-4).
+  ja: z.object({ questions: z.array(z.object({ question: z.string(), english: z.string().nullable().catch(null) })) }),
+};
+
+/** What came back, one shape for both languages. */
+function writtenQuestions(parsed: z.infer<(typeof OUTPUTS)["en"]> | z.infer<(typeof OUTPUTS)["ja"]>): WrittenQuestion[] {
+  return parsed.questions.map((item) => (typeof item === "string" ? { question: item, english: null } : item));
+}
 
 export function openAiQuestionGenerator({ apiKey, baseURL }: { apiKey: string; baseURL?: string }): QuestionGenerator {
   return {
@@ -117,14 +157,14 @@ export function openAiQuestionGenerator({ apiKey, baseURL }: { apiKey: string; b
             model: QUESTION_GENERATION_MODEL,
             instructions: prompt.instructions,
             input: renderGenerationInput(input),
-            text: { format: zodTextFormat(output, "generated_questions") },
+            text: { format: zodTextFormat(OUTPUTS[input.language], "generated_questions") },
           },
           { signal, ...(timeoutMs === undefined ? {} : { timeout: timeoutMs }) },
         );
         if (response.status !== "completed") throw new ModelCallFailed("Question generation", `response_${response.status}`);
         if (!response.output_parsed) throw new ModelCallFailed("Question generation", "no_parsed_output");
         return {
-          questions: checkQuestions(input.count, response.output_parsed.questions),
+          questions: checkQuestions(input.language, input.count, writtenQuestions(response.output_parsed)),
           tokensIn: response.usage?.input_tokens ?? null,
           tokensOut: response.usage?.output_tokens ?? null,
         };

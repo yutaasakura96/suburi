@@ -261,7 +261,7 @@ describe("the near-duplicate guard (11 §3.7)", () => {
       const existing = await world.banked("An existing question?", vectorNear(1));
       const before = await count(db, s.questions);
 
-      const admission = await admitCandidate(db, world.slice(), { body: "The same question, reworded?", embedding: vectorNear(1, ABOVE) }, STAMPS);
+      const admission = await admitCandidate(db, world.slice(), { body: "The same question, reworded?", english: null, embedding: vectorNear(1, ABOVE) }, STAMPS);
 
       expect(admission).toEqual({ kind: "reused", questionId: existing });
       expect(await count(db, s.questions)).toBe(before);
@@ -275,7 +275,7 @@ describe("the near-duplicate guard (11 §3.7)", () => {
       // Whatever the database makes of this pair is the threshold the guard is then given.
       const measured = (await nearestQuestion(db, world.slice(), embedding))!.similarity;
 
-      const admission = await admitCandidate(db, world.slice(), { body: "On the line?", embedding }, STAMPS, measured);
+      const admission = await admitCandidate(db, world.slice(), { body: "On the line?", english: null, embedding }, STAMPS, measured);
 
       expect(admission).toEqual({ kind: "reused", questionId: existing });
     }));
@@ -286,7 +286,7 @@ describe("the near-duplicate guard (11 §3.7)", () => {
       await world.banked("An existing question?", vectorNear(1));
       const embedding = vectorNear(1, BELOW);
 
-      const admission = await admitCandidate(db, world.slice(), { body: "A different question?", embedding }, { ...STAMPS, tokensIn: 900, tokensOut: 120 });
+      const admission = await admitCandidate(db, world.slice(), { body: "A different question?", english: null, embedding }, { ...STAMPS, tokensIn: 900, tokensOut: 120 });
 
       expect(admission.kind).toBe("inserted");
       const [stored] = await db.select().from(s.questions).where(eq(s.questions.id, admission.questionId));
@@ -314,7 +314,7 @@ describe("the near-duplicate guard (11 §3.7)", () => {
       const world = await setUp(db);
       await world.banked("The same question, elsewhere?", vectorNear(1), elsewhere);
 
-      const admission = await admitCandidate(db, world.slice(), { body: "The same question, here?", embedding: vectorNear(1) }, STAMPS);
+      const admission = await admitCandidate(db, world.slice(), { body: "The same question, here?", english: null, embedding: vectorNear(1) }, STAMPS);
 
       expect(admission.kind).toBe("inserted");
       // Nothing in its own slice to compare with: no check, rather than one at similarity zero.
@@ -326,7 +326,7 @@ describe("the near-duplicate guard (11 §3.7)", () => {
       const world = await setUp(db);
       await world.banked("Someone else's question?", vectorNear(1), { userId: await insertUser(db) });
 
-      expect((await admitCandidate(db, world.slice(), { body: "Mine?", embedding: vectorNear(1) }, STAMPS)).kind).toBe("inserted");
+      expect((await admitCandidate(db, world.slice(), { body: "Mine?", english: null, embedding: vectorNear(1) }, STAMPS)).kind).toBe("inserted");
     }));
 
   it("is not suppressed by a retired question, which keeps every answer that referenced it", () =>
@@ -336,7 +336,7 @@ describe("the near-duplicate guard (11 §3.7)", () => {
       const answerId = await world.answer(retired);
       await db.update(s.questions).set({ retiredAt: new Date() }).where(eq(s.questions.id, retired));
 
-      const admission = await admitCandidate(db, world.slice(), { body: "The retired question, again?", embedding: vectorNear(1) }, STAMPS);
+      const admission = await admitCandidate(db, world.slice(), { body: "The retired question, again?", english: null, embedding: vectorNear(1) }, STAMPS);
 
       expect(admission.kind).toBe("inserted");
       expect(admission.questionId).not.toBe(retired);
@@ -371,8 +371,8 @@ describe("the near-duplicate guard (11 §3.7)", () => {
       const existing = await world.banked("An existing question?", vectorNear(1));
 
       // The duplicate first: once the near-miss is in the bank it is a neighbour too.
-      const reuse = await admitCandidate(db, world.slice(), { body: "A duplicate?", embedding: vectorNear(1, ABOVE) }, STAMPS);
-      const miss = await admitCandidate(db, world.slice(), { body: "A near-miss?", embedding: vectorNear(1, BELOW) }, STAMPS);
+      const reuse = await admitCandidate(db, world.slice(), { body: "A duplicate?", english: null, embedding: vectorNear(1, ABOVE) }, STAMPS);
+      const miss = await admitCandidate(db, world.slice(), { body: "A near-miss?", english: null, embedding: vectorNear(1, BELOW) }, STAMPS);
 
       const rows = (await world.checks()).sort((a, b) => a.similarity - b.similarity);
       expect(rows).toHaveLength(2);
@@ -421,7 +421,7 @@ describe("the near-duplicate guard (11 §3.7)", () => {
     inRolledBackTransaction(async (db) => {
       const world = await setUp(db);
       const existing = await world.banked("An existing question?", vectorNear(1));
-      await admitCandidate(db, world.slice(), { body: "A duplicate?", embedding: vectorNear(1, ABOVE) }, STAMPS);
+      await admitCandidate(db, world.slice(), { body: "A duplicate?", english: null, embedding: vectorNear(1, ABOVE) }, STAMPS);
 
       await expectRefused(db, () => db.delete(s.questions).where(eq(s.questions.id, existing)), {
         kind: "restrict",
@@ -489,7 +489,7 @@ describe("POST /api/rounds — generation at round start (07 §5.4, 11 §3.13)",
       expect(asked.every((question) => question.language === "ja")).toBe(true);
       const written = asked.filter((question) => question.model === world.questionGenerator.modelId);
       expect(written.length).toBeGreaterThan(0);
-      expect(written.every((question) => question.version === "generate-technical-ja-1.0")).toBe(true);
+      expect(written.every((question) => question.version === "generate-technical-ja-1.1")).toBe(true);
 
       // The generator was asked in Japanese and shown the Japanese slice only; the English bank is as it was.
       const [input] = world.questionGenerator.inputs;
@@ -731,7 +731,11 @@ describe("POST /api/rounds — generation at round start (07 §5.4, 11 §3.13)",
     inRolledBackTransaction(async (db) => {
       const world = await setUp(db, {
         respond: (input) => ({
-          questions: Array.from({ length: input.count }, (_, index) => `${SENTINEL} question ${index}?`),
+          questions: Array.from({ length: input.count }, (_, index) => ({
+            text: `${SENTINEL} question ${index}?`,
+            english: `${SENTINEL} English ${index}?`,
+            englishDropped: null,
+          })),
           tokensIn: 1,
           tokensOut: 1,
         }),

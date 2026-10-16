@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import * as s from "../../db/schema";
 import type { Db } from "../round/http";
 import { NEAR_DUPLICATE_THRESHOLD } from "./near-duplicate-threshold";
+import { TRANSLATION_LANGUAGE } from "./translations";
 
 /**
  * The near-duplicate guard (04 `questions`, 03 §11): a generated candidate is compared with the
@@ -58,6 +59,8 @@ export async function nearestQuestion(
 
 export interface QuestionCandidate {
   readonly body: string;
+  /** Its English, from the call that wrote it (06, 2026-10-14, Q106-4): banked with it, or discarded with it. */
+  readonly english: string | null;
   readonly embedding: readonly number[];
 }
 
@@ -79,6 +82,11 @@ export type Admission =
  * One candidate through the guard, inside the caller's transaction and under `lockSlice`: inserted
  * with its embedding, or mapped to the question it duplicates. Candidates are admitted one at a time,
  * so a later one is compared with the earlier ones of the same call too.
+ *
+ * **An inserted candidate's English is banked beside it**, in the same transaction, as a `generated`
+ * `question_translations` row; its tokens stay on the `questions` row, since one call wrote both
+ * (04). **A reused candidate's English is discarded with it**: it translates wording the bank did not
+ * keep (06, 2026-10-14, Q106-4).
  */
 export async function admitCandidate(
   tx: Db,
@@ -118,5 +126,16 @@ export async function admitCandidate(
     .returning({ id: s.questions.id });
   // Nothing to compare with — an empty slice — is no check, not a check at similarity zero.
   if (check) await tx.insert(s.nearDuplicateChecks).values({ ...check, questionId: question.id });
+  if (candidate.english !== null && slice.language !== TRANSLATION_LANGUAGE) {
+    await tx.insert(s.questionTranslations).values({
+      questionId: question.id,
+      userId: slice.userId,
+      language: TRANSLATION_LANGUAGE,
+      body: candidate.english,
+      source: "generated",
+      modelId: stamps.generatorModelId,
+      promptVersion: stamps.generatorPromptVersion,
+    });
+  }
   return { kind: "inserted", questionId: question.id };
 }

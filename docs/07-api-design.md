@@ -597,7 +597,11 @@ candidates and the seen questions together could not fill the round.
 
 **Both languages since #43**: `language` is `ja` or `en`, and each takes its own rubric, CV version,
 bank and generator prompt — a Japanese round is filled from Japanese questions only, its set piece
-first, and what it generates is written by `generate-{round_type}-ja-1.0` (`06`, 2026-10-03).
+first, and what it generates is written by `generate-{round_type}-ja-1.1` (`06`, 2026-10-14,
+Q106-4). A newly banked Japanese question gets its valid English in a `question_translations` row
+in the round-start transaction; a reused candidate's English is discarded with that candidate.
+An English that is blank, over 600 code points, or contains hiragana, katakana or kanji is dropped.
+Missing or malformed English does not refuse the round (`04` `question_translations`).
 
 ### 5.5 `GET /api/rounds/{roundId}`
 
@@ -855,7 +859,7 @@ POST /api/answers/c003e8a2-…/submit
   "rewrite_magnitude": 0.12,
   "scoring": { "attempt_id": "s903…", "status": "pending" },
   "next": { "kind": "follow_up", "position": 2, "parent_answer_id": "c003e8a2-…",
-            "follow_up_id": "f210…", "prompt_version": "follow-up-ja-1.0",
+            "follow_up_id": "f210…", "prompt_version": "follow-up-ja-1.1",
             "text": "その40%という数字は、どう測ったものですか。", "speak": true },
   "progress": { "position": 2, "of": 5 } }
 ```
@@ -904,6 +908,11 @@ not one. The abbreviation list is finite, so an unlisted one loses its follow-up
 single-letter initial before a second sentence still passes. Anything else is
 `malformed_output`, and counts as a failed call. **One sentence that asks two things is not
 detected** — a rule on "and" would refuse valid single questions — and is left to the prompt.
+
+`follow-up-ja-1.1` also returns English. It is checked separately against the English follow-up
+rules above, including refusal of Japanese script. Missing or malformed English is logged as a count
+and error class (`12` §7), stored as null in `follow_ups.prompt_text_translated`, and never turns the
+Japanese follow-up into `missing` (`04`).
 
 **The order of the writes.** The answer's commit — corrected text and scoring attempt — is one
 transaction, and scoring is scheduled from it. The follow-up is then generated **outside any

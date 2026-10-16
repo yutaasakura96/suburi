@@ -192,7 +192,7 @@ test("the bank-exhausted warning shows before the round starts, and the round's 
   await expect(page.getByTestId("bank-exhausted")).toBeHidden();
   await page.getByRole("radio", { name: "5 questions" }).click();
   await expect(page.getByTestId("bank-exhausted")).toHaveText(
-    "There are 3 unseen Technical questions in English, and this round asks 5. The rest are written when it starts, which can take up to half a minute. If a new question turns out to match one you have already answered, it is asked as a repeat: scored, but not counted in progress.",
+    "There are 3 unseen Technical questions in English, and this round asks 5. The rest are written when it starts, which can take up to a minute. If a new question turns out to match one you have already answered, it is asked as a repeat: scored, but not counted in progress.",
   );
 
   const before = openAi.requests.length;

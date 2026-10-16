@@ -221,6 +221,11 @@ export function createPostRound(deps: PostRoundDeps) {
       generation_ms: generated?.generationMs ?? null,
       embedding_ms: generated?.embeddingMs ?? null,
     });
+    // A dropped English cost a reading aid, not a question (06, 2026-10-14, Q106-4): a count and a
+    // class, never the text (12 §7).
+    for (const [errorClass, count] of Object.entries(generated?.englishDropped ?? {})) {
+      if (count > 0) log("error", { event: "question_english_dropped", round_id: round.id, error_class: errorClass, count });
+    }
 
     return Response.json(
       {
@@ -247,7 +252,7 @@ export function createPostRound(deps: PostRoundDeps) {
           text: first.body,
           speak: mode === "realistic",
           // A Japanese practice round's first prompt carries its English; a realistic round's, no such key (07 §5.4).
-          ...(await promptEnglish(deps.db, round, first.id)),
+          ...(await promptEnglish(deps.db, round, { questionId: first.id })),
         },
         progress: { position: 1, of: length },
       },

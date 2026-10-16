@@ -53,6 +53,7 @@ const CORRECTED = "I led the payments migration over six months and cut the fail
 // What the fake generator asks after every answer.
 const FOLLOW_UP = "What did you measure to know the failure rate had halved?";
 const FOLLOW_UP_JA = "その移行で、障害率はどのように測りましたか。";
+const FOLLOW_UP_EN = "How did you measure the failure rate during that migration?";
 const HEARD_EN = { text: RAW, seconds: 18 };
 
 // A Japanese take, as 10 §5 draws it: 800 characters in 3:12 is 250 字/分, with an ASR slip (決済期版
@@ -187,7 +188,9 @@ test.beforeAll(async () => {
       if (formatOf(body) === "follow_up") {
         if (followUpFails) return { fail: 500 };
         if (followUpMalformed) return { follow_up: "What changed? Who approved it?" };
-        return { follow_up: japaneseFollowUp(body) ? FOLLOW_UP_JA : FOLLOW_UP };
+        return japaneseFollowUp(body)
+          ? { follow_up: FOLLOW_UP_JA, english: FOLLOW_UP_EN }
+          : { follow_up: FOLLOW_UP };
       }
       if (formatOf(body) === "model_answer") {
         if (modelAnswerFails) return { fail: 500 };
@@ -333,6 +336,12 @@ test("Japanese practice asks its stored 深掘り at the same position", async (
   await page.getByRole("button", { name: "深掘りに答える" }).click();
   await expect(page.getByTestId("round-step")).toHaveText("第1問 / 3問・深掘り");
   await expect(page.getByTestId("round-question")).toHaveText(FOLLOW_UP_JA);
+  await expect(page.getByTestId("prompt-english")).toHaveCount(0);
+  await page.getByTestId("english-help-pill").click();
+  await expect(page.getByTestId("prompt-english")).toHaveText(FOLLOW_UP_EN);
+  await page.screenshot({ path: test.info().outputPath("ja-practice-follow-up-english.png"), fullPage: true });
+  await page.getByTestId("english-help-pill").click();
+  await expect(page.getByTestId("prompt-english")).toHaveCount(0);
   await expect(page.getByText("回答ごとの採点は、済みしだい出ます。講評はラウンドの最後にまとめて出ます。")).toBeVisible();
   await page.screenshot({ path: test.info().outputPath("ja-practice-follow-up.png"), fullPage: true });
 
@@ -908,7 +917,7 @@ test("a realistic Japanese round: Japanese throughout, seven rows, and the feedb
     await expect(page.getByTestId("round-step")).toHaveText(`第${position}問 / 3問・深掘り`);
     await expect(page.getByTestId("round-question")).toHaveText(FOLLOW_UP_JA);
     await expect(page.getByTestId("speaker-line")).toHaveText("読み上げました。文字は残します。");
-    await expect(page.getByTestId("round-stamp")).toContainText("follow-up-ja-1.0・応募書類 v");
+    await expect(page.getByTestId("round-stamp")).toContainText("follow-up-ja-1.1・応募書類 v");
     await expect(main).not.toContainText(ENGLISH_CHROME);
     if (position === 1) await shot("3-follow-up");
     await page.getByRole("button", { name: "録音を開始" }).click();
@@ -1042,7 +1051,7 @@ test("a realistic Japanese round: Japanese throughout, seven rows, and the feedb
       .where(eq(s.answers.roundId, roundId)),
   );
   expect(followUps).toHaveLength(3);
-  for (const followUp of followUps) expect(followUp).toEqual({ status: "generated", promptText: FOLLOW_UP_JA, promptVersion: "follow-up-ja-1.0" });
+  for (const followUp of followUps) expect(followUp).toEqual({ status: "generated", promptText: FOLLOW_UP_JA, promptVersion: "follow-up-ja-1.1" });
   const spoken = openAi.requests.slice(requestsBefore).filter((request) => request.path === "/v1/realtime");
   expect(spoken).toHaveLength(6);
   expect(spoken.filter((_, index) => index % 2 === 1).map((request) => request.body.input)).toEqual([FOLLOW_UP_JA, FOLLOW_UP_JA, FOLLOW_UP_JA]);

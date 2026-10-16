@@ -20,6 +20,40 @@ The term this section introduces is **English help** (`CONTEXT.md`): English sho
 round so that a user who does not read Japanese well can use it. It is a reading aid, never part of
 the record. Nothing in it is scored, stamped or plotted.
 
+### [2026-10-16] #125: Setup wait wording chosen by the owner
+
+**Decided:** Setup's wait sentence says "can take up to a minute", and the starting caption says
+"Writing new questions for this round. This can take up to a minute." (`10` §2). The app copy is
+English, so no Japanese read is needed. The timeout decisions below remain unchanged.
+
+### [2026-10-16] #125: round start under `ja-1.1` measured; the 60 s timeout kept; two calls for the owner
+
+**Measured** (`03` §4), after the owner topped up the development project's credit: round start for
+3 to 9 Japanese questions, posting and General practice, under `generate-behavioural-ja-1.1`, 40 calls —
+medians 9.5 to 34.7 s, **45.9 s slowest**, about twice `ja-1.0`'s; every call returned its count and
+all 220 English were kept.
+**Decided:** `GENERATION_TIMEOUT_MS` stays 60 s and `FOLLOW_UP_TIMEOUT_MS` 15 s: no measured call
+broke either. Neither keeps the margin its rule set (twice and three times the slowest call seen).
+**Raised for the owner, not decided by the slice:** whether to widen either bound, and whether Setup's
+"can take up to half a minute" (`10` §2) should say longer now that a round of 7 generating 9 waits
+about half a minute at the median. `reasoning.effort: low` (`03` §4, #47) remains the lever if the
+wait proves too long in use.
+
+### [2026-10-15] #125: Japanese follow-ups measured; the 15 s bound kept with no margin; generation owed
+
+**Measured** (`03` §4): `follow-up-ja-1.1`, the first measurement of a Japanese follow-up, 15 calls —
+4.5 s median, 8.7 s p90, **14.6 s slowest**, 825 / 193 tokens; every English kept.
+**Decided:** `FOLLOW_UP_TIMEOUT_MS` stays 15 s. No call broke it, and a call that does is retried once
+and then recorded as missing, which costs a follow-up and never the round. But the rule that set it —
+three times the slowest call seen — no longer holds in Japanese: the slowest call is within 0.4 s of
+it. **Widening it is the owner's decision**, not this slice's, and is raised with the slice's report.
+**Not done:** round start under `generate-{round type}-ja-1.1`, 3 to 9 Japanese questions, posting
+and General practice. OpenAI refused every call with `insufficient_quota` (the development
+project's credit balance) before a row was printed. It is owed, by the same script, before the 60 s
+generation timeout is re-checked; that timeout stands on #47's `ja-1.0` measurement meanwhile.
+**The stamp-3 boundary Q106-4 accepted is in place**: the first first attempt at a question `ja-1.1`
+wrote draws one on the Japanese Progress chart, and an integration test over seeded rows holds it.
+
 ### [2026-10-15] The six slices are confirmed, without default round choices
 
 **Asked:** "Confirm the six English-help issues #122 to #127?", with the narrowing that default round

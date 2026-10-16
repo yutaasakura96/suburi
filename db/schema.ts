@@ -533,6 +533,9 @@ export const followUps = pgTable(
     status: text("status", { enum: FOLLOW_UP_STATUSES }).notNull(),
     // The follow-up as asked. Null exactly when missing.
     promptText: text("prompt_text"),
+    // Its English, written by the same call (06, 2026-10-14, Q106-4): a reading aid, never the prompt.
+    // Null on an English round, on missing, and when the English was missing or malformed.
+    promptTextTranslated: text("prompt_text_translated"),
     // Exact pinned string, never an alias.
     modelId: text("model_id").notNull(),
     // Stamp 3 for the follow-up's own answer.
@@ -551,6 +554,10 @@ export const followUps = pgTable(
       sql`(${t.status} = 'generated') = (${t.promptText} is not null)`,
     ),
     check("follow_ups_error_class_missing_check", sql`${t.status} = 'missing' or ${t.errorClass} is null`),
+    check(
+      "follow_ups_translated_generated_check",
+      sql`${t.status} = 'generated' or ${t.promptTextTranslated} is null`,
+    ),
   ],
 );
 

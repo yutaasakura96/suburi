@@ -207,10 +207,48 @@ by script, built by #123 (`lib/ai/translate-question.ts`), and the English readi
 question generation (`generate-{round type}-ja-1.1`) writes each candidate's English and follow-up
 generation (`follow-up-ja-1.1`) the follow-up's, in the same call. A missing or malformed English is
 dropped and the question or follow-up kept, so neither call gains a failure. Both write more tokens
-and so take longer; **the slice that changes them re-measures both here** against the tables below
-(round start for 3 to 9 Japanese questions; the follow-up's 15 s bound, set at three times the slowest
-English call, has not been measured in Japanese at all). The generator's version change is a stamp-3
-boundary on Progress (`06`).
+and take longer; the #125 measurements below cover round start for 3 to 9 Japanese questions and
+Japanese follow-ups against the existing 60 s and 15 s bounds. The generator's version change is a
+stamp-3 boundary on Progress (`06`).
+
+**Japanese follow-up generation, measured 2026-10-15 (#125)** with `scripts/measure-follow-up-ja.mts`:
+the real port and `follow-up-ja-1.1`, five runs of three invented answers of about one, two and three
+and a half minutes spoken, from the development machine, as #44 measured the English prompt.
+
+| Job | Prompt | n | median | p90 | slowest | tokens in / out |
+| --- | --- | --- | --- | --- | --- | --- |
+| Follow-up generation | `follow-up-ja-1.1` | 15 | 4.5 s | 8.7 s | **14.6 s** | 825 / 193 |
+
+- **Every English was kept**: 15 of 15 passed the follow-up's own check, none dropped, no call failed.
+- **The 15 s bound held, with no margin left.** No call reached it, but the slowest came within 0.4 s,
+  where the bound was set at three times the slowest English call (4.7 s). Past it a call is retried
+  once and then recorded as missing, so the tail costs a follow-up, never the round. **The bound is
+  not changed here**: whether to widen it is the owner's call (`06`, 2026-10-15).
+
+**Round-start generation under `ja-1.1`, re-measured 2026-10-16 (#125)** with
+`scripts/measure-question-generation.mts` and `LANGUAGES=ja COUNTS=3,5,7,9 SIZES=`: the real port
+and `generate-behavioural-ja-1.1`, five runs of each, the same synthetic input as #47's `ja-1.0` rows
+below. (A first attempt on 2026-10-15 was refused by OpenAI, `insufficient_quota`, before it printed a
+row; the owner topped the credit up.)
+
+| Questions | Role context | median | p90 | slowest | tokens in / out | with English | `ja-1.0` median (#47) |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 3 | General practice | 9.5 s | 10.2 s | 10.3 s | 3,718 / 520 | 15 of 15 | 7.3 s |
+| 3 | posting | 12.6 s | 15.6 s | 16.3 s | 4,996 / 718 | 15 of 15 | 7.1 s |
+| 5 | General practice | 14.0 s | 15.8 s | 15.8 s | 3,718 / 874 | 25 of 25 | 6.8 s |
+| 5 | posting | 19.9 s | 26.1 s | 27.3 s | 4,996 / 1,325 | 25 of 25 | 8.0 s |
+| 7 | General practice | 25.4 s | 38.2 s | 41.7 s | 3,718 / 1,715 | 35 of 35 | 14.0 s |
+| 7 | posting | 16.7 s | 23.5 s | 27.5 s | 4,996 / 1,092 | 35 of 35 | 13.1 s |
+| 9 | General practice | 34.7 s | 43.3 s | **45.9 s** | 3,718 / 2,306 | 45 of 45 | 16.5 s |
+| 9 | posting | 30.5 s | 38.4 s | 39.8 s | 4,996 / 2,151 | 45 of 45 | 15.4 s |
+
+- **Every call returned its count, and every English was kept**: 220 of 220, none dropped.
+- **The English roughly doubles the wait.** Output tokens about 1.3 to 1.6 times `ja-1.0`'s, and the
+  medians about twice: 10 to 35 s now, against 7 to 17 s. It is still paid only when the bank cannot
+  fill the round, and still before the round, so invariant 2 is untouched.
+- **The 60 s generation timeout held, with less margin.** No call reached it; the slowest, 45.9 s, is
+  under it, where the bound was set at twice #47's slowest (27.9 s). **The timeout is not changed
+  here**: whether to widen it is the owner's call (`06`, 2026-10-16).
 
 **The round's latencies, measured 2026-10-01 (#42)** with `scripts/measure-round-latency.mts`
 against OpenAI, five runs of each at the time, from the development machine, the way #20 measured extraction. Synthetic
@@ -218,8 +256,7 @@ answers of the lengths a realistic round produces (one to three and a half minut
 and round feedback ran through the real ports and prompts (`score-en-1.0`, `feedback-en-1.0`);
 **follow-up and question generation ran draft prompts**, since their ports did not exist yet. **Follow-up
 generation was re-measured on 2026-10-03 (#44)** through its real port and `follow-up-en-1.0`, the
-same way; the Japanese prompt is not measured until a real Japanese round with follow-ups runs on
-`develop`. **Question generation's draft rows were replaced by #47's measurement** through its real
+same way; the Japanese prompt was first measured by #125, as `follow-up-ja-1.1` (above). **Question generation's draft rows were replaced by #47's measurement** through its real
 port, below. Transcription read takes
 synthesised by TTS and re-encoded to webm/opus by ffmpeg, the browser's format. #76 added ten
 question-length TTS runs through the new port on 2026-10-14.
@@ -244,10 +281,12 @@ What they settle:
   and covers that call, a 2 s backoff and a median retry.
 - **Generating every question at round start is tolerable, and slower than the draft said**: see
   the next table. The draft's 4 s was a tenth of the real prompt's input.
-- **The user's waits inside a round are short**: a near-cap take transcribes in about 6 s, a follow-up
-  about 3 s. TTS starts playing in about a second, on the model #45 then pinned.
-- **A follow-up call is bounded at 15 s with one retry** (`07` §5.9): about three times the slowest
-  call seen. Past that the follow-up is recorded as missing and the round goes on.
+- **The English follow-up calls measured here were short**: about 3 s; the Japanese `ja-1.1`
+  measurement above has a 14.6 s tail. A near-cap take transcribes in about 6 s. TTS starts playing
+  in about a second, on the model #45 then pinned.
+- **A follow-up call is bounded at 15 s with one retry** (`07` §5.9): originally about three times
+  the slowest English call seen; the Japanese measurement above reached 14.6 s. Past the bound the
+  follow-up is recorded as missing and the round goes on.
 - **Scoring's slowest call is the one to watch.** One in fifteen took five times the median, with no
   error. It is why the bound has a margin, and why scoring runs in `after()` rather than in front of
   the user.

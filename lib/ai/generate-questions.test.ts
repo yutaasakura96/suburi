@@ -3,6 +3,7 @@ import { ROUND_TYPES } from "../../db/schema";
 import { checkEmbeddings } from "./embed";
 import { GENERATOR_PROMPT_VERSIONS, checkQuestions, renderGenerationInput, tidyQuestion } from "./generate-questions";
 import { EMBEDDING_DIMENSIONS } from "./models";
+import { MAX_QUESTION_ENGLISH_CODE_POINTS } from "./translate-question";
 import { ModelCallFailed } from "./upstream";
 
 const malformed = (run: () => unknown) => {
@@ -26,22 +27,60 @@ describe("the generator's prompts", () => {
 });
 
 describe("checkQuestions", () => {
+  const written = (...questions: string[]) => questions.map((question) => ({ question, english: null }));
+  const texts = (questions: readonly { text: string }[]) => questions.map((question) => question.text);
+
   it("tidies each question: whitespace runs collapsed, ends trimmed", () => {
     expect(tidyQuestion("  Tell me\n about\ta time…  ")).toBe("Tell me about a time…");
-    expect(checkQuestions(2, [" One?\n", "Two  ?"])).toEqual(["One?", "Two ?"]);
+    expect(texts(checkQuestions("en", 2, written(" One?\n", "Two  ?")))).toEqual(["One?", "Two ?"]);
   });
 
   it("drops blanks and repeats, and cuts to the count asked for", () => {
-    expect(checkQuestions(2, ["One?", "", "  ", "One?", "Two?", "Three?"])).toEqual(["One?", "Two?"]);
+    expect(texts(checkQuestions("en", 2, written("One?", "", "  ", "One?", "Two?", "Three?")))).toEqual(["One?", "Two?"]);
   });
 
   it("returns fewer than asked rather than failing: the caller decides what a short list means", () => {
-    expect(checkQuestions(5, ["One?"])).toEqual(["One?"]);
+    expect(texts(checkQuestions("en", 5, written("One?")))).toEqual(["One?"]);
   });
 
   it("is malformed_output when nothing usable came back", () => {
-    expect(malformed(() => checkQuestions(3, []))).toBe("malformed_output");
-    expect(malformed(() => checkQuestions(3, ["", "  "]))).toBe("malformed_output");
+    expect(malformed(() => checkQuestions("en", 3, []))).toBe("malformed_output");
+    expect(malformed(() => checkQuestions("en", 3, written("", "  ")))).toBe("malformed_output");
+  });
+
+  it("gives an English round's questions no English and no drop", () => {
+    expect(checkQuestions("en", 1, [{ question: "One?", english: "ignored" }])).toEqual([{ text: "One?", english: null, englishDropped: null }]);
+  });
+
+  // 11 §3.25: a missing or malformed English drops the English, never the question (Q106-4).
+  it("keeps a Japanese question whose English is missing or malformed, and names the drop", () => {
+    const checked = checkQuestions("ja", 7, [
+      { question: "一つ目の質問を教えてください。", english: "  Please tell us\n about the first.  " },
+      { question: "二つ目の質問を教えてください。", english: null },
+      { question: "三つ目の質問を教えてください。", english: "   " },
+      { question: "四つ目の質問を教えてください。", english: "x".repeat(MAX_QUESTION_ENGLISH_CODE_POINTS + 1) },
+      { question: "五つ目の質問を教えてください。", english: "How did you ひらがな?" },
+      { question: "六つ目の質問を教えてください。", english: "How did you カタカナ?" },
+      { question: "七つ目の質問を教えてください。", english: "How did you 漢字?" },
+    ]);
+    expect(checked).toEqual([
+      { text: "一つ目の質問を教えてください。", english: "Please tell us about the first.", englishDropped: null },
+      { text: "二つ目の質問を教えてください。", english: null, englishDropped: "english_missing" },
+      { text: "三つ目の質問を教えてください。", english: null, englishDropped: "english_missing" },
+      { text: "四つ目の質問を教えてください。", english: null, englishDropped: "english_malformed" },
+      { text: "五つ目の質問を教えてください。", english: null, englishDropped: "english_malformed" },
+      { text: "六つ目の質問を教えてください。", english: null, englishDropped: "english_malformed" },
+      { text: "七つ目の質問を教えてください。", english: null, englishDropped: "english_malformed" },
+    ]);
+  });
+
+  it("keeps a repeat's first English, with its question", () => {
+    expect(
+      checkQuestions("ja", 2, [
+        { question: "同じ質問ですか。", english: "The first English?" },
+        { question: "同じ質問ですか。", english: "The second English?" },
+      ]),
+    ).toEqual([{ text: "同じ質問ですか。", english: "The first English?", englishDropped: null }]);
   });
 });
 

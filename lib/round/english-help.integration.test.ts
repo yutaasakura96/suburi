@@ -1,4 +1,4 @@
-import { asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as s from "../../db/schema";
 import { seedUser } from "../../db/seed";
@@ -16,7 +16,13 @@ import {
   fakeTranscriber,
   numberedQuestions,
   uniformScores,
+  vectorNear,
 } from "../ai/fake-round-ports";
+import type { Embedder } from "../ai/embed";
+import { openAiFollowUpGenerator, type FollowUpGenerator } from "../ai/follow-up";
+import { openAiQuestionGenerator, type QuestionGenerator } from "../ai/generate-questions";
+import { FOLLOW_UP_MODEL, QUESTION_GENERATION_MODEL } from "../ai/models";
+import { startMockResponses, type MockResponses } from "../ai/test/mock-responses";
 import { fakeAudioStore } from "../audio/fake-store";
 import { createAuth } from "../auth/auth";
 import { mintSessionCookie } from "../auth/test/session";
@@ -68,7 +74,13 @@ function savepointTransaction(db: TestDb) {
   };
 }
 
-async function setUp(db: TestDb) {
+interface Ports {
+  readonly questionGenerator?: QuestionGenerator;
+  readonly embedder?: Embedder;
+  readonly followUpGenerator?: FollowUpGenerator;
+}
+
+async function setUp(db: TestDb, ports: Ports = {}) {
   await seedUser(db, getConfig().ALLOWED_EMAIL);
   const [user] = await db.select({ id: s.users.id }).from(s.users).where(eq(s.users.email, getConfig().ALLOWED_EMAIL));
   for (const language of ["ja", "en"] as const) await seedSyntheticCv(db, user.id, language);
@@ -87,8 +99,8 @@ async function setUp(db: TestDb) {
       ...base,
       health: fakeModelHealth(true),
       scorer,
-      questionGenerator: fakeQuestionGenerator(numberedQuestions()),
-      embedder: fakeEmbedder(),
+      questionGenerator: ports.questionGenerator ?? fakeQuestionGenerator(numberedQuestions()),
+      embedder: ports.embedder ?? fakeEmbedder(),
     }),
     read: createGetRound(base),
     open: createOpenAnswer({ ...base, store, prefix: "dev/" }),
@@ -96,7 +108,8 @@ async function setUp(db: TestDb) {
     submit: createSubmit({
       ...base,
       scorer,
-      followUpGenerator: fakeFollowUpGenerator(() => ({ ...FIXTURE_FOLLOW_UP, text: "その移行で、ご自身が担った部分はどこですか。" })),
+      followUpGenerator:
+        ports.followUpGenerator ?? fakeFollowUpGenerator(() => ({ ...FIXTURE_FOLLOW_UP, text: "その移行で、ご自身が担った部分はどこですか。" })),
       sleep: async () => {},
       after: () => {},
       deadline: () => Date.now() + 280_000,
@@ -111,10 +124,10 @@ async function setUp(db: TestDb) {
     const response = await handlers.read(new Request("http://localhost:3000/api/x", { headers }), roundId);
     return { status: response.status, json: await response.json() };
   }
-  async function start(language: "ja" | "en", mode: "practice" | "realistic") {
+  async function start(language: "ja" | "en", mode: "practice" | "realistic", roundType = "hr") {
     const context = await call((request) => handlers.roleContext(request), "", { kind: "general" });
     const started = await call((request) => handlers.round(request), "", {
-      round_type: "hr",
+      round_type: roundType,
       language,
       mode,
       length: 3,
@@ -204,7 +217,7 @@ describe("English help in a round's reads (11 §3.25)", () => {
       expect(JSON.stringify(frame)).not.toContain("Stored English.");
     }));
 
-  it("a Japanese practice round's prompts carry the newest English, null with none, and a follow-up's null", () =>
+  it("a Japanese practice round's prompts carry the newest English, null with none, and a follow-up's from its row", () =>
     inRolledBackTransaction(async (db) => {
       const world = await setUp(db);
       const started = await world.start("ja", "practice");
@@ -218,7 +231,7 @@ describe("English help in a round's reads (11 §3.25)", () => {
       await english(db, world.userId, first, "The newer English.");
       expect((await world.read(roundId)).json.prompt).toMatchObject({ question_id: first, text_en: "The newer English." });
 
-      // Its follow-up's English stays null until follow-ups are written with one (#125).
+      // Its follow-up's is its own row's: null here, since the fake wrote none (Q106-4).
       const question = await world.answer(roundId);
       expect(question.submitted.json.next).toMatchObject({ kind: "follow_up", text_en: null });
       expect((await world.read(roundId)).json.prompt).toMatchObject({ kind: "follow_up", text_en: null });
@@ -266,5 +279,186 @@ describe("English help in a round's reads (11 §3.25)", () => {
         expect(keysOf(started.json)).not.toContain("text_en");
         expect(keysOf((await world.read(started.json.round.id)).json)).not.toContain("text_en");
       }
+    }));
+});
+
+describe("English written by the call that writes the Japanese (11 §3.25, #125)", () => {
+  // The real ports, parsing a mocked `ja-1.1` response from a local server: what is checked is the
+  // port's own parse and checks, then the round's writes.
+  let mock: MockResponses | null = null;
+  afterEach(async () => {
+    await mock?.close();
+    mock = null;
+  });
+  const logged = (event: string) =>
+    vi
+      .mocked(console.error)
+      .mock.calls.map(([line]) => JSON.parse(String(line)) as Record<string, unknown>)
+      .filter((line) => line.event === event);
+  const retireBehavioural = (db: TestDb) =>
+    db
+      .update(s.questions)
+      .set({ retiredAt: new Date() })
+      .where(and(eq(s.questions.language, "ja"), eq(s.questions.roundType, "behavioural")));
+  const translationsOf = (db: TestDb, questionIds: readonly string[]) =>
+    questionIds.length === 0 ? [] : db.select().from(s.questionTranslations).where(inArray(s.questionTranslations.questionId, [...questionIds]));
+
+  it("the generator keeps a question whose English is missing or malformed, banks the one English, and counts the drops", () =>
+    inRolledBackTransaction(async (db) => {
+      const kept = { question: "これまでで最も難しかった調整について教えてください。", english: "Please tell us about the hardest coordination you have done." };
+      mock = await startMockResponses(() => ({
+        questions: [
+          kept,
+          // No English at all: the lenient parse reads it as missing, never a failed call.
+          { question: "チームの方針に反対したときのことを教えてください。" },
+          { question: "失敗から学んだことを具体的に教えてください。", english: "失敗から何を学びましたか。" },
+        ],
+      }));
+      const world = await setUp(db, { questionGenerator: openAiQuestionGenerator({ apiKey: "integration-not-a-real-key", baseURL: mock.baseURL }) });
+      await retireBehavioural(db);
+
+      const started = await world.start("ja", "practice", "behavioural");
+      const roundId: string = started.json.round.id;
+
+      // The call asked for an English on every question.
+      const format = (mock.requests[0].text as { format: { name: string; schema: { properties: { questions: { items: { required: string[] } } } } } }).format;
+      expect(format.name).toBe("generated_questions");
+      expect(format.schema.properties.questions.items.required).toEqual(["question", "english"]);
+
+      // All three are banked and asked; one translation row, for the one valid English.
+      const banked = await db
+        .select({ id: s.questions.id, body: s.questions.body, tokensIn: s.questions.tokensIn })
+        .from(s.questions)
+        .where(and(eq(s.questions.userId, world.userId), eq(s.questions.generatorPromptVersion, "generate-behavioural-ja-1.1")));
+      expect(banked).toHaveLength(3);
+      expect((await world.asked(roundId)).sort()).toEqual(banked.map((row) => row.id).sort());
+      const translations = await translationsOf(db, banked.map((row) => row.id));
+      expect(translations).toHaveLength(1);
+      expect(translations[0]).toMatchObject({
+        questionId: banked.find((row) => row.body === kept.question)!.id,
+        language: "en",
+        body: kept.english,
+        source: "generated",
+        modelId: QUESTION_GENERATION_MODEL,
+        promptVersion: "generate-behavioural-ja-1.1",
+        tokensIn: null,
+        tokensOut: null,
+      });
+      // The call's tokens stay on the questions row (04).
+      expect(banked.filter((row) => row.tokensIn !== null).map((row) => row.tokensIn)).toEqual([900]);
+
+      // The first prompt carries its English, read back from the row just written.
+      expect(started.json.prompt).toMatchObject({ text: kept.question, text_en: kept.english });
+
+      // Counted by class, and never the text (12 §7).
+      expect(logged("question_english_dropped")).toEqual([
+        { event: "question_english_dropped", round_id: roundId, error_class: "english_missing", count: 1 },
+        { event: "question_english_dropped", round_id: roundId, error_class: "english_malformed", count: 1 },
+      ]);
+      expect(JSON.stringify(vi.mocked(console.error).mock.calls)).not.toContain("失敗から何を学びましたか");
+    }));
+
+  it("a reused candidate's English is discarded with it", () =>
+    inRolledBackTransaction(async (db) => {
+      const generator = fakeQuestionGenerator(numberedQuestions(1, { english: true }));
+      // The first candidate is the existing question in other words; the rest are new.
+      const embedder = fakeEmbedder((text) => (text === "Generated fixture question 1?" ? vectorNear(1) : undefined));
+      const world = await setUp(db, { questionGenerator: generator, embedder });
+      await retireBehavioural(db);
+      const [existing] = await db
+        .insert(s.questions)
+        .values({
+          userId: world.userId,
+          language: "ja",
+          roundType: "behavioural",
+          origin: "generated",
+          body: "既存の質問について教えてください。",
+          embedding: vectorNear(1),
+          generatorModelId: "fake-generator-2026-01-01",
+          generatorPromptVersion: "generate-behavioural-ja-1.0",
+        })
+        .returning({ id: s.questions.id });
+
+      const started = await world.start("ja", "practice", "behavioural");
+      expect(generator.calls).toBe(1);
+      const asked = await world.asked(started.json.round.id);
+      expect(asked).toContain(existing.id);
+
+      const inserted = asked.filter((id) => id !== existing.id);
+      expect(inserted).toHaveLength(2);
+      const translations = await translationsOf(db, asked);
+      expect(translations.map((row) => row.questionId).sort()).toEqual([...inserted].sort());
+      expect(translations.map((row) => row.body)).not.toContain("The English of fixture question 1?");
+      expect(translations.every((row) => row.source === "generated")).toBe(true);
+    }));
+
+  it("a Japanese follow-up's English is stored on its row and carried by its prompt, and by its answer-again", () =>
+    inRolledBackTransaction(async (db) => {
+      const followUp = { follow_up: "その移行で、ご自身が担った部分はどこですか。", english: "Which part of that migration was yours?" };
+      mock = await startMockResponses(() => followUp);
+      const world = await setUp(db, { followUpGenerator: openAiFollowUpGenerator({ apiKey: "integration-not-a-real-key", baseURL: mock.baseURL }) });
+      const started = await world.start("ja", "practice");
+      const roundId: string = started.json.round.id;
+
+      const question = await world.answer(roundId);
+      expect(question.submitted.json.next).toMatchObject({ kind: "follow_up", text: followUp.follow_up, text_en: followUp.english });
+      expect((await world.read(roundId)).json.prompt).toMatchObject({ kind: "follow_up", text_en: followUp.english });
+      const [row] = await db.select().from(s.followUps).where(eq(s.followUps.parentAnswerId, question.answerId));
+      expect(row).toMatchObject({
+        status: "generated",
+        promptText: followUp.follow_up,
+        promptTextTranslated: followUp.english,
+        modelId: FOLLOW_UP_MODEL,
+        promptVersion: "follow-up-ja-1.1",
+      });
+
+      // The page's own read gives the frame the same English.
+      const frame = await roundFrame(db, world.userId, await world.roundRow(roundId));
+      if (frame === "complete") throw new Error("the round is not complete");
+      expect(frame.start).toMatchObject({ next: { kind: "follow_up", textEn: followUp.english } });
+
+      // The follow-up answered, then asked again: the same English, from the same row.
+      const answered = await world.answer(roundId);
+      expect(answered.submitted.json.next.kind).toBe("question");
+      const opened = await world.call(world.handlers.open, roundId, { ...TAKE, retry_of_answer_id: answered.answerId });
+      expect(opened.status).toBe(201);
+      expect((await world.read(roundId)).json.prompt).toMatchObject({
+        kind: "follow_up",
+        retry_of_answer_id: answered.answerId,
+        text_en: followUp.english,
+      });
+    }));
+
+  it("a follow-up whose English is malformed is generated, without one — never missing", () =>
+    inRolledBackTransaction(async (db) => {
+      const followUp = "その移行で、障害率はどのように測りましたか。";
+      mock = await startMockResponses(() => ({ follow_up: followUp, english: "その移行で何を測りましたか?" }));
+      const world = await setUp(db, { followUpGenerator: openAiFollowUpGenerator({ apiKey: "integration-not-a-real-key", baseURL: mock.baseURL }) });
+      const started = await world.start("ja", "practice");
+      const roundId: string = started.json.round.id;
+
+      const question = await world.answer(roundId);
+      expect(question.submitted.status).toBe(200);
+      expect(question.submitted.json.next).toMatchObject({ kind: "follow_up", text: followUp, text_en: null });
+      const [row] = await db.select().from(s.followUps).where(eq(s.followUps.parentAnswerId, question.answerId));
+      expect(row).toMatchObject({ status: "generated", promptText: followUp, promptTextTranslated: null, errorClass: null });
+      // One call: a dropped English is no reason to ask again.
+      expect(mock.requests).toHaveLength(1);
+      expect(logged("follow_up_english_dropped")).toEqual([
+        { event: "follow_up_english_dropped", answer_id: question.answerId, error_class: "english_malformed", count: 1 },
+      ]);
+      expect(logged("follow_up_generation_failed")).toEqual([]);
+      expect(JSON.stringify(vi.mocked(console.error).mock.calls)).not.toContain("その移行で何を測りましたか");
+    }));
+
+  it("an English round's follow-up stores no English", () =>
+    inRolledBackTransaction(async (db) => {
+      mock = await startMockResponses(() => ({ follow_up: "How did you measure the six months?" }));
+      const world = await setUp(db, { followUpGenerator: openAiFollowUpGenerator({ apiKey: "integration-not-a-real-key", baseURL: mock.baseURL }) });
+      const started = await world.start("en", "practice");
+      const question = await world.answer(started.json.round.id);
+      const [row] = await db.select().from(s.followUps).where(eq(s.followUps.parentAnswerId, question.answerId));
+      expect(row).toMatchObject({ status: "generated", promptTextTranslated: null });
+      expect(logged("follow_up_english_dropped")).toEqual([]);
     }));
 });

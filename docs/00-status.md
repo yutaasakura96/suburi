@@ -92,8 +92,17 @@ same pill, is built (2026-10-15), on `fm/suburi-124`:** with it on, the record f
 failures, the correction screen and the per-answer frame read in English from an English round's copy,
 with `10` §0's wording for the header, the step and the figures, the rubric's `label_en` on the score
 rows, and an English tab title; what was asked and said, `RAW`, the CV rails' quotes and the
-justifications keep their Japanese, marked `lang="ja"`. No new Japanese string.
-**Updated:** 2026-10-15 (#124 built; #123 built; #122 built; #122–#127 confirmed); 2026-10-14 (#106 and #107 planned; #76 built; #85 built; #83 checked; #75 built; #105 built; #104 measured and fixed; #51 built; follow-ups spoken; #73 built; #49's Japanese strings all accepted; #50's
+justifications keep their Japanese, marked `lang="ja"`. No new Japanese string. **#125, new
+questions and follow-ups written with their English, is built (2026-10-15), on `fm/suburi-125`:**
+`generate-{round type}-ja-1.1` and `follow-up-ja-1.1` return the English in the same call; a
+banked candidate's English is a `generated` `question_translations` row in the round-start
+transaction, a reused one's is discarded; a follow-up's is `follow_ups.prompt_text_translated`
+(`0016_follow-up-english`), carried as `text_en`; a missing or malformed English is dropped and
+counted, never the question or the follow-up. Both calls are re-measured (`03` §4): the
+Japanese follow-up 14.6 s slowest against its 15 s bound, round start 45.9 s slowest against its 60 s
+timeout, both kept; widening either remains for the owner, while Setup's wait wording is decided
+(`06`, 2026-10-16). Migration `0016` is not yet applied to either Neon branch.
+**Updated:** 2026-10-16 (#125 re-measured); 2026-10-15 (#125 built; #124 built; #123 built; #122 built; #122–#127 confirmed); 2026-10-14 (#106 and #107 planned; #76 built; #85 built; #83 checked; #75 built; #105 built; #104 measured and fixed; #51 built; follow-ups spoken; #73 built; #49's Japanese strings all accepted; #50's
 catalogue string read; #43, #44, #45, #46, #47, #48, #49, #50 and #74 built; #42 closed; #55 and #56 on 2026-09-30)
 
 ## Done
@@ -389,8 +398,8 @@ Page 1 is the screen set, page 2 the three exploration directions. **Working fil
 every change re-seeds from those — edit them, never the built `design/suburi-directions.html`.
 
 ## Next
-**English help (#106) and the settings page (#107): six slices, confirmed 2026-10-15; #122, #123
-and #124 are built.** Planned on 2026-10-14 from the owner's answers to Q0, Q106-1 to Q106-7, Q-P1 and Q-P2
+**English help (#106) and the settings page (#107): six slices, confirmed 2026-10-15; #122, #123,
+#124 and #125 are built.** Planned on 2026-10-14 from the owner's answers to Q0, Q106-1 to Q106-7, Q-P1 and Q-P2
 (`06`, "Phase 6 — #106 and #107"): no English in a realistic round before its feedback, enforced
 structurally; in a Japanese practice round, one pill for the question's English and the round's
 chrome; English written by the call that writes the Japanese and stored apart from the question; the

@@ -19,7 +19,8 @@ extended for History's two retry routes. The remaining round-loop changes are no
 `user_settings`, `question_translations` and `english_readings` are new;
 `follow_ups.prompt_text_translated` is added; `users.name` is written by `/settings`; and
 `rate_limit_windows.route` gains `english-reading`. Each lands with the slice that first needs it:
-**`user_settings` and `question_translations` are migrated by #123** (`0015_english-help`); the rest
+**`user_settings` and `question_translations` are migrated by #123** (`0015_english-help`), and
+**`follow_ups.prompt_text_translated` with its check by #125** (`0016_follow-up-english`); the rest
 are not migrated yet.
 
 ---

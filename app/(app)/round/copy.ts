@@ -82,12 +82,12 @@ export const SETUP_COPY = {
     const have = supply === 0 ? `There are no ${kind}` : supply === 1 ? `There is 1 ${kind}` : `There are ${supply} ${kind}`;
     const start = `${have}${typeName} ${supply === 1 ? "question" : "questions"} in ${LANGUAGE_NAMES[language]}${
       mode === "practice" ? " to practise on" : ""
-    }, and this round asks ${length}. The rest are written when it starts, which can take up to half a minute.`;
+    }, and this round asks ${length}. The rest are written when it starts, which can take up to a minute.`;
     return mode === "practice"
       ? start
       : `${start} If a new question turns out to match one you have already answered, it is asked as a repeat: scored, but not counted in progress.`;
   },
-  startingGenerating: "Writing new questions for this round. This can take up to half a minute.",
+  startingGenerating: "Writing new questions for this round. This can take up to a minute.",
   // 10 §2's rationale: the interval arithmetic the defaults came from, and nothing beyond it.
   whyDefaults: "Why these defaults",
   defaultsReason: (defaults: Pick<DueDefaults, "roundType" | "language" | "reason">) => {
