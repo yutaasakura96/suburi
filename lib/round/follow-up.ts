@@ -9,12 +9,13 @@ import type { AnswerRow, RoundRow } from "./state";
  *
  * **The user is waiting for this inside a round**, so it is bounded on its own, well inside the
  * invocation: one call of at most `FOLLOW_UP_TIMEOUT_MS`, and one retry when the failure is one a
- * second call could get past. `follow-up-en-1.0` measured 3.2 s median and 4.7 s slowest of 15 (03 §4,
- * 2026-10-03), so the timeout is about three times the slowest call seen. When the second call fails
- * too the follow-up is **missing**: a missing follow-up costs one prompt, and holding the round for a
- * third try costs the sitting its rhythm.
+ * second call could get past. The timeout is three times the slowest call seen: 14.6 s for a Japanese
+ * follow-up under `follow-up-ja-1.1` (03 §4, 2026-10-15), where `follow-up-en-1.0`'s 4.7 s had set it
+ * at 15 s (06, 2026-10-16, L1). With the retry the longest wait is about 91 s. When the second call
+ * fails too the follow-up is **missing**: a missing follow-up costs one prompt, and holding the round
+ * for a third try costs the sitting its rhythm.
  */
-export const FOLLOW_UP_TIMEOUT_MS = 15_000;
+export const FOLLOW_UP_TIMEOUT_MS = 45_000;
 export const FOLLOW_UP_RETRIES = 1;
 export const FOLLOW_UP_BACKOFF_MS = 1_000;
 

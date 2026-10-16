@@ -100,8 +100,8 @@ transaction, a reused one's is discarded; a follow-up's is `follow_ups.prompt_te
 (`0016_follow-up-english`), carried as `text_en`; a missing or malformed English is dropped and
 counted, never the question or the follow-up. Both calls are re-measured (`03` §4): the
 Japanese follow-up 14.6 s slowest against its 15 s bound, round start 45.9 s slowest against its 60 s
-timeout, both kept; widening either remains for the owner, while Setup's wait wording is decided
-(`06`, 2026-10-16). Migration `0016` is not yet applied to either Neon branch. **#126, the English
+timeout, both kept then; the owner widened them to 45 s and 90 s (`06`, 2026-10-16, L1, built by
+#137), while Setup's wait wording is decided (`06`, 2026-10-16). Migration `0016` is not yet applied to either Neon branch. **#126, the English
 reading on the correction screen, is built (2026-10-16), on `fm/suburi-126`:** `POST
 /api/answers/{answerId}/english-reading` with `english-reading-1.0`, every refusal before the model,
 30 s and no retry, its own `english-reading` bucket; `english_readings` (`0017_english-reading`) holds
@@ -418,7 +418,7 @@ day (`06`, "Phase 6 — after English help …"); fake data is fine until the ap
 comes first. US-16 is three `ready-for-agent` slices:
 [#134](https://github.com/yutaasakura96/suburi/issues/134) the research call, saving nothing → #135
 saving research with the draft beside the edit → #136 Setup's `AI research` card. Beside them,
-#137 widens the follow-up and round-start timeouts to 45 s and 90 s (L1), and #138 brings English help
+#137 widened the follow-up and round-start timeouts to 45 s and 90 s (L1, built 2026-10-16), and #138 brings English help
 to History detail after #127 (L2). US-15's answers S2 to S5 are recorded on #139, labeled
 `after-2026-10-28`: where the stories come from (S1) is that discussion's, from the CV unless it
 settles otherwise, **with the owner's direction that Suburi reads Track Record's career story**

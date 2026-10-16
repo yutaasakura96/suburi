@@ -208,7 +208,7 @@ question generation (`generate-{round type}-ja-1.1`) writes each candidate's Eng
 generation (`follow-up-ja-1.1`) the follow-up's, in the same call. A missing or malformed English is
 dropped and the question or follow-up kept, so neither call gains a failure. Both write more tokens
 and take longer; the #125 measurements below cover round start for 3 to 9 Japanese questions and
-Japanese follow-ups against the existing 60 s and 15 s bounds. The generator's version change is a
+Japanese follow-ups against the then 60 s and 15 s bounds, widened to 90 s and 45 s by #137. The generator's version change is a
 stamp-3 boundary on Progress (`06`).
 
 **Japanese follow-up generation, measured 2026-10-15 (#125)** with `scripts/measure-follow-up-ja.mts`:
@@ -286,9 +286,9 @@ What they settle:
 - **The English follow-up calls measured here were short**: about 3 s; the Japanese `ja-1.1`
   measurement above has a 14.6 s tail. A near-cap take transcribes in about 6 s. TTS starts playing
   in about a second, on the model #45 then pinned.
-- **A follow-up call is bounded at 15 s with one retry** (`07` §5.9): originally about three times
-  the slowest English call seen; the Japanese measurement above reached 14.6 s, so the bound becomes
-  45 s (`06`, 2026-10-16, L1). Past the bound the follow-up is recorded as missing and the round goes
+- **A follow-up call is bounded at 45 s with one retry** (`07` §5.9): three times the slowest
+  Japanese call seen (14.6 s, above). It was 15 s, about three times the slowest English call, until
+  #137 widened it (`06`, 2026-10-16, L1); the longest wait, with the retry, is about 91 s. Past the bound the follow-up is recorded as missing and the round goes
   on.
 - **Scoring's slowest call is the one to watch.** One in fifteen took five times the median, with no
   error. It is why the bound has a margin, and why scoring runs in `after()` rather than in front of
@@ -402,9 +402,9 @@ Every call returned the count it was asked for. What they settle:
   tokens — the questions and the model's reasoning before them — are what the time follows.
 - **It stays at round start** (`06`, 2026-10-03). The wait comes before the round, not inside it and
   not at its end, so invariant 2 is untouched; Setup says so before the user starts
-  (`10` §2), and says it again while it waits. The timeouts are 60 s for generation, twice the
-  slowest call seen, and 20 s for embeddings, inside the route's 300 s. Generation's becomes 90 s,
-  twice the `ja-1.1` measurement's 45.9 s (`06`, 2026-10-16, L1).
+  (`10` §2), and says it again while it waits. The timeouts are 90 s for generation, twice the
+  `ja-1.1` measurement's 45.9 s slowest call, and 20 s for embeddings, inside the route's 300 s. Generation's
+  was 60 s, twice `ja-1.0`'s slowest, until #137 (`06`, 2026-10-16, L1).
 - **`reasoning.effort: low` is the lever if the wait proves too long in use.** A side reading during
   this measurement roughly halved the call with questions that read comparably. It is not set:
   questions are banked permanently (the stakes column above), and one side reading is not a quality
