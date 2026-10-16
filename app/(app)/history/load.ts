@@ -1,6 +1,7 @@
 import { asc, eq, inArray } from "drizzle-orm";
 import * as s from "@/db/schema";
 import type { Db } from "@/lib/round/http";
+import { answersEnglish, carriesEnglishAfter } from "@/lib/round/english-help";
 import { rewritePercent } from "@/lib/round/measures";
 import {
   latestAttempts,
@@ -42,6 +43,8 @@ export type HistoryRow =
       readonly answerId: string;
       readonly position: number;
       readonly prompt: string;
+      /** The prompt's stored English (#138): `null` where none is stored; absent where the round carries none. */
+      readonly promptEn?: string | null;
       readonly durationMs: number | null;
       readonly pace: number | null;
       readonly rewrite: number | null;
@@ -53,7 +56,7 @@ export type HistoryRow =
   /** The hole a failed generation left: a `follow_ups` row whose status is `missing` (04). */
   | { readonly kind: "follow_up_missing"; readonly position: number }
   /** A follow-up that was asked and never answered: the round was left on it. */
-  | { readonly kind: "follow_up_unanswered"; readonly position: number; readonly prompt: string }
+  | { readonly kind: "follow_up_unanswered"; readonly position: number; readonly prompt: string; readonly promptEn?: string | null }
   /**
    * A position the round never reached. **It carries no question text**: only an answer makes a
    * question seen (04 `round_questions`), and showing it here would make it seen without one.
@@ -86,10 +89,14 @@ export interface HistoryDetail {
     readonly generatorVersions: readonly string[];
     readonly scoringModels: readonly string[];
   };
-  /** A Japanese round whose feedback was stored with its English translation: 10 §10's pill. */
+  /** A Japanese round with anything stored in English, its feedback's or a prompt's: 10 §10's pill. */
   readonly translated: boolean;
 }
 
+/**
+ * `now` decides a round's status. Prompts carry their stored English only once the round is over
+ * (10 §10, Q106-2): a Japanese realistic round still open has none, whatever is stored.
+ */
 export async function historyDetail(db: Db, round: RoundRow, now: Date): Promise<HistoryDetail> {
   const [answers, followUps, [cv], [rubricRow], [context], [feedback], newer] = await Promise.all([
     roundAnswers(db, round.id),
@@ -134,6 +141,9 @@ export async function historyDetail(db: Db, round: RoundRow, now: Date): Promise
     };
   }
 
+  const english = carriesEnglishAfter(round) && !(round.mode === "realistic" && round.completedAt === null);
+  const englishOf = english ? await answersEnglish(db, answers, followUps) : null;
+
   function answerRow(answer: AnswerRow, retry: boolean): HistoryRow {
     return {
       kind: "answer",
@@ -142,6 +152,7 @@ export async function historyDetail(db: Db, round: RoundRow, now: Date): Promise
       answerId: answer.id,
       position: answer.position,
       prompt: answer.promptText,
+      ...(englishOf ? { promptEn: englishOf(answer) } : {}),
       durationMs: answer.audioDurationMs,
       pace: answer.wordsPerMinute,
       rewrite: answer.rewriteMagnitude === null ? null : rewritePercent(answer.rewriteMagnitude),
@@ -174,7 +185,14 @@ export async function historyDetail(db: Db, round: RoundRow, now: Date): Promise
     }
     const answer = originals.find((candidate) => candidate.parentAnswerId === question.id);
     if (answer) rows.push(...withRetries(answer));
-    else rows.push({ kind: "follow_up_unanswered", position, prompt: followUp.promptText });
+    else {
+      rows.push({
+        kind: "follow_up_unanswered",
+        position,
+        prompt: followUp.promptText,
+        ...(englishOf ? { promptEn: followUp.promptTextTranslated } : {}),
+      });
+    }
   }
 
   const displayed = [...attempts.values()].filter((attempt) => attempt.status === "ok");
@@ -199,6 +217,7 @@ export async function historyDetail(db: Db, round: RoundRow, now: Date): Promise
       generatorVersions: distinct(displayed.map((attempt) => attempt.generatorPromptVersion)),
       scoringModels: distinct(displayed.map((attempt) => attempt.modelId)),
     },
-    translated: round.language === "ja" && feedback?.translated != null,
+    translated:
+      english && (feedback?.translated != null || rows.some((row) => "promptEn" in row && row.promptEn != null)),
   };
 }

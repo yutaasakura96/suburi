@@ -3,12 +3,13 @@ import { requireSession } from "@/lib/auth/session";
 import { getDb } from "@/lib/db";
 import { isUuid } from "@/lib/round/http";
 import { getRound } from "@/lib/round/state";
+import { englishHelpStartsOn } from "@/lib/settings/settings";
 import { HistoryDetailView } from "../../detail";
 import { historyDetail } from "../../load";
 
 /**
  * One round, exactly as it happened (US-12). A Server Component reading stored rows (07 §1): another
- * user's round, or no round, is a 404, as in the API.
+ * user's round, or no round, is a 404, as in the API. The pill starts from the English help setting (10 §10).
  */
 export default async function HistoryRoundPage({ params }: PageProps<"/history/[roundId]">) {
   const userId = await requireSession();
@@ -18,5 +19,6 @@ export default async function HistoryRoundPage({ params }: PageProps<"/history/[
   if (!round) notFound();
 
   // Keyed by the round: the row that is open and the language being read belong to one round.
-  return <HistoryDetailView key={round.id} detail={await historyDetail(db, round, new Date())} />;
+  const [detail, englishHelp] = await Promise.all([historyDetail(db, round, new Date()), englishHelpStartsOn(db, userId)]);
+  return <HistoryDetailView key={round.id} detail={detail} englishHelp={englishHelp} />;
 }

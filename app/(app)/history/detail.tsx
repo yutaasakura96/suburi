@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { failureText, getJson, postJson, type FailureCode } from "../round/api";
 import { FEEDBACK_READING, type RoundLanguage } from "../round/copy";
-import { CalloutRail, LOW_END, caption, sectionLabel } from "../round/parts";
+import { CalloutRail, LOW_END, PromptEnglish, caption, sectionLabel } from "../round/parts";
 import { HISTORY_COPY } from "./copy";
 import type { HistoryDetail, HistoryRow, RowScoring } from "./load";
 
@@ -33,18 +33,21 @@ function rowLabel(row: HistoryRow) {
  *
  * **A past round is read-only.** The matrix has no control that edits, deletes or shares anything
  * (07 §6). It holds two pieces of state — which row's recording is open, and, on a Japanese round with
- * a stored translation, the language the dimensions are named in — and one action: retrying the score
+ * anything stored in English, the language the pill reads in (the dimensions' names and each prompt's
+ * English under it; it starts from the English help setting, #138) — and one action: retrying the score
  * of an answer that has none, **for that answer alone** (07 §5.11).
  *
  * **Every cell is one dimension of one answer.** No row, column or cell combines them (04 §6).
  */
-export function HistoryDetailView({ detail }: { detail: HistoryDetail }) {
+export function HistoryDetailView({ detail, englishHelp }: { detail: HistoryDetail; englishHelp: boolean }) {
   const { round, stamps } = detail;
-  const [selectedReading, setReading] = useState<RoundLanguage>(round.language);
+  const [selectedReading, setReading] = useState<RoundLanguage>(englishHelp ? "en" : round.language);
   const reading = detail.translated ? selectedReading : round.language;
   const other: RoundLanguage = reading === "ja" ? "en" : "ja";
   const [open, setOpen] = useState<string | null>(null);
   const dimensions = detail.dimensions.length;
+  /** What the pill shows under a prompt: undefined for nothing, null for the line saying there is none. */
+  const englishFor = (promptEn: string | null | undefined) => (reading !== round.language && promptEn !== undefined ? promptEn : undefined);
 
   return (
     <>
@@ -128,13 +131,18 @@ export function HistoryDetailView({ detail }: { detail: HistoryDetail }) {
           // A follow-up, and a retry, sit one ink level back from the answer they belong to (05 §5.5).
           const secondary = !(row.kind === "question_unanswered" || (row.kind === "answer" && row.asked === "question" && !row.retry));
           const prompt = row.kind === "answer" || row.kind === "follow_up_unanswered" ? row.prompt : null;
+          const english = row.kind === "answer" || row.kind === "follow_up_unanswered" ? englishFor(row.promptEn) : undefined;
           return (
             <div key={id ?? `${row.kind}-${row.position}-${index}`} className="contents" role="row" data-testid="history-row" data-kind={row.kind}>
-              <span role="cell" className={`${cell} min-w-0 pr-[12px] ${secondary ? "pl-[18px] text-[12px] text-ink-7" : "text-[13px]"}`}>
-                <span className="truncate" lang={round.language} title={prompt ?? undefined}>
+              <span role="cell" className={`${cell} min-w-0 flex-col items-start justify-center pr-[12px] ${secondary ? "pl-[18px] text-[12px] text-ink-7" : "text-[13px]"}`}>
+                <span className="w-full truncate" lang={round.language} title={prompt ?? undefined}>
                   <span lang="en">{label}</span>
                   {prompt ? `\u2002${prompt}` : null}
                 </span>
+                {/* One line under the Japanese's one line; the whole of it is in the row's record. */}
+                <div className="w-full min-w-0 [&>p]:truncate" title={english ?? undefined}>
+                  <PromptEnglish english={english} className="text-[11px] text-ink-5" />
+                </div>
               </span>
               {row.kind === "answer" ? (
                 <ScoreCells row={row} dimensions={dimensions} secondary={secondary} />
@@ -169,7 +177,7 @@ export function HistoryDetailView({ detail }: { detail: HistoryDetail }) {
                   <span className="size-[18px]" />
                 )}
               </span>
-              {answer && open === id ? <RowRecord row={answer} language={round.language} /> : null}
+              {answer && open === id ? <RowRecord row={answer} language={round.language} english={englishFor(answer.promptEn)} /> : null}
             </div>
           );
         })}
@@ -293,7 +301,7 @@ type Playback = { readonly state: "opening" } | { readonly state: "ready"; reado
  * beside what it was corrected to. The playback URL is minted when the row opens (07 §5.14) and never
  * kept; **a missing recording is a sentence, not a broken page** (04 §5).
  */
-function RowRecord({ row, language }: { row: AnswerRow; language: RoundLanguage }) {
+function RowRecord({ row, language, english }: { row: AnswerRow; language: RoundLanguage; english: string | null | undefined }) {
   const [playback, setPlayback] = useState<Playback>({ state: "opening" });
 
   // Asked for when the row opens, and again never: the URL is short-lived and is not kept.
@@ -311,9 +319,12 @@ function RowRecord({ row, language }: { row: AnswerRow; language: RoundLanguage 
 
   return (
     <div className="col-span-full flex flex-col gap-[14px] border-b border-rule-hairline bg-surface-inert px-[18px] py-[16px]" data-testid="history-record">
-      <p className="text-[13px] leading-[1.75] text-ink-2" lang={language}>
-        {row.prompt}
-      </p>
+      <div className="flex flex-col gap-[4px]">
+        <p className="text-[13px] leading-[1.75] text-ink-2" lang={language}>
+          {row.prompt}
+        </p>
+        <PromptEnglish english={english} className="text-[13px] leading-[1.75] text-ink-5" />
+      </div>
       <div className="flex items-center gap-[14px]">
         <span className={sectionLabel}>{HISTORY_COPY.recording}</span>
         {playback.state === "opening" ? (
