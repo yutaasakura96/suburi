@@ -578,7 +578,11 @@ The call asks for **two more than the shortfall**, so a candidate the guard maps
 question does not leave the round short. Each candidate is then embedded (`text-embedding-3-small`,
 `03` §4), all in one call. **Generation and embedding run in parallel with the preflight, before the
 transaction** — the round waits for the slower of the two, not their sum (`03` §4 has the measured
-wait).
+wait). **Generation is bounded at 90 s and embedding at 20 s, with no retry** (`06`, 2026-10-16, L1;
+built by #137): generation's bound is twice the slowest round start measured (45.9 s, `03` §4). The
+longest the request waits on them is 90 s plus the 20 s embedding that follows generation's questions,
+about 110 s, well inside the route's 300 s with the preflight and the transaction beside it. The wait
+precedes the round, so invariant 2 is untouched.
 
 **The transaction** then takes an advisory lock on the `(user, language, round type)` slice — two
 round starts must not both insert the same new question — and, for each candidate in the model's
@@ -933,11 +937,12 @@ transaction** and stored in a second one, which locks the round and refuses an a
 this call returns that one. `next` is computed from the stored rows, never from the request.
 
 **Its latency, measured with `follow-up-en-1.0`** (`03` §4, 2026-10-03): 3.2 s median, 4.7 s slowest
-of 15. The user waits for it inside a timed round, so the call is bounded on its own: **15 s, and one
+of 15. The user waits for it inside a timed round, so the call is bounded on its own: **45 s, and one
 retry after 1 s** when the failure is one a second call could get past (not a `4xx` other than `408`,
-`409` or `429`). After that the follow-up is `missing`. **The bound becomes 45 s** (`06`, 2026-10-16,
-L1), three times the slowest Japanese follow-up measured (14.6 s, `03` §4); the retry is unchanged.
-Built by #137; until then the code holds 15 s.
+`409` or `429`). After that the follow-up is `missing`. The bound was 15 s until #137 (`06`,
+2026-10-16, L1) made it three times the slowest Japanese follow-up measured (14.6 s, `03` §4); the
+retry is unchanged. The longest wait is 45 + 1 + 45 = 91 s, well inside the route's 300 s with the
+answer's commit before it and the scoring `after` work beside it.
 
 Failures: `400 invalid_request` naming `transcript_raw` when the answer has no transcript yet — there
 is nothing to correct; `422 answer_already_submitted` (idempotent alternative: the same body returns `200` with the

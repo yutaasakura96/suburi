@@ -159,7 +159,8 @@ own rules: 45 s follow-up, 90 s round start".**
 that set them, restored. A slow call now finishes instead of failing; normal waits do not change. The
 follow-up's single retry stays, so its longest wait is about 91 s inside a round, well inside the
 route's 300 s. Round start is before the round, so invariant 2 is untouched. Setup's "can take up to a
-minute" stays (2026-10-16): it describes the median wait, not the bound. Built by #137.
+minute" stays (2026-10-16): it describes the median wait, not the bound. **Built by #137**: both
+constants are changed, and the route budgets are checked (`07` §5.4, §5.9).
 **Amends** the two #125 entries below, which kept 15 s and 60 s.
 **Rejected:** A, keep both; C, widen the follow-up alone to 30 s.
 

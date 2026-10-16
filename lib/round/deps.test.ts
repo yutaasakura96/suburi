@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { COMPLETE_WAIT_BOUND_MS, FEEDBACK_TIMEOUT_MS } from "./complete";
 import { ROUTE_MAX_DURATION_SECONDS, invocationDeadline } from "./deps";
+import { FOLLOW_UP_BACKOFF_MS, FOLLOW_UP_RETRIES, FOLLOW_UP_TIMEOUT_MS } from "./follow-up";
+import { EMBEDDING_TIMEOUT_MS, GENERATION_TIMEOUT_MS } from "./generate-candidates";
 import { RUN_CLAIM_SECONDS } from "./run-scoring";
 import { MODEL_ANSWER_TIMEOUT_MS, MODEL_ANSWER_WAIT_MS } from "./model-answers";
 
@@ -41,5 +43,20 @@ describe("the round routes' duration", () => {
     expect(MODEL_ANSWER_WAIT_MS).toBeLessThan(MODEL_ANSWER_TIMEOUT_MS);
     expect(MODEL_ANSWER_WAIT_MS).toBeLessThan(COMPLETE_WAIT_BOUND_MS + FEEDBACK_TIMEOUT_MS);
     expect(MODEL_ANSWER_TIMEOUT_MS).toBeLessThan(invocationDeadline(0));
+  });
+
+  // 06, 2026-10-16, L1: three times the slowest Japanese follow-up (14.6 s) and twice the slowest round
+  // start (45.9 s), each fitting its route with its retry and the other work on the path (07 §5.4, §5.9).
+  it("bounds a follow-up at 45 s with one retry after 1 s, inside submit's deadline (07 §5.9)", () => {
+    expect(FOLLOW_UP_TIMEOUT_MS).toBe(45_000);
+    expect(FOLLOW_UP_RETRIES).toBe(1);
+    expect(FOLLOW_UP_BACKOFF_MS).toBe(1_000);
+    const longest = FOLLOW_UP_TIMEOUT_MS * (FOLLOW_UP_RETRIES + 1) + FOLLOW_UP_BACKOFF_MS * FOLLOW_UP_RETRIES;
+    expect(longest).toBeLessThan(invocationDeadline(0));
+  });
+
+  it("bounds round-start generation at 90 s, and its embeddings after it, inside the deadline (07 §5.4)", () => {
+    expect(GENERATION_TIMEOUT_MS).toBe(90_000);
+    expect(GENERATION_TIMEOUT_MS + EMBEDDING_TIMEOUT_MS).toBeLessThan(invocationDeadline(0));
   });
 });

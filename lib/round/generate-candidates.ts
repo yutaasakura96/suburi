@@ -20,11 +20,12 @@ import type { Db } from "./http";
 export const SPARE_CANDIDATES = 2;
 
 /**
- * A minute for the questions and twenty seconds for their embeddings: several times the measured
- * medians (03 §4), and short enough that a stuck call is a refusal the user can retry, not a wait
- * that outlives their patience. Nothing has been written when either expires.
+ * Ninety seconds for the questions, twice the slowest round start measured (45.9 s under `ja-1.1`,
+ * 03 §4; 06, 2026-10-16, L1), and twenty seconds for their embeddings: several times the measured
+ * medians, and short enough that a stuck call is a refusal the user can retry, not a wait that
+ * outlives their patience. Nothing has been written when either expires.
  */
-export const GENERATION_TIMEOUT_MS = 60_000;
+export const GENERATION_TIMEOUT_MS = 90_000;
 export const EMBEDDING_TIMEOUT_MS = 20_000;
 
 export interface GeneratedCandidates {

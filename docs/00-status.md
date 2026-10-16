@@ -100,8 +100,8 @@ transaction, a reused one's is discarded; a follow-up's is `follow_ups.prompt_te
 (`0016_follow-up-english`), carried as `text_en`; a missing or malformed English is dropped and
 counted, never the question or the follow-up. Both calls are re-measured (`03` §4): the
 Japanese follow-up 14.6 s slowest against its 15 s bound, round start 45.9 s slowest against its 60 s
-timeout, both kept; widening either remains for the owner, while Setup's wait wording is decided
-(`06`, 2026-10-16). Migration `0016` is not yet applied to either Neon branch. **#126, the English
+timeout, both kept then; the owner widened them to 45 s and 90 s (`06`, 2026-10-16, L1, built by
+#137), while Setup's wait wording is decided (`06`, 2026-10-16). Migration `0016` is not yet applied to either Neon branch. **#126, the English
 reading on the correction screen, is built (2026-10-16), on `fm/suburi-126`:** `POST
 /api/answers/{answerId}/english-reading` with `english-reading-1.0`, every refusal before the model,
 30 s and no retry, its own `english-reading` bucket; `english_readings` (`0017_english-reading`) holds
