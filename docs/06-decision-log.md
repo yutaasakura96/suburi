@@ -39,9 +39,10 @@ failed search, which doubles a minute's wait for what the same call already fall
 
 **Decided, building the call (`07` §5.22):**
 - **The check refuses as `malformed_output`** a blank fact or source, a source that is neither an
-  `http(s)` URL nor exactly `model knowledge`, a fact that is a question (R2 rejected interview
-  questions), a role not marked as a guess, empty `what_it_does` or `involves`, and a draft over the
-  role-context cap (20,000 code points, so the draft as returned can be saved by #135).
+  `http(s)` URL nor exactly `model knowledge`, a fact whose text holds a line break, an `http(s)` URL
+  or a question mark (R2 rejected interview questions), a role not marked as a guess, empty
+  `what_it_does` or `involves`, and a draft over the role-context cap (20,000 code points, so the
+  draft as returned can be saved by #135).
 - **A well-formed link the call never saw is dropped and counted, not a failed call.** The first
   measurement refused one call in twelve on that rule when it failed the whole call; after the change
   the second run of twelve dropped none. A dropped fact is never relabelled `model knowledge`, which

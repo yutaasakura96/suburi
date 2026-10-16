@@ -1560,11 +1560,12 @@ POST /api/role-contexts/research
 - **The output is checked server-side** (`checkResearchNotes`): every fact is one sentence with one
   source, an `http(s)` URL or exactly `model knowledge`; a fact's text holds no line break and no
   `http(s)` URL, so it cannot add a line or a link the check never saw; no fact holds a question mark
-  (`?` or `？`) anywhere (R2 rejected a list of interview questions); the role part is marked as a guess; what the company does and what the role
-  involves are not empty; the draft fits a role context's 20,000-code-point cap, so it can be saved as
-  returned. Anything else is `malformed_output`, a failed call. **A well-formed link the call never saw
-  is dropped and counted, never relabelled** — "saw" is the same URL, or a page on a host its search
-  returned, opened or cited — so **a call that did not search carries `model knowledge` facts only**.
+  (`?` or `？`) anywhere (R2 rejected a list of interview questions); the role part is marked as a
+  guess; what the company does and what the role involves are not empty; the draft fits a role
+  context's 20,000-code-point cap, so it can be saved as returned. Anything else is
+  `malformed_output`, a failed call. **A well-formed link the call never saw is dropped and counted,
+  never relabelled** — "saw" is the same URL, or a page on a host its search returned, opened or
+  cited — so **a call that did not search carries `model knowledge` facts only**.
 - `draft` is the checked notes as English text, each fact's source in brackets after it, the company's
   lists then the role under a heading that says it is a guess; an empty list is left out. It is what
   Setup shows and, saved, what `research_draft` keeps (`04` `role_contexts`). Japanese names stay
