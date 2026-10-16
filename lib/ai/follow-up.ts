@@ -6,6 +6,7 @@ import type { RubricLanguage } from "../rubric/types.ts";
 import { checkEnglish, type EnglishDrop } from "./generated-english.ts";
 import { FOLLOW_UP_MODEL } from "./models.ts";
 import type { CallOptions } from "./score.ts";
+import { containsJapaneseScript } from "./translate-question.ts";
 import { ModelCallFailed, openAiClient, upstreamErrorClass } from "./upstream.ts";
 
 /**
@@ -80,19 +81,10 @@ export function checkFollowUp(text: string, language: RubricLanguage): string {
   const question = text.trim();
   const ending = QUESTION_ENDINGS[language].exec(question);
   const body = ending ? question.slice(0, ending.index).trim() : "";
-  if (body === "" || SENTENCE_BREAK.test(body) || Array.from(question).length > MAX_FOLLOW_UP_CODE_POINTS) {
+  if (body === "" || SENTENCE_BREAK.test(body) || Array.from(question).length > MAX_FOLLOW_UP_CODE_POINTS || (language === "en" && containsJapaneseScript(question))) {
     throw new ModelCallFailed("Follow-up generation", "malformed_output");
   }
   return question;
-}
-
-/** A follow-up's English: one English question by the rule above, or `english_malformed`. */
-function acceptEnglish(english: string) {
-  try {
-    return checkFollowUp(english, "en");
-  } catch {
-    return null;
-  }
 }
 
 /**
@@ -104,7 +96,7 @@ export function checkFollowUpResult(
   written: { readonly followUp: string; readonly english: string | null },
 ): Pick<FollowUpResult, "text" | "english" | "englishDropped"> {
   const text = checkFollowUp(written.followUp, language);
-  return { text, ...(language === "ja" ? checkEnglish(written.english, acceptEnglish) : { english: null, englishDropped: null }) };
+  return { text, ...(language === "ja" ? checkEnglish(written.english, (english) => checkFollowUp(english, "en")) : { english: null, englishDropped: null }) };
 }
 
 const ROUND_TYPES: Record<FollowUpRoundType, string> = {

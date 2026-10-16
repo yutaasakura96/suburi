@@ -11,7 +11,7 @@ import * as technicalJa from "../prompts/generate-technical-ja-1.1.ts";
 import { checkEnglish, type EnglishDrop } from "./generated-english.ts";
 import { QUESTION_GENERATION_MODEL } from "./models.ts";
 import type { CallOptions } from "./score.ts";
-import { MAX_QUESTION_ENGLISH_CODE_POINTS } from "./translate-question.ts";
+import { checkQuestionEnglish } from "./translate-question.ts";
 import { ModelCallFailed, openAiClient, upstreamErrorClass } from "./upstream.ts";
 
 /**
@@ -91,11 +91,6 @@ export interface WrittenQuestion {
   readonly english: string | null;
 }
 
-/** A question's English, tidied like the question: not blank, and no longer than a translation may be. */
-function checkQuestionEnglish(english: string) {
-  return Array.from(english).length > MAX_QUESTION_ENGLISH_CODE_POINTS ? null : tidyQuestion(english);
-}
-
 /**
  * Tidied, blanks and repeats dropped, cut to the count asked for. **None at all is
  * `malformed_output`**; fewer than asked is not, since the guard may shorten the list further anyway
@@ -111,7 +106,7 @@ export function checkQuestions(language: GenerationLanguage, count: number, writ
     const text = tidyQuestion(question);
     if (text === "" || seen.has(text)) continue;
     seen.add(text);
-    kept.push({ text, ...(language === "ja" ? checkEnglish(english, checkQuestionEnglish) : { english: null, englishDropped: null }) });
+    kept.push({ text, ...(language === "ja" ? checkEnglish(english, (value) => checkQuestionEnglish(tidyQuestion(value))) : { english: null, englishDropped: null }) });
     if (kept.length === count) break;
   }
   if (kept.length === 0) throw new ModelCallFailed("Question generation", "malformed_output");

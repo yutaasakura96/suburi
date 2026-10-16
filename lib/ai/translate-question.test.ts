@@ -15,8 +15,12 @@ describe("checkQuestionEnglish", () => {
   });
 
   it("refuses a runaway output, counted in code points", () => {
-    expect(checkQuestionEnglish("𠮷".repeat(MAX_QUESTION_ENGLISH_CODE_POINTS))).toHaveLength(MAX_QUESTION_ENGLISH_CODE_POINTS * 2);
+    expect(checkQuestionEnglish("😀".repeat(MAX_QUESTION_ENGLISH_CODE_POINTS))).toHaveLength(MAX_QUESTION_ENGLISH_CODE_POINTS * 2);
     expect(() => checkQuestionEnglish("a".repeat(MAX_QUESTION_ENGLISH_CODE_POINTS + 1))).toThrow(ModelCallFailed);
+  });
+
+  it.each(["ひらがな", "カタカナ", "漢字", "𠮷"])("refuses Japanese script in English: %s", (script) => {
+    expect(() => checkQuestionEnglish(`Please explain ${script}.`)).toThrow(new ModelCallFailed("Question translation", "malformed_output"));
   });
 });
 

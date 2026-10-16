@@ -100,7 +100,10 @@ describe("checkFollowUpResult", () => {
     ["What changed? Who approved it?", "english_malformed"],
     ["Interesting. What did you measure?", "english_malformed"],
     ["Tell me which part was yours.", "english_malformed"],
-    ["その移行で、ご自身が担った部分はどこですか。", "english_malformed"],
+    ["その移行で、ご自身が担った部分はどこですか?", "english_malformed"],
+    ["Which part did you ひらがな?", "english_malformed"],
+    ["Which part did you カタカナ?", "english_malformed"],
+    ["Which part did you 漢字?", "english_malformed"],
     [`${"a".repeat(MAX_FOLLOW_UP_CODE_POINTS)}?`, "english_malformed"],
   ] as const)("drops the English %j as %s and keeps the follow-up", (english, drop) => {
     expect(checkFollowUpResult("ja", { followUp, english })).toEqual({ text: followUp, english: null, englishDropped: drop });

@@ -1,3 +1,5 @@
+import { ModelCallFailed } from "./upstream.ts";
+
 // The English a Japanese generating call writes beside its Japanese (06, 2026-10-14, Q106-4): a
 // question's, by `generate-{round type}-ja-1.1`, and a follow-up's, by `follow-up-ja-1.1`. **A missing
 // or malformed English drops the English, never the question or the follow-up**: what it cost is a
@@ -13,13 +15,17 @@ export type CheckedEnglish =
 
 /**
  * The English trimmed, or dropped with its class: null or blank is missing, and anything `accept`
- * refuses — it returns null — is malformed.
+ * refuses with `ModelCallFailed` is malformed.
  */
-export function checkEnglish(raw: string | null | undefined, accept: (english: string) => string | null): CheckedEnglish {
+export function checkEnglish(raw: string | null | undefined, accept: (english: string) => string): CheckedEnglish {
   const trimmed = raw?.trim() ?? "";
   if (trimmed === "") return { english: null, englishDropped: "english_missing" };
-  const english = accept(trimmed);
-  return english === null ? { english: null, englishDropped: "english_malformed" } : { english, englishDropped: null };
+  try {
+    return { english: accept(trimmed), englishDropped: null };
+  } catch (error) {
+    if (!(error instanceof ModelCallFailed)) throw error;
+    return { english: null, englishDropped: "english_malformed" };
+  }
 }
 
 /** How many of each class were dropped: what the drop's log line carries. */
