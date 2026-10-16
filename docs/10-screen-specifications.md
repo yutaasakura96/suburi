@@ -1457,9 +1457,8 @@ off, and its words follow the chrome. Pressing it sends the editor's text (`07` 
 - **Never stored and gone on submit.** A reload, or the commit, drops it; nothing in History, screen 8
   or Study shows it. It feeds no score, no follow-up and no meter.
 
-**A realistic round's correction screen has none** (§0). The Japanese strings above go into
-`docs/checklists/native-read-round.md` with the slice that builds them, and are read before it ships
-(`05` §6).
+**A realistic round's correction screen has none** (§0). The Japanese strings' review record is in
+`docs/checklists/native-read-round.md` §17 (`05` §6).
 
 ### The per-answer frame — after every commit
 
