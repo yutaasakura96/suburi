@@ -121,7 +121,7 @@ are reads. No migration and no new Japanese string. **English help's six slices 
 docs and the installed SDK confirm (`03` §4); English notes, every fact a link the call saw or
 `model knowledge`, the role a guess; a saved posting for the same job refuses it before the model;
 150 s from the measurement (73.4 s slowest), its own `research` bucket (`0018_research-route`), the
-two catalogue codes, and nothing saved. Their two Japanese sentences are unread. Migration `0018` is
+two catalogue codes, and nothing saved. Their two Japanese sentences were accepted in a delegated AI review on 2026-10-16, not a native read (`docs/checklists/native-read-round.md` §18). Migration `0018` is
 not yet applied to either Neon branch.
 **Updated:** 2026-10-16 (#134 built; after English help planned: #134–#139; #127 built; #126 built; #125 re-measured); 2026-10-15 (#125 built; #124 built; #123 built; #122 built; #122–#127 confirmed); 2026-10-14 (#106 and #107 planned; #76 built; #85 built; #83 checked; #75 built; #105 built; #104 measured and fixed; #51 built; follow-ups spoken; #73 built; #49's Japanese strings all accepted; #50's
 catalogue string read; #43, #44, #45, #46, #47, #48, #49, #50 and #74 built; #42 closed; #55 and #56 on 2026-09-30)

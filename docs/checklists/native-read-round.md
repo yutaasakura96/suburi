@@ -484,11 +484,14 @@ for #126. `8,000字` is the route's cap, set tight (`05` §6).
 
 ## 18. #134, company research's call
 
-Two catalogue sentences in `lib/copy/errors.ts` (`07` §3), written for #134. **Unread.** Setup renders
-the English (`10` §0), so neither is shown today; the catalogue holds both languages for every code
-(`11` §3.10).
+**Reviewed 2026-10-16 as an AI review, not a native read, at the owner's delegation** (`06`,
+2026-10-03). Both strings were accepted against their English intent and `05` §6's rules, unchanged;
+no native speaker has read them. Two catalogue sentences in `lib/copy/errors.ts` (`07` §3), written
+for #134. Setup renders the English (`10` §0), so neither is shown today; the catalogue holds both
+languages for every code (`11` §3.10). `求人票` is the posting, as in `role_context_too_large`; the
+failure says what is still true, as `english_reading_failed` does.
 
 | | Japanese | Intent |
 | --- | --- | --- |
-| | 同じ会社と職種の求人票が保存されています。調査はせず、その求人票を使います。 | `research_posting_exists` — A saved posting is for this company and role. It is used, and no research is run. |
-| | 会社の調査ができませんでした。何も保存されていません。もう一度お試しください。 | `research_failed` — The research could not be done. Nothing was saved. Try again. |
+| ✓ | 同じ会社と職種の求人票が保存されています。調査はせず、その求人票を使います。 | `research_posting_exists` — A saved posting is for this company and role. It is used, and no research is run. |
+| ✓ | 会社の調査ができませんでした。何も保存されていません。もう一度お試しください。 | `research_failed` — The research could not be done. Nothing was saved. Try again. |

@@ -53,7 +53,8 @@ failed search, which doubles a minute's wait for what the same call already fall
   says it is a guess: one text that Setup shows and #135 saves as `research_draft` exactly as returned.
 - **Two catalogue codes**, `research_posting_exists` (`422`, R4's refusal, with the posting's id) and
   `research_failed` (`502`), with `ja` and `en` copy as `11` §3.10 requires; Setup renders the `en`.
-  **The two `ja` sentences need a native read.**
+  **The two `ja` sentences were accepted unchanged in a delegated AI review, not a native read**
+  (`docs/checklists/native-read-round.md` §18).
 - **Nothing is written, so the call is not in the week's spend** (`12` §6 reads stored token columns).
   A searching call is about $0.30–0.45 of tokens plus OpenAI's per-search charge. The hard monthly
   limit still bounds it. Whether research should leave a row of counts, as the English reading does,
