@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useDeferredValue, useEffect, useEffectEvent, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { englishReadingTextFits } from "@/lib/round/english-reading-limits";
 import { paceUnits, rewriteMagnitude, rewritePercent } from "@/lib/round/measures";
 import type { ScoringRead } from "@/lib/round/read-round";
 import { failureText, postJson, type FailureCode } from "../api";
@@ -640,6 +641,7 @@ export function RoundRunner({ frame }: { frame: RoundFrame }) {
           busy={busy}
           error={error}
           stamp={stamp(screen.question)}
+          englishReading={pill !== null}
           onSubmit={(corrected) => void submit(screen.question, screen.transcript, corrected)}
         />
       );
@@ -965,6 +967,7 @@ function CorrectionFrame({
   busy,
   error,
   stamp,
+  englishReading,
   onSubmit,
 }: {
   copy: RoundCopy;
@@ -978,6 +981,8 @@ function CorrectionFrame({
   busy: boolean;
   error: Failure | null;
   stamp: string;
+  /** A Japanese practice round's: the control for an English reading of the editor's text (10 §15). */
+  englishReading: boolean;
   onSubmit: (corrected: string) => void;
 }) {
   // A bank question's answer gets one follow-up, made from this text; a follow-up's own answer gets
@@ -1018,6 +1023,7 @@ function CorrectionFrame({
             {transcript.raw}
           </p>
         </div>
+        {englishReading ? <EnglishReading copy={copy} chrome={chrome} answerId={transcript.answerId} text={text} /> : null}
       </div>
 
       <div className="flex flex-col gap-[20px] px-[32px] pt-[30px] pb-[32px]">
@@ -1069,6 +1075,61 @@ function CorrectionFrame({
           </p>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * 10 §15, a Japanese practice round's correction screen: an English reading of the editor's text as
+ * it stands, on request (07 §5.20). **Never stored**: it lives in this component, so the commit and a
+ * reload both drop it. It changes nothing else — not the editor, not the meter, not what is sent.
+ */
+function EnglishReading({ copy, chrome, answerId, text }: { copy: RoundCopy; chrome: RoundLanguage; answerId: string; text: string }) {
+  const [reading, setReading] = useState<{ readonly source: string; readonly english: string } | null>(null);
+  const [pending, setPending] = useState(false);
+  // By code, so the sentence follows the chrome when the pill is pressed after it.
+  const [failed, setFailed] = useState<FailureCode | null>(null);
+  const tooLong = !englishReadingTextFits(text);
+  const empty = text.trim() === "";
+  const sectionLabel = roundSectionLabel(chrome);
+
+  async function read() {
+    const source = text;
+    setPending(true);
+    setFailed(null);
+    const result = await postJson<{ english: string }>(`/api/answers/${answerId}/english-reading`, { text: source });
+    setPending(false);
+    if (result.ok) {
+      setReading({ source, english: result.json.english });
+      return;
+    }
+    setFailed(result.code);
+  }
+
+  // A 400 the route returns anyway, for a text over the cap, says what the disabled button says.
+  const refusedLength = failed === "invalid_request";
+  return (
+    <div className="flex flex-col gap-[10px] border-t border-rule-row pt-[18px]" data-testid="english-reading-control">
+      {failed !== null && !refusedLength ? <CalloutRail tone="attention">{failureText(failed, chrome)}</CalloutRail> : null}
+      <Button variant="outline" onClick={() => void read()} disabled={pending || tooLong || empty} className="self-start">
+        {reading ? copy.readInEnglishAgain : copy.readInEnglish}
+      </Button>
+      <p className={caption} role="status">
+        {pending ? copy.readingWait : tooLong || refusedLength ? copy.readingTooLong : copy.readingCaption}
+      </p>
+      {reading ? (
+        <div className="mt-[8px] flex flex-col gap-[10px]" data-testid="english-reading">
+          <span className={sectionLabel}>{copy.readingLabel}</span>
+          {reading.source !== text ? (
+            <p className={caption} data-testid="english-reading-edited">
+              {copy.readingEdited}
+            </p>
+          ) : null}
+          <p className="border-l-2 border-rule-section pl-[18px] text-[13px] leading-[1.9] whitespace-pre-wrap text-ink-3" lang="en" data-testid="english-reading-text">
+            {reading.english}
+          </p>
+        </div>
+      ) : null}
     </div>
   );
 }

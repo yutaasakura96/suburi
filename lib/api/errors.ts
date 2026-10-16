@@ -45,6 +45,8 @@ export const ERROR_STATUS = {
   speech_failed: 502,
   role_context_too_large: 422,
   write_failed: 500,
+  english_reading_not_applicable: 422,
+  english_reading_failed: 502,
   cv_unchanged: 422,
   cv_too_large: 422,
   cv_extraction_failed: 502,

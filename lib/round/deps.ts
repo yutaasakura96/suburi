@@ -1,5 +1,6 @@
 import { after } from "next/server";
 import { openAiEmbedder } from "../ai/embed";
+import { openAiEnglishReader } from "../ai/english-reading";
 import { openAiQuestionGenerator } from "../ai/generate-questions";
 import { openAiFollowUpGenerator } from "../ai/follow-up";
 import { openAiModelHealth } from "../ai/health";
@@ -41,6 +42,7 @@ export function roundDeps() {
     embedder: openAiEmbedder(openAi),
     followUpGenerator: openAiFollowUpGenerator(openAi),
     modelAnswerGenerator: openAiModelAnswerGenerator(openAi),
+    englishReader: openAiEnglishReader(openAi),
     store: s3AudioStore({
       region: config.AWS_REGION,
       bucket: config.S3_BUCKET,

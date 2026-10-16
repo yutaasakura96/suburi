@@ -131,6 +131,15 @@ const CATALOGUE = {
     ja: "保存に失敗しました。何も書き込まれていません。同じ操作をもう一度お試しください。",
     en: "The save failed, and nothing was written. Try the same step again.",
   },
+  // 07 §5.20, #106: the reading is offered only in a Japanese practice round (Q106-2, Q106-7).
+  english_reading_not_applicable: {
+    ja: "この回答の英語訳は表示できません。英語訳は日本語の練習ラウンドでのみ使えます。",
+    en: "This answer cannot be read in English. The English reading is only for a Japanese practice round.",
+  },
+  english_reading_failed: {
+    ja: "英語訳を表示できませんでした。回答はそのまま残っています。もう一度お試しください。",
+    en: "The English reading could not be made. Your answer is unchanged. Try again.",
+  },
   cv_unchanged: {
     ja: "応募書類に変更がありません。新しいバージョンは作成しませんでした。",
     en: "Nothing in the CV has changed. No new version was created.",

@@ -42,10 +42,12 @@ export const RATE_LIMITED_ROUTES = [
   "scoring-attempts",
   "scoring-run",
   "model-answers",
+  "english-reading",
 ] as const;
 // 12 §6's monitoring jobs and what they read (04 cron_readings). #47 adds the near-miss row; #56
 // added the daily dump's.
 export const TRANSLATION_SOURCES = ["generated", "hand_written", "translated"] as const;
+export const ENGLISH_READING_STATUSES = ["ok", "failed"] as const;
 export const CRON_JOBS = ["self-check", "digest"] as const;
 export const SELF_CHECK_SIGNALS = [
   "scoring_pending_over_24h",
@@ -680,6 +682,39 @@ export const modelAnswers = pgTable(
     createdAt: createdAt(),
   },
   (t) => [unique("model_answers_answer_id_unique").on(t.answerId)],
+);
+
+// Append-only: that an English reading of a transcript was made, never what it said (04, 06
+// 2026-10-14, Q106-7). One row per call to the model, so the week's spend counts it (12 §6). **No
+// column here holds the text sent or the English returned, and none may be added** (04 §6, item 16).
+export const englishReadings = pgTable(
+  "english_readings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    answerId: uuid("answer_id")
+      .notNull()
+      .references(() => answers.id, { onDelete: "restrict" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    status: text("status", { enum: ENGLISH_READING_STATUSES }).notNull(),
+    // The length of the text sent, in code points. A count, not the text.
+    sourceCodePoints: integer("source_code_points").notNull(),
+    // Exact pinned string, never an alias.
+    modelId: text("model_id").notNull(),
+    promptVersion: text("prompt_version").notNull(),
+    tokensIn: integer("tokens_in"),
+    tokensOut: integer("tokens_out"),
+    // A class, never the model's output.
+    errorClass: text("error_class"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    oneOf("english_readings", "status", t.status, ENGLISH_READING_STATUSES),
+    check("english_readings_error_class_check", sql`${t.status} = 'failed' or ${t.errorClass} is null`),
+    check("english_readings_source_code_points_check", sql`${t.sourceCodePoints} between 1 and 8000`),
+    index("english_readings_user_id_created_at_idx").on(t.userId, t.createdAt),
+  ],
 );
 
 export const claimCitations = pgTable(

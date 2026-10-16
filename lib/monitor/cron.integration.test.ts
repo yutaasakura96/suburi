@@ -334,9 +334,20 @@ describe("self-check", () => {
           tokensIn: 50_000,
           createdAt: at(-HOUR),
         }); // $0.20
+        // And an English reading of a transcript, which stores its tokens and no text (04 `english_readings`).
+        await db.insert(s.englishReadings).values({
+          answerId: answered,
+          userId: world.userId,
+          status: "ok",
+          sourceCodePoints: 120,
+          modelId: CV_EXTRACTION_MODEL,
+          promptVersion: "english-reading-fixture",
+          tokensIn: 50_000,
+          createdAt: at(-HOUR),
+        }); // $0.20
 
         const { spend_week_to_date_usd: reading } = await selfCheck(db, world.userId);
-        expect(reading).toMatchObject({ value: 1.4, threshold: 2.1, isRed: false });
+        expect(reading).toMatchObject({ value: 1.6, threshold: 2.1, isRed: false });
       }));
 
     it("raises the threshold by $2.10 for each round started this week", () =>

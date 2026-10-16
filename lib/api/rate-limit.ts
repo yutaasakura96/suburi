@@ -38,6 +38,9 @@ export const RATE_LIMITS: Record<RateLimitedRoute, { limit: number; windowSecond
   // retrying every one of them takes 14 of each call. The same bound as `submit`, for the same shape.
   "scoring-attempts": { limit: 30, windowSeconds: 600 },
   "scoring-run": { limit: 30, windowSeconds: 600 },
+  // The English reading (07 §5.20): a few readings per answer while it is corrected, across the
+  // longest practice round. The same bound as `submit`.
+  "english-reading": { limit: 30, windowSeconds: 600 },
 };
 
 export interface RateLimitKey {

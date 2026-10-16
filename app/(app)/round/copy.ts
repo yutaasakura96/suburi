@@ -209,6 +209,14 @@ const en = {
   yourAnswer: "Your answer — edit freely",
   unitsChange: (from: number, to: number) => `${from} words → ${to} words`,
   rawKept: "Raw — kept, never replaced",
+  // 10 §15, a Japanese practice round's English reading (#106, Q106-7): never stored.
+  readInEnglish: "Read it in English",
+  readInEnglishAgain: "Read it in English again",
+  readingCaption: "An English reading of your answer as it stands now. It is not saved.",
+  readingWait: "Reading it in English.",
+  readingTooLong: "Your answer is too long to read in English. Shorten it to 8,000 characters or fewer.",
+  readingLabel: "English reading — not saved",
+  readingEdited: "You have edited your answer since this reading.",
   rewrite: "Rewrite",
   rewriteOf: "of the characters changed from the uncorrected transcript",
   rewriteNotes: [
@@ -399,6 +407,13 @@ const ja: RoundCopy = {
   yourAnswer: "あなたの回答 — 自由に直せます",
   unitsChange: (from, to) => `${from}字 → ${to}字`,
   rawKept: "未修正の文字起こし — 置き換えずに残します",
+  readInEnglish: "英語訳を見る",
+  readInEnglishAgain: "もう一度英語訳を見る",
+  readingCaption: "いまの回答を英語に訳して表示します。保存はしません。",
+  readingWait: "英語に訳しています。",
+  readingTooLong: "回答が長すぎるため英語訳を表示できません。8,000字以内にしてください。",
+  readingLabel: "英語訳 — 保存しません",
+  readingEdited: "この英語訳のあとで回答を直しました。",
   rewrite: "書き直し",
   rewriteOf: "の文字が、未修正の文字起こしから変わりました",
   rewriteNotes: [
