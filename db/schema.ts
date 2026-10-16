@@ -155,7 +155,8 @@ export const userSettings = pgTable("user_settings", {
   userId: text("user_id")
     .primaryKey()
     .references(() => users.id, { onDelete: "cascade" }),
-  // English help starts on: the starting state of a Japanese practice round's pill (10 §15).
+  // English help starts on: the starting state of a Japanese practice round's pill and of screen 8's
+  // and Study's (10 §15, §8, §16).
   englishHelp: boolean("english_help").notNull().default(false),
   createdAt: createdAt(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

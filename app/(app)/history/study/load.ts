@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, exists, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import * as s from "@/db/schema";
 import type { FeedbackItem, TranslatedFeedback } from "@/lib/ai/round-feedback";
+import { answersEnglish, carriesEnglishAfter } from "@/lib/round/english-help";
 import type { Db } from "@/lib/round/http";
 import { encodeCursor, type Cursor } from "@/lib/round/list-rounds";
 import type { AnswerRow } from "@/lib/round/state";
@@ -23,10 +24,18 @@ export interface StudyAnswer {
   readonly again: readonly string[];
 }
 
-export interface StudyQuestion extends StudyAnswer {
-  readonly position: number;
+/**
+ * A prompt as asked, and its stored English for the pill (10 §16, #106): a string, or null when it
+ * has none. The key only on a Japanese round; an English round's prompts have nothing to show.
+ */
+export interface StudyPrompt {
   readonly prompt: string;
-  readonly followUp: ({ readonly prompt: string } & StudyAnswer) | null;
+  readonly promptEn?: string | null;
+}
+
+export interface StudyQuestion extends StudyAnswer, StudyPrompt {
+  readonly position: number;
+  readonly followUp: (StudyPrompt & StudyAnswer) | null;
 }
 
 export interface StudyRound {
@@ -102,7 +111,17 @@ export async function studyPage(db: Db, userId: string, cursor: Cursor | null): 
     db.select().from(s.roundFeedback).where(inArray(s.roundFeedback.roundId, roundIds)),
   ]);
   const answerIds = answers.map((answer) => answer.id);
-  const modelAnswers = await db.select().from(s.modelAnswers).where(inArray(s.modelAnswers.answerId, answerIds));
+  // English help after the round (10 §16): only a Japanese round's prompts carry their English.
+  const japanese = new Set(page.filter(({ round }) => carriesEnglishAfter(round)).map(({ round }) => round.id));
+  const japaneseAnswers = answers.filter((answer) => japanese.has(answer.roundId));
+  const [modelAnswers, followUps] = await Promise.all([
+    db.select().from(s.modelAnswers).where(inArray(s.modelAnswers.answerId, answerIds)),
+    japaneseAnswers.length === 0
+      ? []
+      : db.select().from(s.followUps).where(inArray(s.followUps.parentAnswerId, japaneseAnswers.map((answer) => answer.id))),
+  ]);
+  const englishOf = await answersEnglish(db, japaneseAnswers, followUps);
+  const english = (answer: AnswerRow) => (japanese.has(answer.roundId) ? { promptEn: englishOf(answer) } : {});
 
   /** An answer, with every "answer again" made of it. A retry reads its original's model answer and has none of its own. */
   function said(answer: AnswerRow): StudyAnswer {
@@ -116,7 +135,7 @@ export async function studyPage(db: Db, userId: string, cursor: Cursor | null): 
 
   function followUpOf(question: AnswerRow): StudyQuestion["followUp"] {
     const answer = answers.find((candidate) => candidate.parentAnswerId === question.id && candidate.retryOfAnswerId === null);
-    return answer ? { prompt: answer.promptText, ...said(answer) } : null;
+    return answer ? { prompt: answer.promptText, ...english(answer), ...said(answer) } : null;
   }
 
   return {
@@ -134,7 +153,13 @@ export async function studyPage(db: Db, userId: string, cursor: Cursor | null): 
         cvLabel,
         questions: answers
           .filter((answer) => answer.roundId === round.id && answer.questionId !== null && answer.retryOfAnswerId === null)
-          .map((answer) => ({ position: answer.position, prompt: answer.promptText, ...said(answer), followUp: followUpOf(answer) })),
+          .map((answer) => ({
+            position: answer.position,
+            prompt: answer.promptText,
+            ...english(answer),
+            ...said(answer),
+            followUp: followUpOf(answer),
+          })),
         toFix: stored ? (stored.toFix as FeedbackItem[]) : null,
         toFixTranslated: translated?.to_fix ?? null,
       };

@@ -1,37 +1,44 @@
 "use client";
 
-import { useState } from "react";
-import { FEEDBACK_READING, ROUND_COPY, type RoundLanguage } from "../../copy";
+import { useEffect, useState } from "react";
+import { FEEDBACK_READING, roundCopy, type RoundLanguage } from "../../copy";
 import type { FeedbackScreen } from "../../load";
-import { CalloutRail } from "../../parts";
+import { CalloutRail, Quoting } from "../../parts";
 import { AnswerPager } from "./answer-pager";
 import { FindingsRetry } from "./findings-retry";
 
 /**
- * Screen 8's card (10 §8), and the one piece of state it holds: the language the feedback is read in.
+ * Screen 8's card (10 §8), and the one piece of state it holds: the language it is read in.
  *
- * **A Japanese round's feedback is Japanese, with a pill to read it in English** (PRD §4). The pill
- * changes the feedback and nothing else: the dimension names, which follow the feedback language, the
- * round-level findings with their two headings, which are read from the translation stored with
- * them (04 `body_translated`), and each model answer, read from the translation stored with it. The
- * round's own chrome — the header, the question, its figures, the pager, what the user said, the CV
- * check and the stamps — stays in the round's language (10 §0). An English round has no pill.
+ * **A Japanese round's feedback is Japanese, with a pill to read it in English** (PRD §4), in either
+ * mode. Pressed, the feedback is read from the translations stored with it — the dimension names, the
+ * round-level findings (04 `body_translated`) and each model answer — the question's and follow-up's
+ * stored English appears under them, and the screen's chrome is an English round's (10 §0; 06,
+ * Q106-3). What stays Japanese: the question and follow-up as asked, what the user said, every quote in
+ * the CV region and the justifications (Q106-6). It starts from the user's English help setting and is
+ * page state after that, never stored. An English round has no pill.
  */
 export function FeedbackView({ screen }: { screen: FeedbackScreen }) {
   const { language } = screen.round;
-  const copy = ROUND_COPY[language];
-  const [selectedReading, setReading] = useState<RoundLanguage>(language);
-  const reading = language === "ja" && screen.translated ? selectedReading : language;
+  const pill = screen.englishHelp !== null;
+  const [selectedReading, setReading] = useState<RoundLanguage>(screen.englishHelp ? "en" : language);
+  const reading = pill ? selectedReading : language;
   const other: RoundLanguage = reading === "ja" ? "en" : "ja";
-  const read = ROUND_COPY[reading];
-  const findings = reading === language ? screen.findings : screen.translated;
+  // The chrome follows the reading: a Japanese round read in English has an English round's chrome.
+  const copy = roundCopy(language, reading !== language);
+  const findings = reading === language ? screen.findings : (screen.translated ?? screen.findings);
+  const findingsLanguage = reading !== language && screen.translated ? reading : language;
   const { rubricLabel, generatorVersions, cvLabel } = screen.stamps;
   const { grounding } = screen;
   // A practice round records no rating, so the sentences that stand in for findings mention none (10 §15).
   const rated = screen.round.mode === "realistic";
+  // The tab title is chrome too. The page's metadata sets it from where the pill starts; this follows it.
+  useEffect(() => {
+    document.title = copy.feedbackTitle;
+  }, [copy.feedbackTitle]);
 
   return (
-    <section className="border border-rule-frame bg-surface" aria-label={copy.roundTypes[screen.round.roundType]}>
+    <section className="border border-rule-frame bg-surface" lang={reading} aria-label={copy.roundTypes[screen.round.roundType]}>
       <header className="flex items-baseline justify-between border-b border-rule-frame px-[32px] py-[20px]">
         <div className="flex items-baseline gap-[14px]">
           <h1 className="text-[17px] font-semibold">{copy.roundTypes[screen.round.roundType]}</h1>
@@ -39,10 +46,11 @@ export function FeedbackView({ screen }: { screen: FeedbackScreen }) {
         </div>
         <div className="flex items-baseline gap-[14px]">
           <span className="font-mono text-[11px] text-ink-label">{screen.round.date}</span>
-          {language === "ja" && screen.translated ? (
+          {pill ? (
             <button
               type="button"
               lang={other}
+              aria-pressed={reading !== language}
               onClick={() => setReading(other)}
               className="border border-tick px-[10px] py-[4px] text-[11px] text-ink-4 hover:text-ink-1"
               data-testid="feedback-language"
@@ -68,9 +76,11 @@ export function FeedbackView({ screen }: { screen: FeedbackScreen }) {
         <div className="flex flex-col gap-[26px] px-[32px] pt-[30px] pb-[32px]">
           {findings ? (
             <>
-              <div className="flex flex-col gap-[26px]" lang={reading} data-testid="findings">
+              <div className="flex flex-col gap-[26px]" lang={findingsLanguage} data-testid="findings">
                 <div className="flex flex-col gap-[12px]" data-testid="to-fix">
-                  <h2 className="font-mono text-[12px] tracking-[0.1em] text-ink-label">{read.toFix(findings.toFix.length)}</h2>
+                  <h2 className="font-mono text-[12px] tracking-[0.1em] text-ink-label" lang={reading}>
+                    {copy.toFix(findings.toFix.length)}
+                  </h2>
                   <ol className="flex flex-col gap-[12px]">
                     {findings.toFix.map((item, index) => (
                       <li key={index} className="flex gap-[10px] text-[13px] leading-[1.75]">
@@ -83,7 +93,9 @@ export function FeedbackView({ screen }: { screen: FeedbackScreen }) {
                   </ol>
                 </div>
                 <div className="flex flex-col gap-[12px]" data-testid="what-worked">
-                  <h2 className="font-mono text-[12px] tracking-[0.1em] text-ink-label">{read.whatWorked}</h2>
+                  <h2 className="font-mono text-[12px] tracking-[0.1em] text-ink-label" lang={reading}>
+                    {copy.whatWorked}
+                  </h2>
                   <p className="text-[13px] leading-[1.75] text-ink-3">{findings.whatWorked}</p>
                 </div>
               </div>
@@ -92,20 +104,29 @@ export function FeedbackView({ screen }: { screen: FeedbackScreen }) {
                   <h2 className="font-mono text-[12px] tracking-[0.1em] text-ink-label">{copy.grounding}</h2>
                   {grounding.unsupported.length === 0 ? (
                     <CalloutRail tone="quiet" live={false}>
-                      {copy.nothingUnsupported(grounding.cvLabel)}
+                      <Quoting sentence={copy.nothingUnsupported} quotes={[grounding.cvLabel]} lang={language} />
                     </CalloutRail>
                   ) : (
                     grounding.unsupported.map((flag, index) => (
                       <div key={index} data-testid="unsupported">
                         <CalloutRail tone="attention" live={false}>
-                          {copy.unsupported(flag.position, flag.quote, grounding.cvLabel)}
+                          {/* Every quote stays as stored, in the round's language, whatever the chrome (Q106-3). */}
+                          <Quoting
+                            sentence={(quote: string, cv: string) => copy.unsupported(flag.position, quote, cv)}
+                            quotes={[flag.quote, grounding.cvLabel]}
+                            lang={language}
+                          />
                         </CalloutRail>
                       </div>
                     ))
                   )}
                   <div data-testid="untouched">
                     <CalloutRail tone="quiet" live={false}>
-                      {grounding.untouched.length === 0 ? copy.nothingUnused : copy.unused(grounding.untouched)}
+                      {grounding.untouched.length === 0 ? (
+                        copy.nothingUnused
+                      ) : (
+                        <Quoting sentence={(...quotes: readonly string[]) => copy.unused(quotes)} quotes={grounding.untouched} lang={language} />
+                      )}
                     </CalloutRail>
                   </div>
                 </div>
@@ -116,7 +137,7 @@ export function FeedbackView({ screen }: { screen: FeedbackScreen }) {
               {copy.findingsUnavailable(rated)}
             </p>
           ) : (
-            <FindingsRetry roundId={screen.round.id} language={language} rated={rated} />
+            <FindingsRetry roundId={screen.round.id} language={reading} rated={rated} />
           )}
 
           <div className="mt-auto border-t border-rule-section pt-[12px] font-mono text-[10px] leading-[1.9] text-ink-8" data-testid="round-stamp">

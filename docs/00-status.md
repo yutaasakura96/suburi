@@ -108,8 +108,14 @@ reading on the correction screen, is built (2026-10-16), on `fm/suburi-126`:** `
 counts and the model, never the text, and the week's spend counts it; the two catalogue codes; and
 the control under `RAW`, in a Japanese practice round only. **The nine Japanese strings were accepted
 in a delegated AI review on 2026-10-16, not a native read** (`docs/checklists/native-read-round.md`
-§17). Migration `0017` is not yet applied to either Neon branch.
-**Updated:** 2026-10-16 (after English help planned: #134–#139; #126 built; #125 re-measured); 2026-10-15 (#125 built; #124 built; #123 built; #122 built; #122–#127 confirmed); 2026-10-14 (#106 and #107 planned; #76 built; #85 built; #83 checked; #75 built; #105 built; #104 measured and fixed; #51 built; follow-ups spoken; #73 built; #49's Japanese strings all accepted; #50's
+§17). Migration `0017` is not yet applied to either Neon branch. **#127, English after the round, is
+built (2026-10-16), on `fm/suburi-127`:** screen 8's pill, in either mode, shows the question's and
+the follow-up's stored English under them, or `No English for this question yet.`, and turns the
+screen's chrome an English round's, while what was said, the CV region's quotes and the
+justifications stay Japanese; it appears when anything on the screen has a stored English. Study's card
+pill shows the questions' English the same way. Both start from the English help setting, and both
+are reads. No migration and no new Japanese string. **English help's six slices are all built.**
+**Updated:** 2026-10-16 (after English help planned: #134–#139; #127 built; #126 built; #125 re-measured); 2026-10-15 (#125 built; #124 built; #123 built; #122 built; #122–#127 confirmed); 2026-10-14 (#106 and #107 planned; #76 built; #85 built; #83 checked; #75 built; #105 built; #104 measured and fixed; #51 built; follow-ups spoken; #73 built; #49's Japanese strings all accepted; #50's
 catalogue string read; #43, #44, #45, #46, #47, #48, #49, #50 and #74 built; #42 closed; #55 and #56 on 2026-09-30)
 
 ## Done
@@ -419,8 +425,8 @@ settles otherwise, **with the owner's direction that Suburi reads Track Record's
 each production write, its first smoke round a short practice round on the real CV (`12` §3, §9).
 #84 is parked until after production. The multi-user answers U1 to U3 are on #113 and #114.
 
-**English help (#106) and the settings page (#107): six slices, confirmed 2026-10-15; #122, #123,
-#124, #125 and #126 are built.** Planned on 2026-10-14 from the owner's answers to Q0, Q106-1 to Q106-7, Q-P1 and Q-P2
+**English help (#106) and the settings page (#107): six slices, confirmed 2026-10-15, all built
+(#127 on 2026-10-16).** Planned on 2026-10-14 from the owner's answers to Q0, Q106-1 to Q106-7, Q-P1 and Q-P2
 (`06`, "Phase 6 — #106 and #107"): no English in a realistic round before its feedback, enforced
 structurally; in a Japanese practice round, one pill for the question's English and the round's
 chrome; English written by the call that writes the Japanese and stored apart from the question; the

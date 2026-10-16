@@ -3,7 +3,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { expect, test, type Page } from "@playwright/test";
 import * as s from "../db/schema";
 import { seedSyntheticCv } from "../db/seed-cv";
-import { seedRubrics, seedSetPieces, seedSyntheticQuestions } from "../db/seed-questions";
+import { SYNTHETIC_ENGLISH_VERSION, seedRubrics, seedSetPieces, seedSyntheticEnglish, seedSyntheticQuestions } from "../db/seed-questions";
 import { SYNTHETIC_MODEL_ID, seedSyntheticRounds, syntheticId } from "../db/seed-rounds";
 import { createAuth } from "../lib/auth/auth";
 import { mintSessionCookie } from "../lib/auth/test/session";
@@ -86,6 +86,10 @@ test.beforeAll(async () => {
 test.afterAll(async () => {
   await openAi?.close();
   await emptyRounds();
+  await withDb(async (db) => {
+    await db.delete(s.questionTranslations).where(eq(s.questionTranslations.promptVersion, SYNTHETIC_ENGLISH_VERSION));
+    await db.delete(s.userSettings).where(eq(s.userSettings.userId, userId));
+  });
 });
 
 const JAPANESE = /[぀-ヿ一-鿿]/u;
@@ -294,6 +298,64 @@ test("the pill reads a Japanese round's model answers and to-fix list in their s
 
   await pill.click();
   await expect(first.getByTestId("model-answer").nth(0)).toHaveText("夜間処理を6時間から2時間に短縮しました。売上も倍増しました。");
+});
+
+// 10 §16 (#106, #127): the pill shows each question's and follow-up's stored English under it, as
+// screen 8 does, and starts from the English help setting. The chrome is English already and stays.
+test("the pill shows the questions' stored English under them, says when there is none, and starts from the setting", async ({ page }) => {
+  await withDb(async (db) => {
+    await seedSyntheticEnglish(db, userId);
+    await db
+      .update(s.followUps)
+      .set({ promptTextTranslated: "Who made that call?" })
+      .where(eq(s.followUps.parentAnswerId, id("complete-ja:q1")));
+  });
+  await signIn(page);
+  await page.goto("/history/study");
+
+  const japanese = round(page, "complete-ja");
+  const pill = japanese.getByTestId("study-language");
+  const first = questions(page, "complete-ja").nth(0);
+  const third = questions(page, "complete-ja").nth(2);
+  await expect(pill).toHaveText("English");
+  await expect(pill).toHaveAttribute("aria-pressed", "false");
+  await expect(japanese.getByTestId("prompt-english")).toHaveCount(0);
+  await expect(japanese.getByTestId("prompt-english-none")).toHaveCount(0);
+
+  await pill.click();
+  await expect(first.getByTestId("prompt-english")).toHaveText([
+    "Tell me about the most difficult problem you solved in the last year.",
+    "Who made that call?",
+  ]);
+  await expect(first.getByTestId("prompt-english").first()).toHaveAttribute("lang", "en");
+  // The Japanese stays, at its place and size: the English sits under it.
+  await expect(first.getByRole("heading", { level: 3 })).toHaveText("この1年で解決した、最も難しかった問題について教えてください。");
+  await expect(third.getByTestId("prompt-english")).toHaveText(["Tell me about a time you persuaded someone who did not report to you."]);
+  await expect(third.getByTestId("study-follow-up").getByTestId("prompt-english-none")).toHaveText("No English for this question yet.");
+  await expect(first.getByTestId("own-answer").nth(0)).toHaveText("4名のチームで在庫連携バッチを再設計し、夜間処理を6時間から2時間に短縮しました。");
+  // The chrome never changes: it was English already.
+  await expect(japanese.locator("header")).toContainText("Japanese · Realistic · 3 questions");
+  await expect(first.getByRole("heading", { level: 4, name: "Your answer", exact: true })).toBeVisible();
+  // An English round has no pill and no English line.
+  await expect(round(page, "pending-en").getByTestId("study-language")).toHaveCount(0);
+  await expect(round(page, "pending-en").getByTestId("prompt-english-none")).toHaveCount(0);
+  await page.screenshot({ path: test.info().outputPath("study-english.png"), fullPage: true });
+
+  // With the setting on, every Japanese card starts on; the choice after that is the card's, not stored.
+  await withDb((db) =>
+    db.insert(s.userSettings).values({ userId, englishHelp: true }).onConflictDoUpdate({ target: s.userSettings.userId, set: { englishHelp: true } }),
+  );
+  await page.reload();
+  await expect(pill).toHaveText("日本語");
+  await expect(pill).toHaveAttribute("aria-pressed", "true");
+  await expect(first.getByTestId("prompt-english").first()).toHaveText("Tell me about the most difficult problem you solved in the last year.");
+  await expect(first.getByTestId("model-answer").nth(0)).toHaveText("We cut the nightly run from six hours to two. Sales doubled too.");
+  await pill.click();
+  await expect(japanese.getByTestId("prompt-english")).toHaveCount(0);
+  await page.reload();
+  await expect(pill).toHaveText("日本語");
+  await withDb((db) => db.update(s.userSettings).set({ englishHelp: false }).where(eq(s.userSettings.userId, userId)));
+  expect(openAi.requests).toHaveLength(0);
 });
 
 test("it shows no score and no combined figure, has nothing to press but the pill, and neither writes nor calls a model", async ({ page }) => {
