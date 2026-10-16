@@ -3,14 +3,15 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { users } from "../db/schema.ts";
 import { seedSyntheticCv } from "../db/seed-cv.ts";
 import { seedRubrics, seedSetPieceEnglish, seedSetPieces, seedSyntheticEnglish, seedSyntheticQuestions } from "../db/seed-questions.ts";
+import { seedSyntheticResearch } from "../db/seed-research.ts";
 import { SYNTHETIC_PROGRESS_ROUNDS, seedSyntheticRounds } from "../db/seed-rounds.ts";
 import { seedUser } from "../db/seed.ts";
 import { getConfig } from "../lib/config.ts";
 
 // Hand-run against Neon `develop` only: `npm run db:seed:develop`. The user row, the synthetic CV in
 // each language, the rubrics and set pieces, the synthetic generated-origin bank questions, the
-// Japanese set pieces' and synthetic questions' hand-written English, and the
-// synthetic rounds History and Progress show (docs/12-deployment.md §1). Production runs `db:seed`, which never writes a CV or a synthetic
+// Japanese set pieces' and synthetic questions' hand-written English, the synthetic research Setup
+// picks, and the synthetic rounds History and Progress show (docs/12-deployment.md §1). Production runs `db:seed`, which never writes a CV or a synthetic
 // question. Logs outcomes, never the email or any CV text.
 const { DATABASE_URL_UNPOOLED, ALLOWED_EMAIL } = getConfig();
 const db = drizzle(DATABASE_URL_UNPOOLED);
@@ -37,6 +38,9 @@ try {
   console.log(`Seeded ${await db.transaction((tx) => seedSyntheticRounds(tx, user.id))} synthetic round(s).`);
   console.log(
     `Seeded ${await db.transaction((tx) => seedSyntheticRounds(tx, user.id, SYNTHETIC_PROGRESS_ROUNDS))} synthetic round(s) for Progress.`,
+  );
+  console.log(
+    (await seedSyntheticResearch(db, user.id)) ? "Seeded the synthetic research." : "The synthetic research is already present; nothing changed.",
   );
 } finally {
   await db.$client.end();

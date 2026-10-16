@@ -274,10 +274,15 @@ export const roleContexts = pgTable(
     body: text("body"),
     // The file a posting's text was imported from, as cv_documents.source_filename. Never logged.
     sourceFilename: text("source_filename"),
+    // A research's notes exactly as the research call returned them, beside `body`, the notes as the
+    // user edited them (04, R3). Never logged.
+    researchDraft: text("research_draft"),
     createdAt: createdAt(),
   },
   (t) => [
     oneOf("role_contexts", "kind", t.kind, ROLE_CONTEXT_KINDS),
+    // Only a research has a draft: a posting's text was never the model's.
+    check("role_contexts_research_draft_check", sql`${t.kind} = 'researched' or ${t.researchDraft} is null`),
     // General practice is one row per user (04), so its rounds are never grouped as two.
     uniqueIndex("role_contexts_general_uniq")
       .on(t.userId)

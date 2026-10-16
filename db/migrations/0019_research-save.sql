@@ -1,0 +1,2 @@
+ALTER TABLE "role_contexts" ADD COLUMN "research_draft" text;--> statement-breakpoint
+ALTER TABLE "role_contexts" ADD CONSTRAINT "role_contexts_research_draft_check" CHECK ("role_contexts"."kind" = 'researched' or "role_contexts"."research_draft" is null);

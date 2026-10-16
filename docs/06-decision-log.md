@@ -15,6 +15,40 @@ first. Written into the docs before any code. Company research (US-16) is cut in
 #134 → #135 → #136, labeled `ready-for-agent`, with #137 (L1) and #138 (L2); the story bank (US-15)
 is #139, labeled `after-2026-10-28` and not ready for agents.
 
+### [2026-10-17] #135: a research is saved beside its draft, read where a posting is, with no prompt change
+
+**Decided, building the save (`07` §5.3, `04` `role_contexts`):**
+- **`role_contexts.research_draft`, nullable, with a check** (`0019_research-save`):
+  `kind = 'researched' or research_draft is null`, so only a research holds a draft. Expand-only: a
+  new column every existing row leaves null, and a check every existing row passes. That a research
+  carries all four fields is the route's to enforce, as a posting's three are.
+- **`POST /api/role-contexts` takes `kind: "researched"`** with `company_name`, `role_title`, `body`
+  (the edited notes) and `research_draft` (§5.22's draft), all trimmed and non-blank, under the
+  posting's caps. Either text over 20,000 code points is the posting's own refusal,
+  `422 role_context_too_large`, its `detail` naming `body_chars` or `research_draft_chars`.
+  **Its catalogue copy still says "the posting"**; whether the research card needs its own sentence is
+  #136's to settle with its frames. No new Japanese string is added here.
+- **One refusal for both routes:** `refuseSamePosting` in `lib/round/same-job.ts` compares and answers
+  `422 research_posting_exists`, so the research route and the save refuse the same job with one
+  comparison and one code. A research is never compared with another research: saved twice, it is
+  two rows, as a posting is.
+- **The generator is sent a research's edited notes in a posting's place, and no prompt changes.**
+  `loadRoleContext` already gave every non-General context's `body` as the posting's text, and never
+  reads `research_draft`; question generation and model answers both read it. The notes carry their
+  own sources and say the role part is a guess, and every generator prompt already treats the posting
+  as material to read, not instructions. **So no generator prompt version moves and Progress draws no
+  stamp-3 boundary for research** (invariant 5). The round's provenance is the row's `kind`, through
+  `rounds.role_context_id`; History says `Researched: …` and Progress groups it under `Pitched at a
+  role`, both of which already read `kind`.
+- **The `develop` seed gains one research**, its draft built by `researchDraft` from fixture notes and
+  its notes that draft edited, so the two differ (`12` §1). No round is seeded on it, so the seeded
+  rounds History and Progress show are unchanged.
+**Rejected:** a research-aware generator prompt now, which would move stamp 3 for all eight generator
+prompts for no measured need, and can still be made later as a version bump with its boundary; a
+column check requiring a draft on every research, which would make the route's rule the schema's; a
+new catalogue code for an over-long research, which adds a Japanese string for a refusal the research
+route's own cap makes nearly unreachable for the draft.
+
 ### [2026-10-16] #134: the pinned model can search the web; a call that did not search is read from its output
 
 **Established against primary sources, as R1 asked, before the research call was built.** OpenAI's

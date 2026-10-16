@@ -661,6 +661,27 @@ Decided 2026-10-16 (`06`, "Phase 6 — after English help …", R1 to R5). The c
   draft back, the web search tool asked for, and nothing saved. The posting-wins refusal is the
   integration test's: a posting saved here would reach `e2e/setup.spec.ts`, which starts with none.
 
+### 3.28 Saving research (#135)
+
+Decided 2026-10-16 (`06`, R3, R4); built 2026-10-17. The save is `07` §5.3 with `kind: "researched"`.
+
+- **The save, `lib/round/generated-questions.integration.test.ts`, against real Postgres:** the edited
+  notes and the draft are stored side by side, trimmed, and returned as neither; the same research
+  twice is two rows; the route module exports `POST` alone. A saved posting for the same job, as
+  written or differing only by `NFKC`, spacing and case, is `422 research_posting_exists` naming it,
+  and nothing is saved; the same company under another title, or another user's posting, is saved.
+  Either text over the cap is `422 role_context_too_large` naming which; both at the cap in code
+  points are saved. Missing or blank fields, a filename, an unknown field, and `research_draft` on a
+  posting or on General practice are `400`s. No log line holds the names or the texts.
+- **A round on a research:** round start answers `201`, the round's `role_context_id` is the research,
+  and the generator is sent the edited notes as the posting's text — **never the draft**.
+- **The column, `db/invariants.integration.test.ts`:** a draft on a posting or on General practice is
+  refused by `role_contexts_research_draft_check`; **`db/schema-doc.test.ts`** reads `04`'s
+  `role_contexts` table beside `db/schema.ts`, column for column and nullable for nullable.
+- **The seed, `db/seed-research.integration.test.ts`:** one research, once, its draft and notes
+  different; a round on it reads `Researched: …` on History and sits under `Pitched at a role` on
+  Progress.
+
 ## 4. End-to-end, in Playwright
 
 Chromium, fake media device, S3 PUT and OpenAI intercepted. What this pass exists to catch is the

@@ -23,7 +23,8 @@ extended for History's two retry routes. The remaining round-loop changes are no
 **`follow_ups.prompt_text_translated` with its check by #125** (`0016_follow-up-english`); and
 **`english_readings` and the `english-reading` rate-limit route by #126** (`0017_english-reading`).
 **Company research's call (#134) adds only `rate_limit_windows.route` `research`** (`0018_research-route`);
-it saves nothing, and `role_contexts.research_draft` lands with #135.
+it saves nothing. **Saving research (#135) adds `role_contexts.research_draft`** with its check
+(`0019_research-save`).
 
 ---
 
@@ -305,6 +306,7 @@ stamp and Progress's boundary lines (screen-spec refusal #5). Do not solve it tw
 | `role_title` | `text` | yes | — | null when `general` |
 | `body` | `text` | yes | — | posting text or researched notes; null when `general` |
 | `source_filename` | `text` | yes | — | the `.docx`/`.pdf` a posting's text was imported from, if any — as `cv_documents.source_filename`. The file never leaves the browser |
+| `research_draft` | `text` | yes | — | a research's notes exactly as the research call returned them, beside `body`; checked null unless `researched` (#135) |
 | `created_at` | `timestamptz` | no | `now()` | |
 
 `kind = 'general'` is the explicit **General practice** option from PRD §2 — represented as a real
@@ -312,17 +314,21 @@ row, not as `role_context_id IS NULL`, so "was this round pitched at anything?" 
 
 **Immutable and reusable** (`06`, 2026-09-27). A row is never updated; a changed posting is a new row,
 and a row can be picked by any number of rounds. **General practice is one row per user:**
-`unique (user_id) where kind = 'general'`. **Round one writes `posting` and `general` only;**
-`researched` arrives with US-16. **A posting carries all three of `company_name`, `role_title` and
+`unique (user_id) where kind = 'general'`. **Round one writes `posting` and `general`;**
+`researched` is written since US-16 (#135). **A posting carries all three of `company_name`, `role_title` and
 `body`** — the route refuses one without (`07` §5.3), so the picker never has a posting it cannot
 name; it is not a column check.
 **`researched`, arriving with US-16** (`06`, 2026-10-16, R2 and R3): it carries `company_name`,
 `role_title` and `body` as a posting does, `body` being the notes **as the user edited them**, which
-the questions are written from; and a new nullable column, **`research_draft text`**, the notes
-exactly as the research call returned them, set on `researched` rows only. Both are kept, as a
-transcript's raw and corrected text are (invariant 4). The notes are English, each fact labelled with
-its source (R1, R5). The column and its migration land with the slice that saves research, and
-`db/schema.ts` with them.
+the questions are written from; and a nullable column, **`research_draft text`**, the notes exactly
+as the research call returned them, set on `researched` rows only. Both are kept, as a transcript's
+raw and corrected text are (invariant 4). The notes are English, each fact labelled with its source
+(R1, R5). **Migrated by #135** (`0019_research-save`): the column, expand-only, and
+`role_contexts_research_draft_check` (`kind = 'researched' or research_draft is null`), so only a
+research ever holds a draft. That a research carries all four of `company_name`, `role_title`, `body`
+and `research_draft` is the route's to enforce (`07` §5.3), as a posting's three are, not a column
+check. Round start reads a research's `body` where it reads a posting's text and never reads
+`research_draft`; the round's provenance is the row's `kind`, through `rounds.role_context_id`.
 `source_filename` is null on `general`. The posting's text-size cap is **20,000 code points**,
 measured the way the CV's was (`07` §5.3; `06`, #47): a constant in `lib/round/limits.ts`, not a
 column check — a cap that moves must not make a stored row invalid.
