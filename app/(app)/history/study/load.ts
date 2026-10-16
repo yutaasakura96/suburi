@@ -112,7 +112,8 @@ export async function studyPage(db: Db, userId: string, cursor: Cursor | null): 
   ]);
   const answerIds = answers.map((answer) => answer.id);
   // English help after the round (10 §16): only a Japanese round's prompts carry their English.
-  const japanese = new Set(page.filter(({ round }) => carriesEnglishAfter(round)).map(({ round }) => round.id));
+  const withheld = new Set(page.filter(({ round }) => round.language === "ja" && round.mode === "realistic" && round.completedAt === null).map(({ round }) => round.id));
+  const japanese = new Set(page.filter(({ round }) => carriesEnglishAfter(round) && !withheld.has(round.id)).map(({ round }) => round.id));
   const japaneseAnswers = answers.filter((answer) => japanese.has(answer.roundId));
   const [modelAnswers, followUps] = await Promise.all([
     db.select().from(s.modelAnswers).where(inArray(s.modelAnswers.answerId, answerIds)),
@@ -126,9 +127,10 @@ export async function studyPage(db: Db, userId: string, cursor: Cursor | null): 
   /** An answer, with every "answer again" made of it. A retry reads its original's model answer and has none of its own. */
   function said(answer: AnswerRow): StudyAnswer {
     const modelAnswer = modelAnswers.find((row) => row.answerId === answer.id);
+    const modelView = modelAnswer ? modelAnswerView(modelAnswer) : null;
     return {
       own: answer.transcriptCorrected ?? "",
-      modelAnswer: modelAnswer ? modelAnswerView(modelAnswer) : null,
+      modelAnswer: modelView && withheld.has(answer.roundId) ? { ...modelView, translated: null } : modelView,
       again: answers.filter((row) => row.retryOfAnswerId === answer.id).map((row) => row.transcriptCorrected ?? ""),
     };
   }
@@ -161,7 +163,7 @@ export async function studyPage(db: Db, userId: string, cursor: Cursor | null): 
             followUp: followUpOf(answer),
           })),
         toFix: stored ? (stored.toFix as FeedbackItem[]) : null,
-        toFixTranslated: translated?.to_fix ?? null,
+        toFixTranslated: withheld.has(round.id) ? null : (translated?.to_fix ?? null),
       };
     }),
     older,

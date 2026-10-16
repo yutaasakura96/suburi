@@ -303,6 +303,39 @@ describe("English after the round", () => {
       expect(english.questions[0].followUp).not.toHaveProperty("promptEn");
     }));
 
+  it("withholds every stored English field until a realistic round completes, while practice keeps it", () =>
+    inRolledBackTransaction(async (db) => {
+      const userId = await withEnglish(db);
+      const roundId = syntheticId(userId, "complete-ja");
+      await db.insert(s.modelAnswers).values(modelAnswer(userId, syntheticId(userId, "complete-ja:q1"), {
+        body: "夜間処理を短縮しました。",
+        bodyTranslated: { language: "en", body: "We cut the nightly run.", unsupported_spans: [] },
+      }));
+      const studyRound = async () => (await studyPage(db, userId, null)).rounds.find((round) => round.id === roundId)!;
+
+      await db.update(s.rounds).set({ completedAt: null }).where(eq(s.rounds.id, roundId));
+      const unfinished = await studyRound();
+      expect(unfinished.complete).toBe(false);
+      expect(unfinished.questions[0]).not.toHaveProperty("promptEn");
+      expect(unfinished.questions[0].followUp).not.toHaveProperty("promptEn");
+      expect(unfinished.questions[0].modelAnswer?.translated).toBeNull();
+      expect(unfinished.toFixTranslated).toBeNull();
+
+      await db.update(s.rounds).set({ mode: "practice" }).where(eq(s.rounds.id, roundId));
+      const practice = await studyRound();
+      expect(practice.questions[0].promptEn).toBe(Q1_EN);
+      expect(practice.questions[0].followUp?.promptEn).toBe("Who made that call?");
+      expect(practice.questions[0].modelAnswer?.translated).not.toBeNull();
+      expect(practice.toFixTranslated).not.toBeNull();
+
+      await db.update(s.rounds).set({ mode: "realistic", completedAt: new Date() }).where(eq(s.rounds.id, roundId));
+      const complete = await studyRound();
+      expect(complete.questions[0].promptEn).toBe(Q1_EN);
+      expect(complete.questions[0].followUp?.promptEn).toBe("Who made that call?");
+      expect(complete.questions[0].modelAnswer?.translated).not.toBeNull();
+      expect(complete.toFixTranslated).not.toBeNull();
+    }));
+
   it("screen 8 reads the newest English, starts the pill from the setting, and an English round has no pill", () =>
     inRolledBackTransaction(async (db) => {
       const userId = await withEnglish(db);
