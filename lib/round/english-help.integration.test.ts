@@ -23,7 +23,6 @@ import { openAiFollowUpGenerator, type FollowUpGenerator } from "../ai/follow-up
 import { openAiQuestionGenerator, type QuestionGenerator } from "../ai/generate-questions";
 import { FOLLOW_UP_MODEL, QUESTION_GENERATION_MODEL } from "../ai/models";
 import { startMockResponses, type MockResponses } from "../ai/test/mock-responses";
-import { MAX_QUESTION_ENGLISH_CODE_POINTS } from "../ai/translate-question";
 import { fakeAudioStore } from "../audio/fake-store";
 import { createAuth } from "../auth/auth";
 import { mintSessionCookie } from "../auth/test/session";
@@ -312,7 +311,7 @@ describe("English written by the call that writes the Japanese (11 §3.25, #125)
           kept,
           // No English at all: the lenient parse reads it as missing, never a failed call.
           { question: "チームの方針に反対したときのことを教えてください。" },
-          { question: "失敗から学んだことを具体的に教えてください。", english: "x".repeat(MAX_QUESTION_ENGLISH_CODE_POINTS + 1) },
+          { question: "失敗から学んだことを具体的に教えてください。", english: "失敗から何を学びましたか。" },
         ],
       }));
       const world = await setUp(db, { questionGenerator: openAiQuestionGenerator({ apiKey: "integration-not-a-real-key", baseURL: mock.baseURL }) });
@@ -356,7 +355,7 @@ describe("English written by the call that writes the Japanese (11 §3.25, #125)
         { event: "question_english_dropped", round_id: roundId, error_class: "english_missing", count: 1 },
         { event: "question_english_dropped", round_id: roundId, error_class: "english_malformed", count: 1 },
       ]);
-      expect(JSON.stringify(vi.mocked(console.error).mock.calls)).not.toContain("xxxxxxxx");
+      expect(JSON.stringify(vi.mocked(console.error).mock.calls)).not.toContain("失敗から何を学びましたか");
     }));
 
   it("a reused candidate's English is discarded with it", () =>
@@ -433,7 +432,7 @@ describe("English written by the call that writes the Japanese (11 §3.25, #125)
   it("a follow-up whose English is malformed is generated, without one — never missing", () =>
     inRolledBackTransaction(async (db) => {
       const followUp = "その移行で、障害率はどのように測りましたか。";
-      mock = await startMockResponses(() => ({ follow_up: followUp, english: "What changed? Who approved it?" }));
+      mock = await startMockResponses(() => ({ follow_up: followUp, english: "その移行で何を測りましたか?" }));
       const world = await setUp(db, { followUpGenerator: openAiFollowUpGenerator({ apiKey: "integration-not-a-real-key", baseURL: mock.baseURL }) });
       const started = await world.start("ja", "practice");
       const roundId: string = started.json.round.id;
@@ -449,7 +448,7 @@ describe("English written by the call that writes the Japanese (11 §3.25, #125)
         { event: "follow_up_english_dropped", answer_id: question.answerId, error_class: "english_malformed", count: 1 },
       ]);
       expect(logged("follow_up_generation_failed")).toEqual([]);
-      expect(JSON.stringify(vi.mocked(console.error).mock.calls)).not.toContain("Who approved");
+      expect(JSON.stringify(vi.mocked(console.error).mock.calls)).not.toContain("その移行で何を測りましたか");
     }));
 
   it("an English round's follow-up stores no English", () =>

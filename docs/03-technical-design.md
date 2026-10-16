@@ -207,10 +207,9 @@ by script, built by #123 (`lib/ai/translate-question.ts`), and the English readi
 question generation (`generate-{round type}-ja-1.1`) writes each candidate's English and follow-up
 generation (`follow-up-ja-1.1`) the follow-up's, in the same call. A missing or malformed English is
 dropped and the question or follow-up kept, so neither call gains a failure. Both write more tokens
-and so take longer; **the slice that changes them re-measures both here** against the tables below
-(round start for 3 to 9 Japanese questions; the follow-up's 15 s bound, set at three times the slowest
-English call, had not been measured in Japanese at all). The generator's version change is a stamp-3
-boundary on Progress (`06`).
+and take longer; the #125 measurements below cover round start for 3 to 9 Japanese questions and
+Japanese follow-ups against the existing 60 s and 15 s bounds. The generator's version change is a
+stamp-3 boundary on Progress (`06`).
 
 **Japanese follow-up generation, measured 2026-10-15 (#125)** with `scripts/measure-follow-up-ja.mts`:
 the real port and `follow-up-ja-1.1`, five runs of three invented answers of about one, two and three
@@ -285,10 +284,12 @@ What they settle:
   and covers that call, a 2 s backoff and a median retry.
 - **Generating every question at round start is tolerable, and slower than the draft said**: see
   the next table. The draft's 4 s was a tenth of the real prompt's input.
-- **The user's waits inside a round are short**: a near-cap take transcribes in about 6 s, a follow-up
-  about 3 s. TTS starts playing in about a second, on the model #45 then pinned.
-- **A follow-up call is bounded at 15 s with one retry** (`07` §5.9): about three times the slowest
-  call seen. Past that the follow-up is recorded as missing and the round goes on.
+- **The English follow-up calls measured here were short**: about 3 s; the Japanese `ja-1.1`
+  measurement above has a 14.6 s tail. A near-cap take transcribes in about 6 s. TTS starts playing
+  in about a second, on the model #45 then pinned.
+- **A follow-up call is bounded at 15 s with one retry** (`07` §5.9): originally about three times
+  the slowest English call seen; the Japanese measurement above reached 14.6 s. Past the bound the
+  follow-up is recorded as missing and the round goes on.
 - **Scoring's slowest call is the one to watch.** One in fifteen took five times the median, with no
   error. It is why the bound has a margin, and why scoring runs in `after()` rather than in front of
   the user.

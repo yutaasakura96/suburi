@@ -53,6 +53,7 @@ const CORRECTED = "I led the payments migration over six months and cut the fail
 // What the fake generator asks after every answer.
 const FOLLOW_UP = "What did you measure to know the failure rate had halved?";
 const FOLLOW_UP_JA = "その移行で、障害率はどのように測りましたか。";
+const FOLLOW_UP_EN = "How did you measure the failure rate during that migration?";
 const HEARD_EN = { text: RAW, seconds: 18 };
 
 // A Japanese take, as 10 §5 draws it: 800 characters in 3:12 is 250 字/分, with an ASR slip (決済期版
@@ -187,7 +188,9 @@ test.beforeAll(async () => {
       if (formatOf(body) === "follow_up") {
         if (followUpFails) return { fail: 500 };
         if (followUpMalformed) return { follow_up: "What changed? Who approved it?" };
-        return { follow_up: japaneseFollowUp(body) ? FOLLOW_UP_JA : FOLLOW_UP };
+        return japaneseFollowUp(body)
+          ? { follow_up: FOLLOW_UP_JA, english: FOLLOW_UP_EN }
+          : { follow_up: FOLLOW_UP };
       }
       if (formatOf(body) === "model_answer") {
         if (modelAnswerFails) return { fail: 500 };
@@ -333,6 +336,12 @@ test("Japanese practice asks its stored 深掘り at the same position", async (
   await page.getByRole("button", { name: "深掘りに答える" }).click();
   await expect(page.getByTestId("round-step")).toHaveText("第1問 / 3問・深掘り");
   await expect(page.getByTestId("round-question")).toHaveText(FOLLOW_UP_JA);
+  await expect(page.getByTestId("prompt-english")).toHaveCount(0);
+  await page.getByTestId("english-help-pill").click();
+  await expect(page.getByTestId("prompt-english")).toHaveText(FOLLOW_UP_EN);
+  await page.screenshot({ path: test.info().outputPath("ja-practice-follow-up-english.png"), fullPage: true });
+  await page.getByTestId("english-help-pill").click();
+  await expect(page.getByTestId("prompt-english")).toHaveCount(0);
   await expect(page.getByText("回答ごとの採点は、済みしだい出ます。講評はラウンドの最後にまとめて出ます。")).toBeVisible();
   await page.screenshot({ path: test.info().outputPath("ja-practice-follow-up.png"), fullPage: true });
 

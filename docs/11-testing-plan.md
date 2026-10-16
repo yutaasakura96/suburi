@@ -613,8 +613,10 @@ Against real Postgres, with the model mocked.
   place beside the new one.
 - **The generator keeps a question whose English failed**: a mocked `ja-1.1` response with one
   candidate's English missing and one malformed banks all three, writes two translation rows fewer,
-  and counts the drops; a reused candidate writes no translation row. A follow-up whose English is
-  malformed is `generated`, with `prompt_text_translated` null — never `missing`.
+  and counts the drops; a reused candidate writes no translation row. English containing hiragana,
+  katakana or kanji is malformed even when otherwise well formed. A follow-up whose English contains
+  Japanese script or otherwise fails the English follow-up check is `generated`, with
+  `prompt_text_translated` null — never `missing` — and its drop is counted by error class.
 - **The English reading stores no text**: after an `ok` and a `failed` call, no column of any table
   holds the sentinel sent or the sentinel returned, the `english_readings` rows hold the length and
   tokens, the answer row is unchanged, and the sentinels are in no log line (§3.10's method). The
