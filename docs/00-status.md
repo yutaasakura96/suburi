@@ -418,7 +418,7 @@ day (`06`, "Phase 6 — after English help …"); fake data is fine until the ap
 comes first. US-16 is three `ready-for-agent` slices:
 [#134](https://github.com/yutaasakura96/suburi/issues/134) the research call, saving nothing → #135
 saving research with the draft beside the edit → #136 Setup's `AI research` card. Beside them,
-#137 widens the follow-up and round-start timeouts to 45 s and 90 s (L1), and #138 brings English help
+#137 widened the follow-up and round-start timeouts to 45 s and 90 s (L1, built 2026-10-16), and #138 brings English help
 to History detail after #127 (L2). US-15's answers S2 to S5 are recorded on #139, labeled
 `after-2026-10-28`: where the stories come from (S1) is that discussion's, from the CV unless it
 settles otherwise, **with the owner's direction that Suburi reads Track Record's career story**
