@@ -100,8 +100,8 @@ transaction, a reused one's is discarded; a follow-up's is `follow_ups.prompt_te
 (`0016_follow-up-english`), carried as `text_en`; a missing or malformed English is dropped and
 counted, never the question or the follow-up. Both calls are re-measured (`03` §4): the
 Japanese follow-up 14.6 s slowest against its 15 s bound, round start 45.9 s slowest against its 60 s
-timeout, both kept; widening either, and Setup's "up to half a minute", are raised for the owner (`06`,
-2026-10-16). Migration `0016` is not yet applied to either Neon branch.
+timeout, both kept; widening either remains for the owner, while Setup's wait wording is decided
+(`06`, 2026-10-16). Migration `0016` is not yet applied to either Neon branch.
 **Updated:** 2026-10-16 (#125 re-measured); 2026-10-15 (#125 built; #124 built; #123 built; #122 built; #122–#127 confirmed); 2026-10-14 (#106 and #107 planned; #76 built; #85 built; #83 checked; #75 built; #105 built; #104 measured and fixed; #51 built; follow-ups spoken; #73 built; #49's Japanese strings all accepted; #50's
 catalogue string read; #43, #44, #45, #46, #47, #48, #49, #50 and #74 built; #42 closed; #55 and #56 on 2026-09-30)
 

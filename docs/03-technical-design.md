@@ -249,9 +249,6 @@ row; the owner topped the credit up.)
 - **The 60 s generation timeout held, with less margin.** No call reached it; the slowest, 45.9 s, is
   under it, where the bound was set at twice #47's slowest (27.9 s). **The timeout is not changed
   here**: whether to widen it is the owner's call (`06`, 2026-10-16).
-- **Setup's wait copy is now short of the truth**: "can take up to half a minute" (`10` §2), where a
-  round of 7 that generates 9 now takes about 31 to 35 s at the median. Not changed here — a copy
-  change, with its Japanese, is the owner's call (`06`, 2026-10-16).
 
 **The round's latencies, measured 2026-10-01 (#42)** with `scripts/measure-round-latency.mts`
 against OpenAI, five runs of each at the time, from the development machine, the way #20 measured extraction. Synthetic

@@ -336,7 +336,7 @@ counts the page already holds, so changing the type or the length updates it wit
 it is on screen before the round starts.
 
 `There are 2 unseen Behavioural questions in English, and this round asks 5. The rest are written when
-it starts, which can take up to half a minute. If a new question turns out to match one you have
+it starts, which can take up to a minute. If a new question turns out to match one you have
 already answered, it is asked as a repeat: scored, but not counted in progress.`
 
 The language named is the round's — `in Japanese` for a Japanese round, whose bank is its own (`07`
@@ -347,11 +347,11 @@ round's length is the user's, and generation is how the round keeps it.
 **A practice round's sentence drops `unseen` and the repeat clause** (#49): practice draws on every
 generated question, seen or not (`07` §5.4), and nothing in it counts in progress. `There are 2
 Behavioural questions in English to practise on, and this round asks 5. The rest are written when it
-starts, which can take up to half a minute.`
+starts, which can take up to a minute.`
 
 **While the round is starting** the start button's caption reads `Fixing the questions for this
 round.`, or, when the warning is showing, `Writing new questions for this round. This can take up to
-half a minute.` — the measured wait (`03` §4), said before it is felt.
+a minute.` — the measured wait (`03` §4), said before it is felt.
 
 ### Rationale column
 - `WHY THESE DEFAULTS` → `行動面接・日本語は18日空いています。既定値はそこから決めました。` then

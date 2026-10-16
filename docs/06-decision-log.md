@@ -20,6 +20,12 @@ The term this section introduces is **English help** (`CONTEXT.md`): English sho
 round so that a user who does not read Japanese well can use it. It is a reading aid, never part of
 the record. Nothing in it is scored, stamped or plotted.
 
+### [2026-10-16] #125: Setup wait wording chosen by the owner
+
+**Decided:** Setup's wait sentence says "can take up to a minute", and the starting caption says
+"Writing new questions for this round. This can take up to a minute." (`10` §2). The app copy is
+English, so no Japanese read is needed. The timeout decisions below remain unchanged.
+
 ### [2026-10-16] #125: round start under `ja-1.1` measured; the 60 s timeout kept; two calls for the owner
 
 **Measured** (`03` §4), after the owner topped up the development project's credit: round start for
