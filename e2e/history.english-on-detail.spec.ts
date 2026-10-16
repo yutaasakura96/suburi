@@ -206,3 +206,27 @@ test("an English round has no pill and no English line, whatever the setting", a
   await expect(page.getByTestId("prompt-english-none")).toHaveCount(0);
   await setEnglishHelp(false);
 });
+
+test("stored prompt English alone enables the pill, but an unfinished realistic round hides it", async ({ page }) => {
+  const roundId = id("complete-ja");
+  const [feedback] = await withDb((db) => db.select({ bodyTranslated: s.roundFeedback.bodyTranslated }).from(s.roundFeedback).where(eq(s.roundFeedback.roundId, roundId)));
+  const [round] = await withDb((db) => db.select({ completedAt: s.rounds.completedAt }).from(s.rounds).where(eq(s.rounds.id, roundId)));
+  try {
+    await withDb((db) => db.update(s.roundFeedback).set({ bodyTranslated: null }).where(eq(s.roundFeedback.roundId, roundId)));
+    await signIn(page);
+    await page.goto(detail("complete-ja"));
+    const pill = page.getByTestId("history-language");
+    await expect(pill).toHaveText("English");
+    await pill.click();
+    await expect(page.getByTestId("prompt-english").first()).toHaveText(QUESTION_EN);
+
+    await withDb((db) => db.update(s.rounds).set({ completedAt: null }).where(eq(s.rounds.id, roundId)));
+    await page.reload();
+    await expect(page.getByTestId("history-language")).toHaveCount(0);
+    await expect(page.getByTestId("prompt-english")).toHaveCount(0);
+    await expect(page.getByTestId("prompt-english-none")).toHaveCount(0);
+  } finally {
+    await withDb((db) => db.update(s.rounds).set({ completedAt: round.completedAt }).where(eq(s.rounds.id, roundId)));
+    await withDb((db) => db.update(s.roundFeedback).set({ bodyTranslated: feedback.bodyTranslated }).where(eq(s.roundFeedback.roundId, roundId)));
+  }
+});

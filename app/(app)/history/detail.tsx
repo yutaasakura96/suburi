@@ -32,9 +32,8 @@ function rowLabel(row: HistoryRow) {
  * History's detail (10 §10): the round's header, its matrix, and the stamps its scores carry.
  *
  * **A past round is read-only.** The matrix has no control that edits, deletes or shares anything
- * (07 §6). It holds two pieces of state — which row's recording is open, and, on a Japanese round with
- * anything stored in English, the language the pill reads in (the dimensions' names and each prompt's
- * English under it; it starts from the English help setting, #138) — and one action: retrying the score
+ * (07 §6). It holds two pieces of state — which row's recording is open, and the language selected
+ * by the pill (`10` §10) — and one action: retrying the score
  * of an answer that has none, **for that answer alone** (07 §5.11).
  *
  * **Every cell is one dimension of one answer.** No row, column or cell combines them (04 §6).

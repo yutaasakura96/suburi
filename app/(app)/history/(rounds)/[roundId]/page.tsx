@@ -9,7 +9,7 @@ import { historyDetail } from "../../load";
 
 /**
  * One round, exactly as it happened (US-12). A Server Component reading stored rows (07 §1): another
- * user's round, or no round, is a 404, as in the API. The pill starts from the English help setting (10 §10).
+ * user's round, or no round, is a 404, as in the API.
  */
 export default async function HistoryRoundPage({ params }: PageProps<"/history/[roundId]">) {
   const userId = await requireSession();
