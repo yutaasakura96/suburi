@@ -932,8 +932,8 @@ Header: `行動面接` 17px/600, `日本語・実戦・5問`, date, and
 language pill and `編集できません` at 11px `--ink-8`.
 
 **A past round's content is read-only.** An unscored answer can be scored from its row without changing
-the round feedback (`07` §5.10–§5.12). For a Japanese round with a stored translation, the pill changes
-the dimension labels; the feedback itself is read on screen 8.
+the round feedback (`07` §5.10–§5.12). The pill's behavior is specified below; the feedback itself is
+read on screen 8.
 
 Columns: `196px repeat(7, 1fr) 58px 34px` — question, the seven dimensions, TIME, play.
 
@@ -979,8 +979,8 @@ it (#51, §1); the link Home carried until then is gone. **Under the rail's head
 `Study past questions` — leads to the study view** (#75, §16), which reads across rounds.
 
 **The chrome, in English (§0).** The artboard's strings are layout; these replace them. Data keeps its
-language: questions, follow-ups, transcripts and a stored `応募書類 v1` are shown as written, and a
-Japanese round's dimensions are named in Japanese until the pill is used.
+language: questions, follow-ups, transcripts and a stored `応募書類 v1` are shown as written. The pill
+below controls a Japanese round's dimension labels.
 
 | Artboard | Built |
 | --- | --- |
@@ -1006,18 +1006,15 @@ score says `Unscored — retry scoring`; an abandoned one says it is abandoned, 
 **the newest open round started today says `In progress — resume`, a link to the round**, and its
 detail carries `Resume this round`. A complete round with every score in carries no line.
 
-**The pill** is shown for a Japanese round whose feedback was stored with its translation, as on
-screen 8. On this screen it renames the dimensions, in the rubric version's own two labels; the scores,
-the questions and the transcripts do not change. The feedback itself is read on screen 8, which a
-complete round links to as `Round feedback`.
-
-**English help comes to this detail** (`06`, 2026-10-16, L2; #138, after #127). The pill also shows
-each question's and follow-up's **stored** English under it, `No English for this question yet.` where
-none is stored, as screen 8's does (§8), beside the dimension labels it already renames; History's
-chrome is English already (§0). It appears when anything on the detail has a stored English, and
-starts from the English help setting. What was said
-and the transcripts stay as they are. Still a read: no model call and nothing written. The CV screen's
-Japanese panel keeps its own-language rule (§13).
+**English help on this detail** (`06`, 2026-10-16, L2; #138). For a Japanese round, the pill
+renames the dimensions in the rubric version's own two labels and shows each question's and
+follow-up's **stored** English under the Japanese, or `No English for this question yet.` where none
+is stored, as on screen 8 (§8). It appears when any prompt or the round feedback has stored English,
+except on an unfinished realistic round. It starts from the English help setting; pressing it changes
+this page only, and a reload starts from the setting again. History's chrome is English already (§0).
+The scores, what was said and the transcripts do not change. The feedback itself is read on screen 8,
+which a complete round links to as `Round feedback`. This detail is a read: no model call and nothing
+written. The CV screen's Japanese panel keeps its own-language rule (§13).
 
 **Rows the artboard does not draw.**
 

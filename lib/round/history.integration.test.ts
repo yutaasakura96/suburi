@@ -4,7 +4,7 @@ import { historyDetail } from "../../app/(app)/history/load";
 import * as s from "../../db/schema";
 import { seedUser } from "../../db/seed";
 import { seedSyntheticCv } from "../../db/seed-cv";
-import { seedRubrics, seedSyntheticQuestions } from "../../db/seed-questions";
+import { seedRubrics, seedSyntheticEnglish, seedSyntheticQuestions } from "../../db/seed-questions";
 import { SYNTHETIC_MODEL_ID, seedSyntheticRounds, syntheticId } from "../../db/seed-rounds";
 import { closePool, inRolledBackTransaction, type TestDb } from "../../db/test/database";
 import { insertUser } from "../../db/test/fixtures";
@@ -891,6 +891,36 @@ describe("History's detail (10 §10)", () => {
       expect(detail.translated).toBe(false);
       // Each row has one value per dimension and nothing that combines them (04 §6).
       expect(JSON.stringify(detail)).not.toMatch(/total|average|overall|composite|mean/i);
+    }));
+
+  it("carries each prompt's stored English from a Japanese round, and none from an English round or an unfinished realistic one (#138)", () =>
+    inRolledBackTransaction(async (db) => {
+      const world = await setUp(db);
+      const [user] = await db.select({ id: s.users.id }).from(s.users).where(eq(s.users.email, getConfig().ALLOWED_EMAIL));
+      await seedSyntheticEnglish(db, user.id);
+      await db
+        .update(s.followUps)
+        .set({ promptTextTranslated: "Who made that call?" })
+        .where(eq(s.followUps.parentAnswerId, world.id("complete-ja:q1")));
+
+      const japanese = await detailOf(db, world.id("complete-ja"));
+      const english = japanese.rows.flatMap((row) => (row.kind === "answer" ? [row.promptEn] : []));
+      expect(english[0]).toBe("Tell me about the most difficult problem you solved in the last year.");
+      expect(english[1]).toBe("Who made that call?");
+      // A follow-up with none stored says null, not absent: the pill says there is none.
+      expect(english.at(-1)).toBeNull();
+      expect(japanese.translated).toBe(true);
+
+      // An English round carries no key at all.
+      const englishRound = await detailOf(db, world.id("failed-en"));
+      expect(englishRound.rows.some((row) => "promptEn" in row)).toBe(false);
+      expect(englishRound.translated).toBe(false);
+
+      // Realistic and not yet complete: nothing stored in English reaches the page (Q106-2).
+      await db.update(s.rounds).set({ completedAt: null }).where(eq(s.rounds.id, world.id("complete-ja")));
+      const open = await detailOf(db, world.id("complete-ja"));
+      expect(open.rows.some((row) => "promptEn" in row)).toBe(false);
+      expect(open.translated).toBe(false);
     }));
 
   it("keeps both transcripts on every answer row: the raw one is never replaced by the correction", () =>

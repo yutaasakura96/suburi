@@ -115,6 +115,7 @@ screen's chrome an English round's, while what was said, the CV region's quotes 
 justifications stay Japanese; it appears when anything on the screen has a stored English. Study's card
 pill shows the questions' English the same way. Both start from the English help setting, and both
 are reads. No migration and no new Japanese string. **English help's six slices are all built.**
+**#138, English on History's detail, is built (2026-10-16), on `fm/suburi-138`** (`10` §10).
 **Updated:** 2026-10-16 (after English help planned: #134–#139; #127 built; #126 built; #125 re-measured); 2026-10-15 (#125 built; #124 built; #123 built; #122 built; #122–#127 confirmed); 2026-10-14 (#106 and #107 planned; #76 built; #85 built; #83 checked; #75 built; #105 built; #104 measured and fixed; #51 built; follow-ups spoken; #73 built; #49's Japanese strings all accepted; #50's
 catalogue string read; #43, #44, #45, #46, #47, #48, #49, #50 and #74 built; #42 closed; #55 and #56 on 2026-09-30)
 
