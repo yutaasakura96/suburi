@@ -15,6 +15,50 @@ first. Written into the docs before any code. Company research (US-16) is cut in
 #134 → #135 → #136, labeled `ready-for-agent`, with #137 (L1) and #138 (L2); the story bank (US-15)
 is #139, labeled `after-2026-10-28` and not ready for agents.
 
+### [2026-10-16] #134: the pinned model can search the web; a call that did not search is read from its output
+
+**Established against primary sources, as R1 asked, before the research call was built.** OpenAI's
+model page for `gpt-5.6-sol` lists `web_search` among its supported tools; the web search guide names
+the Responses API's hosted tool, `tools: [{ type: "web_search" }]`, for new integrations; and the
+installed `openai` 7.20.0 types the tool, the `web_search_call` output item with its `search`,
+`open_page` and `find_in_page` actions, the `url_citation` annotation and the
+`web_search_call.action.sources` include. **So the call searches through the pinned model**, and R1's
+knowledge-only branch is the fallback for a call that does not.
+**Decided:** one call with the tool and `tool_choice: "auto"`, never `"required"`: a required search
+that cannot run would fail the research, which R1 rejected. **A call searched when its output holds a
+`web_search_call` that completed**; that is read from the response, never from what the notes say.
+Every URL the call saw (the search's sources, the pages opened, the cited links) is collected, and a
+link in the notes counts only if the call saw it: the same URL, or a page on a host it saw. A call
+that did not search saw nothing, so its notes are `model knowledge` throughout. Measured the same day
+(`03` §4): 23 of 23 returned calls searched, the invented company's too. Recorded in `03` §4.
+**Rejected:** trusting a link because it looks like one, which is how a model's remembered or
+constructed URL would reach the user labelled as a web source; a second, knowledge-only call after a
+failed search, which doubles a minute's wait for what the same call already falls back to.
+
+### [2026-10-16] #134: an unseen link is dropped and counted; 150 s, no retry; nothing saved and nothing counted as spend
+
+**Decided, building the call (`07` §5.22):**
+- **The check refuses as `malformed_output`** a blank fact or source, a source that is neither an
+  `http(s)` URL nor exactly `model knowledge`, a fact that is a question (R2 rejected interview
+  questions), a role not marked as a guess, empty `what_it_does` or `involves`, and a draft over the
+  role-context cap (20,000 code points, so the draft as returned can be saved by #135).
+- **A well-formed link the call never saw is dropped and counted, not a failed call.** The first
+  measurement refused one call in twelve on that rule when it failed the whole call; after the change
+  the second run of twelve dropped none. A dropped fact is never relabelled `model knowledge`, which
+  it is not. It is the span validator's rule (`11` §3.12): dropped and counted, never clamped.
+- **150 s, one call, no retry**: twice the slowest measured call, 73.4 s (`03` §4). Its bucket is
+  `research`, 6 per 10 minutes, as `rounds`; route `POST /api/role-contexts/research`, beside the
+  save it precedes.
+- **The response is the draft as English text**, sources in brackets, the role under a heading that
+  says it is a guess: one text that Setup shows and #135 saves as `research_draft` exactly as returned.
+- **Two catalogue codes**, `research_posting_exists` (`422`, R4's refusal, with the posting's id) and
+  `research_failed` (`502`), with `ja` and `en` copy as `11` §3.10 requires; Setup renders the `en`.
+  **The two `ja` sentences need a native read.**
+- **Nothing is written, so the call is not in the week's spend** (`12` §6 reads stored token columns).
+  A searching call is about $0.30–0.45 of tokens plus OpenAI's per-search charge. The hard monthly
+  limit still bounds it. Whether research should leave a row of counts, as the English reading does,
+  is open for #135 or the owner.
+
 ### [2026-10-16] Q0: company research next, the story bank after 2026-10-28
 
 **Asked:** what to plan and build after English help (#106). **Answered: "A Company research, then

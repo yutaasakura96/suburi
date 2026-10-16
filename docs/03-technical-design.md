@@ -187,7 +187,9 @@ note is stated as pending with a retry. The bound comes from the latency measure
 
 Six text jobs on one pinned model, and three more on models of their own — and, decided for #106, two
 small text jobs for English help on the same pinned model (`06`, 2026-10-14): the question's English
-by script, built by #123 (`lib/ai/translate-question.ts`), and the English reading, built by #126 (`lib/ai/english-reading.ts`):
+by script, built by #123 (`lib/ai/translate-question.ts`), and the English reading, built by #126 (`lib/ai/english-reading.ts`);
+and, for US-16, company research on the same pinned model with web search, built by #134
+(`lib/ai/research.ts`):
 
 | Job | Model | Latency budget | Stakes |
 | --- | --- | --- | --- |
@@ -201,6 +203,7 @@ by script, built by #123 (`lib/ai/translate-question.ts`), and the English readi
 | Text-to-speech | `gpt-realtime-2.1-mini`, voice `marin`, over the Realtime API (#76; `gpt-4o-mini-tts-2025-12-15` until then, #45) | user is waiting, at ask time | Low — not retained |
 | Embeddings | `text-embedding-3-small`, 1536 dimensions | at question generation | High — the near-duplicate guard (§11) |
 | English reading (#106) | `gpt-5.6-sol` | user is waiting, **on request only**, on a Japanese practice round's correction screen; 30 s, no retry (`07` §5.20) | Low — **never stored**; a reading aid |
+| Company research (#134) | `gpt-5.6-sol`, with the Responses API's hosted `web_search` tool | user is waiting, **on request only**, on Setup before a round; **measured: 50–55 s median, 73.4 s slowest, searching**; 150 s, no retry (`07` §5.22) | Medium — notes the user checks and edits before a round; every fact names its source, and the role is a guess |
 | A question's English, by script (#106) | `gpt-5.6-sol` | **never at round time**: `scripts/translate-questions.mts`, run by hand for questions banked without one and for re-writes | Low — a reading aid, re-writable (`04` `question_translations`) |
 
 **English help adds output to two existing jobs** (`06`, 2026-10-14, Q106-4). In a Japanese round,
@@ -210,6 +213,52 @@ dropped and the question or follow-up kept, so neither call gains a failure. Bot
 and take longer; the #125 measurements below cover round start for 3 to 9 Japanese questions and
 Japanese follow-ups against the then 60 s and 15 s bounds, widened to 90 s and 45 s by #137. The generator's version change is a
 stamp-3 boundary on Progress (`06`).
+
+**Company research (#134): web search is available, established 2026-10-16 against primary sources.**
+OpenAI's model page for `gpt-5.6-sol` lists `web_search` among its supported tools and features, and
+its web search guide gives the Responses API's hosted tool, `tools: [{ type: "web_search" }]`, as the
+path for new integrations. The installed SDK (`openai` 7.20.0) types it (`WebSearchTool`, `type:
+'web_search'`), the `web_search_call` output item and its actions, the `url_citation` annotation and
+the `web_search_call.action.sources` include. So R1's first branch is the one built: the call searches
+through the pinned model, and R1 = C's knowledge-only fallback is the path for a call that does not.
+**How a call that did not search is detected:** from the response, never from the notes. With
+`tool_choice: "auto"` search is optional (the guide's own limitation note), so a call searched only
+when its output holds a `web_search_call` whose `status` is `completed`; none, or only `failed` ones,
+is the fallback. **Every URL the call saw** is collected from the search actions' `sources`, the pages
+opened and the text's `url_citation` annotations, and a link in the notes is kept only if the call saw
+it, as the same URL or a page on a host it saw; a call that did not search saw nothing, so its notes
+are `model knowledge` throughout (`07` §5.22). **Rate limits:** web search uses the model's own tiered
+limits, and a searching call reads 60,000–87,000 input tokens, so research calls run back to back can
+meet a `429` (below).
+
+**Company research, measured 2026-10-16 (#134)** with `scripts/measure-research.mts`: the real port
+and `research-1.0`, from the development machine, against three public companies, one written in
+Japanese, and one invented company no search can find. Two runs, three and five passes; the second
+after the unseen-link rule became drop-and-count. 23 calls returned; the table is the second run's
+12, the first run's slowest beside it.
+
+| Company | n | median | p90 | slowest | tokens in / out | searched | web / `model knowledge` facts | first run's slowest |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Mercari, SRE (`en`) | 3 | 50.0 s | 50.2 s | 50.2 s | 66,805 / 3,029 | 3 of 3 | 33 / 0 | **73.4 s** |
+| トヨタ自動車株式会社, データエンジニア | 3 | 54.5 s | 64.6 s | 67.1 s | 61,134 / 3,386 | 3 of 3 | 26 / 0 | 58.5 s |
+| Rakuten Group, Backend Engineer | 3 | 50.7 s | 59.0 s | 61.0 s | 65,067 / 3,348 | 3 of 3 | 31 / 0 | 62.1 s |
+| 株式会社ミナトハ架空商事 (invented), 経理マネージャー | 3 | 9.3 s | 9.9 s | 10.1 s | 5,367 / 490 | 3 of 3 | 0 / 11 | 9.3 s |
+
+- **Every call searched**, the invented company included: its search found nothing, and its notes
+  said so, labelled `model knowledge`. A real company's notes are almost all web-sourced.
+- **The second run dropped no link.** In the first, one call of twelve was refused for a link the
+  call had not seen, when that refused the whole call; a minute's research is not lost to one line, so
+  such a fact is now dropped and counted (`dropped_links` in the log line) and the rest kept. A diagnostic
+  of four more calls saw every link's host.
+- **The timeout is 150 s, twice the slowest call (73.4 s)**, one call and no retry, inside the route's
+  300 s. The user is on Setup with nothing else in hand, and a retry would double a minute's wait.
+- **Eight calls of the second run were refused `429`** in a second each, while a diagnostic and a dev
+  server ran research beside the script: the tier's token rate, which a single user researching one
+  company at a time does not meet. They are a failure the user sees as `research_failed` and asks
+  again; the route's own bucket (6 per 10 minutes) is far below what the tier refuses.
+- **Spend:** a searching call is about $0.30–0.45 of tokens at `03` §6's prices, plus OpenAI's
+  per-search charge. Research writes no row, so the week's spend signal (`12` §6), which reads stored
+  token columns, does not count it; the hard monthly limit still bounds it (`06`, 2026-10-16, #134).
 
 **Japanese follow-up generation, measured 2026-10-15 (#125)** with `scripts/measure-follow-up-ja.mts`:
 the real port and `follow-up-ja-1.1`, five runs of three invented answers of about one, two and three

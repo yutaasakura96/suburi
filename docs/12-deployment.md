@@ -526,7 +526,8 @@ logs, Sentry, and the status page the cron routes write (§6).
 **Never:** transcript text, corrected text, **CV document text**, CV text or claim text, **a document's
 `source_filename`**, company notes, prompt bodies, model response bodies, salary expectations, **the
 text sent for an English reading or the reading returned** (#106; a transcript and a model response,
-named so the route's logging is not written from the general rule alone). A
+named so the route's logging is not written from the general rule alone), **a research's company
+name, role title and notes, drafted or edited** (#134; company notes, named for the same reason). A
 rejected span's sliced text is CV text and is on this list; `spans_rejected` is a count, and a count is
 all that is ever logged or shown about it (§6). **Logs and reports carry ids, counts, durations and error
 classes** — nothing else. `07` §2 applies the same rule to `error.detail`, and `11` §3.10 tests it with

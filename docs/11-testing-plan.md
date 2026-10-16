@@ -638,6 +638,29 @@ Against real Postgres, with the model mocked.
 - **The setting is a starting state, never a gate around Q106-2**: with English help on, a realistic
   round's reads are exactly as above.
 
+### 3.27 Company research (#134)
+
+Decided 2026-10-16 (`06`, "Phase 6 — after English help …", R1 to R5). The call is `07` §5.22.
+
+- **The output check, `lib/ai/research.test.ts`:** a fact with a blank text or source, a source that
+  is neither an `http(s)` URL nor exactly `model knowledge`, a fact that is a question, a role not
+  marked as a guess, no fact on what the company does or what the role involves, and a draft over
+  the role-context cap are each `malformed_output`. A well-formed link the call never saw is dropped
+  and counted, never relabelled, and **a call that did not search keeps `model knowledge` facts
+  only**. Whether a call searched is read from its `web_search_call` items, against a mocked
+  Responses API.
+- **The route, `lib/round/research.integration.test.ts`, against real Postgres with the model faked:**
+  it returns the draft and **writes nothing** — no `role_contexts` row, and no table holds the
+  request's or the draft's sentinel text; no log line does either. A saved posting for the same job,
+  as written or differing only by `NFKC`, spacing and case, is `422 research_posting_exists` naming it,
+  **before any model call**; the same company under another title, or another user's posting, is
+  researched. Blank, missing, over-long and unknown fields are `400`s before the model; its own
+  bucket answers `429` past 6, before the body is read; a failed call is `502 research_failed` with
+  the error class only, once; a call past 150 s is `upstream_timeout`.
+- **`e2e/research.spec.ts`:** the production build's real port against the mocked Responses API — the
+  draft back, the web search tool asked for, and nothing saved. The posting-wins refusal is the
+  integration test's: a posting saved here would reach `e2e/setup.spec.ts`, which starts with none.
+
 ## 4. End-to-end, in Playwright
 
 Chromium, fake media device, S3 PUT and OpenAI intercepted. What this pass exists to catch is the

@@ -42,6 +42,7 @@ export default defineConfig([
       "scripts/measure-question-generation.mts",
       "scripts/measure-model-answers.mts",
       "scripts/measure-follow-up-ja.mts",
+      "scripts/measure-research.mts",
       "scripts/ear-check.mts",
       "lib/config.ts",
       "instrumentation-client.ts",
