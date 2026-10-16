@@ -5,7 +5,7 @@ import { syntheticId } from "./seed-rounds.ts";
 
 // The synthetic research for Neon `develop` and local (docs/12-deployment.md §1; #135): one saved
 // `researched` role context, its draft as the research route returns one and its notes as a user
-// edited them, so the two differ where Setup and History can show it. An invented company, and
+// edited them, so the two differ for Setup's research card (#136). An invented company, and
 // fixtures, never a model call. **Never seeded on `main`**: `db:seed` does not call this.
 
 type Db = Pick<NodePgDatabase, "execute">;

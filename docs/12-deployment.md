@@ -147,8 +147,8 @@ never practised and pairs at four different intervals.
 (`db/seed-research.ts`): a `researched` role context for an invented company, Kitahama Parcel K.K.,
 Backend Engineer, whose `research_draft` is built by the research route's own `researchDraft` from
 fixture notes and whose `body` is that draft as a user edited it — one line cut, the role's guess
-corrected — so the two differ where a screen can show it. No round is seeded on it, so History's and
-Progress's seeded rounds are as above. It is English, so nothing new is written in Japanese.
+corrected — so the two differ for Setup's research card when #136 adds it. No round is seeded on it,
+so History's and Progress's seeded rounds are as above. It is English, so nothing new is written in Japanese.
 `db:seed` is unchanged.
 
 **Two things changed for every seeded round, and both only reach a database seeded after #51**, since

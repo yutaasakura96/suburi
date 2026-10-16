@@ -543,8 +543,8 @@ user**: a second `general` request returns the existing row with `200`, never a 
 **A posting's `body` is capped at 20,000 code points** — measured, not guessed, the way the CV's was
 (§5.2, #20; `06`, #47; `03` §4 has the table). Over it is `422 role_context_too_large`, before
 anything is saved, with `detail` carrying `body_chars` and `max_body_chars` and nothing else. The cap
-is one number for both languages, a constant in `lib/round/limits.ts`. It bounds what a round's
-question generation is sent at round start (§5.4), which is the only model call a posting reaches.
+is one number for both languages, a constant in `lib/round/limits.ts`. It bounds the role-context text
+sent to question generation at round start (§5.4) and to model-answer generation (§5.19).
 
 **Not rate-limited and not ⚡**: the route calls no model. **Never logged:** `body`, `research_draft`,
 `company_name`, `role_title`, `source_filename` — log lines carry the row id, the kind and the texts'

@@ -10,8 +10,9 @@ import { getConfig } from "../lib/config.ts";
 
 // Hand-run against Neon `develop` only: `npm run db:seed:develop`. The user row, the synthetic CV in
 // each language, the rubrics and set pieces, the synthetic generated-origin bank questions, the
-// Japanese set pieces' and synthetic questions' hand-written English, the synthetic research Setup
-// picks, and the synthetic rounds History and Progress show (docs/12-deployment.md §1). Production runs `db:seed`, which never writes a CV or a synthetic
+// Japanese set pieces' and synthetic questions' hand-written English, the synthetic research for
+// Setup's research card (#136), and the synthetic rounds History and Progress show
+// (docs/12-deployment.md §1). Production runs `db:seed`, which never writes a CV or a synthetic
 // question. Logs outcomes, never the email or any CV text.
 const { DATABASE_URL_UNPOOLED, ALLOWED_EMAIL } = getConfig();
 const db = drizzle(DATABASE_URL_UNPOOLED);
