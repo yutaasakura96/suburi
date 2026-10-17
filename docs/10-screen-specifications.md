@@ -339,7 +339,8 @@ callout rail above the save button carries the catalogue's English copy for `rol
 
 US-16's card, specified from `05` components (`06`, 2026-10-17, #136; R1 to R5). English chrome (§0)
 whatever the round's language; the notes, company and title are data and shown as written. **It
-supersedes #47's two cards and their label:** everything else in #47 stands.
+supersedes #47's two cards, their label and what is picked when the page opens:** everything else in
+#47 stands.
 
 **The three cards.** `Posting`, `AI research`, `General practice`, in that order, in a
 `repeat(3, 1fr)` grid at `gap: 24px`, the drawn card each. The label's aside reads `Required. The
