@@ -53,13 +53,17 @@ export const SETUP_COPY = {
     practice: "Practice — re-takes, no time limit, each answer's scores once it is scored. Not counted in progress.",
   } as Record<RoundMode, string>,
   roleContext: "Role context",
-  roleContextRequired: "Required. The two are equal.",
+  roleContextRequired: "Required. The three are equal.",
   posting: "Posting",
   postingNone: "Pitch the round at a role you are applying for",
   postingPasted: "Pasted text",
+  research: "AI research",
+  researchNone: "Notes on a company and role, edited before the round",
+  researchPicked: (date: string) => `Researched notes, saved ${date}`,
   general: "General practice",
   generalDetail: "Counted separately in progress",
   savedPostings: "Saved postings",
+  savedResearches: "Saved research",
   addPosting: "Add a posting",
   company: "Company",
   roleTitle: "Role title",
@@ -73,6 +77,31 @@ export const SETUP_COPY = {
   savePostingCommits: "Saving fixes this posting as it is. It cannot be edited afterwards — a changed posting is saved as a new one.",
   savingPosting: "Saving the posting.",
   cancel: "Cancel",
+  // 10 §2, US-16: the research card. English whatever the round's language (R5, 10 §0).
+  newResearch: "Research a company",
+  runResearch: "Research this role",
+  runResearchCommits:
+    "Writes English notes on the company and on what the role most likely involves. Nothing is saved until you save the notes.",
+  researching: "Researching the company and the role.",
+  researchingHint: "Please wait. The notes appear here by themselves; this can take up to three minutes.",
+  notes: "Notes",
+  notesExplained:
+    "Each fact ends with its source in brackets: a link, or model knowledge. The role part is a guess, not from a posting. Fix or remove anything wrong — what you save is what the questions are written from.",
+  notesLinks: "Links in the notes",
+  saveResearch: "Save these notes",
+  saveResearchCommits:
+    "Saving fixes these notes as they are, with the draft as it was written kept beside them. Saved research is never edited — changed notes are saved as a new research.",
+  savingResearch: "Saving the notes.",
+  // `role_context_too_large`'s catalogue sentence names the posting (06, #135); the notes say their own.
+  notesTooLong: "The notes are too long. Shorten them and save again.",
+  // R4: the same company under another title. Asked before anything is researched.
+  sameCompanyAsk: (company: string, titles: readonly string[]) =>
+    `A posting at ${company} is already saved, for ${titles.join(" and ")}. Is this the same job?`,
+  sameJobYes: (title: string) => `Yes — use ${title}`,
+  sameJobNo: "No — research it",
+  usePosting: "Use that posting",
+  // 10 §2's precedence callout, for a saved research whose job a posting saved since is for.
+  precedencePicked: "A saved posting is for the same company and role as this research. The posting is used.",
   chooseRoleContext: "Choose a role context to start.",
   // 10 §2, PRD §6: said before the round starts, from counts the page already holds.
   // A practice round draws on every generated question, seen or not (07 §5.4), so its count is not

@@ -129,7 +129,12 @@ with its check (`0019_research-save`), the posting-wins refusal shared with the 
 round start reading the edited notes where a posting's text goes, never the draft, with no generator
 prompt change and so no stamp-3 boundary (`06`, 2026-10-17). The `develop` seed gains one research.
 No new Japanese string. Migration `0019` is not yet applied to either Neon branch.
-**Updated:** 2026-10-17 (#135 built); 2026-10-16 (#134 built; after English help planned: #134–#139; #127 built; #126 built; #125 re-measured); 2026-10-15 (#125 built; #124 built; #123 built; #122 built; #122–#127 confirmed); 2026-10-14 (#106 and #107 planned; #76 built; #85 built; #83 checked; #75 built; #105 built; #104 measured and fixed; #51 built; follow-ups spoken; #73 built; #49's Japanese strings all accepted; #50's
+**#136, Setup's research card, is built (2026-10-17), on `fm/suburi-136`** (`10` §2, "Role context,
+as built (#136)"): three equal cards; a research run with a wait line, its notes edited in a box and
+saved beside the draft; saved researches picked again newest first; a saved posting wins on the
+routes' own comparison, now in `lib/round/job-name.ts`; the newest saved context of either kind
+picked when Setup opens (`06`, 2026-10-17). English only: no new Japanese string, no migration.
+**Updated:** 2026-10-17 (#136 built; #135 built); 2026-10-16 (#134 built; after English help planned: #134–#139; #127 built; #126 built; #125 re-measured); 2026-10-15 (#125 built; #124 built; #123 built; #122 built; #122–#127 confirmed); 2026-10-14 (#106 and #107 planned; #76 built; #85 built; #83 checked; #75 built; #105 built; #104 measured and fixed; #51 built; follow-ups spoken; #73 built; #49's Japanese strings all accepted; #50's
 catalogue string read; #43, #44, #45, #46, #47, #48, #49, #50 and #74 built; #42 closed; #55 and #56 on 2026-09-30)
 
 ## Done
@@ -430,7 +435,7 @@ production after both (planned 2026-10-16).** The owner answered the scout's que
 day (`06`, "Phase 6 — after English help …"); fake data is fine until the app is built, and building
 comes first. US-16 is three `ready-for-agent` slices:
 [#134](https://github.com/yutaasakura96/suburi/issues/134) the research call, saving nothing, and #135
-saving research with the draft beside the edit are built; #136 adds Setup's `AI research` card. Beside them,
+saving research with the draft beside the edit, and #136 Setup's `AI research` card, are built. Beside them,
 #137 widened the follow-up and round-start timeouts to 45 s and 90 s (L1, built 2026-10-16), and #138 brings English help
 to History detail after #127 (L2). US-15's answers S2 to S5 are recorded on #139, labeled
 `after-2026-10-28`: where the stories come from (S1) is that discussion's, from the CV unless it

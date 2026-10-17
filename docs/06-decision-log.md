@@ -15,6 +15,32 @@ first. Written into the docs before any code. Company research (US-16) is cut in
 #134 → #135 → #136, labeled `ready-for-agent`, with #137 (L1) and #138 (L2); the story bank (US-15)
 is #139, labeled `after-2026-10-28` and not ready for agents.
 
+### [2026-10-17] #136: Setup's research card, the newest saved context picked, the client comparing as the routes do
+
+**Decided, building the card (`10` §2, "Role context, as built (#136)"):**
+- **Three equal cards**, `Posting`, `AI research`, `General practice`, in a `repeat(3, 1fr)` grid,
+  still required, still with no silent default. **The card picked when the page opens is the kind of
+  the newest saved role context**, posting or research, with that one picked: the last thing the user
+  saved is what they most likely came to practise. General practice is still never inherited.
+- **The client compares with the routes' own rule.** `tidyJobName`, `sameCompany` and `sameJob` move
+  to `lib/round/job-name.ts`, which reads no database, so the card and `refuseSamePosting` cannot
+  disagree about the same job. The routes still refuse on their own; the card's comparison only
+  decides what to show first.
+- **A research picked again whose job a posting saved since is for** shows the precedence callout and
+  the round starts on the posting, as R4 says the posting wins. Nothing is rewritten: the research
+  stays a row of its own.
+- **`role_context_too_large` on saving notes says "notes"** in the card's own English sentence, not
+  the catalogue's posting sentence (#135 left this to the card). Every other refusal and timeout —
+  `research_failed`, `research_posting_exists`, `rate_limited`, `write_failed`, the unreachable
+  sentence — is the catalogue's English. **No Japanese string is added:** the card is English chrome
+  (R5, `10` §0), and the drawn Japanese labels stay the artboard's.
+- **The wait line is `05` §5.10's**, one running segment, its hint saying up to three minutes: the
+  route's own cap is 150 s (#134).
+**Rejected:** the posting default kept and research never preselected, which would make a just-saved
+research one more click from every round; a new catalogue code for over-long notes, which would add a
+Japanese string the English card never shows; comparing on the server only, which would research
+first and refuse after a two-minute wait.
+
 ### [2026-10-17] #135: a research is saved beside its draft, read where a posting is, with no prompt change
 
 **Decided, building the save (`07` §5.3, `04` `role_contexts`):**

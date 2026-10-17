@@ -11,9 +11,9 @@ import { companyResearch, startMockOpenAi, type MockOpenAi } from "./mock-openai
 
 // Company research, the call (#134): `POST /api/role-contexts/research` (07 §5.22) through the
 // production build and the real port, against the mocked Responses API (11 §2). Setup's card is
-// #136's; this spec drives the route with the browser's session. It returns the draft and saves
-// nothing. A saved posting for the same job (06, R4) is lib/round/research.integration.test.ts's:
-// e2e/setup.spec.ts, after this one, starts with no posting saved.
+// e2e/setup.spec.ts's (#136); this spec drives the route with the browser's session. It returns the
+// draft and saves nothing. A saved posting for the same job (06, R4) is the integration test's and
+// setup.spec.ts's: setup.spec.ts, after this one, starts with no posting saved.
 
 test.describe.configure({ mode: "serial" });
 

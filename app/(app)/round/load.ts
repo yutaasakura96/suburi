@@ -39,13 +39,15 @@ import type { RoundLanguage, RoundMode, RoundType } from "./copy";
 
 // What the round screens read (10 §2–§8). Server-only; only what a screen shows leaves it.
 
-/** A saved posting as the picker names it (10 §2). Its text stays on the server. */
+/** A saved posting or research as the picker names it (10 §2). Its text stays on the server. */
 export interface PostingOption {
   readonly id: string;
   readonly companyName: string;
   readonly roleTitle: string;
   readonly sourceFilename: string | null;
   readonly date: string;
+  /** When it was saved, as ISO: which of the newest posting and the newest research is newer. */
+  readonly savedAt: string;
 }
 
 /**
@@ -74,6 +76,15 @@ export async function setupFacts(db: Db, userId: string, language: RoundLanguage
 
 /** Every saved posting, newest first (10 §2). A posting is the user's, not a language's. */
 export async function savedPostings(db: Db, userId: string): Promise<PostingOption[]> {
+  return savedRoleContexts(db, userId, "posting");
+}
+
+/** Setup's saved researches (10 §2), picked again the way postings are: newest first, every one. */
+export async function savedResearches(db: Db, userId: string): Promise<PostingOption[]> {
+  return savedRoleContexts(db, userId, "researched");
+}
+
+async function savedRoleContexts(db: Db, userId: string, kind: "posting" | "researched"): Promise<PostingOption[]> {
   const postings = await db
     .select({
       id: s.roleContexts.id,
@@ -83,7 +94,7 @@ export async function savedPostings(db: Db, userId: string): Promise<PostingOpti
       createdAt: s.roleContexts.createdAt,
     })
     .from(s.roleContexts)
-    .where(and(eq(s.roleContexts.userId, userId), eq(s.roleContexts.kind, "posting")))
+    .where(and(eq(s.roleContexts.userId, userId), eq(s.roleContexts.kind, kind)))
     .orderBy(desc(s.roleContexts.createdAt), desc(s.roleContexts.id));
   return postings.map((posting) => ({
     id: posting.id,
@@ -91,6 +102,7 @@ export async function savedPostings(db: Db, userId: string): Promise<PostingOpti
     roleTitle: posting.roleTitle ?? "",
     sourceFilename: posting.sourceFilename,
     date: tokyoDate(posting.createdAt),
+    savedAt: posting.createdAt.toISOString(),
   }));
 }
 

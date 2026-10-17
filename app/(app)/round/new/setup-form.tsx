@@ -9,7 +9,8 @@ import type { ImportResult } from "@/lib/cv/import/extract";
 import { characterLength } from "@/lib/cv/spans";
 import type { DueDefaults } from "@/lib/progress/due";
 import { bankSupply, type BankCounts } from "@/lib/round/bank-supply";
-import { MAX_POSTING_CHARS, MAX_POSTING_NAME_CHARS, MAX_SOURCE_FILENAME_CHARS } from "@/lib/round/limits";
+import { sameJob } from "@/lib/round/job-name";
+import { MAX_POSTING_CHARS, MAX_SOURCE_FILENAME_CHARS } from "@/lib/round/limits";
 import { AppHeader } from "../../app-header";
 import { failureText, postJson, type FailureCode } from "../api";
 import {
@@ -25,16 +26,12 @@ import {
 } from "../copy";
 import type { PostingOption } from "../load";
 import { CalloutRail, caption, sectionLabel } from "../parts";
+import { ResearchForm } from "./research-form";
+import { SavedPicker, capPostingName, field, inert, lineInput, savedOption } from "./setup-parts";
 
 /** The realistic cap, in minutes: the estimate's multiplier (10 §2). The server holds the value. */
 const REALISTIC_CAP_MINUTES = 4;
 const MODES: readonly RoundMode[] = ["realistic", "practice"];
-
-/** §13's box, and the one-line inputs above it. */
-const field =
-  "border border-rule-frame bg-surface px-[14px] py-[12px] font-mono text-[13px] leading-[1.9] text-ink-2 outline-none focus:border-ink-4";
-const lineInput = "border border-rule-frame bg-surface px-[12px] py-[9px] text-[14px] text-ink-1 outline-none focus:border-ink-4";
-const inert = "border-rule-section bg-surface-inert text-ink-8 opacity-100";
 
 /** 10 §2: tab-style options, 15px, the selected one at 500 over a 2px accent underline. */
 function Options<T extends string | number>({
@@ -76,7 +73,7 @@ function Options<T extends string | number>({
   );
 }
 
-/** One of the two equal cards (10 §2): a title over a detail, underlined like an option. */
+/** One of the three equal cards (10 §2): a title over a detail, underlined like an option. */
 function ContextCard({ title, detail, selected, onSelect }: { title: string; detail: string; selected: boolean; onSelect: () => void }) {
   return (
     <button
@@ -87,7 +84,7 @@ function ContextCard({ title, detail, selected, onSelect }: { title: string; det
       className={`flex flex-col gap-[4px] pb-[7px] text-left ${selected ? "border-b-2 border-mark" : "border-b border-rule-section"}`}
     >
       <span className={`text-[14px] ${selected ? "font-medium text-ink-1" : "text-ink-5"}`}>{title}</span>
-      <span className="truncate text-[12px] leading-[1.7] text-ink-6" data-testid="context-card-detail">
+      <span className="line-clamp-2 text-[12px] leading-[1.7] text-ink-6 [overflow-wrap:anywhere]" data-testid="context-card-detail">
         {detail}
       </span>
     </button>
@@ -95,8 +92,6 @@ function ContextCard({ title, detail, selected, onSelect }: { title: string; det
 }
 
 type ImportState = "imported" | "no_text" | "unreadable" | null;
-
-const capPostingName = (value: string) => Array.from(value).slice(0, MAX_POSTING_NAME_CHARS).join("");
 
 /**
  * The add form (10 §2). A posting is pasted, or imported into the box by the CV screen's importer:
@@ -149,13 +144,7 @@ function PostingForm({ onSaved, onCancel }: { onSaved: (posting: PostingOption) 
       setError(saved.code);
       return;
     }
-    onSaved({
-      id: saved.json.id,
-      companyName: saved.json.company_name,
-      roleTitle: saved.json.role_title,
-      sourceFilename: saved.json.source_filename,
-      date: new Date(saved.json.created_at).toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" }),
-    });
+    onSaved(savedOption(saved.json));
   }
 
   return (
@@ -203,39 +192,7 @@ function PostingForm({ onSaved, onCancel }: { onSaved: (posting: PostingOption) 
   );
 }
 
-/** 05 §5.6's selection rail over the saved postings, newest first. No edit, no delete: a changed posting is a new one. */
-function PostingPicker({ postings, picked, onPick }: { postings: readonly PostingOption[]; picked: string | null; onPick: (id: string) => void }) {
-  return (
-    <div role="radiogroup" aria-label={COPY.savedPostings} className="flex max-h-[352px] flex-col overflow-y-auto border-t border-rule-hairline">
-      {postings.map((posting) => {
-        const selected = posting.id === picked;
-        return (
-          <button
-            key={posting.id}
-            type="button"
-            role="radio"
-            aria-checked={selected}
-            onClick={() => onPick(posting.id)}
-            data-testid="posting-row"
-            className="flex shrink-0 items-center gap-[14px] border-b border-rule-hairline py-[11px] text-left"
-          >
-            <span aria-hidden className={`h-[34px] w-[2px] shrink-0 ${selected ? "bg-mark" : "bg-rule-row"}`} />
-            <span className="flex min-w-0 flex-1 items-baseline gap-[12px]">
-              <span className={`truncate text-[14px] ${selected ? "font-medium text-ink-1" : "text-ink-3"}`}>{posting.companyName}</span>
-              <span className="truncate text-[13px] text-ink-4">{posting.roleTitle}</span>
-            </span>
-            <span className="flex shrink-0 items-baseline gap-[12px] font-mono text-[11px] text-ink-label">
-              {posting.sourceFilename ? <span className="max-w-[220px] truncate">{posting.sourceFilename}</span> : null}
-              <span>{posting.date}</span>
-            </span>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-type ContextKind = "posting" | "general";
+type ContextKind = "posting" | "researched" | "general";
 
 export interface SetupFacts {
   readonly cv: { readonly label: string; readonly date: string } | null;
@@ -247,10 +204,12 @@ export interface SetupFacts {
 export function SetupForm({
   facts,
   postings: savedPostings,
+  researches: savedResearches,
   defaults,
 }: {
   facts: Record<RoundLanguage, SetupFacts>;
   postings: readonly PostingOption[];
+  researches: readonly PostingOption[];
   /** What spacing says is due (US-3): where the four choices start, never where they must stay. */
   defaults: DueDefaults;
 }) {
@@ -260,18 +219,24 @@ export function SetupForm({
   const [length, setLength] = useState<(typeof ROUND_LENGTHS)[number]>(defaults.length);
   const [mode, setMode] = useState<RoundMode>(defaults.mode);
   const [postings, setPostings] = useState(savedPostings);
+  const [researches, setResearches] = useState(savedResearches);
   // General practice is never the silent default (10 §2): nothing is chosen until the user chooses,
-  // unless a posting was saved before, in which case the newest is.
-  const [kind, setKind] = useState<ContextKind | null>(savedPostings.length > 0 ? "posting" : null);
+  // unless a posting or a research was saved before, in which case the newest of them is.
+  const [kind, setKind] = useState<ContextKind | null>(() => newestSaved(savedPostings[0], savedResearches[0]));
   const [postingId, setPostingId] = useState<string | null>(savedPostings[0]?.id ?? null);
+  const [researchId, setResearchId] = useState<string | null>(savedResearches[0]?.id ?? null);
   const [adding, setAdding] = useState(savedPostings.length === 0);
+  const [researchOpen, setResearchOpen] = useState(savedResearches.length === 0);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<FailureCode | null>(null);
 
   // What the chosen language's round would be scored against (10 §2, `SCORED AGAINST`), and its bank.
   const { cv, rubricLabel, bank } = facts[language];
   const posting = postings.find((option) => option.id === postingId) ?? null;
-  const contextChosen = kind === "general" || (kind === "posting" && posting !== null);
+  const research = researches.find((option) => option.id === researchId) ?? null;
+  // 10 §2's precedence: a picked research whose job a saved posting is for is not what the round uses.
+  const researchPosting = research ? (postings.find((option) => sameJob(option, research)) ?? null) : null;
+  const contextChosen = kind === "general" || (kind === "posting" && posting !== null) || (kind === "researched" && research !== null);
   const ready = cv !== null && rubricLabel !== null && contextChosen;
 
   // The questions the bank gives this round without generating (07 §5.4); fewer than its length is
@@ -282,10 +247,10 @@ export function SetupForm({
   async function start() {
     setStarting(true);
     setError(null);
-    const context: { ok: true; id: string } | { ok: false; code: FailureCode } =
-      kind === "posting" && posting
-        ? { ok: true, id: posting.id }
-        : await postJson<{ id: string }>("/api/role-contexts", { kind: "general" }).then((result) =>
+    const picked = kind === "posting" ? posting : kind === "researched" ? (researchPosting ?? research) : null;
+    const context: { ok: true; id: string } | { ok: false; code: FailureCode } = picked
+      ? { ok: true, id: picked.id }
+      : await postJson<{ id: string }>("/api/role-contexts", { kind: "general" }).then((result) =>
             result.ok ? { ok: true as const, id: result.json.id } : { ok: false as const, code: result.code },
           );
     const created = context.ok
@@ -309,6 +274,20 @@ export function SetupForm({
     setPostings((current) => [option, ...current]);
     setPostingId(option.id);
     setAdding(false);
+  }
+
+  function researched(option: PostingOption) {
+    setResearches((current) => [option, ...current]);
+    setResearchId(option.id);
+    setResearchOpen(false);
+  }
+
+  // R4: "yes, it is the same job" and the precedence callout both lead to the posting.
+  function pickPosting(id: string) {
+    setKind("posting");
+    setPostingId(id);
+    setAdding(false);
+    setResearchOpen(researches.length === 0);
   }
 
   const startCaption = starting ? (generates ? COPY.startingGenerating : COPY.starting) : contextChosen ? COPY.commits : COPY.chooseRoleContext;
@@ -340,24 +319,57 @@ export function SetupForm({
               <span className={sectionLabel}>{COPY.roleContext}</span>
               <span className="text-[12px] text-ink-6">{COPY.roleContextRequired}</span>
             </legend>
-            <div className="grid grid-cols-2 gap-[24px]" role="radiogroup" aria-label={COPY.roleContext}>
+            <div className="grid grid-cols-3 gap-[24px]" role="radiogroup" aria-label={COPY.roleContext}>
               <ContextCard
                 title={COPY.posting}
                 detail={posting ? (posting.sourceFilename ?? COPY.postingPasted) : COPY.postingNone}
                 selected={kind === "posting"}
                 onSelect={() => setKind("posting")}
               />
+              <ContextCard
+                title={COPY.research}
+                detail={research ? COPY.researchPicked(research.date) : COPY.researchNone}
+                selected={kind === "researched"}
+                onSelect={() => setKind("researched")}
+              />
               <ContextCard title={COPY.general} detail={COPY.generalDetail} selected={kind === "general"} onSelect={() => setKind("general")} />
             </div>
 
             {kind === "posting" ? (
               <div className="flex flex-col gap-[16px]">
-                {postings.length > 0 ? <PostingPicker postings={postings} picked={postingId} onPick={setPostingId} /> : null}
+                {postings.length > 0 ? (
+                  <SavedPicker label={COPY.savedPostings} options={postings} picked={postingId} onPick={setPostingId} testId="posting-row" />
+                ) : null}
                 {adding ? (
                   <PostingForm onSaved={saved} onCancel={postings.length > 0 ? () => setAdding(false) : null} />
                 ) : (
                   <div>
                     <TextButton label={COPY.addPosting} onClick={() => setAdding(true)} />
+                  </div>
+                )}
+              </div>
+            ) : null}
+
+            {kind === "researched" ? (
+              <div className="flex flex-col gap-[16px]">
+                {researches.length > 0 ? (
+                  <SavedPicker label={COPY.savedResearches} options={researches} picked={researchId} onPick={setResearchId} testId="research-row" />
+                ) : null}
+                {researchPosting && !researchOpen ? (
+                  <div data-testid="research-picked-precedence">
+                    <CalloutRail tone="information">{COPY.precedencePicked}</CalloutRail>
+                  </div>
+                ) : null}
+                {researchOpen ? (
+                  <ResearchForm
+                    postings={postings}
+                    onSaved={researched}
+                    onCancel={researches.length > 0 ? () => setResearchOpen(false) : null}
+                    onUsePosting={pickPosting}
+                  />
+                ) : (
+                  <div>
+                    <TextButton label={COPY.newResearch} onClick={() => setResearchOpen(true)} />
                   </div>
                 )}
               </div>
@@ -418,4 +430,12 @@ export function SetupForm({
       </div>
     </section>
   );
+}
+
+/** Which card a returning user finds selected: the kind of whichever was saved last (10 §2). */
+function newestSaved(posting: PostingOption | undefined, research: PostingOption | undefined): ContextKind | null {
+  if (!posting && !research) return null;
+  if (!research) return "posting";
+  if (!posting) return "researched";
+  return research.savedAt > posting.savedAt ? "researched" : "posting";
 }

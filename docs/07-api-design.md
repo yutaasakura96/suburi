@@ -1581,7 +1581,7 @@ POST /api/role-contexts/research
 - `company_name` and `role_title` are required, trimmed, non-blank and at most **200 code points**, as
   a posting's (§5.3); the schema is strict. Otherwise a `400` naming the field.
 - **A saved posting wins** (R4): when the user has a posting whose company name and role title equal
-  the request's after tidying — `NFKC`, whitespace collapsed, case folded (`lib/round/same-job.ts`) —
+  the request's after tidying — `NFKC`, whitespace collapsed, case folded (`lib/round/job-name.ts`) —
   the route answers `422 research_posting_exists` with `detail.role_context_id`, the newest such
   posting, **before any model call**. The same company under another title is researched; Setup asks
   first (`10` §2). Another user's posting is never compared.
