@@ -216,7 +216,7 @@ at weight 500 with `border-bottom: 2px solid var(--accent)` and `padding-bottom:
 | Language | `日本語 · English` | 日本語 |
 | Length | `3問 · 5問 · 7問` | 5問 |
 | Mode | `実戦 · 練習` | 実戦 |
-| Role context | equal cards — two in round one | 求人票・メモ |
+| Role context | three equal cards (two in round one; three since #136) | 求人票・メモ |
 
 **As built (#51): round type and language default to the pair at the top of Home's Due list** (§1,
 US-3) — a pair never practised if there is one, otherwise the pair with the longest interval. Length
@@ -246,7 +246,7 @@ A practice round's frames are §15.
 When both a file and an AI-researched context exist, a `--accent-mid` callout rail states the
 precedence: `求人票とAI調査の両方があります。ファイルを優先して使います。`
 
-**Round one draws two cards, not three** (`06`, 2026-09-27): the posting and General practice, still
+**Round one drew two cards, not three** (`06`, 2026-09-27; three since #136, below): the posting and General practice, still
 equal, in a `repeat(2, 1fr)` grid. The research card and the precedence callout arrive with US-16.
 **What US-16's card does, decided 2026-10-16** (`06`, R1 to R5; its slice specifies the frames from
 `05` components, as #47 did). The third card, `AI research`, takes a company name and a role title,
@@ -334,6 +334,77 @@ callout rail above the save button carries the catalogue's English copy for `rol
 
 **Picking General practice** needs no form. Its row is created the first time a round starts with it
 (`07` §5.3), as the tracer did.
+
+### Role context, as built (#136)
+
+US-16's card, specified from `05` components (`06`, 2026-10-17, #136; R1 to R5). English chrome (§0)
+whatever the round's language; the notes, company and title are data and shown as written. **It
+supersedes #47's two cards and their label:** everything else in #47 stands.
+
+**The three cards.** `Posting`, `AI research`, `General practice`, in that order, in a
+`repeat(3, 1fr)` grid at `gap: 24px`, the drawn card each. The label's aside reads `Required. The
+three are equal.` A detail line that is too long wraps to two lines and is cut there.
+
+| Card | Detail line |
+| --- | --- |
+| `AI research` | `Researched notes, saved 2026-10-17` for the picked research; `Notes on a company and role, edited before the round` when none is picked |
+
+**What is picked when the page opens** is the kind of the newest saved role context, posting or
+research, with that one picked. With neither saved, nothing is. General practice is never inherited.
+
+**The research picker**, under the cards when `AI research` is selected, is the posting picker's
+§5.6 selection rail over the saved researches: newest first, company then role title, the saved
+date right-aligned, no edit and no delete. Below it `Research a company` opens the research form in
+place; with no research saved the form is already open.
+
+**The research form**, in order:
+
+1. `Company` and `Role title`, the posting form's one-line inputs, side by side, cut at 200 code
+   points as typed.
+2. An **outline** button `Research this role`, inert until both are non-blank, with the caption
+   `Writes English notes on the company and on what the role most likely involves. Nothing is saved
+   until you save the notes.` `Cancel` beside it when a research is already saved.
+3. While the route runs (`07` §5.22, up to 150 s): `05` §5.10's wait line, `Researching the company
+   and the role.` over `Please wait. The notes appear here by themselves; this can take up to three
+   minutes.`, one running segment. The names and the button are disabled.
+4. The notes: a `Notes` label, the line `Each fact ends with its source in brackets: a link, or model
+   knowledge. The role part is a guess, not from a posting. Fix or remove anything wrong — what you
+   save is what the questions are written from.`, then the draft in §13's box, sixteen rows,
+   vertically resizable and editable. The draft's own heading says the role part is a guess. Under
+   the box the posting's count against the cap; over the cap the save goes inert. Under the count,
+   `Links in the notes`: each `[https://…]` source once, a link opening in a new tab. A draft written
+   from model knowledge alone has no links and no list.
+5. An **outline** button `Save these notes`, inert while the box is blank or over the cap, with the
+   caption `Saving fixes these notes as they are, with the draft as it was written kept beside them.
+   Saved research is never edited — changed notes are saved as a new research.` While saving:
+   `Saving the notes.`, and the box and both controls disabled. `Cancel` beside it closes the form,
+   or, with no research saved, empties it. The save sends the names as the route trimmed them, the
+   box as `body` and the draft exactly as returned as `research_draft` (`07` §5.3).
+
+**After a save** the form closes and the new research is at the top of the picker and picked.
+
+**A saved posting wins** (R4). The card compares as the routes do, the same rule in
+`lib/round/job-name.ts`:
+
+- **The same job** — company and title equal after tidying — shows, as the names are typed, an
+  `--accent-mid` callout rail with the catalogue's `research_posting_exists` sentence, `A saved
+  posting is for this company and role. It is used, and no research is run.`, and under it the text
+  control `Use that posting`, which selects `Posting` with that posting picked. `Research this role`
+  is not shown.
+- **The same company under another title**: pressing `Research this role` researches nothing yet and
+  asks, `A posting at Invented Freight is already saved, for Backend Engineer. Is this the same
+  job?`, over one text control per such posting, `Yes — use Backend Engineer`, which picks it as
+  above, and `No — research it`, which researches. Changing either name withdraws the question.
+- **A research picked again whose job a posting saved since is for** shows the callout rail `A saved
+  posting is for the same company and role as this research. The posting is used.`, and the round
+  starts on the posting.
+
+**On failure** nothing was saved and the form keeps its contents. An `--attention-mark` callout rail
+above the buttons carries the catalogue's English for the research route's refusals and timeout
+(`research_failed`, `research_posting_exists`, `rate_limited`, `invalid_request`) and the save's
+(`research_posting_exists`, `write_failed`, `invalid_request`), or the unreachable sentence — except
+`role_context_too_large` on the save, whose catalogue sentence names the posting: the card says `The
+notes are too long. Shorten them and save again.`
 
 ### The bank-exhausted warning (#47)
 

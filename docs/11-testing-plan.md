@@ -659,7 +659,11 @@ Decided 2026-10-16 (`06`, "Phase 6 — after English help …", R1 to R5). The c
   the error class only, once; a call past 150 s is `upstream_timeout`.
 - **`e2e/research.spec.ts`:** the production build's real port against the mocked Responses API — the
   draft back, the web search tool asked for, and nothing saved. The posting-wins refusal is the
-  integration test's: a posting saved here would reach `e2e/setup.spec.ts`, which starts with none.
+  integration test's and Setup's card's (§4, "Research card"): a posting saved here would reach
+  `e2e/setup.spec.ts`, which starts with none.
+- **The same-job rule, `lib/round/job-name.test.ts`:** the client's comparison and the routes' are one
+  function — `NFKC`, spacing and case apart, the same job; another title, the same company only;
+  `Rakuten` and `楽天`, two companies.
 
 ### 3.28 Saving research (#135)
 
@@ -698,6 +702,7 @@ wiring between screens that no unit test sees.
 | Rejected upload | For each refusal — over the size cap, and an unsupported type — the take is still in IndexedDB, the one refusal notice and the typing fallback are shown with no upload retry, and a reload returns to them. In both languages, with the take stored and with IndexedDB unavailable, that notice is the frame's whole text: no retry wording and nothing about the tab. The typed answer is stored on a slot with no key, and the take is still held after it. In practice, a refused answer-again take answered by typing is still held but not offered again: once that answer is sent, a reload opens on its per-answer frame (`06`, 2026-10-07). |
 | Transcription failure | Take kept; both retry **and** the typing fallback are reachable, and a reload returns to them. A typed answer is stored with no transcriber, no pace and no duration, and its take is kept; a retry that succeeds transcribes the same take. After an empty transcript in a realistic round no control records again — at the failure, after a failed retry, after a reload, or with the typing box open — and the answer stays one row and one object; a practice take sent to be transcribed is the same (#83). |
 | Mic denied | With the microphone refused, screen 3 names the fix, no request is made, no answer row exists, and the round's read still asks the same question. |
+| Research card (#136) | `e2e/setup.spec.ts`, with the mock holding then answering `company_research`: three equal cards and none chosen; a research shows the wait line, then the draft in an editable box with its `model knowledge` sources and the role marked as a guess; the edit is saved as `body`, the draft as returned as `research_draft`, and the research is picked, newest first and again on reload; a round started on it is the research's, and the generator is sent the edited notes. **The same job as a saved posting** (spacing and case apart) shows the catalogue's `research_posting_exists` sentence, no research button and no research call, and `Use that posting` picks the posting. **The same company under another title** asks first: yes picks that posting with no call; no researches — a failed call shows the catalogue's `research_failed` sentence, and a refused save the card's own too-long sentence. A research picked again after a posting for its job is saved says the posting is used, and the round starts on the posting. |
 | Spent project | With the mock answering the preflight `429 project_spend_limit_exceeded`, Setup shows the `model_unavailable` sentence, no round is created, and the preflight is asked once. |
 | Transcript editor | The rewrite-magnitude meter moves with edits and its submitted value matches what the server stores. |
 | Screen 7 is not skippable | Realistic mode offers no way past the felt-pressure rating to feedback. **This screen is load-bearing for latency** (`03` §3) as well as for the brief's falsification test — a future "skip" link is a regression in two places at once. |
